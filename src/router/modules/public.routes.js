@@ -1,0 +1,84 @@
+import { withRouteMeta } from "../meta";
+
+export const publicRoutes = [
+  {
+    path: "/",
+    name: "Home",
+    component: () => import("@/views/Home.vue"),
+    meta: withRouteMeta({
+      title: "首页",
+      layout: "public",
+    }),
+  },
+  {
+    path: "/login",
+    name: "Login",
+    component: () => import("@/views/Login.vue"),
+    meta: withRouteMeta({
+      title: "登录",
+      layout: "auth",
+    }),
+  },
+  {
+    path: "/register",
+    name: "Register",
+    component: () => import("@/views/Register.vue"),
+    meta: withRouteMeta({
+      title: "注册",
+      layout: "auth",
+    }),
+  },
+  {
+    path: "/forgot-password",
+    name: "ForgotPassword",
+    component: () => import("@/views/ForgotPassword.vue"),
+    meta: withRouteMeta({
+      title: "忘记密码",
+      layout: "auth",
+    }),
+  },
+  {
+    path: "/mfa-qr-approve",
+    name: "MfaQrApprove",
+    component: () => import("@/views/MfaQrApprove.vue"),
+    meta: withRouteMeta({
+      title: "扫码二次验证",
+      layout: "auth",
+    }),
+  },
+  {
+    path: "/temporary-invites",
+    name: "TemporaryInvites",
+    component: () => import("@/views/TemporaryInvites.vue"),
+    meta: withRouteMeta({
+      title: "临时邀请码",
+      layout: "auth",
+    }),
+  },
+  {
+    path: "/game-roles",
+    redirect: "/admin/dashboard",
+    meta: withRouteMeta({
+      hidden: true,
+    }),
+  },
+  {
+    path: "/changelog",
+    name: "Changelog",
+    component: () => import("@/views/Changelog.vue"),
+    meta: withRouteMeta({
+      title: "更新日志",
+      layout: "public",
+    }),
+  },
+  {
+    path: "/:pathMatch(.*)*",
+    name: "NotFound",
+    component: () => import("@/views/NotFound.vue"),
+    meta: withRouteMeta({
+      title: "页面不存在",
+      layout: "public",
+      hidden: true,
+    }),
+  },
+];

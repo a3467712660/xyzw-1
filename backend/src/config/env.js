@@ -1,0 +1,307 @@
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+import dotenv from "dotenv";
+
+const currentFile = fileURLToPath(import.meta.url);
+const currentDir = path.dirname(currentFile);
+const backendRoot = path.resolve(currentDir, "..", "..");
+const backendEnvPath = path.join(backendRoot, ".env");
+dotenv.config({ path: backendEnvPath });
+
+const resolveBackendPath = (input, fallback) => {
+  const raw = String(input || "").trim();
+  if (!raw) {
+    return fallback;
+  }
+  return path.isAbsolute(raw) ? raw : path.resolve(backendRoot, raw);
+};
+
+const isBlank = (value) => String(value || "").trim().length === 0;
+const parseTrustProxy = (input) => {
+  const raw = String(input || "").trim();
+  if (!raw) {
+    return "loopback, linklocal, uniquelocal";
+  }
+
+  const normalized = raw.toLowerCase();
+  if (["false", "0", "off", "no"].includes(normalized)) return false;
+  if (["true", "1", "on", "yes"].includes(normalized)) return true;
+  if (/^\d+$/.test(raw)) return Number(raw);
+  return raw;
+};
+
+const parseBoolean = (input, fallback = false) => {
+  const raw = String(input || "").trim();
+  if (!raw) return fallback;
+  const normalized = raw.toLowerCase();
+  if (["true", "1", "on", "yes"].includes(normalized)) return true;
+  if (["false", "0", "off", "no"].includes(normalized)) return false;
+  return fallback;
+};
+
+const parseCsv = (input) => String(input || "")
+  .split(",")
+  .map((item) => item.trim())
+  .filter(Boolean);
+const parseOptionalCookieDomain = (input) => {
+  const value = String(input || "").trim();
+  return value.length > 0 ? value : undefined;
+};
+
+const parsePositiveIntInRange = (input, fallback, min, max) => {
+  const value = Number(input);
+  if (!Number.isInteger(value)) return fallback;
+  if (value < min || value > max) return fallback;
+  return value;
+};
+
+const parseFileMode = (input, fallback) => {
+  const raw = String(input || "").trim();
+  if (!raw) return fallback;
+  if (!/^[0-7]{3,4}$/.test(raw)) return fallback;
+  const parsed = Number.parseInt(raw, 8);
+  if (!Number.isInteger(parsed) || parsed < 0 || parsed > 0o7777) {
+    return fallback;
+  }
+  return parsed;
+};
+
+const parseSameSite = (input) => {
+  const normalized = String(input || "").trim().toLowerCase();
+  if (normalized === "strict") return "strict";
+  if (normalized === "none") return "none";
+  return "lax";
+};
+
+const JWT_PLACEHOLDERS = new Set([
+  "replace-me-in-production",
+  "replace-with-your-own-long-random-secret",
+  "your-jwt-secret",
+  "jwt-secret",
+]);
+
+const AES_PLACEHOLDERS = new Set([
+  "replace-me-with-32-byte-key-material",
+  "replace-with-your-own-long-random-secret",
+  "your-aes-key",
+  "aes-key",
+]);
+
+const rawJwtSecret = String(process.env.JWT_SECRET || "").trim();
+const rawAesKey = String(process.env.AES_KEY || "").trim();
+const rawCsrfSecret = String(process.env.CSRF_SECRET || rawJwtSecret).trim();
+const defaultCorsOrigins = ["http://localhost:3000", "https://xyzw.xq5007.fun"];
+const defaultCspConnectSrc = [
+  "https://*.hortorgames.com",
+  "wss://*.hortorgames.com",
+];
+const corsOrigins = String(process.env.CORS_ORIGINS || "")
+  .split(",")
+  .map((item) => item.trim())
+  .filter(Boolean);
+const cspConnectSrc = String(process.env.CSP_CONNECT_SRC || "")
+  .split(",")
+  .map((item) => item.trim())
+  .filter(Boolean);
+const dbWriteSafetyParamsTables = parseCsv(process.env.DB_WRITE_SAFETY_PARAMS_TABLES)
+  .map((item) => item.toLowerCase());
+const protectedAdminIdentities = String(process.env.PROTECTED_ADMIN_IDENTITIES || "")
+  .split(",")
+  .map((item) => item.trim().toLowerCase())
+  .filter(Boolean);
+const dbPath = resolveBackendPath(
+  process.env.DB_PATH,
+  path.resolve(backendRoot, "data", "xyzw.sqlite.bin"),
+);
+const binStoragePath = resolveBackendPath(
+  process.env.BIN_STORAGE_PATH,
+  path.resolve(backendRoot, "data", "bin-storage"),
+);
+const backendErrorLogPath = resolveBackendPath(
+  process.env.BACKEND_ERROR_LOG_PATH,
+  path.resolve(backendRoot, "data", "backend-errors.log"),
+);
+const refreshCookieSecure = parseBoolean(
+  process.env.REFRESH_COOKIE_SECURE,
+  (process.env.NODE_ENV || "development") === "production",
+);
+const accessCookieDomain = parseOptionalCookieDomain(process.env.ACCESS_COOKIE_DOMAIN);
+const refreshCookieDomain = parseOptionalCookieDomain(process.env.REFRESH_COOKIE_DOMAIN);
+const csrfCookieDomain = parseOptionalCookieDomain(process.env.CSRF_COOKIE_DOMAIN);
+let refreshCookieSameSite = parseSameSite(process.env.REFRESH_COOKIE_SAMESITE);
+if (refreshCookieSameSite === "none" && !refreshCookieSecure) {
+  refreshCookieSameSite = "lax";
+  // eslint-disable-next-line no-console
+  console.warn("[startup-check] REFRESH_COOKIE_SAMESITE=none requires secure cookie, fallback to lax");
+}
+const csrfCookieSecure = parseBoolean(
+  process.env.CSRF_COOKIE_SECURE,
+  refreshCookieSecure,
+);
+let csrfCookieSameSite = parseSameSite(process.env.CSRF_COOKIE_SAMESITE);
+if (csrfCookieSameSite === "none" && !csrfCookieSecure) {
+  csrfCookieSameSite = "lax";
+  // eslint-disable-next-line no-console
+  console.warn("[startup-check] CSRF_COOKIE_SAMESITE=none requires secure cookie, fallback to lax");
+}
+
+const defaultCsrfCookieName = csrfCookieSecure ? "__Host-xyzw_csrf_token" : "xyzw_csrf_token";
+const defaultCsrfSessionCookieName = csrfCookieSecure ? "__Host-xyzw_csrf_session" : "xyzw_csrf_session";
+const defaultAccessCookieName = refreshCookieSecure ? "__Host-xyzw_access_token" : "xyzw_access_token";
+let csrfCookieName = String(process.env.CSRF_COOKIE_NAME || defaultCsrfCookieName).trim() || defaultCsrfCookieName;
+let csrfSessionCookieName = String(process.env.CSRF_SESSION_COOKIE_NAME || defaultCsrfSessionCookieName).trim()
+  || defaultCsrfSessionCookieName;
+const accessCookieSecure = parseBoolean(process.env.ACCESS_COOKIE_SECURE, refreshCookieSecure);
+let accessCookieSameSite = parseSameSite(process.env.ACCESS_COOKIE_SAMESITE || refreshCookieSameSite);
+if (accessCookieSameSite === "none" && !accessCookieSecure) {
+  accessCookieSameSite = "lax";
+  // eslint-disable-next-line no-console
+  console.warn("[startup-check] ACCESS_COOKIE_SAMESITE=none requires secure cookie, fallback to lax");
+}
+let accessCookieName = String(process.env.ACCESS_COOKIE_NAME || defaultAccessCookieName).trim() || defaultAccessCookieName;
+const refreshCookieName = String(process.env.REFRESH_COOKIE_NAME || "xyzw_refresh_token").trim() || "xyzw_refresh_token";
+const accessCookiePath = String(process.env.ACCESS_COOKIE_PATH || "/").trim() || "/";
+const refreshCookiePath = String(process.env.REFRESH_COOKIE_PATH || "/api/v1/auth").trim() || "/api/v1/auth";
+if (
+  !csrfCookieSecure
+  && (csrfCookieName.startsWith("__Host-") || csrfSessionCookieName.startsWith("__Host-"))
+) {
+  csrfCookieName = "xyzw_csrf_token";
+  csrfSessionCookieName = "xyzw_csrf_session";
+  // eslint-disable-next-line no-console
+  console.warn("[startup-check] __Host- cookie names require secure=true, fallback to non-prefixed csrf cookie names");
+}
+if (!accessCookieSecure && accessCookieName.startsWith("__Host-")) {
+  accessCookieName = "xyzw_access_token";
+  // eslint-disable-next-line no-console
+  console.warn("[startup-check] __Host- access cookie name requires secure=true, fallback to xyzw_access_token");
+}
+if (accessCookieDomain && accessCookieName.startsWith("__Host-")) {
+  throw new Error("ACCESS_COOKIE_DOMAIN cannot be used with __Host- prefixed ACCESS_COOKIE_NAME.");
+}
+if (refreshCookieDomain && refreshCookieName.startsWith("__Host-")) {
+  throw new Error("REFRESH_COOKIE_DOMAIN cannot be used with __Host- prefixed REFRESH_COOKIE_NAME.");
+}
+if (refreshCookieName.startsWith("__Host-") && refreshCookiePath !== "/") {
+  throw new Error("REFRESH_COOKIE_PATH must be '/' when REFRESH_COOKIE_NAME uses __Host- prefix.");
+}
+if (csrfCookieDomain && (csrfCookieName.startsWith("__Host-") || csrfSessionCookieName.startsWith("__Host-"))) {
+  throw new Error("CSRF_COOKIE_DOMAIN cannot be used with __Host- prefixed CSRF cookie names.");
+}
+if (accessCookieName.startsWith("__Host-") && accessCookiePath !== "/") {
+  throw new Error("ACCESS_COOKIE_PATH must be '/' when ACCESS_COOKIE_NAME uses __Host- prefix.");
+}
+
+export const env = {
+  nodeEnv: process.env.NODE_ENV || "development",
+  port: Number(process.env.BACKEND_PORT || 8787),
+  jwtSecret: rawJwtSecret,
+  aesKey: rawAesKey,
+  csrfSecret: rawCsrfSecret,
+  corsOrigins: corsOrigins.length > 0 ? corsOrigins : defaultCorsOrigins,
+  protectedAdminIdentities,
+  trustProxy: parseTrustProxy(process.env.TRUST_PROXY),
+  logRequests: (process.env.LOG_REQUESTS || "true") === "true",
+  dbWriteSafetyLogEnabled: parseBoolean(process.env.DB_WRITE_SAFETY_LOG_ENABLED, true),
+  dbWriteSafetyIncludeSql: parseBoolean(process.env.DB_WRITE_SAFETY_INCLUDE_SQL, false),
+  dbWriteSafetyParamsTables,
+  dbWriteSafetyParamMaxLen: parsePositiveIntInRange(process.env.DB_WRITE_SAFETY_PARAM_MAX_LEN, 120, 32, 4096),
+  dbPath,
+  binStoragePath,
+  backendErrorLogPath,
+  backendErrorLogMaxBytes: parsePositiveIntInRange(
+    process.env.BACKEND_ERROR_LOG_MAX_BYTES,
+    5 * 1024 * 1024,
+    64 * 1024,
+    1024 * 1024 * 1024,
+  ),
+  backendErrorLogMaxFiles: parsePositiveIntInRange(
+    process.env.BACKEND_ERROR_LOG_MAX_FILES,
+    5,
+    1,
+    20,
+  ),
+  backendErrorLogFileMode: parseFileMode(process.env.BACKEND_ERROR_LOG_FILE_MODE, 0o600),
+  backendErrorLogDirMode: parseFileMode(process.env.BACKEND_ERROR_LOG_DIR_MODE, 0o700),
+  accessTokenTtlSeconds: parsePositiveIntInRange(process.env.ACCESS_TOKEN_TTL_SECONDS, 10 * 60, 10 * 60, 15 * 60),
+  accessTokenExposeInBody: parseBoolean(process.env.ACCESS_TOKEN_EXPOSE_IN_BODY, false),
+  accessCookieName,
+  accessCookiePath,
+  accessCookieDomain,
+  accessCookieSecure,
+  accessCookieSameSite,
+  refreshTokenTtlDays: parsePositiveIntInRange(process.env.REFRESH_TOKEN_TTL_DAYS, 14, 7, 30),
+  refreshTokenShortTtlDays: parsePositiveIntInRange(process.env.REFRESH_TOKEN_SHORT_TTL_DAYS, 3, 1, 7),
+  refreshTokenLongTtlDays: parsePositiveIntInRange(process.env.REFRESH_TOKEN_LONG_TTL_DAYS, 14, 7, 30),
+  refreshCookieName,
+  refreshCookiePath,
+  refreshCookieDomain,
+  refreshCookieSecure,
+  refreshCookieSameSite,
+  csrfCookieName,
+  csrfSessionCookieName,
+  csrfCookieDomain,
+  csrfCookieSecure,
+  csrfCookieSameSite,
+  csrfCookieTtlDays: parsePositiveIntInRange(process.env.CSRF_COOKIE_TTL_DAYS, 14, 1, 30),
+  csrfHeaderName: String(process.env.CSRF_HEADER_NAME || "x-csrf-token").trim() || "x-csrf-token",
+  cspConnectSrc: cspConnectSrc.length > 0 ? cspConnectSrc : defaultCspConnectSrc,
+  wechatProxyHortorLoginGuestOnly: parseBoolean(process.env.WECHAT_PROXY_HORTOR_LOGIN_GUEST_ONLY, false),
+  logCleanupTaskControlDays: parsePositiveIntInRange(process.env.LOG_CLEANUP_TASK_CONTROL_DAYS, 30, 1, 3650),
+  logCleanupTaskRunsDays: parsePositiveIntInRange(process.env.LOG_CLEANUP_TASK_RUNS_DAYS, 60, 1, 3650),
+  logCleanupBinDownloadAuditsDays: parsePositiveIntInRange(process.env.LOG_CLEANUP_BIN_DOWNLOAD_AUDITS_DAYS, 90, 1, 3650),
+  logCleanupBinDownloadTicketsDays: parsePositiveIntInRange(process.env.LOG_CLEANUP_BIN_DOWNLOAD_TICKETS_DAYS, 14, 1, 3650),
+  logCleanupReadNotificationsDays: parsePositiveIntInRange(process.env.LOG_CLEANUP_READ_NOTIFICATIONS_DAYS, 90, 1, 3650),
+  logCleanupSecurityEventsDays: parsePositiveIntInRange(process.env.LOG_CLEANUP_SECURITY_EVENTS_DAYS, 180, 1, 3650),
+  logCleanupAdminAuditDays: parsePositiveIntInRange(process.env.LOG_CLEANUP_ADMIN_AUDIT_DAYS, 365, 1, 3650),
+  logCleanupHour: parsePositiveIntInRange(process.env.LOG_CLEANUP_HOUR, 3, 0, 23),
+  logCleanupMinute: parsePositiveIntInRange(process.env.LOG_CLEANUP_MINUTE, 20, 0, 59),
+};
+
+if (isBlank(env.jwtSecret) || JWT_PLACEHOLDERS.has(env.jwtSecret)) {
+  throw new Error(
+    "JWT_SECRET is required in backend/.env and cannot use placeholder values.",
+  );
+}
+
+if (isBlank(env.aesKey) || AES_PLACEHOLDERS.has(env.aesKey)) {
+  throw new Error(
+    "AES_KEY is required in backend/.env and cannot use placeholder values.",
+  );
+}
+
+if (isBlank(env.csrfSecret)) {
+  throw new Error(
+    "CSRF_SECRET is required in backend/.env (defaults to JWT_SECRET if omitted).",
+  );
+}
+
+if (env.nodeEnv === "production" && !env.refreshCookieSecure) {
+  throw new Error("REFRESH_COOKIE_SECURE must be true in production.");
+}
+
+if (env.nodeEnv === "production" && !env.accessCookieSecure) {
+  throw new Error("ACCESS_COOKIE_SECURE must be true in production.");
+}
+
+if (env.nodeEnv === "production" && !env.csrfCookieSecure) {
+  throw new Error("CSRF_COOKIE_SECURE must be true in production.");
+}
+
+if (!fs.existsSync(env.dbPath)) {
+  // eslint-disable-next-line no-console
+  console.warn(
+    `[startup-check] DB_PATH does not exist yet: ${env.dbPath} (a new database file will be initialized on first startup)`,
+  );
+}
+
+if (!fs.existsSync(env.binStoragePath)) {
+  fs.mkdirSync(env.binStoragePath, { recursive: true });
+  // eslint-disable-next-line no-console
+  console.log(`[startup-check] BIN_STORAGE_PATH created: ${env.binStoragePath}`);
+}
+
+if (env.corsOrigins.includes("*")) {
+  throw new Error("CORS_ORIGINS cannot contain '*' when credentials are enabled.");
+}

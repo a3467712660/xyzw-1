@@ -1,0 +1,3358 @@
+{
+  "common": {
+    "bin-file": "bin-file"
+  },
+  "login": {
+    "title": "Game Management System",
+    "subtitle": "An operations console built around efficiency. After signing in, you can directly access role management, task automation, and live data panels.",
+    "cardTitle": "Sign In",
+    "cardDesc": "Enter your account details to continue managing your game operations.",
+    "usernamePlaceholder": "Username or email",
+    "passwordPlaceholder": "Password",
+    "rememberMe": "Remember me",
+    "forgotPassword": "Forgot password",
+    "submit": "Sign In",
+    "otherMethods": "Other sign-in methods",
+    "qqLogin": "QQ Sign In",
+    "wechatLogin": "WeChat Sign In",
+    "noAccount": "Don't have an account?",
+    "registerNow": "Create one now",
+    "tempInviteHint": "Need an invite code?",
+    "viewTempInvites": "View temporary invite codes",
+    "validation": {
+      "usernameRequired": "Please enter your username or email",
+      "passwordRequired": "Please enter your password"
+    },
+    "features": {
+      "roles": {
+        "title": "Multi-role management",
+        "desc": "View role status in one place and switch quickly"
+      },
+      "automation": {
+        "title": "Task automation",
+        "desc": "Run daily tasks in batches and reduce repetition"
+      },
+      "analytics": {
+        "title": "Data analytics",
+        "desc": "See key metrics and progress trends at a glance"
+      },
+      "settings": {
+        "title": "Custom configuration",
+        "desc": "Tailor workflows by playstyle and account"
+      }
+    },
+    "notice": {
+      "title": "Test Notice",
+      "content": "This project is currently in testing. If any feature does not work as expected, please contact the administrator.",
+      "confirm": "Understood"
+    },
+    "messages": {
+      "success": "Signed in successfully",
+      "mfaCodePrompt": "Enter your 2FA code (6 digits) or a recovery code:",
+      "mfaCancelled": "Two-step verification was cancelled",
+      "mfaFailed": "Two-step verification failed",
+      "mfaSuccess": "Two-step verification passed",
+      "rateLimitCooldown": "Too many sign-in attempts. Try again in {seconds} seconds.",
+      "qqPending": "QQ sign-in is under development...",
+      "wechatPending": "WeChat sign-in is under development..."
+    },
+    "mfa": {
+      "title": "Two-step Verification",
+      "totpHint": "Enter the 6-digit code from your authenticator app.",
+      "recoveryHint": "Enter a one-time recovery code (for example: XXXX-XXXX).",
+      "qrHint": "Scan with your phone browser (or WeChat scanner), not your authenticator app. Enter the code on phone, then this page will sign in automatically.",
+      "totpPlaceholder": "Enter 6-digit code",
+      "recoveryPlaceholder": "Enter recovery code",
+      "useRecoveryCode": "Use recovery code",
+      "useAuthenticator": "Use authenticator code",
+      "useQr": "Use QR verification",
+      "useCode": "Use code input",
+      "qrLoading": "Generating QR code...",
+      "qrPending": "Waiting for phone confirmation",
+      "qrExpired": "QR session expired, please refresh",
+      "qrRefresh": "Refresh QR",
+      "backToLogin": "Back to login",
+      "verifySubmit": "Verify and sign in"
+    }
+  },
+  "mfaQrApprove": {
+    "title": "QR Two-step Verification",
+    "desc": "Enter your current verification code on your phone. Desktop sign-in will continue automatically.",
+    "invalidSession": "Session is invalid or expired. Please return to the login page and scan again.",
+    "submit": "Confirm Verification",
+    "success": "Verification completed. Return to desktop to continue."
+  },
+  "forgotPassword": {
+    "kicker": "PASSWORD RECOVERY",
+    "title": "Reset your password with a short-lived code",
+    "subtitle": "If you forgot your password, contact the administrator first to obtain a short-lived verification code. The code is usually valid for a limited time and can only be used once.",
+    "cardTitle": "Reset Password",
+    "cardDesc": "Enter your account details, short-lived code, and new password",
+    "placeholders": {
+      "identity": "Username or email",
+      "shortCode": "Short-lived code (for example: RST-1A2B3C)",
+      "newPassword": "New password (at least 12 characters by default)",
+      "confirmPassword": "Confirm new password"
+    },
+    "steps": {
+      "contactAdmin": "Contact the administrator and provide your username or email",
+      "getCode": "Get the short-lived verification code (example: RST-XXXX)",
+      "reset": "Fill in the form on the right and set a new password"
+    },
+    "actions": {
+      "submit": "Submit Reset",
+      "backToLogin": "Back to Sign In",
+      "register": "Create New Account"
+    },
+    "validation": {
+      "identityRequired": "Please enter your username or email",
+      "shortCodeRequired": "Please enter the short-lived verification code",
+      "newPasswordRequired": "Please enter a new password",
+      "confirmPasswordRequired": "Please confirm the new password",
+      "passwordPolicy": "Password must be at least 12 characters by default (8+ allowed when MFA is enabled) and must not be a common weak password",
+      "passwordMismatch": "The two passwords do not match"
+    },
+    "messages": {
+      "resetFailed": "Password reset failed",
+      "resetSuccess": "Password reset successful"
+    }
+  },
+  "temporaryInvites": {
+    "title": "Temporary Invite Codes",
+    "subtitle": "Automatic temporary invite distribution is disabled.",
+    "empty": "There are no public temporary invite codes available.",
+    "fields": {
+      "expiresAt": "Expires At"
+    },
+    "actions": {
+      "back": "Back",
+      "refresh": "Refresh",
+      "copy": "Copy"
+    },
+    "messages": {
+      "loadFailed": "Failed to load temporary invite codes",
+      "copySuccess": "Invite code copied",
+      "copyFailed": "Copy failed. Please copy manually."
+    }
+  },
+  "dashboard": {
+    "welcome": {
+      "title": "Welcome back, {name}!",
+      "subtitle": "Today is {date}. Let's continue your game management journey.",
+      "defaultPlayer": "Player"
+    },
+    "actions": {
+      "enterGameFeatures": "Open Game Features",
+      "manageTokens": "Manage Tokens"
+    },
+    "quickActions": {
+      "title": "Quick Actions",
+      "items": {
+        "gameFeatures": {
+          "title": "Game Features",
+          "description": "Access all game feature modules"
+        },
+        "addToken": {
+          "title": "Add Token",
+          "description": "Quickly add a new game token"
+        },
+        "websocketTest": {
+          "title": "WebSocket Test",
+          "description": "Test WebSocket connections and game commands"
+        }
+      }
+    },
+    "messages": {
+      "navigateTokenFailed": "Failed to navigate to the token management page"
+    }
+  },
+  "gameFeatures": {
+    "title": "Game Features",
+    "noTokenSelected": "No token selected",
+    "connection": {
+      "title": "Connection Status",
+      "disconnect": "Disconnect",
+      "reconnect": "Reconnect",
+      "websocketStatus": "WebSocket status:",
+      "currentToken": "Current token:",
+      "lastActivity": "Last activity:",
+      "notSelected": "No token selected",
+      "connected": "Connected",
+      "disconnected": "Disconnected"
+    },
+    "messages": {
+      "selectTokenFirst": "Please select a token first",
+      "websocketNotConnected": "WebSocket is not connected. Please establish the connection first.",
+      "teamChallengeStart": "Starting the team challenge...",
+      "arenaTargetFailed": "Failed to fetch arena targets: {message}",
+      "noArenaTarget": "No challengeable arena target was found",
+      "arenaBattleStarted": "Arena battle started",
+      "arenaBattleFailed": "Arena battle failed: {message}",
+      "dailyTasksStart": "Starting the daily task service...",
+      "saltRobotClaim": "Claiming the salt robot reward...",
+      "idleRewardClaim": "Claiming idle-time rewards...",
+      "powerSwitchRun": "Running the power switch...",
+      "clubRankingSignup": "Signing up for club ranking...",
+      "clubCheckin": "Running club check-in...",
+      "towerStart": "Starting the tower challenge...",
+      "notImplemented": "This feature is not implemented yet",
+      "selectOneTokenFirst": "Please select a token first",
+      "websocketConnecting": "Establishing the WebSocket connection...",
+      "websocketConnected": "WebSocket connected successfully",
+      "websocketConnectFailed": "WebSocket connection failed",
+      "websocketDisconnected": "WebSocket connection has been disconnected",
+      "tokenExpiredRefreshing": "The token has expired. Attempting automatic refresh...",
+      "tokenExpiredReimport": "The current token has expired. Please re-import it and try again."
+    }
+  },
+  "adminUsers": {
+    "common": {
+      "dash": "-",
+      "noEmail": "No email set"
+    },
+    "title": "Account Management",
+    "subtitle": "Review accounts, adjust admin permissions, reset passwords, generate short-lived codes, and delete accounts.",
+    "overview": {
+      "totalUsers": "Total Accounts",
+      "adminCount": "Administrators",
+      "localRoleCache": "Local Role Cache"
+    },
+    "status": {
+      "currentUser": "Current Account",
+      "admin": "Admin",
+      "tokenActive": "Active",
+      "tokenExpired": "Expired"
+    },
+    "accountTypes": {
+      "full": "Full",
+      "normal": "Standard"
+    },
+    "fields": {
+      "roleCount": "Roles",
+      "inviteCount": "Invite Codes",
+      "tokenBindLimit": "Token Limit",
+      "createdAt": "Created At",
+      "lastLoginAt": "Last Active",
+      "adminPermission": "Admin Permission",
+      "accountType": "Account Type",
+      "account": "Account",
+      "newPassword": "New Password",
+      "confirmPassword": "Confirm New Password",
+      "targetAccount": "Target Account",
+      "confirmUsername": "Confirm Username",
+      "shortCode": "Short-lived Code",
+      "expiresAt": "Expires At",
+      "boundAt": "Bound At",
+      "tokenId": "Token ID",
+      "roleName": "Role Name",
+      "roleId": "Role ID",
+      "tokenActivationStatus": "Activation Status",
+      "tokenActivationTotal": "Total Bindings",
+      "tokenActivationActive": "Active",
+      "tokenActivationExpired": "Expired",
+      "tableFilteredCount": "Showing {count} account(s)",
+      "tableHint": "Use the search box at top-right to quickly find a username or email",
+      "dateWithRelative": "{date} ({relative})"
+    },
+    "hints": {
+      "currentUserAdminLocked": "The current account cannot revoke its own admin permission",
+      "switchDirectly": "Can be switched directly"
+    },
+    "placeholders": {
+      "newPassword": "At least 12 characters by default (8+ allowed when MFA is enabled), avoid common weak passwords",
+      "confirmPassword": "Enter the new password again",
+      "confirmCurrentPassword": "Enter current admin password",
+      "confirmTotpCode": "Enter 6-digit authenticator code",
+      "confirmRecoveryCode": "Enter one-time recovery code (for example: XXXX-XXXX)",
+      "confirmUsername": "Enter the username above to confirm deletion",
+      "searchUser": "Search by username or email"
+    },
+    "actions": {
+      "refresh": "Refresh",
+      "createResetCode": "Generate Short-lived Code",
+      "resetPassword": "Reset Password",
+      "deleteUser": "Delete Account",
+      "cancel": "Cancel",
+      "confirmReset": "Confirm Reset",
+      "confirmDelete": "Confirm Delete",
+      "close": "Close",
+      "copyResetCode": "Copy Code",
+      "shortCode": "Short-lived Code",
+      "updateTokenBindLimit": "Set Token Limit",
+      "viewTokenExpiry": "View Token Expiry",
+      "more": "More"
+    },
+    "modals": {
+      "resetPassword": {
+        "title": "Reset Password"
+      },
+      "deleteUser": {
+        "title": "Confirm Account Deletion"
+      },
+      "resetCode": {
+        "title": "Short-lived Code"
+      },
+      "tokenActivation": {
+        "title": "Token Expiry Status"
+      },
+      "sensitiveConfirm": {
+        "title": "High-risk Action Confirmation",
+        "confirm": "Confirm"
+      }
+    },
+    "validation": {
+      "passwordPolicy": "Password must be at least 12 characters by default (8+ allowed when MFA is enabled) and must not be a common weak password",
+      "passwordMismatch": "The two passwords do not match",
+      "deleteConfirmMismatch": "Please enter the correct username to confirm deletion",
+      "tokenBindLimit": "Token limit must be an integer between 1 and 999"
+    },
+    "messages": {
+      "confirmPrompt": "Before performing \"{action}\", enter the current admin password for secondary confirmation",
+      "confirmCancelled": "Secondary confirmation was cancelled",
+      "confirmFailed": "Secondary confirmation failed",
+      "confirmSuccess": "Secondary confirmation passed (valid for 5 minutes)",
+      "confirmMethodTotp": "Authenticator code (Recommended)",
+      "confirmMethodRecovery": "Recovery code",
+      "confirmMethodPassword": "Current password (Fallback)",
+      "confirmMfaPreferredHint": "MFA is enabled: use authenticator/recovery first, password is fallback.",
+      "confirmRemaining": "High privilege remaining: {minutes}m {seconds}s",
+      "loadFailed": "Failed to load accounts",
+      "updateAdminFailed": "Failed to update admin permission",
+      "updateAdminSuccess": "Permission updated",
+      "tokenLimitPrompt": "Enter the token limit for {username} (1-999), current: {current}",
+      "updateTokenBindLimitFailed": "Failed to update token limit",
+      "updateTokenBindLimitSuccess": "Token limit updated",
+      "updateAccountTypeFailed": "Failed to update account type",
+      "updateAccountTypeSuccess": "Account type updated",
+      "resetPasswordFailed": "Failed to reset password",
+      "resetPasswordSuccess": "Password has been reset",
+      "deleteFailed": "Failed to delete account",
+      "deleteSuccess": "Account deleted",
+      "createResetCodeFailed": "Failed to generate the short-lived code",
+      "createResetCodeSuccess": "Short-lived code generated",
+      "loadTokenActivationsFailed": "Failed to load token expiry status",
+      "noResetCodeToCopy": "No code available to copy",
+      "resetCodeCopied": "Code copied",
+      "copyFailed": "Copy failed, please copy it manually"
+    },
+    "columns": {
+      "account": "Account",
+      "roleCount": "Roles",
+      "inviteCount": "Invite Codes",
+      "accountType": "Account Type",
+      "tokenBindLimit": "Token Limit",
+      "admin": "Admin",
+      "createdAt": "Created At",
+      "lastLoginAt": "Last Active",
+      "timeSummary": "Time",
+      "actions": "Actions"
+    },
+    "relativeTime": {
+      "justNow": "Just now",
+      "minutesAgo": "{count} minutes ago",
+      "hoursAgo": "{count} hours ago",
+      "daysAgo": "{count} days ago",
+      "weeksAgo": "{count} weeks ago",
+      "monthsAgo": "{count} months ago",
+      "yearsAgo": "{count} years ago"
+    },
+    "empty": "No account data"
+  },
+  "notFound": {
+    "title": "Page Not Found",
+    "description": "Sorry, the page you requested does not exist or has been removed.",
+    "actions": {
+      "home": "Back to Home",
+      "back": "Go Back"
+    }
+  },
+  "changelog": {
+    "title": "Changelog",
+    "description": "View the latest system updates and improvements",
+    "filters": {
+      "versionType": "Version Type:"
+    },
+    "stats": {
+      "totalVersions": "Total Versions",
+      "totalFeatures": "New Features",
+      "totalFixes": "Bug Fixes",
+      "totalImprovements": "Improvements"
+    },
+    "versionTypes": {
+      "all": "All",
+      "major": "Major",
+      "minor": "Minor",
+      "patch": "Patch",
+      "hotfix": "Hotfix"
+    },
+    "empty": "No changelog entries for this type",
+    "subscribe": {
+      "title": "Subscribe to Updates",
+      "description": "Get notified about system updates as soon as they are available"
+    },
+    "actions": {
+      "resetFilter": "Reset Filter",
+      "subscribe": "Subscribe Now",
+      "subscribed": "Subscribed",
+      "broadcastAll": "Publish changelog and notify all accounts",
+      "broadcasting": "Sending..."
+    },
+    "messages": {
+      "subscribed": "Successfully subscribed to update notifications!",
+      "unsubscribed": "Subscription cancelled",
+      "noLatestVersion": "No latest changelog found to send",
+      "broadcastSuccess": "Changelog notification sent to {count} accounts",
+      "broadcastFailed": "Failed to send changelog notification"
+    }
+  },
+  "carTaskCard": {
+    "alt": "Race car",
+    "title": "Club Racing",
+    "ticketsRemaining": "Remaining tickets: {count}",
+    "empty": "No vehicle data",
+    "rewards": "Rewards:",
+    "bigPrizeTag": "[Big Prize]",
+    "bigPrizeBadge": "Contains a big prize!",
+    "actions": {
+      "refresh": "Refresh",
+      "claim": "Claim",
+      "send": "Dispatch",
+      "smartSend": "Smart Dispatch",
+      "claimAll": "Claim All"
+    },
+    "colors": {
+      "common": "Common",
+      "rare": "Rare",
+      "epic": "Epic",
+      "legendary": "Legendary",
+      "mythic": "Mythic",
+      "unknown": "Unknown ({color})"
+    },
+    "status": {
+      "claimable": "Ready to Claim",
+      "sent": "Dispatched",
+      "unsent": "Not Dispatched"
+    },
+    "rewardTypes": {
+      "coin": "Coins: {value}",
+      "ingot": "Ingots: {value}",
+      "item": "{item}: {value}",
+      "other": "Type {type} Item {itemId}: {value}"
+    }
+  },
+  "skinChallengeCard": {
+    "alt": "Skin Challenge",
+    "title": "Skin Challenge",
+    "subtitle": "Challenge stages to earn rewards",
+    "todayChallenge": "Today's attempts {count}/10",
+    "todayAvailable": "Available today: {info}",
+    "activityEnded": "Event ended",
+    "currentActivityEnded": "The current event has ended",
+    "bossTitle": "BOSS {type}",
+    "level": "Level {level}",
+    "status": {
+      "cleared": "Cleared",
+      "locked": "Locked",
+      "active": "Active"
+    },
+    "actions": {
+      "challenge": "Challenge",
+      "refresh": "Refresh Progress",
+      "refreshing": "Refreshing..."
+    },
+    "weekdays": {
+      "sunday": "Sun",
+      "monday": "Mon",
+      "tuesday": "Tue",
+      "wednesday": "Wed",
+      "thursday": "Thu",
+      "friday": "Fri",
+      "saturday": "Sat"
+    },
+    "schedule": {
+      "allOpen": "{day} - All Open",
+      "bossesOpen": "{day} - BOSS {bosses}",
+      "noActivity": "{day} - No Event"
+    },
+    "messages": {
+      "progressRefreshed": "Progress refreshed",
+      "challengeStarted": "Starting challenge for BOSS {type}",
+      "challengeSuccess": "BOSS {type} cleared level {level}",
+      "bossFullyCleared": "BOSS {type} has been fully cleared",
+      "challengeFailed": "BOSS {type} failed on level {level}",
+      "challengeStoppedAfterFailures": "BOSS {type} failed on level {level} 3 times in a row and was stopped",
+      "challengeError": "Challenge error: {message}"
+    }
+  },
+  "studyChallengeCard": {
+    "iconAlt": "Study icon",
+    "title": "Saltfish Knowledge Rush",
+    "subtitle": "Daily knowledge challenge",
+    "badge": "Weekly Task",
+    "description": "Nothing can stop my desire for knowledge!",
+    "actions": {
+      "start": "🎯 Auto Answer"
+    },
+    "status": {
+      "starting": "Loading question bank...",
+      "answering": "Answering...",
+      "claimingRewards": "Claiming rewards...",
+      "completed": "Completed",
+      "doneThisWeek": "✅ Already completed this week"
+    },
+    "messages": {
+      "started": "🚀 Starting auto answer... ({count} questions in the bank)",
+      "alreadyCompleted": "✅ This Saltfish Knowledge Rush has already been completed. No need to answer again!",
+      "timeoutReset": "Answering timed out. The state has been reset automatically.",
+      "startFailed": "Failed to start answering: {error}"
+    },
+    "logs": {
+      "starting": "Starting study challenge",
+      "startFailed": "Failed to start answering:"
+    }
+  },
+  "dreamHelperCard": {
+    "iconAlt": "Dream icon",
+    "title": "Dream Helper",
+    "status": {
+      "running": "Running",
+      "stopped": "Stopped"
+    },
+    "tabs": {
+      "battle": "Battle",
+      "buy": "Purchase"
+    },
+    "labels": {
+      "currentTeam": "Current Team",
+      "merchantList": "Items",
+      "unknownItem": "Unknown item ({index})"
+    },
+    "actions": {
+      "stop": "Stop",
+      "continuousBattle": "Continuous Battle",
+      "getTeam": "Get Team",
+      "selectLineup": "Select Lineup",
+      "stopAll": "Stop All",
+      "getItems": "Get Items",
+      "buyAllGold": "Buy All Gold Items",
+      "buyAllGoldFish": "Buy All Premium Merchant Rods",
+      "start": "Start Dream Helper"
+    },
+    "messages": {
+      "notOpen": "The dream mode is not open right now (Wed/Thu/Sun/Mon only)",
+      "selectTokenFirst": "Please select a token first",
+      "teamLoaded": "Team info loaded successfully",
+      "teamExtractFailed": "Unable to extract team data",
+      "getDefaultFailed": "Failed to get default team info: {error}",
+      "getTeamFirst": "Please load the default team first",
+      "noHeroes": "There are no heroes in the team",
+      "lineupSelected": "Dream lineup selected successfully",
+      "selectLineupFailed": "Failed to select dream lineup: {error}",
+      "continuousBattleStarted": "{hero} started continuous battle",
+      "continuousBattleStopped": "{hero} stopped continuous battle",
+      "allBattlesStopped": "All continuous battles have been stopped",
+      "selectItemsFirst": "Please select items to buy first",
+      "levelTooLow": "Level is below 4000, so gold items cannot be purchased",
+      "batchBuyDone": "Batch purchase finished: {success} succeeded, {fail} failed",
+      "quickBuyDone": "Quick purchase finished: {success} succeeded, {fail} failed",
+      "startMerchantFlow": "Starting automatic merchant list flow...",
+      "merchantLoaded": "Merchant list loaded",
+      "merchantLoadFailed": "Failed to load merchant list: {error}",
+      "running": "Dream helper is running",
+      "done": "Dream helper finished"
+    },
+    "logs": {
+      "extractDefaultFailed": "Failed to extract default info:",
+      "getRoleInfoFailed": "Failed to get role info:",
+      "buyItemFailed": "Failed to buy item:"
+    }
+  },
+  "monthlyTasksCard": {
+    "iconAlt": "Monthly tasks",
+    "title": "Monthly Tasks",
+    "subtitle": "Progress and one-click catch-up",
+    "badge": {
+      "remainingDays": "{days} day(s) left",
+      "lastDay": "Last day of this month"
+    },
+    "rows": {
+      "fish": "Fishing Progress",
+      "arena": "Arena Progress",
+      "arenaClosed": "(Currently outside active hours)"
+    },
+    "actions": {
+      "refresh": "Refresh Progress",
+      "refreshing": "Refreshing...",
+      "toppingUp": "Catching up...",
+      "fishTopUp": "Catch Up Fishing",
+      "arenaTopUp": "Catch Up Arena",
+      "completeAll": "Complete All"
+    },
+    "description": "Catch-up rule: align the current day ratio with the completion ratio. If there are no remaining days, use the full target ({fishTarget}/{arenaTarget}).",
+    "messages": {
+      "selectTokenFirst": "Please select a token first",
+      "connectWsFirst": "Please establish a WS connection first",
+      "progressUpdated": "Monthly task progress updated",
+      "fetchFailed": "Failed to fetch monthly tasks: {error}",
+      "alreadyOnTrack": "Current progress is already on track. No catch-up needed.",
+      "alreadyComplete": "Already full. Nothing to complete.",
+      "freeFishDetected": "Detected today's free fishing attempts. Starting to use 3 of them.",
+      "freeFishDone": "Today's target has already been completed with free attempts.",
+      "paidFishStart": "Starting paid fishing catch-up: {count} total attempt(s) needed (max 10 each time)",
+      "fishFailed": "Fishing failed: {error}",
+      "fishDone": "Fishing catch-up completed",
+      "fishStopped": "Fishing catch-up stopped before reaching the target",
+      "arenaClosed": "Arena is closed. Please operate between 6:00 and 22:00.",
+      "arenaRound": "Arena catch-up round {round}: planning {count} fight(s) (estimated +2 per win)",
+      "arenaTargetFailed": "Failed to fetch arena targets: {error}",
+      "noArenaTarget": "No available arena target was found. This round has been stopped.",
+      "arenaFightFailed": "Arena fight failed: {error}",
+      "arenaDone": "Arena catch-up completed",
+      "arenaSafetyStop": "Safety limit reached. Arena catch-up has been stopped.",
+      "arenaStopped": "Arena catch-up stopped before reaching the target"
+    }
+  },
+  "tenHallTeamBattleCard": {
+    "iconAlt": "Ten Hall icon",
+    "title": "Ten Hall Trial",
+    "subtitle": "Search, apply for, create, manage lineups, and start team battles",
+    "common": {
+      "unknownError": "Unknown error",
+      "failed": "Failed"
+    },
+    "status": {
+      "connected": "Connected",
+      "disconnected": "Disconnected"
+    },
+    "summary": {
+      "connectionStatus": "Connection Status",
+      "myTeamId": "My Team ID",
+      "roomId": "Room ID",
+      "currentStage": "Current Stage",
+      "stageValue": "Stage {value}",
+      "teamSize": "Team Size"
+    },
+    "panels": {
+      "teamDetails": "Team Details",
+      "myTeam": "My Team",
+      "lineupAndFight": "Lineup & Battle",
+      "realtimeLogs": "Realtime Logs"
+    },
+    "sections": {
+      "recommendedTeams": "Recommended Teams",
+      "applyList": "Applications",
+      "lineupTemplates": "Lineup Templates"
+    },
+    "fields": {
+      "teamName": "Team Name",
+      "allowApply": "Allow Applications",
+      "secretOnly": "Invite Only"
+    },
+    "placeholders": {
+      "teamId": "Enter team ID",
+      "teamName": "Team name",
+      "selectFormation": "Select formation",
+      "templateName": "Template name (auto-generate if empty)",
+      "selectTemplate": "Select lineup template",
+      "selectFighter": "Select which member will fight"
+    },
+    "actions": {
+      "search": "Search",
+      "refreshRecommended": "Refresh Recommended",
+      "createTeam": "Create Team",
+      "apply": "Apply",
+      "applyJoin": "Apply to Join",
+      "saveSettings": "Save Settings",
+      "startTrial": "Start Trial",
+      "stop": "Stop",
+      "dismiss": "Dismiss",
+      "approve": "Approve",
+      "readCurrentLineup": "Read Current Lineup",
+      "switchFormation": "Switch Formation",
+      "syncLineup": "Sync to Ten Hall",
+      "saveTemplate": "Save Current Lineup as Template",
+      "syncTemplateToPhone": "Sync Template to Mobile",
+      "applyTemplate": "Apply Template",
+      "exchangeByTemplate": "Lossless Hero Swap by Template",
+      "deleteTemplate": "Delete Template",
+      "setFighter": "Set as Fighter",
+      "prepare": "Prepare",
+      "startFight": "Start Fight",
+      "clear": "Clear"
+    },
+    "empty": {
+      "recommendedTeams": "No recommended teams yet. Try search or create first.",
+      "applyList": "No applications",
+      "lineup": "No lineup loaded"
+    },
+    "labels": {
+      "teamFallback": "Team {id}",
+      "teamMeta": "ID: {id} · Server: {serverId}",
+      "roleMeta": "{roleId} · Power {power}",
+      "position": "Slot {value}",
+      "unset": "Unset",
+      "templateFallback": "Template {id}",
+      "templateAutoName": "Lineup Template {value}",
+      "formation": "Formation {value}",
+      "heroFallback": "Hero {id}",
+      "heroOption": "{name} (Lv.{level})"
+    },
+    "defaults": {
+      "myTeam": "My Team"
+    },
+    "dialogs": {
+      "exchangeTitle": "Confirm Lossless Hero Swap by Template",
+      "exchangeContent": "The following swaps will be executed:\n{preview}",
+      "confirm": "Confirm",
+      "cancel": "Cancel"
+    },
+    "messages": {
+      "selectTokenFirst": "Please select a token first",
+      "wsDisconnected": "WebSocket is disconnected",
+      "enterTeamId": "Please enter a team ID",
+      "searchSuccess": "Team search succeeded",
+      "searchFailed": "Search failed: {error}",
+      "recommendPending": "The recommended team command is not confirmed yet. Please capture the request first ({error})",
+      "createAttempted": "Team creation was attempted",
+      "createPending": "The create command is not confirmed yet. Please capture the request first ({error})",
+      "applySent": "Application sent",
+      "applyFailed": "Application failed: {error}",
+      "noTeamId": "There is no current team ID",
+      "settingsSaved": "Team settings saved",
+      "settingsSaveFailed": "Failed to save settings: {error}",
+      "applyApproved": "Application approved",
+      "applyApproveFailed": "Failed to approve application: {error}",
+      "teamTooSmall": "The team must have more than 2 members before starting the trial",
+      "trialStarted": "Trial start request sent",
+      "trialStartFailed": "Failed to start the trial: {error}",
+      "trialStopped": "Trial stopped",
+      "stopFailed": "Failed to stop: {error}",
+      "teamDismissed": "Team dismissed",
+      "dismissFailed": "Failed to dismiss the team: {error}",
+      "templateSyncedFromCloud": "Lineup templates synced from the cloud",
+      "templateCloudReadFailed": "Failed to read cloud templates: {error}",
+      "loginBeforeSync": "Please log in before syncing templates to mobile",
+      "templateSyncedToPhone": "Lineup templates synced to mobile",
+      "templateSyncFailed": "Failed to sync templates: {error}",
+      "emptyLineupCannotSave": "The current lineup is empty and cannot be saved as a template",
+      "templateSaved": "Lineup template saved",
+      "selectTemplateFirst": "Please select a template first",
+      "templateMissing": "Template does not exist",
+      "templateApplied": "Template applied. You can now sync it to Ten Hall if needed.",
+      "templateAlreadyMatched": "The current lineup already matches the template. No hero swap is needed.",
+      "exchangeSucceeded": "Lossless hero swap by template completed ({count} swap(s)). Sync to Ten Hall manually if needed.",
+      "exchangeFailed": "Lossless hero swap failed: {error}",
+      "templateDeleted": "Template deleted",
+      "lineupReadPartial": "Formation {formation} loaded with {count} valid hero(es)",
+      "lineupReadSuccess": "Formation {formation} loaded",
+      "lineupReadFailed": "Failed to load formation: {error}",
+      "switchSucceeded": "Switched to formation {teamId}",
+      "switchFailed": "Failed to switch formation: {error}",
+      "readLineupFirst": "Please load a lineup first",
+      "invalidLineupCount": "The lineup must contain 5 valid heroes. Current count: {count}",
+      "duplicateHeroes": "The lineup contains duplicate heroes. Please review it and try again.",
+      "lineupSynced": "Ten Hall lineup synced",
+      "lineupSyncFailed": "Failed to sync lineup: {error}",
+      "selectRoomMemberFirst": "Please select a room member first",
+      "fighterSet": "Fighter set successfully",
+      "setFighterFailed": "Failed to set fighter: {error}",
+      "prepareSent": "Prepare request sent",
+      "prepareFailed": "Prepare failed: {error}",
+      "fightStarted": "Battle started",
+      "fightFailed": "Battle start failed: {error}"
+    },
+    "logs": {
+      "commandSent": "Sent {cmd}",
+      "powerEstimate": "Ten Hall template estimated power: {power}",
+      "templateSyncedToCloud": "Lineup templates synced to the cloud",
+      "templateCloudSyncFailed": "Failed to sync lineup templates to the cloud: {error}",
+      "heroExchanged": "Lossless hero swap {from} -> {to}",
+      "teamRestored": "Restored current team {teamId}",
+      "roomMembersRestored": "Restored room member info",
+      "restoreStateFailed": "Failed to restore team state: {error}",
+      "lineupRead": "Loaded formation {formation} (use={useTeamId}) => [{lineup}]",
+      "switchConfirmTimeout": "Formation switch confirmation timed out. Force-loading formation {teamId}",
+      "teamStatusNotify": "Received team status notification",
+      "roomUpdated": "Room updated: ID {roomId}",
+      "fightResultNotify": "Received battle result notification",
+      "prepareStatusNotify": "Received prepare status notification",
+      "recommendedUpdated": "Recommended team list updated",
+      "hallInfoNotify": "Received hall info",
+      "viewReady": "Ten Hall view is ready. Waiting for you to capture create, recommend, and hall request packets."
+    }
+  },
+  "taskControl": {
+    "title": "Task Control",
+    "common": {
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "auto": "Auto",
+      "manual": "Manual",
+      "system": "System"
+    },
+    "quietWindow": {
+      "label": "Quiet hours (Sat 19:50-21:10 / Sun 19:50-20:40)",
+      "saturday": "Sat 19:50-21:10",
+      "sunday": "Sun 19:50-20:40"
+    },
+    "actions": {
+      "enableAll": "Enable All",
+      "disableAll": "Disable All",
+      "refresh": "Refresh",
+      "cancel": "Cancel",
+      "save": "Save",
+      "settings": "Settings",
+      "run": "Run",
+      "running": "Running",
+      "clearAccountOverride": "Clear This Account Override"
+    },
+    "logs": {
+      "title": "Execution Logs",
+      "clear": "Clear Logs",
+      "stopAutoScroll": "Stop Auto Scroll",
+      "resumeAutoScroll": "Resume Auto Scroll",
+      "empty": "No execution logs"
+    },
+    "extraTasks": {
+      "genieSweep": "Genie Sweep"
+    },
+    "settings": {
+      "title": "Task Settings",
+      "fields": {
+        "taskName": "Task Name",
+        "autoExecute": "Auto Execute",
+        "schedule": "Schedule",
+        "type": "Type",
+        "everyHours": "Every N Hours",
+        "weekday": "Weekday",
+        "time": "Time",
+        "cron": "Cron Expression",
+        "extraTasks": "Extra Tasks",
+        "friendGold": "Friend Gold",
+        "recruit": "Recruit",
+        "payRecruit": "Paid Recruit",
+        "openBox": "Open Wooden Boxes",
+        "freeFish": "Free Fishing",
+        "mengjing": "Dream Realm",
+        "dailyBoss": "Daily Boss",
+        "legionBoss": "Legion Boss",
+        "legionBossTimes": "Legion Boss Attempts",
+        "legionBossFormation": "Legion Boss Formation",
+        "dailyBossFormation": "Daily Boss Formation",
+        "selectAccount": "Select Account",
+        "minColor": "Minimum Color",
+        "goldFallback": "Gold Fallback",
+        "matchRule": "Match Rule",
+        "goldThreshold": "Gold Threshold",
+        "recruitThreshold": "Recruit Threshold",
+        "jadeThreshold": "Jade Threshold",
+        "ticketThreshold": "Ticket Threshold",
+        "maxRefreshAttempts": "Max Refresh Attempts",
+        "helperAnalysis": "Guard Formation Analysis",
+        "preferredLineups": "Preferred Formation Keywords",
+        "arenaFormation": "Arena Formation",
+        "logicMode": "Logic Mode",
+        "fightCount": "Fight Count",
+        "skipLineups": "Skip Formation Keywords",
+        "goodsIds": "Items to Buy",
+        "onlyUnbought": "Skip Purchased",
+        "tokenIds": "Accounts"
+      },
+      "placeholders": {
+        "selectSchedule": "Select a schedule",
+        "selectCustomType": "Select a simple custom type",
+        "selectWeekdays": "Select weekdays",
+        "hour": "Hour",
+        "minute": "Minute",
+        "cron": "For example: 0 */2 * * *",
+        "selectLegionBossFormation": "Select legion boss formation",
+        "selectDailyBossFormation": "Select daily boss formation",
+        "selectAccountOverride": "Select an account to override",
+        "minColor": "Minimum dispatch color",
+        "preferredLineups": "Select preferred formation keywords",
+        "selectArenaFormation": "Select arena formation",
+        "skipLineups": "Select formation keywords to skip",
+        "goodsIds": "Multiple selection allowed, default is Sacred Beast Shard (6)",
+        "tokenIds": "Leave empty to use all accounts"
+      }
+    },
+    "sections": {
+      "dailyRunner": "Daily Main Flow Switches",
+      "tokenOverride": "Account-specific Override (Overrides Global)",
+      "smartCar": "Smart Dispatch Conditions (0 Means No Limit)",
+      "arena": "Arena Execution Logic",
+      "clubStore": "Club Store Purchase Settings"
+    },
+    "tasks": {
+      "daily": { "title": "Daily Tasks", "subtitle": "Automatically complete daily tasks" },
+      "hangup": { "title": "Claim Hangup", "subtitle": "Automatically claim hangup rewards" },
+      "bottle": { "title": "Reset Bottles", "subtitle": "Automatically reset salt bottles" },
+      "tower": { "title": "Climb Tower", "subtitle": "Automatically climb the tower" },
+      "sendCar": { "title": "Smart Dispatch", "subtitle": "Refresh and dispatch automatically based on conditions" },
+      "claimCar": { "title": "Claim Cars", "subtitle": "Automatically collect dispatch rewards" },
+      "study": { "title": "Quiz", "subtitle": "Automatically run quiz tasks" },
+      "legacy": { "title": "Claim Legacy Scrolls", "subtitle": "Automatically claim legacy scroll fragments" },
+      "arena": { "title": "Arena Battle", "subtitle": "Automatically run 3 arena battles" },
+      "clubStore": { "title": "Club Store Purchase", "subtitle": "Automatically buy items from the club store" }
+    },
+    "scheduleOptions": {
+      "daily0100": "Every day 01:00",
+      "daily0930": "Every day 09:30",
+      "hourly4": "Every 4 hours",
+      "hourly8": "Every 8 hours",
+      "weeklyMon0030": "Every Monday 00:30",
+      "weeklyMon0900": "Every Monday 09:00",
+      "weekly1230630": "Mon-Wed 06:30",
+      "weekly1231100": "Mon-Wed 11:00",
+      "customSimple": "Simple Custom",
+      "customAdvanced": "Custom (Advanced)"
+    },
+    "customTypes": {
+      "daily": "Fixed Time Daily",
+      "hourly": "Every N Hours",
+      "weekly": "Fixed Time Weekly"
+    },
+    "weekdays": {
+      "monday": "Mon",
+      "tuesday": "Tue",
+      "wednesday": "Wed",
+      "thursday": "Thu",
+      "friday": "Fri",
+      "saturday": "Sat",
+      "sunday": "Sun"
+    },
+    "matchModes": {
+      "any": "Match Any Condition",
+      "all": "Match All Conditions"
+    },
+    "arenaModes": {
+      "batch": "Batch Arena (3 times)",
+      "standalone": "Standalone Arena Logic"
+    },
+    "defaultLineups": {
+      "lvZhao": "Lv Zhao",
+      "guanYu": "Guan Yu"
+    },
+    "carColors": {
+      "orangePlus": "Orange and above",
+      "redPlus": "Red and above",
+      "goldPlus": "Gold and above"
+    },
+    "clubStoreGoods": {
+      "1": "Arena Challenge Pass",
+      "2": "Bronze Chest",
+      "3": "Legion Jade Token",
+      "4": "Advance Stone",
+      "5": "Refined Iron",
+      "6": "Sacred Beast Shard",
+      "7": "Recruit Token",
+      "8": "Wooden Chest",
+      "9": "Coin",
+      "10": "Gold Fishing Rod",
+      "11": "Gold Brick",
+      "101": "Red Hero Shard",
+      "102": "Orange Hero Shard",
+      "103": "Universal Red Hero Shard",
+      "104": "Universal Orange Hero Shard"
+    },
+    "arenaFormation": "Formation {value}",
+    "delimiter": ", ",
+    "validation": {
+      "intervalHours": "Interval hours must be between 1 and 23",
+      "hour": "Hour must be between 0 and 23",
+      "minute": "Minute must be between 0 and 59",
+      "weekday": "Please select at least one weekday"
+    },
+    "messages": {
+      "notConfigured": "Not configured",
+      "dailyAt": "Every day {hour}:{minute}",
+      "everyHours": "Every {count} hour(s)",
+      "closed": "Disabled",
+      "unmatched": "Unmatched",
+      "saveStateFailed": "Failed to save task state",
+      "unmatchedRoles": "No matched accounts",
+      "roleListSummary": "{roles} and {count} role(s) total",
+      "onlyUnbought": "Unpurchased only",
+      "tryAll": "Try all",
+      "clubStoreTaskItem": "Buy items: {ids} ({mode})",
+      "arenaTaskItem": "{mode}, formation {formation}, {count} run(s), skip: {skip}",
+      "executorNotReady": "Automation executor is not ready",
+      "carTaskSkipped": "The dispatch event is not open right now (available after 06:00 from Monday to Wednesday), so this auto run was skipped",
+      "noExecutableAccounts": "No executable accounts were found. Please import and select accounts first.",
+      "runtimeLog": "[Runtime] {message}",
+      "taskStarted": "{source} task started: {item} ({count} account(s), roles: {roles})",
+      "arenaDetails": "Arena details: {item}, roles: {roles}",
+      "dailyFlowPreparing": "Preparing to run the daily main flow (role: {role}, delay 500ms)",
+      "extraTaskPreparing": "Extra task: {task} (role: {role}, delay 500ms)",
+      "arenaRolePreparing": "Arena role details: {role} will start after a 500ms delay",
+      "taskPreparing": "Preparing to run the task (role: {role}, delay 500ms)",
+      "taskFinished": "Task completed: {item} (roles: {roles})",
+      "taskFailed": "Task failed: {item}, {error} (roles: {roles})",
+      "tokenActivationSkipSummary": "Skipped unactivated or expired accounts in this run: {roles}",
+      "activationCheckFailed": "Failed to verify token activation status",
+      "activationCheckFailedWithReason": "Failed to verify token activation status: {error}",
+      "executionFailed": "Execution failed",
+      "quietWindowActive": "Quiet hours are active ({time}). Auto execution is paused and {count} connection(s) were closed",
+      "autoExecutionEnabled": "Auto execution enabled",
+      "autoExecutionDisabled": "Auto execution disabled",
+      "invalidSimpleCustomConfig": "Invalid simple custom configuration",
+      "invalidCron": "Invalid Cron expression",
+      "settingsSaved": "Task settings saved",
+      "quietWindowEnabledNow": "Quiet hours were enabled immediately ({time}), and {count} connection(s) were closed",
+      "quietWindowEnabled": "Quiet hours enabled",
+      "quietWindowDisabled": "Quiet hours disabled",
+      "clearLogsFailed": "Failed to clear logs",
+      "allTasksEnabled": "All tasks enabled",
+      "allTasksDisabled": "All tasks disabled",
+      "stateRefreshed": "Task state refreshed"
+    },
+    "table": {
+      "taskName": "Task Name",
+      "description": "Description",
+      "status": "Status",
+      "nextRun": "Next Run",
+      "settings": "Settings",
+      "action": "Action"
+    }
+  },
+  "register": {
+    "title": "Create your XYZW account",
+    "subtitle": "After registering with an invite code, you can enter the console to configure roles, tasks, and dashboards.",
+    "cardTitle": "Create XYZW Account",
+    "cardDesc": "Fill in the required information and accept the policies before submitting.",
+    "usernamePlaceholder": "Username",
+    "emailPlaceholder": "Email address",
+    "passwordPlaceholder": "Password",
+    "inviteCodePlaceholder": "Invite code",
+    "confirmPasswordPlaceholder": "Confirm password",
+    "agreePrefix": "I have read and agree to the",
+    "and": "and",
+    "termsTitle": "Terms of Service",
+    "privacyTitle": "Privacy Policy",
+    "submit": "Create Account",
+    "hasAccount": "Already have an account?",
+    "loginNow": "Sign in now",
+    "tempInviteHint": "Need an invite code?",
+    "viewTempInvites": "View temporary invite codes",
+    "points": {
+      "fast": {
+        "title": "Finish in 1 minute",
+        "desc": "Basic information is enough to activate management access"
+      },
+      "invite": {
+        "title": "Invite-based access",
+        "desc": "Supports both temporary and formal invite codes"
+      },
+      "ready": {
+        "title": "Ready right away",
+        "desc": "Go straight to sign-in after registration"
+      }
+    },
+    "validation": {
+      "usernameRequired": "Please enter a username",
+      "usernameLength": "Username must be between 3 and 20 characters",
+      "emailRequired": "Please enter an email address",
+      "emailInvalid": "Please enter a valid email address",
+      "passwordRequired": "Please enter a password",
+      "passwordPolicy": "Password must be at least 12 characters by default (8+ allowed when MFA is enabled) and must not be a common weak password",
+      "inviteRequired": "Please enter an invite code",
+      "confirmPasswordRequired": "Please confirm your password",
+      "passwordMismatch": "The two passwords do not match"
+    },
+    "messages": {
+      "agreeRequired": "Please agree to the Terms of Service and Privacy Policy first",
+      "successLogin": "Registration successful. Please sign in.",
+      "successTrial": "Registration successful. Please complete formal use before expiration."
+    },
+    "trialNotice": {
+      "title": "Temporary Account Notice",
+      "desc": "You used a temporary invite code. The account is available for 7 days after registration.",
+      "expiresAt": "Expires at",
+      "confirm": "Got it"
+    },
+    "terms": {
+      "items": {
+        "1": "1. This tool is intended only for authorized accounts and must not be used for unauthorized access, disruption, or bypassing platform restrictions.",
+        "2": "2. Users are responsible for safeguarding accounts, tokens, BIN files, and other sensitive data, and for the outcomes of their usage.",
+        "3": "3. Automation, data display, and download capabilities are provided as assistive tools and are not guaranteed to be continuously available or completely error-free.",
+        "4": "4. If abnormal calls, invite-code abuse, or behavior affecting other users is detected, administrators may suspend or close the account."
+      }
+    },
+    "privacy": {
+      "items": {
+        "1": "1. During registration and sign-in, the system stores usernames, email addresses, sign-in time, and necessary authentication data for account identification and security control.",
+        "2": "2. Uploaded BIN files, preference settings, and task data are used only for the current account and are not shared with other users by default.",
+        "3": "3. Remote BIN downloads are disabled by default. The system allows downloading backend-stored files only after the user enables this setting in Profile.",
+        "4": "4. To delete account data or handle sensitive information issues, please contact the administrator."
+      }
+    }
+  },
+  "profile": {
+    "title": "Profile",
+    "subtitle": "Manage your account information and preferences",
+    "sections": {
+      "basic": "Basic Information",
+      "password": "Password",
+      "preferences": "Preferences",
+      "security": "Security"
+    },
+    "fields": {
+      "username": "Username",
+      "accountDisplayId": "Account ID",
+      "email": "Email",
+      "nickname": "Nickname",
+      "phone": "Phone",
+      "currentPassword": "Current Password",
+      "newPassword": "New Password",
+      "confirmPassword": "Confirm Password",
+      "theme": "Theme",
+      "language": "Language",
+      "notifications": "Notifications",
+      "autoExecute": "Auto Execute"
+    },
+    "placeholders": {
+      "nickname": "Enter nickname",
+      "phone": "Enter phone number",
+      "currentPassword": "Enter current password",
+      "newPassword": "Enter new password",
+      "confirmPassword": "Enter the new password again"
+    },
+    "extra": {
+      "theme": "Choose your preferred interface theme",
+      "language": "Choose the interface language",
+      "notifications": "Receive task completion notifications",
+      "autoExecute": "Enable task auto execution by default"
+    },
+    "themeOptions": {
+      "auto": "Follow system",
+      "light": "Light",
+      "dark": "Dark"
+    },
+    "languageOptions": {
+      "zhCN": "Simplified Chinese",
+      "en": "English"
+    },
+    "actions": {
+      "saveProfile": "Save Changes",
+      "changePassword": "Change Password",
+      "setup": "Set Up",
+      "confirm": "Confirm",
+      "done": "Done",
+      "copy": "Copy",
+      "view": "View",
+      "export": "Export",
+      "logout": "Log Out",
+      "delete": "Delete"
+    },
+    "security": {
+      "twoFactor": {
+        "title": "Two-factor authentication",
+        "desc": "Add an extra layer of protection to your account"
+      },
+      "loginHistory": {
+        "title": "Login history",
+        "desc": "View recent login records"
+      },
+      "exportData": {
+        "title": "Data export",
+        "desc": "Export all your data"
+      },
+      "remoteBin": {
+        "title": "Allow remote BIN downloads",
+        "desc": "When enabled, files stored on the backend can be downloaded from the saved BIN list. Disabled by default."
+      },
+      "refreshSecondVerify": {
+        "title": "Require secondary verification for token refresh",
+        "desc": "When disabled, refreshing tokens from BIN no longer asks for your current password (disable only on trusted devices)."
+      },
+      "safeMode": {
+        "title": "Security Mode (Recommended)",
+        "desc": "When enabled, sensitive tokens are not persisted in browser storage. You need to re-import after refresh."
+      },
+      "logout": {
+        "title": "Log out",
+        "desc": "Sign out of the current account and return to the sign-in page"
+      },
+      "deleteAccount": {
+        "title": "Delete account",
+        "desc": "Permanently delete your account and all data"
+      }
+    },
+    "validation": {
+      "passwordPolicy": "Password must be at least 12 characters by default (8+ allowed when MFA is enabled) and must not be a common weak password",
+      "currentPasswordRequired": "Please enter your current password",
+      "newPasswordRequired": "Please enter a new password",
+      "passwordMismatch": "The two passwords do not match"
+    },
+    "messages": {
+      "loadFailed": "Failed to load profile",
+      "saveFailed": "Save failed. Please try again later.",
+      "saveSuccess": "Profile saved successfully",
+      "passwordChangeFailed": "Failed to change password",
+      "passwordChangeSuccess": "Password changed successfully. Please sign in again.",
+      "preferencesSaved": "Preferences saved successfully",
+      "remoteBinEnabled": "Remote BIN download enabled",
+      "remoteBinDisabled": "Remote BIN download disabled",
+      "remoteBinSaveFailed": "Failed to save remote BIN download setting",
+      "refreshSecondVerifyEnabled": "Secondary verification for token refresh enabled",
+      "refreshSecondVerifyDisabled": "Secondary verification for token refresh disabled",
+      "refreshSecondVerifySaveFailed": "Failed to save token refresh verification setting",
+      "safeModeEnabled": "Security Mode enabled: tokens are no longer persisted and must be re-imported after refresh",
+      "safeModeDisabled": "Security Mode disabled: local non-sensitive token metadata persistence is allowed",
+      "safeModeSaveFailed": "Failed to save Security Mode setting",
+      "sensitiveConfirmPrompt": "This is a sensitive operation. Enter your current password to continue:",
+      "sensitiveConfirmMethodTotp": "Authenticator code (Recommended)",
+      "sensitiveConfirmMethodRecovery": "Recovery code",
+      "sensitiveConfirmMethodPassword": "Current password (Fallback)",
+      "sensitiveConfirmTotpPlaceholder": "Enter 6-digit authenticator code",
+      "sensitiveConfirmRecoveryPlaceholder": "Enter one-time recovery code (for example: XXXX-XXXX)",
+      "sensitiveConfirmMfaHint": "MFA is enabled: use authenticator/recovery first, password is fallback.",
+      "sensitiveConfirmCancelled": "Sensitive confirmation cancelled",
+      "sensitiveConfirmFailed": "Sensitive confirmation failed. Please verify your current password.",
+      "sensitiveConfirmSuccess": "Sensitive confirmation passed",
+      "copySuccess": "Copied",
+      "copyFailed": "Copy failed. Please copy manually.",
+      "twoFactorPending": "Two-factor authentication setup is under development...",
+      "twoFactorAdminOnly": "Only administrators can configure two-factor authentication",
+      "twoFactorAlreadyEnabled": "Two-factor authentication is already enabled for this account",
+      "twoFactorPasswordPrompt": "Enter your current password to continue configuring two-factor authentication:",
+      "twoFactorSetupInstruction": "Add this account in your authenticator app (manual secret or otpauth URL)",
+      "twoFactorSetupReady": "Initialization succeeded. Add it in your authenticator and enter the 6-digit code to confirm",
+      "twoFactorQrHint": "You can scan the QR code directly, or copy secret / otpauth below to add manually",
+      "twoFactorQrAlt": "2FA QR code",
+      "twoFactorQrGenerateFailed": "Failed to generate QR code. Please use manual copy instead.",
+      "twoFactorCodePrompt": "Enter the current 6-digit code from your authenticator:",
+      "twoFactorSetupFailed": "Failed to initialize two-factor authentication",
+      "twoFactorEnableFailed": "Failed to enable two-factor authentication",
+      "twoFactorEnabled": "Two-factor authentication enabled",
+      "twoFactorRecoveryCodes": "Save these one-time recovery codes (each code can only be used once)",
+      "twoFactorCancelled": "Two-factor authentication setup cancelled",
+      "loginHistoryPending": "Login history is under development...",
+      "exportPending": "Data export is under development...",
+      "logoutSuccess": "Logged out successfully",
+      "deletePending": "Account deletion is not available yet"
+    },
+    "dialogs": {
+      "sensitiveConfirm": {
+        "title": "Security Confirmation"
+      }
+    },
+    "deleteDialog": {
+      "title": "Delete account",
+      "content": "This action will permanently delete your account and all associated data and cannot be undone. Do you want to continue?",
+      "confirm": "Delete",
+      "cancel": "Cancel"
+    }
+  },
+  "tokenManager": {
+    "common": {
+      "confirm": "Confirm",
+      "cancel": "Cancel"
+    },
+    "actions": {
+      "refresh": "Refresh",
+      "export": "Export",
+      "import": "Import",
+      "clear": "Clear",
+      "cleanExpired": "Clean Expired Tokens",
+      "clearAll": "Clear All Tokens",
+      "connectWs": "Connect WS",
+      "disconnectWs": "Disconnect WS"
+    },
+    "labels": {
+      "token": "Token:",
+      "wsUrl": "WebSocket URL:",
+      "createdAt": "Created At:",
+      "lastUsed": "Last Used:",
+      "connectionStatus": "Connection Status:"
+    },
+    "userToken": {
+      "title": "User Auth Token",
+      "empty": "No user token set"
+    },
+    "gameTokens": {
+      "title": "Game Role Tokens ({count})"
+    },
+    "wsStatus": {
+      "connected": "Connected",
+      "error": "Connection Error",
+      "connecting": "Connecting",
+      "disconnected": "Disconnected"
+    },
+    "menu": {
+      "edit": "Edit",
+      "copyToken": "Copy Masked Token",
+      "copyFullToken": "Copy Full Token",
+      "refreshFromUrl": "Refresh from URL",
+      "refreshToken": "Refresh Token",
+      "delete": "Delete"
+    },
+    "dialogs": {
+      "clearUserToken": {
+        "title": "Clear User Token",
+        "content": "Are you sure you want to clear the user auth token? This will sign you out."
+      },
+      "regenerateToken": {
+        "title": "Reacquire Token",
+        "content": "Are you sure you want to reacquire this role token from its source URL?"
+      },
+      "deleteToken": {
+        "title": "Delete Token",
+        "content": "Are you sure you want to delete this role token? Related WebSocket connections will be closed.",
+        "confirm": "Delete"
+      },
+      "refreshFromUrl": {
+        "title": "Refresh Token from URL",
+        "content": "Are you sure you want to reacquire the token from the source URL?\nSource: {sourceUrl}"
+      },
+      "copyFullToken": {
+        "title": "Copy Full Token",
+        "content": "The full token will be written to your clipboard and may be read by other apps. Type COPY to continue.",
+        "placeholder": "Type COPY to confirm"
+      },
+      "cleanExpired": {
+        "title": "Clean Expired Tokens",
+        "content": "Are you sure you want to clean tokens that have not been used for more than 24 hours?"
+      },
+      "clearAll": {
+        "title": "Clear All Tokens",
+        "content": "Are you sure you want to clear all game tokens? This will disconnect all WebSocket sessions and cannot be undone.",
+        "confirm": "Clear All"
+      }
+    },
+    "exportWizard": {
+      "title": "Export Token Backup",
+      "confirm": "Export",
+      "description": "Exported files may contain sensitive tokens. Do not share them or upload to public links.",
+      "modes": {
+        "metadata": "Export config/metadata only (Recommended)",
+        "encrypted": "Export encrypted tokens (Recommended for advanced users)",
+        "plaintext": "Export full tokens in plaintext (High risk)"
+      },
+      "plaintextWarning": "Plaintext export exposes tokens directly. Anyone with this file may take over your account.",
+      "riskAcknowledge": "I understand the risk of plaintext export",
+      "keywordPlaceholder": "Type EXPORT to confirm plaintext export",
+      "passphrasePlaceholder": "Enter passphrase (min 8 chars)"
+    },
+    "importWizard": {
+      "decryptTitle": "Import Encrypted Backup",
+      "decryptPrompt": "This is an encrypted token backup. Enter the passphrase used during export.",
+      "decryptPlaceholder": "Enter passphrase"
+    },
+    "messages": {
+      "tokensRefreshed": "Token data refreshed",
+      "userTokenCleared": "User token cleared",
+      "wsDisconnected": "WebSocket disconnected",
+      "wsConnecting": "Establishing WebSocket connection...",
+      "wsConnectFailed": "Failed to establish WebSocket connection",
+      "tokenNotFound": "Token data not found",
+      "sourceUrlMissing": "This token has no source URL configured and cannot be regenerated. Please import it again manually.",
+      "sourceUrlMissingShort": "This token has no source URL configured",
+      "regeneratingToken": "Reacquiring token...",
+      "tokenRegenerated": "Token reacquired successfully",
+      "tokenRegenerateFailed": "Failed to reacquire token",
+      "tokenDeleted": "Token deleted",
+      "editPending": "Edit support is under development",
+      "tokenCopiedMasked": "Masked token copied to clipboard",
+      "tokenCopiedFull": "Full token copied to clipboard",
+      "copyFullConfirmMissing": "Please type COPY before copying full token",
+      "clipboardCopyFailed": "Copy failed. Please try again.",
+      "fetchingFromUrl": "Fetching a new token from the URL...",
+      "tokenRefreshSuccess": "Token refreshed successfully",
+      "refreshFailedWithReason": "Refresh failed: {error}",
+      "tokensExported": "Token data exported",
+      "tokensExportedMetadata": "Token metadata exported (sensitive fields excluded)",
+      "tokensExportedPlaintext": "Plaintext token backup exported. Store it securely.",
+      "tokensExportedEncrypted": "Encrypted token backup exported",
+      "exportFailedWithReason": "Export failed: {error}",
+      "webCryptoUnsupported": "WebCrypto is not supported in this environment",
+      "passphraseTooShort": "Passphrase must be at least 8 characters",
+      "exportPlaintextConfirmMissing": "Please acknowledge risk and type EXPORT before plaintext export",
+      "importFormatError": "Import failed: invalid file format",
+      "importFileTooLarge": "Import failed: file too large (max {maxSizeMb}MB)",
+      "decryptCancelled": "Encrypted import cancelled",
+      "decryptFormatInvalid": "Invalid encrypted backup format",
+      "importFailedWithReason": "Import failed: {error}",
+      "importSuccessWithCount": "Import succeeded, processed {count} token(s)",
+      "cleanedExpired": "Cleaned {count} expired tokens",
+      "allTokensCleared": "All game tokens cleared"
+    },
+    "errors": {
+      "corsBlocked": "Cross-origin request was blocked. Make sure the target server supports CORS. Details: {error}",
+      "requestFailed": "Request failed: {status} {statusText}",
+      "tokenFieldMissing": "The response does not contain a token field",
+      "httpError": "HTTP {status}: {statusText}"
+    }
+  },
+  "tokenImport": {
+    "common": {
+      "confirm": "Confirm",
+      "cancel": "Cancel",
+      "save": "Save"
+    },
+    "header": {
+      "notLoggedIn": "Not signed in",
+      "accountIsolation": "Account isolation: only BIN/Token data for the current account is shown",
+      "logout": "Log Out",
+      "title": "Game Token Management"
+    },
+    "importModal": {
+      "title": "Add Game Token"
+    },
+    "importMethods": {
+      "manual": "Manual Input",
+      "url": "Fetch from URL",
+      "wxQrcode": "WeChat QR",
+      "bin": "BIN Multi-role",
+      "singlebin": "BIN Single-role"
+    },
+    "binFiles": {
+      "title": "Saved BIN Files ({count})",
+      "desc": "Only BIN files encrypted and stored locally on the backend for the current signed-in account are shown.",
+      "refresh": "Refresh List",
+      "columns": {
+        "tokenId": "Token ID",
+        "fileName": "File Name",
+        "size": "Size",
+        "updatedAt": "Updated At",
+        "actions": "Actions"
+      }
+    },
+    "tokenList": {
+      "title": "My Token List ({count})"
+    },
+    "viewModes": {
+      "list": "List",
+      "card": "Cards"
+    },
+    "sort": {
+      "name": "Name",
+      "server": "Server",
+      "createdAt": "Created At",
+      "lastUsed": "Last Used"
+    },
+    "actions": {
+      "batchFeatures": "Batch Features",
+      "addToken": "Add Token",
+      "bulkActions": "Bulk Actions",
+      "refresh": "Refresh",
+      "reacquire": "Reacquire",
+      "upgradePermanent": "Upgrade to Permanent",
+      "enterConsole": "Enter Console",
+      "upgrade": "Upgrade",
+      "console": "Console",
+      "download": "Download",
+      "delete": "Delete"
+    },
+    "labels": {
+      "token": "Token:",
+      "remark": "Remark:",
+      "created": "Created:",
+      "used": "Used:",
+      "storageType": "Storage Type:",
+      "sourceFile": "Source File:"
+    },
+    "placeholders": {
+      "remarkLong": "Add remark information...",
+      "remarkShort": "Add remark...",
+      "remarkClick": "Click to add a remark"
+    },
+    "storage": {
+      "long": "Persistent",
+      "temporary": "Temporary",
+      "longShort": "Persistent",
+      "temporaryShort": "Temp"
+    },
+    "tokenCard": {
+      "missingSource": "Missing source file",
+      "missingBinSource": "Missing BIN source file"
+    },
+    "empty": {
+      "noTokens": "No tokens have been imported yet",
+      "openManager": "Open Token Manager"
+    },
+    "editModal": {
+      "title": "Edit Token",
+      "fields": {
+        "name": "Name",
+        "token": "Token String",
+        "server": "Server",
+        "wsUrl": "WebSocket URL",
+        "remark": "Remark"
+      },
+      "placeholders": {
+        "token": "Paste token string...",
+        "remark": "Add remark information..."
+      }
+    },
+    "validation": {
+      "nameRequired": "Please enter a token name",
+      "tokenRequired": "Please enter a token string"
+    },
+    "bulk": {
+      "refreshAll": "Refresh All Tokens",
+      "updateInfo": "Update Token Info",
+      "exportAll": "Export All Tokens",
+      "importFile": "Import Token File",
+      "cleanExpired": "Clean Expired Tokens",
+      "disconnectAll": "Disconnect All",
+      "clearAll": "Clear All Tokens"
+    },
+    "exportWizard": {
+      "title": "Export Token Backup",
+      "confirm": "Export",
+      "description": "Exported files may contain sensitive tokens. Do not share or upload them publicly.",
+      "modes": {
+        "metadata": "Export config/metadata only (Recommended)",
+        "encrypted": "Export encrypted tokens (Recommended)",
+        "plaintext": "Export full tokens in plaintext (High risk)"
+      },
+      "plaintextWarning": "Plaintext export exposes tokens directly. Anyone with this file may take over your account.",
+      "riskAcknowledge": "I understand the plaintext export risk",
+      "keywordPlaceholder": "Type EXPORT to confirm plaintext export",
+      "passphrasePlaceholder": "Enter passphrase (min 8 chars)"
+    },
+    "importWizard": {
+      "decryptTitle": "Import Encrypted Backup",
+      "decryptPrompt": "This is an encrypted token backup. Enter the passphrase used during export.",
+      "decryptPlaceholder": "Enter passphrase"
+    },
+    "connection": {
+      "connected": "Connected",
+      "connecting": "Connecting...",
+      "disconnected": "Disconnected",
+      "error": "Connection Error",
+      "disconnecting": "Disconnecting...",
+      "notConnected": "Not Connected"
+    },
+    "wsSecurity": {
+      "advancedSettings": "Advanced Settings (Custom wsUrl)",
+      "riskWarning": "This wsUrl is non-official or malformed, which may cause connection failures or security risks. Continue only if you trust the source."
+    },
+    "menu": {
+      "edit": "Edit",
+      "copyToken": "Copy Token",
+      "refreshFromUrl": "Refresh from URL",
+      "reacquire": "Reacquire",
+      "activateToken": "Activate/Renew",
+      "delete": "Delete"
+    },
+    "dialogs": {
+      "reacquireToken": {
+        "title": "Reacquire Token",
+        "content": "Token \"{name}\" was imported via WeChat QR login and has no auto-refresh source configured.\n\nChoose one of the following:\n1. Import a new token manually\n2. Try reconnecting the current token",
+        "importAgain": "Import Again",
+        "reconnect": "Reconnect"
+      },
+      "upgradePermanent": {
+        "title": "Upgrade to Permanent",
+        "content": "Upgrade token \"{name}\" to permanent storage? After that, it will no longer be cleaned automatically after 24 hours of inactivity.",
+        "confirm": "Upgrade"
+      },
+      "bulkRefresh": {
+        "title": "Bulk Refresh Tokens",
+        "content": "Refresh all tokens that support automatic refresh?",
+        "confirm": "Start"
+      },
+      "clearAll": {
+        "title": "Clear All Tokens",
+        "content": "Clear all tokens? This action cannot be undone.",
+        "confirm": "Clear All"
+      },
+      "updateAllInfo": {
+        "title": "Update All Token Info",
+        "content": "This will connect each token one by one, fetch the latest role name and server information, then disconnect automatically.\n\nEstimated time: about 3-5 seconds per token.",
+        "confirm": "Start Update"
+      },
+      "deleteBin": {
+        "title": "Delete BIN File",
+        "content": "Delete BIN file \"{fileName}\"? {tokenHint}",
+        "confirm": "Delete",
+        "tokenHintLinked": "The related token is still in the list. After deleting the BIN file, automatic refresh for that token will stop working.",
+        "tokenHintStandalone": "After deletion, this BIN file can no longer be restored from the backend."
+      },
+      "deleteToken": {
+        "title": "Delete Token",
+        "content": "Delete token \"{name}\"? This action cannot be undone.",
+        "confirm": "Delete"
+      },
+      "sensitiveConfirm": {
+        "title": "Secondary Verification"
+      }
+    },
+    "messages": {
+      "enableRemoteBinFirst": "Enable remote BIN downloads in Profile > Security before downloading.",
+      "binDownloaded": "BIN file downloaded: {fileName}",
+      "binDownloadTicketFailed": "Failed to obtain download authorization ticket",
+      "binDownloadFailed": "Failed to download BIN file",
+      "binDeleted": "BIN file deleted",
+      "binDeleteFailed": "Failed to delete BIN file",
+      "binListLoadFailed": "Failed to load BIN file list",
+      "restoredFromBin": "Automatically restored {count} token(s) from backend BIN files",
+      "loggedOut": "Signed out",
+      "tokenOrderUpdated": "Token order updated",
+      "tokenRefreshSuccess": "Token refreshed successfully",
+      "missingBinSource": "Missing BIN source file. Please re-upload or restore the BIN file.",
+      "tokenRefreshFailed": "Failed to refresh token",
+      "tokenInfoUpdated": "Token info updated",
+      "tokenCopied": "Token copied to clipboard",
+      "copyFailed": "Copy failed",
+      "remarkSaved": "Remark saved",
+      "tokenDeleted": "Token deleted",
+      "enteringConsole": "Entering the console for {name}",
+      "reconnecting": "Trying to reconnect...",
+      "upgradePermanentSuccess": "Token \"{name}\" was upgraded to permanent storage",
+      "upgradePermanentFailed": "Upgrade failed. The token may already be permanent.",
+      "disconnectedToken": "Disconnected {name}",
+      "tokenConnecting": "{name} is connecting...",
+      "forceReconnect": "Force reconnect: {name}",
+      "reselectedReconnect": "Reconnect: {name}",
+      "selectedToken": "Selected: {name}",
+      "selectTokenFailed": "Failed to select token: {name}",
+      "noRefreshableTokens": "No tokens available to refresh",
+      "noAutoRefreshTokens": "No tokens support automatic refresh",
+      "bulkRefreshProgress": "Refreshing tokens ({current}/{total})",
+      "bulkRefreshItemProgress": "Refreshing token ({current}/{total}): {name}",
+      "bulkRefreshAllSuccess": "Bulk refresh completed. {count} token(s) refreshed successfully.",
+      "bulkRefreshPartial": "Bulk refresh completed. {success} succeeded, {fail} failed.",
+      "manualTokensNeedRefresh": "{count} manually imported token(s) need manual refresh",
+      "bulkRefreshError": "An error occurred during bulk refresh: {error}",
+      "tokensExported": "Token data exported",
+      "exportFailed": "Export failed",
+      "fileFormatError": "Invalid file format",
+      "tokensExportedMetadata": "Token metadata exported (sensitive fields excluded)",
+      "tokensExportedPlaintext": "Plaintext token backup exported. Store it securely.",
+      "tokensExportedEncrypted": "Encrypted token backup exported",
+      "exportFailedWithReason": "Export failed: {error}",
+      "webCryptoUnsupported": "WebCrypto is not supported in this environment",
+      "passphraseTooShort": "Passphrase must be at least 8 characters",
+      "exportPlaintextConfirmMissing": "Please acknowledge risk and type EXPORT before plaintext export",
+      "importFileTooLarge": "Import failed: file too large (max {maxSizeMb}MB)",
+      "decryptCancelled": "Encrypted import cancelled",
+      "decryptFormatInvalid": "Invalid encrypted backup format",
+      "importSuccessWithCount": "Import succeeded, processed {count} token(s)",
+      "importSummaryTitle": "Import Summary",
+      "importSummaryContent": "Imported tokens: {importedCount}\nContains sensitive token fields: {hasSensitive}\nSensitive token entries: {sensitiveTokenCount}\nOverwritten existing tokens: {replacedExisting}",
+      "yes": "Yes",
+      "no": "No",
+      "cleanedExpired": "Cleaned {count} expired token(s)",
+      "allDisconnected": "All connections disconnected",
+      "allTokensCleared": "All tokens cleared",
+      "noUpdatableTokens": "No tokens available to update",
+      "updateInfoProgress": "Updating token info ({current}/{total})",
+      "updateInfoItemProgress": "Updating token info ({current}/{total}): {name}",
+      "updateInfoItemSuccess": "Updated token info for \"{name}\"",
+      "updateInfoItemFailed": "Failed to update token info for \"{name}\"",
+      "updateInfoAllSuccess": "All token info updated. {count} token(s) updated successfully.",
+      "updateInfoPartial": "Token info update finished. {success} succeeded, {fail} failed.",
+      "updateInfoError": "An error occurred during the update: {error}",
+      "importingFromApi": "Fetching token from API...",
+      "importingToken": "Importing token...",
+      "importedFromApiDefaultName": "Token Imported from API",
+      "importedFromUrlDefaultName": "Token Imported from URL",
+      "tokenImportSuccess": "Token \"{name}\" imported successfully",
+      "redirectingToConsole": "Redirecting to the console...",
+      "tokenImportFailed": "Token import failed",
+      "importFailedWithReason": "Import failed: {error}",
+      "sensitiveConfirmPrompt": "To perform \"{action}\", please confirm your current password:",
+      "sensitiveConfirmPromptDownload": "To perform \"{action}\", please confirm your current password (high sensitivity, short authorization window):",
+      "sensitiveConfirmMethodTotp": "Authenticator code (Recommended)",
+      "sensitiveConfirmMethodRecovery": "Recovery code",
+      "sensitiveConfirmMethodPassword": "Current password (Fallback)",
+      "sensitiveConfirmTotpPlaceholder": "Enter 6-digit authenticator code",
+      "sensitiveConfirmRecoveryPlaceholder": "Enter one-time recovery code (for example: XXXX-XXXX)",
+      "sensitiveConfirmMfaHint": "MFA is enabled: use authenticator/recovery first, password is fallback.",
+      "sensitiveConfirmCancelled": "Sensitive confirmation cancelled",
+      "sensitiveConfirmFailed": "Sensitive confirmation failed. Please verify your current password.",
+      "sensitiveConfirmSuccess": "Sensitive confirmation passed",
+      "highPrivilegeRemaining": "High privilege remaining: {minutes}m {seconds}s"
+    },
+    "errors": {
+      "corsBlocked": "Cross-origin request was blocked. Make sure the target server supports CORS. Details: {error}",
+      "requestFailed": "Request failed: {status} {statusText}",
+      "tokenFieldMissing": "The response does not contain a token field",
+      "ambiguousBinRelink": "Detected {count} BIN candidates for the same role. Automatic relinking stopped. Please re-import the correct BIN manually.",
+      "apiRequestFailed": "API request failed: {status} {statusText}",
+      "apiTokenFieldMissing": "The API response does not contain a token field"
+    }
+  },
+  "tokenImportManual": {
+    "fields": {
+      "name": "Game Role Name",
+      "token": "Token String",
+      "server": "Server",
+      "wsUrl": "Custom Connection URL"
+    },
+    "placeholders": {
+      "name": "Example: Main Warrior",
+      "token": "Paste token string...",
+      "server": "Server name",
+      "wsUrl": "Leave empty to use the default connection"
+    },
+    "tokenFormat": "Expected format: ｛\"roleToken\":\"****\",\"sessId\":***,\"connId\":***,\"isRestore\":***｝",
+    "optional": {
+      "title": "Role Details (Optional)"
+    },
+    "actions": {
+      "submit": "Add Token",
+      "cancel": "Cancel"
+    },
+    "validation": {
+      "nameRequired": "Please enter a role name",
+      "nameLength": "The name must be between 1 and 50 characters",
+      "tokenRequired": "Please enter a token string",
+      "tokenLength": "The token string must be at least 20 characters"
+    },
+    "messages": {
+      "addSuccess": "Token added successfully",
+      "addFailed": "Failed to add token: {error}"
+    }
+  },
+  "tokenImportUrl": {
+    "fields": {
+      "name": "Game Role Name",
+      "url": "Token URL",
+      "server": "Server",
+      "wsUrl": "Custom Connection URL"
+    },
+    "placeholders": {
+      "name": "Example: Main Warrior",
+      "url": "Enter API endpoint URL...",
+      "server": "Server name",
+      "wsUrl": "Leave empty to use the default connection"
+    },
+    "feedback": {
+      "tokenField": "The endpoint should return JSON data containing a token field.",
+      "cors": "If this is a cross-origin URL, the server must support CORS or the browser will block it."
+    },
+    "optional": {
+      "title": "Role Details (Optional)"
+    },
+    "actions": {
+      "submit": "Fetch and Add Token",
+      "cancel": "Cancel"
+    },
+    "validation": {
+      "nameRequired": "Please enter a role name",
+      "nameLength": "The name must be between 1 and 50 characters",
+      "urlRequired": "Please enter the token URL",
+      "urlValid": "Please enter a valid URL"
+    },
+    "messages": {
+      "fixFormErrors": "Please fix the form errors before submitting",
+      "unknownServer": "Unknown",
+      "addSuccess": "Token added successfully",
+      "invalidResponse": "The API response format is invalid. No token field was found.",
+      "fetchFailed": "Failed to fetch token. Check the URL or your network connection."
+    }
+  },
+  "tokenImportBin": {
+    "fields": {
+      "binFile": "BIN File",
+      "nameTemplate": "Role Naming Format"
+    },
+    "placeholders": {
+      "binFile": "Paste token string..."
+    },
+    "feedback": {
+      "nameTemplate": "Supported variables: {name} role name, {id} role ID, {index} role index, {server} server"
+    },
+    "serverListTitle": "Server Role List",
+    "columns": {
+      "server": "Server",
+      "roleIndex": "Role Index",
+      "roleId": "Role ID",
+      "name": "Role Name",
+      "power": "Power",
+      "actions": "Actions"
+    },
+    "roleLabels": {
+      "name": "Role Name:",
+      "token": "Token:",
+      "server": "Server:",
+      "roleIndex": "Role Index:"
+    },
+    "roleFallbacks": {
+      "unnamed": "Unnamed role",
+      "unspecified": "Unspecified"
+    },
+    "actions": {
+      "add": "Add",
+      "download": "Download",
+      "delete": "Delete",
+      "submit": "Add Token",
+      "cancel": "Cancel"
+    },
+    "messages": {
+      "binMissingUpload": "BIN data is missing. Please upload again.",
+      "downloadStarted": "Download started: {fileName}",
+      "downloadFailed": "Download failed: {error}",
+      "roleFallback": "Role_{roleId}",
+      "roleAlreadyQueued": "Role {name} is already in the pending list",
+      "roleAdded": "Added role: {name}",
+      "addRoleFailed": "Failed to add role: {error}",
+      "serverListLoaded": "Server role list loaded. Select roles to add.",
+      "serverListLoadFailed": "Failed to load the server role list. Check whether the file is correct.",
+      "parseFailed": "Failed to parse BIN file: {error}",
+      "readFailed": "Failed to read file. Please try again.",
+      "uploadFirst": "Please upload a BIN file first.",
+      "importSuccess": "Token added successfully"
+    }
+  },
+  "tokenImportSingleBin": {
+    "fields": {
+      "name": "Game Role Name",
+      "binFile": "BIN File",
+      "server": "Server",
+      "wsUrl": "Custom Connection URL"
+    },
+    "placeholders": {
+      "name": "Example: Main Warrior",
+      "binFile": "Paste token string...",
+      "server": "Server name",
+      "wsUrl": "Leave empty to use the default connection"
+    },
+    "optional": {
+      "title": "Role Details (Optional)"
+    },
+    "roleLabels": {
+      "name": "Role Name:",
+      "token": "Token:",
+      "server": "Server:"
+    },
+    "roleFallbacks": {
+      "unnamed": "Unnamed role",
+      "unspecified": "Unspecified"
+    },
+    "actions": {
+      "submit": "Add Token",
+      "cancel": "Cancel"
+    },
+    "messages": {
+      "duplicateUpload": "A role with the same name already exists in the upload list.",
+      "roleExistsWillUpdate": "Role \"{name}\" already exists and its token will be updated.",
+      "tokenReadSuccess": "Token read successfully. Check the role details before submitting.",
+      "readFailed": "Failed to read file. Please try again.",
+      "uploadFirst": "Please upload a BIN file first.",
+      "importSuccess": "Token added successfully"
+    }
+  },
+  "tokenImportWxQrcode": {
+    "flow": {
+      "title": "WeChat QR Login Flow",
+      "step1": "Click the button below to get a WeChat login QR code",
+      "step2": "Scan the QR code with WeChat and confirm login",
+      "step3Prefix": "The system will fetch token information for",
+      "step3Highlight": "all roles under this WeChat account",
+      "step3Suffix": ""
+    },
+    "alt": {
+      "qrcode": "WeChat login QR code"
+    },
+    "fields": {
+      "nameTemplate": "Role Naming Format"
+    },
+    "feedback": {
+      "nameTemplate": "Supported variables: {name} role name, {id} role ID, {index} role index, {server} server"
+    },
+    "serverListTitle": "Server Role List",
+    "columns": {
+      "serverId": "Server ID",
+      "roleIndex": "Role Index",
+      "roleId": "Role ID",
+      "name": "Role Name",
+      "power": "Power",
+      "actions": "Actions"
+    },
+    "mobile": {
+      "server": "Server:",
+      "roleIndex": "Index:",
+      "roleId": "Role ID:"
+    },
+    "roleLabels": {
+      "name": "Role Name:",
+      "token": "Token:",
+      "server": "Server:",
+      "roleIndex": "Role Index:"
+    },
+    "roleFallbacks": {
+      "unnamed": "Unnamed role",
+      "unspecified": "Unspecified"
+    },
+    "actions": {
+      "getQrcode": "Get QR Code",
+      "refreshQrcode": "Refresh QR Code",
+      "add": "Add",
+      "download": "Download",
+      "delete": "Delete",
+      "submit": "Add Token",
+      "cancel": "Cancel"
+    },
+    "status": {
+      "clickToGet": "Click to get a WeChat login QR code",
+      "loading": "Loading QR code...",
+      "scanPrompt": "Scan with WeChat to log in",
+      "timeout": "The QR code timed out. Please get a new one.",
+      "expired": "The QR code expired. Please generate a new one.",
+      "scanRemaining": "Please scan. {remain} seconds remaining.",
+      "loginSuccess": "Scan successful. Logging in... User: {nickname}",
+      "unknownUser": "Unknown user"
+    },
+    "messages": {
+      "binMissingScan": "BIN data is missing. Please scan again.",
+      "binMissingUpload": "BIN data is missing. Please upload again.",
+      "downloadStarted": "Download started: {fileName}",
+      "downloadFailed": "Download failed: {error}",
+      "roleFallback": "Role_{roleId}",
+      "roleAlreadyQueued": "Role {name} is already in the pending list",
+      "roleAdded": "Added role: {name}",
+      "addRoleFailed": "Failed to add role: {error}",
+      "qrcodeFailed": "Failed to get QR code",
+      "qrcodeFailedWithReason": "Failed to get QR code: {error}",
+      "processFailed": "Processing failed: {error}",
+      "serverListLoaded": "Server role list loaded. Select roles to add.",
+      "serverListLoadFailed": "Failed to load the server role list.",
+      "parseFailed": "Failed to parse BIN file: {error}",
+      "uploadFirst": "Please upload a BIN file first.",
+      "importSuccess": "Token added successfully"
+    },
+    "errors": {
+      "networkError": "Network error",
+      "requestTimeout": "Request timed out",
+      "httpStatus": "HTTP status: {status}",
+      "qrcodeUrlMissing": "QR code image URL not found",
+      "runtimeHostNotAllowed": "Host {host} is not allowed to load high-risk runtime scripts. Move this page to an isolated subdomain and set VITE_XYZW_RUNTIME_ALLOWED_HOSTS",
+      "loginFailed": "Login failed",
+      "loginTimeout": "Login timed out",
+      "loginFailedWithReason": "Login failed: {error}",
+      "invalidLoginResponse": "Invalid login response structure",
+      "cryptoModuleMissing": "Game crypto module is not loaded and BIN cannot be generated"
+    }
+  },
+  "gameStatus": {
+    "sections": {
+      "daily": "Daily",
+      "club": "Club",
+      "activity": "Activity",
+      "tools": "Tools",
+      "saltField": "Salt Field",
+      "peachGroup": "Peach Garden",
+      "rankGroup": "Rankings",
+      "fightPvp": "Sparring",
+      "arenaPvp": "Arena",
+      "resourceChanges": "Resource Changes",
+      "goldFishCalc": "Goldfish Calculator",
+      "tenHall": "Ten Halls"
+    },
+    "legionMatch": {
+      "iconAlt": "Club icon",
+      "title": "Club Ranking",
+      "subtitle": "Match status",
+      "statusRegistered": "Registered",
+      "statusNotRegistered": "Not registered",
+      "descriptionLine1": "Matches are held every Wednesday, Thursday, and Friday.",
+      "descriptionLine2": "Register now and join the competition.",
+      "actionRegistered": "Registered",
+      "actionRegister": "Register Now"
+    },
+    "legionSignin": {
+      "iconAlt": "Sign-in icon",
+      "title": "Club Sign-in",
+      "subtitle": "Daily sign-in status",
+      "statusSigned": "Signed in",
+      "statusPending": "Pending",
+      "currentClub": "Current Club",
+      "noClub": "Not joined any club yet",
+      "actionSigned": "Signed In",
+      "actionSign": "Sign In Now"
+    },
+    "saltFieldTabs": {
+      "warrank": "Salt Field",
+      "weekBattle": "This Week's Salt Field Record",
+      "monthBattle": "This Month's Salt Field Record",
+      "legionWarMap": "Salt Field Map",
+      "legionWarStatistics": "Salt Field Status"
+    },
+    "peachTabs": {
+      "peach": "Peach Garden Info",
+      "peachBattle": "Peach Garden Record"
+    },
+    "rankTabs": {
+      "serverrank": "Server Ranking",
+      "toprank": "Top Ranking",
+      "topclubrank": "Club Ranking",
+      "goldclubrank": "Gold Points Ranking",
+      "greatRouteRank": "Grand Route Ranking"
+    }
+  },
+  "dailyTasks": {
+    "common": {
+      "confirm": "Confirm",
+      "cancel": "Cancel"
+    },
+    "title": "Daily Tasks",
+    "subtitle": "Manage and run your daily game tasks",
+    "actions": {
+      "refresh": "Refresh Tasks",
+      "bulk": "Bulk Actions"
+    },
+    "labels": {
+      "selectRole": "Select Role:"
+    },
+    "placeholders": {
+      "selectRole": "Please select a game role",
+      "search": "Search tasks..."
+    },
+    "stats": {
+      "total": "Total:",
+      "completed": "Completed:",
+      "progress": "Progress:"
+    },
+    "filters": {
+      "all": "All Tasks",
+      "pending": "Pending",
+      "completed": "Completed",
+      "auto": "Auto Execute"
+    },
+    "empty": "No task data",
+    "loading": "Loading task data...",
+    "bulk": {
+      "executeAllPending": "Execute All Pending Tasks",
+      "markAllCompleted": "Mark All as Completed",
+      "resetAll": "Reset All Task States"
+    },
+    "dialogs": {
+      "executeAll": {
+        "title": "Bulk Execute Tasks",
+        "content": "Execute {count} pending task(s)?"
+      },
+      "markAllCompleted": {
+        "title": "Mark All Tasks as Completed",
+        "content": "Mark {count} pending task(s) as completed?"
+      },
+      "resetAll": {
+        "title": "Reset All Task States",
+        "content": "Reset all task states? This will clear all completion records."
+      }
+    },
+    "messages": {
+      "selectRoleFirst": "Please select a game role first",
+      "loadFailed": "Failed to load tasks",
+      "refreshSuccess": "Task data refreshed successfully",
+      "executeFailed": "Task execution failed",
+      "executeSuccess": "Task executed successfully",
+      "executeSuccessWithName": "Task \"{title}\" executed successfully",
+      "executeFailedWithReason": "Task execution failed: {error}",
+      "statusUpdated": "Task status updated",
+      "saveConfigFailed": "Failed to save task settings",
+      "noPendingTasks": "No pending executable tasks",
+      "bulkExecuteFinished": "Bulk execution finished: {success} succeeded, {fail} failed",
+      "allCompleted": "All tasks are already completed",
+      "markAllCompletedSuccess": "All tasks were marked as completed",
+      "resetAllSuccess": "All task states were reset",
+      "taskDone": "Task completed",
+      "scheduledUpdate": "Scheduled task update: {title}"
+    }
+  },
+  "clubCarKing": {
+    "common": {
+      "confirm": "Confirm",
+      "cancel": "Cancel"
+    },
+    "title": "Mad Racing",
+    "summary": {
+      "totalCars": "{count} cars",
+      "noData": "No data",
+      "freeRefresh": "{count} cars can be refreshed for free",
+      "noFreeRefresh": "No free refresh",
+      "tickets": "Tickets left: {count}"
+    },
+    "actions": {
+      "loading": "Loading...",
+      "refreshData": "Refresh Data",
+      "smartSend": "Smart Dispatch",
+      "claimAll": "Claim All",
+      "freeRefresh": "Free Refresh",
+      "refreshGrade": "Refresh Grade (Ticket)",
+      "send": "Dispatch",
+      "claim": "Claim",
+      "claimWithRemaining": "Claim ({remaining} left)",
+      "helper": "Escort"
+    },
+    "empty": {
+      "selectToken": "Select a token and connect first",
+      "noCars": "No car data"
+    },
+    "fallbacks": {
+      "carName": "Car #{id}"
+    },
+    "labels": {
+      "star": "{value} star",
+      "status": "Status",
+      "helper": "Escort"
+    },
+    "status": {
+      "idle": "Idle",
+      "sent": "Dispatched"
+    },
+    "helperDialog": {
+      "title": "Select Escort",
+      "memberLabel": "Escort Member",
+      "placeholder": "Select a club member",
+      "tip": "Members who have already escorted 4 times cannot be selected.",
+      "optionLabel": "{name} (Power: {power} | Red Quench: {redQuench} | Escorted {count}/4)"
+    },
+    "helperStatus": {
+      "none": "None",
+      "available": "Available",
+      "na": "-"
+    },
+    "time": {
+      "zeroMinutes": "0m",
+      "hoursMinutes": "{hours}h {minutes}m",
+      "minutes": "{minutes}m"
+    },
+    "messages": {
+      "selectTokenFirst": "Select a token and connect first",
+      "smartParseEnabled": "No car field was recognized. Smart parsing has been enabled. If it is still empty, provide a sample response.",
+      "dataUpdated": "Mad Racing data updated",
+      "fetchFailed": "Failed to fetch car data: {error}",
+      "unknownError": "Unknown error",
+      "carIdMissing": "Car ID not found",
+      "refreshOnlyIdle": "Only idle cars can refresh their grade",
+      "consumeTicketRefresh": "A ticket will be consumed for this refresh",
+      "refreshDone": "Refresh completed: {grade}",
+      "gradeRefreshDone": "Grade refresh completed",
+      "refreshFailed": "Refresh failed: {error}",
+      "alreadySent": "This car has already been dispatched",
+      "activityClosed": "Dispatch is unavailable outside event time (Monday to Wednesday only)",
+      "sending": "Dispatching...",
+      "sent": "Dispatched",
+      "sendFailed": "Dispatch failed: {error}",
+      "claimTooEarly": "Too early to claim (must wait more than 4 hours)",
+      "claiming": "Claiming...",
+      "claimDone": "Claim completed",
+      "claimFailed": "Claim failed: {error}",
+      "claimRemaining": "Not ready to claim yet, {remaining} left",
+      "claimAllDone": "Claim all completed",
+      "claimAllFailed": "Claim all failed: {error}",
+      "helperAssigned": "Escort assigned automatically: {name} ({used}/4 used)",
+      "helperUnavailable": "Car [{grade}] needs an escort, but all escorts are fully used",
+      "smartSendDone": "Smart dispatch completed",
+      "smartSendFailed": "Smart dispatch failed: {error}",
+      "helperGradeLimit": "Only cars with grade >= 5 can set escorts",
+      "helperSentDisabled": "Dispatched cars cannot set escorts",
+      "helperFetchFailed": "Failed to fetch escort data: {error}"
+    }
+  },
+  "goldFishCalculator": {
+    "iconAlt": "Gold fish calculator icon",
+    "title": "Gold Fish Calculator",
+    "subtitle": "Estimate how many resources you can gain before getting the next gold fish",
+    "festivalOption": "{label} ({date})",
+    "ratePerDay": "{value}/day",
+    "labels": {
+      "targetFestival": "Target festival",
+      "daysToNext": "Days until next gold fish: {days}"
+    },
+    "actions": {
+      "refreshRoleInfo": "Refresh Role Data"
+    },
+    "hints": {
+      "usingDefault": "No resource change records were detected. Default values are being used, so every resource gains 0 per day.",
+      "estimatedDate": "{label} has no official date yet. The current estimate uses {estimateBase}."
+    },
+    "table": {
+      "resource": "Resource",
+      "current": "Current",
+      "target": "Target",
+      "dailyGain": "Daily gain",
+      "gainInDays": "Gain in {days} day(s)",
+      "total": "Projected total",
+      "gap": "Gap to target",
+      "source": "Source"
+    },
+    "festivals": {
+      "dragonBoat": "Dragon Boat Festival",
+      "midAutumn": "Mid-Autumn Festival",
+      "newYear": "New Year's Day"
+    },
+    "resources": {
+      "diamond": "Gold Brick",
+      "chestPoint": "Chest Points",
+      "goldRod": "Gold Fish Rod",
+      "recruit": "Recruit Token"
+    },
+    "sources": {
+      "default": "Default",
+      "changeLog": "Change Log"
+    }
+  },
+  "recruitHelperCard": {
+    "iconAlt": "Recruit helper icon",
+    "title": "Recruit Helper",
+    "resourceName": "Recruit Token",
+    "count": "Count: {count}",
+    "status": {
+      "running": "Running",
+      "stopped": "Stopped"
+    },
+    "actions": {
+      "start": "Start Recruiting"
+    },
+    "messages": {
+      "selectTokenFirst": "Please select a token first",
+      "running": "Recruit helper is running",
+      "done": "Recruiting completed"
+    }
+  },
+  "starUpgradeCard": {
+    "iconAlt": "Star upgrade helper icon",
+    "title": "Star Upgrade Helper",
+    "subtitle": "Upgrade stars, upgrade the codex, and claim rewards",
+    "status": {
+      "running": "Running",
+      "stopped": "Stopped"
+    },
+    "labels": {
+      "delay": "Delay (ms)",
+      "heroCount": "Heroes: {count}"
+    },
+    "actions": {
+      "heroUpgrade": "Upgrade",
+      "bookUpgrade": "Codex",
+      "claimRewards": "Claim",
+      "stop": "Stop"
+    },
+    "confirm": {
+      "title": "Confirm Action",
+      "content": "This will run star upgrades, codex upgrades, and reward claims for the preset heroes.",
+      "confirm": "Start",
+      "cancel": "Cancel"
+    },
+    "messages": {
+      "selectTokenFirst": "Please select a token first",
+      "wsDisconnected": "WebSocket is not connected",
+      "wsDisconnectedExecute": "WebSocket is not connected, cannot execute",
+      "startHero": "Starting star upgrades",
+      "heroDoneBookStart": "Hero star upgrades finished. Starting codex upgrades",
+      "bookDoneClaimStart": "Codex upgrades finished. Starting reward claims",
+      "allDone": "All star upgrade tasks completed",
+      "executeError": "Star upgrade task failed",
+      "stopped": "Stopped",
+      "heroDone": "Hero star upgrades completed",
+      "bookDone": "Codex upgrades completed",
+      "claimDone": "Reward claiming completed"
+    },
+    "logs": {
+      "retryWait": "Requests are too frequent. Retrying in {seconds} second(s)",
+      "wsMissing": "WebSocket connection is missing",
+      "taskStarted": "Star upgrade task started",
+      "heroDone": "All hero star upgrades completed",
+      "bookDone": "All codex upgrades completed",
+      "allDone": "All star upgrade tasks completed",
+      "executeError": "Star upgrade task failed: {error}",
+      "heroAttempt": "Hero ID:{heroId} star upgrade attempt {current}/10",
+      "heroAttemptFailed": "Hero ID:{heroId} star upgrade attempt {current}/10 failed, skipping remaining attempts",
+      "bookAttempt": "Hero ID:{heroId} codex upgrade attempt {current}/10",
+      "bookAttemptFailed": "Hero ID:{heroId} codex upgrade attempt {current}/10 failed, skipping remaining attempts",
+      "claimAttempt": "Codex reward claim attempt {current}/10",
+      "claimAttemptFailed": "Codex reward claim attempt {current}/10 failed, skipping remaining attempts"
+    },
+    "errors": {
+      "tooFast": "Too many operations too quickly",
+      "requestFailed": "Request failed",
+      "heroUpgradeFailed": "Star upgrade failed",
+      "bookUpgradeFailed": "Codex upgrade failed",
+      "claimFailed": "Reward claim failed"
+    }
+  },
+  "peachInfo": {
+    "toolbar": {
+      "queryDate": "Query Date:",
+      "exportImage": "Export Image",
+      "refresh": "Refresh"
+    },
+    "title": "{date} Peach Tournament Battle",
+    "common": {
+      "unknown": "Unknown",
+      "none": "None",
+      "close": "Close"
+    },
+    "club": {
+      "server": "S{serverId}",
+      "id": "ID: {id}",
+      "memberCount": "{count} members",
+      "quenchNum": "{count} red"
+    },
+    "states": {
+      "loadingOpponent": "Loading opponent data...",
+      "noLineup": "No lineup data",
+      "noOpponentData": "No opponent data"
+    },
+    "table": {
+      "title": "Opponent Info",
+      "columns": {
+        "index": "No.",
+        "avatar": "Avatar",
+        "roleName": "Role Name",
+        "power": "Power",
+        "redQuench": "Red Quench",
+        "lineup": "Lineup (Red)[HB Lv]",
+        "lineupType": "Lineup Type"
+      }
+    },
+    "modals": {
+      "playerInfoTitle": "Opponent Info"
+    },
+    "labels": {
+      "power": "Power: {value}",
+      "redQuench": "Red Quench {count}",
+      "lineupType": "Lineup Type:",
+      "serverName": "Server: {name}",
+      "legionName": "Club: {name}",
+      "totalRedCount": "Total Red: {count}",
+      "totalHoleCount": "Total Holes: {count}",
+      "holyBeastCount": "Holy Beast: {count}"
+    },
+    "duel": {
+      "countLabel": "Duel Count:",
+      "countPlaceholder": "Enter duel count",
+      "rangeHint": "Range: 1-100",
+      "start": "Duel",
+      "inProgress": "Duel in progress",
+      "totalCount": "Total: {count}",
+      "completedCount": "Completed: {count}",
+      "remainingCount": "Remaining: {count}",
+      "winCount": "Wins: {count}",
+      "lossCount": "Losses: {count}",
+      "resultTitle": "Duel Result",
+      "summary": {
+        "totalCount": "Total:",
+        "win": "Wins:",
+        "loss": "Losses:",
+        "winRate": "Win Rate:",
+        "ourDieRate": "Our KO Rate:",
+        "enemyDieRate": "Enemy KO Rate:"
+      },
+      "battleIndex": "Battle {index}",
+      "win": "Win",
+      "loss": "Loss",
+      "dieHeroCount": "KO: {count}",
+      "retry": "Duel Again",
+      "closeResult": "Close"
+    },
+    "heroes": {
+      "title": "Hero Lineup",
+      "count": "Heroes: {count}",
+      "star": "Star: {value}",
+      "red": "Red: {value}",
+      "hole": "Hole: {value}",
+      "holyBeastOpened": "Holy Beast On",
+      "holyBeastClosed": "Holy Beast Off",
+      "holyBeastLevel": "Holy Beast Lv: {value}",
+      "empty": "No hero info found",
+      "listEmpty": "Hero list is empty",
+      "listUndefined": "Hero list is undefined"
+    },
+    "heroModal": {
+      "title": "Hero Details",
+      "level": "Level: {value}",
+      "star": "Star: {value}",
+      "activated": "Activated",
+      "notActivated": "Not Activated",
+      "equipmentTitle": "Equipment Details",
+      "labels": {
+        "power": "Power",
+        "level": "Level",
+        "star": "Star",
+        "hole": "Holes",
+        "red": "Red Holes",
+        "holyBeastStatus": "Holy Beast",
+        "holyBeastLevel": "Holy Beast Level",
+        "fishInfo": "Fish Spirit",
+        "pearlSkill": "Pearl Skill",
+        "pearlWash": "Pearl Wash"
+      },
+      "equipment": {
+        "weapon": "Weapon:",
+        "clothes": "Clothes:",
+        "helmet": "Helmet:",
+        "mount": "Mount:"
+      }
+    },
+    "power": {
+      "billion": "{value}B",
+      "tenThousand": "{value}W"
+    },
+    "fallbacks": {
+      "unknownHero": "Unknown Hero_{index}",
+      "ownClub": "Our Club",
+      "opponentClub": "Opponent Club"
+    },
+    "export": {
+      "filenamePrefix": "PeachOpponentInfo"
+    },
+    "messages": {
+      "selectRoleFirst": "Please select a game role first",
+      "wsDisconnectedQueryRecord": "WebSocket is not connected. Cannot query battle records",
+      "wsDisconnectedDuel": "WebSocket is not connected. Cannot start a duel",
+      "wsDisconnectedQuery": "WebSocket is not connected. Cannot query",
+      "opponentNotFound": "Opponent info not found",
+      "querySuccess": "Query successful",
+      "queryFailed": "Query failed: {error}",
+      "invalidFightCount": "Please enter a valid duel count (1-100)",
+      "duelStarted": "Starting duel sequence with {name}, total {count}",
+      "duelRunning": "Running duel {current}/{total}",
+      "duelSingleFailed": "Duel {current} failed: {error}",
+      "duelFinished": "Duel sequence completed, total {count}",
+      "duelFailed": "Duel sequence failed: {error}",
+      "noBattleData": "No battle data returned",
+      "networkError": "Network error",
+      "battlefieldMissing": "Battlefield info not found",
+      "opponentClubIdMissing": "Opponent club ID not found",
+      "historyMissing": "Historical battle records not found",
+      "recordNotFound": "No battle record found for {date}",
+      "opponentClubDetailMissing": "Unable to fetch opponent club details",
+      "fetchDataFailed": "Failed to fetch data: {error}",
+      "exportTargetMissing": "No exportable content found",
+      "exportGenerating": "Generating image, please wait...",
+      "exportSuccess": "Image exported successfully",
+      "exportSuccessWithPages": "Images exported successfully, total {count}",
+      "exportFailed": "Image export failed. Please try again."
+    }
+  },
+  "heroUpgradeCard": {
+    "iconAlt": "Hero upgrade icon",
+    "title": "Hero Upgrade",
+    "subtitle": "Upgrade heroes for easier speed tuning",
+    "status": {
+      "running": "Running",
+      "stopped": "Stopped"
+    },
+    "labels": {
+      "heroSelect": "Hero Select",
+      "attack": "Attack: {value}",
+      "speed": "Speed: {value}",
+      "levelUpgrade": "Upgrade Level"
+    },
+    "actions": {
+      "levelUpgrade": "Upgrade",
+      "orderUpgrade": "Advance"
+    },
+    "messages": {
+      "retrying": "Requests are too frequent. Retrying in {seconds} second(s)",
+      "selectRoleFirst": "Please select a game role first",
+      "wsDisconnected": "WebSocket is not connected. Cannot execute the command",
+      "orderSuccess": "Advance succeeded",
+      "orderFailed": "Advance failed",
+      "orderFailedWithReason": "Advance failed: {error}",
+      "manualUpgradeRequired": "Please manually upgrade to level {level}, then advance",
+      "levelFailedWithReason": "Upgrade failed: {error}"
+    },
+    "errors": {
+      "tooFast": "Too many operations too quickly",
+      "requestFailed": "Request failed"
+    }
+  },
+  "refineHelperCard": {
+    "iconAlt": "Refine icon",
+    "title": "Refine Helper",
+    "subtitle": "Equipment refining, slot locking, and auto refining",
+    "status": {
+      "running": "Running",
+      "stopped": "Stopped"
+    },
+    "common": {
+      "or": " or "
+    },
+    "labels": {
+      "whiteJade": "White Jade: {count}",
+      "colorJade": "Color Jade: {count}",
+      "selectHero": "Select Hero",
+      "selectEquip": "Select Equipment",
+      "quenchTimes": "Refine Count",
+      "slotLock": "Slot Lock",
+      "slot": "Slot {id}",
+      "secondaryPassword": "Unlock secondary password:",
+      "enterSecondaryPassword": "Enter secondary password",
+      "quenchedCount": "Refined:",
+      "autoSettings": "Auto Refine Settings",
+      "attribute": "Attribute",
+      "selectAttribute": "Select attribute",
+      "delay": "Delay (ms)"
+    },
+    "actions": {
+      "refreshHeroes": "Refresh Lineup",
+      "reset": "Reset",
+      "verify": "Verify",
+      "reverify": "Verify Again",
+      "quenchOnce": "Refine Once",
+      "quenchContinuous": "Continuous Refine",
+      "autoQuench": "Auto Refine",
+      "stop": "Stop",
+      "remove": "Remove",
+      "addCondition": "+ Add Condition"
+    },
+    "states": {
+      "loading": "Loading...",
+      "emptyHeroes": "No hero data",
+      "notQuenched": "Not refined",
+      "passwordVerified": "Password verified"
+    },
+    "attributes": {
+      "attack": "Attack",
+      "hp": "HP",
+      "defense": "Defense",
+      "speed": "Speed",
+      "armorBreak": "Armor Break",
+      "armorBreakResist": "Armor Break Resist",
+      "accuracy": "Accuracy",
+      "block": "Block",
+      "damageReduction": "Damage Reduction",
+      "critical": "Critical",
+      "criticalResist": "Critical Resist",
+      "criticalDamage": "Critical Damage",
+      "criticalDamageResist": "Critical Damage Resist",
+      "skillDamage": "Skill Damage",
+      "controlResist": "Control Resist",
+      "stunResist": "Stun Resist",
+      "freezeResist": "Freeze Resist",
+      "silenceResist": "Silence Resist",
+      "bleedResist": "Bleed Resist",
+      "poisonResist": "Poison Resist",
+      "burnResist": "Burn Resist"
+    },
+    "parts": {
+      "weapon": "Weapon",
+      "armor": "Armor",
+      "helmet": "Helmet",
+      "mount": "Mount"
+    },
+    "fallbacks": {
+      "equipment": "Equipment {id}",
+      "hero": "Hero {id}",
+      "attribute": "Attribute {id}"
+    },
+    "messages": {
+      "selectTokenFirst": "Please select a token first",
+      "wsDisconnectedRefresh": "WebSocket is not connected. Cannot refresh lineup",
+      "refreshSuccess": "Lineup refreshed successfully",
+      "refreshFailed": "Failed to refresh lineup: {error}",
+      "enterPassword": "Please enter the password",
+      "wsDisconnectedVerify": "WebSocket is not connected. Cannot verify password",
+      "passwordVerified": "Password verified successfully",
+      "verifyFailed": "Verification failed: {error}",
+      "verifyPasswordFailed": "Password verification failed: {error}",
+      "selectHeroAndEquip": "Please select a hero and equipment first",
+      "verifyPasswordBeforeUnlock": "Please verify the secondary password before unlocking the slot",
+      "slotLocked": "Slot locked",
+      "slotUnlocked": "Slot unlocked",
+      "lockSlotFailed": "Failed to lock the slot: {error}",
+      "selectHeroAndPart": "Please select a hero and equipment part first",
+      "continuousStarted": "Continuous refining started. It will auto-stop when an orange or red attribute appears",
+      "continuousAutoStopped": "Orange or red attribute found. Auto-stopped",
+      "continuousFailed": "Continuous refining failed: {error}",
+      "keepOneCondition": "At least one condition must be kept",
+      "setValidCondition": "Please set at least one valid target attribute and value",
+      "autoStarted": "Auto refining started. Target: {conditions}",
+      "autoStoppedOnTarget": "Target condition met. Auto refining stopped",
+      "autoFailed": "Auto refining failed: {error}",
+      "wsDisconnectedQuench": "WebSocket is not connected. Cannot refine",
+      "weaponLevelInsufficient": "Weapon level is too low. Level 4000+ required (current {level})",
+      "equipmentSlotsMissing": "Equipment slot info is missing",
+      "quenchFailed": "Refining failed: {error}",
+      "quenchStopped": "Refining stopped",
+      "resetDone": "Reset completed"
+    }
+  },
+  "fishHelperCard": {
+    "iconAlt": "Normal fishing rod icon",
+    "title": "Fishing Helper",
+    "count": "Count: {count}",
+    "status": {
+      "running": "Running",
+      "stopped": "Stopped"
+    },
+    "types": {
+      "normalRod": "Normal Rod",
+      "goldRod": "Golden Rod"
+    },
+    "actions": {
+      "start": "Start Fishing"
+    },
+    "messages": {
+      "selectTokenFirst": "Please select a token first",
+      "running": "Fishing helper is running",
+      "done": "Fishing completed"
+    }
+  },
+  "boxHelperCard": {
+    "iconAlt": "Chest icon",
+    "title": "Chest Helper",
+    "count": "Count: {count}",
+    "status": {
+      "running": "Running",
+      "stopped": "Stopped"
+    },
+    "labels": {
+      "totalPoints": "Total Chest Points:"
+    },
+    "types": {
+      "wooden": "Wooden Chest",
+      "bronze": "Bronze Chest",
+      "gold": "Gold Chest",
+      "platinum": "Platinum Chest"
+    },
+    "actions": {
+      "open": "Open Chests",
+      "claimPoints": "Claim Chest Points"
+    },
+    "messages": {
+      "selectTokenFirst": "Please select a token first",
+      "claimDone": "Chest points claimed",
+      "opening": "Opening chests",
+      "openDone": "Chests opened"
+    }
+  },
+  "bottleHelperCard": {
+    "iconAlt": "Bottle icon",
+    "title": "Bottle Helper",
+    "subtitle": "Remaining Time",
+    "status": {
+      "running": "Running",
+      "stopped": "Stopped"
+    },
+    "actions": {
+      "start": "Start Service",
+      "restart": "Restart Service"
+    },
+    "messages": {
+      "selectTokenFirst": "Please select a token first",
+      "starting": "Starting bottle helper",
+      "restarting": "Restarting bottle helper"
+    }
+  },
+  "fightHelperCard": {
+    "iconAlt": "Arena icon",
+    "title": "Arena Helper",
+    "status": {
+      "running": "Running",
+      "stopped": "Stopped"
+    },
+    "labels": {
+      "ticketCount": "Current Arena Ticket Count:"
+    },
+    "actions": {
+      "start": "Start Battle"
+    },
+    "messages": {
+      "selectTokenFirst": "Please select a token first",
+      "notEnoughTickets": "Not enough arena tickets for this number of battles",
+      "running": "Arena battle in progress",
+      "targetFailed": "Failed to get arena target: {error}",
+      "noTarget": "No available arena target found. Stopped",
+      "fightFailed": "Arena fight failed: {error}",
+      "done": "Arena battles completed"
+    }
+  },
+  "fightPvpCard": {
+    "iconAlt": "Duel icon",
+    "title": "Duel System",
+    "subtitle": "Query opponent information and run duels",
+    "common": {
+      "unknown": "Unknown",
+      "unknownPlayer": "Unknown Player",
+      "unknownHero": "Unknown Hero",
+      "unknownError": "Unknown error",
+      "none": "None",
+      "noClub": "No Club"
+    },
+    "placeholders": {
+      "targetId": "Enter opponent ID",
+      "fightCount": "Select or enter duel count"
+    },
+    "actions": {
+      "queryTarget": "Query Opponent",
+      "startFight": "Start Duel",
+      "exportData": "Export Data",
+      "exportRaw": "Export Raw",
+      "syncFromGame": "Sync From Game",
+      "clearCurrent": "Clear Current",
+      "use": "Use",
+      "delete": "Delete",
+      "close": "Close"
+    },
+    "targetLists": {
+      "history": "Duel History",
+      "friends": "Friends",
+      "follows": "Follows"
+    },
+    "labels": {
+      "fightCount": "Duel Count:",
+      "serverName": "Server: {value}",
+      "redCount": "Red: {value}",
+      "updatedAt": "Updated:",
+      "holeCount": "Holes: {value}",
+      "heroCount": "{value} heroes",
+      "clickAvatarHint": "(Click avatar to view details)",
+      "holyBeastOpened": "Holy Beast On",
+      "holyBeastClosed": "Holy Beast Off",
+      "powerValue": "Power: {value}",
+      "starValue": "Star: {value}",
+      "holyBeastLevel": "Holy Beast Lv: {value}",
+      "battleIndex": "Battle {value}",
+      "dieCount": "KO: {value}"
+    },
+    "sections": {
+      "opponentInfo": "Opponent Info",
+      "opponentLineup": "Opponent Lineup",
+      "fightResult": "Duel Result"
+    },
+    "info": {
+      "name": "Name:",
+      "server": "Server:",
+      "power": "Power:",
+      "weapon": "Artifact:",
+      "lineup": "Lineup:",
+      "club": "Club:",
+      "clubPower": "Club Power:",
+      "currentRed": "Current Red:"
+    },
+    "summary": {
+      "total": "Total:",
+      "win": "Wins:",
+      "loss": "Losses:",
+      "winRate": "Win Rate:",
+      "ourDieRate": "Our KO Rate:",
+      "enemyDieRate": "Enemy KO Rate:",
+      "winResult": "Win",
+      "lossResult": "Loss"
+    },
+    "empty": {
+      "history": "No duel history",
+      "friends": "No friend targets",
+      "prompt": "Enter an opponent ID and click query to load opponent info"
+    },
+    "heroModal": {
+      "title": "Hero Info",
+      "heroId": "Hero ID: {value}",
+      "level": "Level: {value}",
+      "star": "Star: {value}",
+      "activated": "Activated",
+      "notActivated": "Not Activated",
+      "equipmentTitle": "Equipment Details",
+      "labels": {
+        "power": "Power",
+        "level": "Level",
+        "star": "Star",
+        "hole": "Holes",
+        "red": "Red Slots",
+        "holyBeastStatus": "Holy Beast",
+        "holyBeastLevel": "Holy Beast Level",
+        "fishInfo": "Fish Spirit",
+        "pearlSkill": "Pearl Skill",
+        "pearlWash": "Pearl Wash"
+      },
+      "equipment": {
+        "weapon": "Weapon:",
+        "clothes": "Clothes:",
+        "helmet": "Helmet:",
+        "mount": "Mount:"
+      }
+    },
+    "messages": {
+      "loadingTarget": "Loading opponent info...",
+      "loadingFight": "Running duels, please wait...",
+      "queryTargetFirst": "Please query opponent info first",
+      "addedToList": "Added to {list}",
+      "noDiagnosticData": "No diagnostic data yet. Click \"Sync From Game\" first",
+      "diagnosticExported": "Diagnostic exported: {filename}",
+      "exportFailed": "Export failed: {error}",
+      "selectRoleFirst": "Please select a game role first",
+      "wsDisconnectedSyncFriends": "WebSocket is not connected. Cannot sync friend list",
+      "friendListNotRecognized": "Could not recognize friend list data from the game",
+      "friendsSyncedFillingRed": "Friend list synced. Filling red counts...",
+      "syncDone": "Sync complete: {count} friend(s)",
+      "wsDisconnectedQueryRecord": "WebSocket is not connected. Cannot query records",
+      "fightError": "Duel error",
+      "fightDone": "Duel complete",
+      "queryFailed": "Query failed: {error}",
+      "targetNotFound": "Opponent info not found",
+      "targetLoaded": "Opponent info loaded successfully",
+      "noRawData": "No raw data available. Query opponent info first",
+      "rawExported": "Raw data exported: {filename}",
+      "rawExportFailed": "Failed to export raw data: {error}",
+      "exportDomNotFound": "Could not find content to export",
+      "exportImageFileName": "duel-result.png",
+      "exportImageFailedLog": "Failed to export duel result image:",
+      "exportImageFailed": "Failed to export image. Please try again"
+    }
+  },
+  "arenaPvpCard": {
+    "iconAlt": "Arena icon",
+    "title": "Arena",
+    "subtitle": "Connect to the in-game arena with battle and ranking support",
+    "common": {
+      "unknown": "Unknown",
+      "unknownPlayer": "Unknown Player",
+      "unknownError": "Unknown error",
+      "unknownMark": "?",
+      "dash": "-"
+    },
+    "summary": {
+      "status": "Status",
+      "open": "Open (06:00-22:00)",
+      "closed": "Closed (06:00-22:00)",
+      "ticket": "Arena Tickets",
+      "score": "My Score",
+      "rank": "My Rank"
+    },
+    "actions": {
+      "formation": "Arena Formation",
+      "fightCount": "Battle Count",
+      "refresh": "Refresh Score & Rank",
+      "start": "Start Arena",
+      "skipLineups": "Skip opponent lineups (defaults include Lu-Zhao and Guan Yu)",
+      "manualTarget": "Manual target classification",
+      "manualRoleId": "Or enter opponent ID",
+      "manualName": "Or enter opponent name",
+      "manualLineup": "Classified lineup",
+      "saveManual": "Save Classification",
+      "delete": "Delete",
+      "pullRecords": "Pull Game Records",
+      "exportImage": "Export Image",
+      "clearRecords": "Clear Records"
+    },
+    "placeholders": {
+      "skipLineups": "Enter custom lineup keywords",
+      "manualTarget": "Select from rank list / records",
+      "manualRoleId": "e.g. 277019638",
+      "manualName": "e.g. saltyFishEMO"
+    },
+    "sections": {
+      "logs": "Recent Battle Logs",
+      "records": "Arena Records",
+      "rankList": "Current Arena Ranking"
+    },
+    "labels": {
+      "updatedAt": "Last updated: {value}",
+      "recordRate": "Record win rate: {value}%",
+      "recordTotal": "Total: {value}",
+      "recordWins": "Wins: {value}",
+      "recordLosses": "Losses: {value}",
+      "correctedLineup": "Corrected lineup: {value}",
+      "recordSourceOption": "{name} (record source)",
+      "manual": "Manual",
+      "attack": "ATK",
+      "defense": "DEF",
+      "win": "Win",
+      "loss": "Loss",
+      "winResult": "Victory",
+      "lossResult": "Defeat"
+    },
+    "columns": {
+      "rank": "Rank",
+      "player": "Player",
+      "score": "Score",
+      "lineup": "Lineup",
+      "power": "Power"
+    },
+    "empty": {
+      "logs": "No battle logs yet",
+      "records": "No arena records yet. Pull game records first",
+      "rankList": "No current arena ranking data. Refresh first"
+    },
+    "options": {
+      "formation": "Formation {value}",
+      "fightCount": "{value} times"
+    },
+    "sources": {
+      "ocr": "Screenshot OCR",
+      "manual": "Manual",
+      "game": "Game Record",
+      "auto": "Auto"
+    },
+    "messages": {
+      "selectManualLineup": "Please choose a lineup to classify",
+      "selectManualTarget": "Select a rank target or enter an opponent ID/name",
+      "manualSavedWithRoleId": "Saved manual lineup for {name} ({roleId}): {lineupType}",
+      "manualSaved": "Saved manual lineup for {name}: {lineupType}",
+      "noGameRecords": "No arena game records were found",
+      "recordsPulled": "Pulled {count} arena game record(s)",
+      "pullRecordsFailed": "Failed to pull arena game records: {error}",
+      "selectTokenFirst": "Please select a token first",
+      "connectWebSocketFirst": "WebSocket is not connected. Connect first",
+      "noExportableRecords": "No records available to export",
+      "exportImageFileName": "arena-records-{time}.png",
+      "exportImageSuccess": "Arena records image exported",
+      "exportImageFailed": "Failed to export image: {error}",
+      "refreshSuccess": "Arena score and rank updated",
+      "refreshFailed": "Failed to refresh arena data: {error}",
+      "activityClosed": "Arena is closed. Available only between 06:00 and 22:00",
+      "noTickets": "Not enough arena tickets",
+      "invalidFightCount": "Invalid battle count",
+      "battleCompleted": "Arena actions completed. Executed {count} time(s)",
+      "battleFailed": "Arena action failed: {error}"
+    },
+    "logs": {
+      "switchFormation": "Switched arena formation: {value}",
+      "skipTarget": "Battle {index}: skipped {name} ({lineupType})",
+      "prioritizedCandidates": "Battle {index}: prioritized candidates {topText}",
+      "skipTargetAfterRefresh": "Battle {index}: still skipped after refresh {name} ({lineupType})",
+      "prioritizedCandidatesAfterRefresh": "Battle {index}: prioritized after refresh {topText}",
+      "noAvailableTarget": "Battle {index}: no available target after skip rules, skipped this round",
+      "challengeResult": "Battle {index}: challenged {name} ({lineupType}) {result}",
+      "challengeFailed": "Battle {index}: failed to challenge {name} ({error})",
+      "restoreFormation": "Restored original formation: {value}",
+      "restoreFormationFailed": "Failed to restore original formation: {error}"
+    }
+  },
+  "towerStatus": {
+    "iconAlt": "Tower icon",
+    "energyAlt": "Dried fish",
+    "title": "Idle Hero Tower",
+    "subtitle": "Cleared before you even noticed",
+    "common": {
+      "unknownError": "Unknown error"
+    },
+    "labels": {
+      "currentFloor": "Current Floor"
+    },
+    "actions": {
+      "start": "Start Climbing",
+      "climbing": "Climbing...",
+      "stop": "Stop Climbing",
+      "reset": "Reset State"
+    },
+    "messages": {
+      "manuallyStopped": "Batch tower climbing stopped manually",
+      "selectTokenFirst": "Please select a token first",
+      "cannotClimb": "Not enough energy or tower climbing is already running",
+      "autoStoppedByTimeout": "Batch tower climbing stopped automatically after timeout",
+      "climbCommandSent": "Sent tower climb command #{count}",
+      "climbCompleted": "Auto climbed {count} time(s). Energy is exhausted or the limit was reached.",
+      "climbFailed": "Batch tower climb failed: {error}",
+      "stateReset": "Tower climbing state has been reset",
+      "challengeSuccess": "Tower challenge succeeded!",
+      "autoRewardClaimed": "Automatically claimed reward for floor {floor}",
+      "challengeFailed": "Tower challenge failed"
+    }
+  },
+  "weirdTowerStatus": {
+    "iconAlt": "Weird Tower icon",
+    "energyAlt": "Dried fish",
+    "title": "Weird Tower",
+    "subtitle": "Cleared before you even noticed",
+    "common": {
+      "unknownError": "Unknown error"
+    },
+    "labels": {
+      "currentFloor": "Current Floor"
+    },
+    "actions": {
+      "startClimb": "Start Climbing",
+      "climbing": "Climbing...",
+      "stopClimb": "Stop Climbing",
+      "useItems": "Use Items",
+      "stopUsing": "Stop Using",
+      "autoMerge": "Auto Merge",
+      "merging": "Merging..."
+    },
+    "messages": {
+      "manuallyStoppedClimb": "Batch climbing stopped manually",
+      "manuallyStoppedItems": "Item usage stopped manually",
+      "selectTokenFirst": "Please select a token first",
+      "climbingInProgress": "Tower climbing is in progress. Please try again later",
+      "mergingInProgress": "Merging is in progress. Please try again later",
+      "useItemsTimeout": "Use-items action stopped automatically after timeout",
+      "fetchActivityFailed": "Failed to fetch activity information",
+      "noItemsLeft": "No items left to use",
+      "useItemsStarted": "Starting item usage. Remaining: {remaining}, used: {used}",
+      "useItemsCompleted": "Used items {count} time(s)",
+      "useItemsFailed": "Failed to use items: {error}",
+      "otherActionInProgress": "Another action is already running. Please try again later",
+      "mergeTimeout": "Auto merge stopped automatically after timeout",
+      "mergingLoading": "Running auto merge...",
+      "mergeBoxMissing": "Response is missing mergeBox",
+      "noMergeableItems": "There are no mergeable items right now",
+      "mergeCompleted": "Auto merge completed",
+      "mergeFailed": "Auto merge failed: {error}",
+      "activityClosed": "Weird Tower activity has not started or has already ended",
+      "cannotClimb": "Not enough energy or another action is running",
+      "climbTimeout": "Batch tower climbing stopped automatically after timeout",
+      "climbCommandSent": "Sent tower climb command #{count}",
+      "dailyRewardClaimed": "Claimed daily task reward {taskId}",
+      "chapterRewardClaimed": "Successfully claimed chapter {chapter} clear reward!",
+      "freeItemsClaimed": "Successfully claimed {count} free item(s)!",
+      "climbCompleted": "Auto climbed {count} time(s). Energy is exhausted or the limit was reached.",
+      "climbFailed": "Batch tower climb failed: {error}"
+    }
+  },
+  "roleProfileCard": {
+    "common": {
+      "role": "Role",
+      "unknownRole": "Unknown Role",
+      "max": "MAX"
+    },
+    "labels": {
+      "power": "Power {value}"
+    },
+    "units": {
+      "yi": "{value}B",
+      "wan": "{value}W"
+    },
+    "ranks": {
+      "beginner": {
+        "title": "Newcomer",
+        "description": "Just entered the martial world and still finding footing."
+      },
+      "known": {
+        "title": "Recognized",
+        "description": "Has earned some fame and a place in the world."
+      },
+      "veteran": {
+        "title": "Seasoned",
+        "description": "Battle-tested and steadily becoming a real force."
+      },
+      "master": {
+        "title": "Renowned",
+        "description": "Refined skills and a name known across the region."
+      },
+      "hero": {
+        "title": "Heroic",
+        "description": "Bold and mighty, commanding respect far and wide."
+      },
+      "overlord": {
+        "title": "Overlord",
+        "description": "Gifted in both strength and strategy, shaping the battlefield."
+      },
+      "supreme": {
+        "title": "Supreme",
+        "description": "Power beyond measure, looked up to by all."
+      },
+      "emperor": {
+        "title": "Emperor",
+        "description": "At the peak of influence, able to command the realm."
+      },
+      "legend": {
+        "title": "Legend",
+        "description": "Transcendent and immortalized in stories."
+      },
+      "infinite": {
+        "title": "Infinite",
+        "description": "Beyond legend itself, unmatched by anyone."
+      }
+    }
+  },
+  "homePage": {
+    "common": {
+      "dash": "-"
+    },
+    "brandSubtitle": "Game Management System",
+    "actions": {
+      "login": "Log In",
+      "register": "Register",
+      "registerNow": "Register Now",
+      "enterDashboard": "Enter Dashboard",
+      "createAccount": "Create Account",
+      "viewCapabilities": "View Core Capabilities"
+    },
+    "nav": {
+      "home": "Home",
+      "dashboard": "Dashboard",
+      "features": "Game Features",
+      "tokens": "Token Management",
+      "changelog": "Changelog"
+    },
+    "trial": {
+      "expiry": "Trial Expires At",
+      "countdown": "Time Remaining",
+      "expired": "Expired",
+      "countdownValue": "{days}d {hours}h {minutes}m {seconds}s"
+    },
+    "hero": {
+      "title": "Fold repetitive operations into one clear control surface",
+      "subtitle": "Roles, tasks, data, and events all connect in one place. You set the strategy, and the system handles the repetition.",
+      "tags": {
+        "multiRole": "Multi-role Coordination",
+        "automation": "Automated Tasks",
+        "monitoring": "Real-time Monitoring"
+      }
+    },
+    "panel": {
+      "title": "Today's Overview",
+      "liveSync": "Live Sync"
+    },
+    "sections": {
+      "featuresTitle": "Core Feature Modules",
+      "featuresSubtitle": "A complete daily operations toolkit, from execution to review, all in one flow."
+    },
+    "cards": {
+      "roleHub": {
+        "title": "Role Hub",
+        "description": "Unified health checks across multiple accounts"
+      },
+      "smartTasks": {
+        "title": "Smart Tasks",
+        "description": "Automated orchestration for daily routines"
+      },
+      "snapshots": {
+        "title": "Data Snapshots",
+        "description": "Review key progress and fluctuations in real time"
+      }
+    },
+    "features": {
+      "roleManagement": {
+        "title": "Role Management",
+        "description": "Manage multiple game roles in one place with quick switching, aggregated state, and key status monitoring."
+      },
+      "taskAutomation": {
+        "title": "Task Automation",
+        "description": "Turn repetitive actions into workflows that run automatically and produce traceable results."
+      },
+      "analytics": {
+        "title": "Analytics",
+        "description": "Capture key metrics and quickly spot gains, regressions, and abnormal changes."
+      },
+      "personalization": {
+        "title": "Personalized Configuration",
+        "description": "Define strategy parameters by role and scenario to build your own operations console."
+      }
+    },
+    "stats": {
+      "activeUsers": "Active Users",
+      "managedRoles": "Managed Roles",
+      "executedTasks": "Executed Tasks",
+      "uptime": "Service Uptime"
+    },
+    "footer": {
+      "brand": "XYZW Game Management System",
+      "privacy": "Privacy Policy",
+      "terms": "Terms of Service"
+    }
+  },
+  "gameRolesPage": {
+    "title": "Game Roles",
+    "subtitle": "Manage all of your game roles",
+    "actions": {
+      "addRole": "Add Role",
+      "add": "Add",
+      "save": "Save",
+      "cancel": "Cancel"
+    },
+    "labels": {
+      "levelUnit": " Lv",
+      "exp": "EXP",
+      "gold": "Gold"
+    },
+    "status": {
+      "active": "Active",
+      "offline": "Offline"
+    },
+    "empty": {
+      "description": "No game roles yet",
+      "addFirst": "Add your first role"
+    },
+    "modal": {
+      "addTitle": "Add Game Role",
+      "editTitle": "Edit Game Role"
+    },
+    "form": {
+      "name": "Role Name",
+      "server": "Server",
+      "profession": "Profession",
+      "level": "Level",
+      "account": "Account",
+      "note": "Note"
+    },
+    "placeholders": {
+      "name": "Enter role name",
+      "server": "Select a server",
+      "profession": "Select a profession",
+      "level": "Role level",
+      "account": "Game account (optional)",
+      "note": "Role notes (optional)"
+    },
+    "validation": {
+      "name": "Please enter a role name",
+      "server": "Please select a server",
+      "profession": "Please select a profession",
+      "level": "Please enter the role level"
+    },
+    "options": {
+      "servers": {
+        "fengyun": "Wind & Cloud",
+        "shenhua": "Myth",
+        "chuanqi": "Legend",
+        "menghuan": "Dream",
+        "yingxiong": "Hero"
+      },
+      "professions": {
+        "warrior": "Warrior",
+        "mage": "Mage",
+        "taoist": "Taoist",
+        "assassin": "Assassin",
+        "archer": "Archer",
+        "priest": "Priest"
+      }
+    },
+    "menu": {
+      "edit": "Edit",
+      "setPrimary": "Set as Primary",
+      "viewDetails": "View Details",
+      "delete": "Delete"
+    },
+    "messages": {
+      "switchedRole": "Switched to role: {name}",
+      "detailsInProgress": "Role details are still in development..."
+    },
+    "dialog": {
+      "deleteTitle": "Delete Role",
+      "deleteContent": "Are you sure you want to delete role \"{name}\"? This action cannot be undone.",
+      "confirmDelete": "Delete"
+    },
+    "units": {
+      "yi": "{value}B",
+      "wan": "{value}W"
+    }
+  },
+  "feedbackCenter": {
+    "common": {
+      "dash": "-"
+    },
+    "title": "Feature Feedback",
+    "subtitle": "Submit bugs or feature requests. Admins can mark them completed after review.",
+    "actions": {
+      "refresh": "Refresh",
+      "submit": "Submit Feedback",
+      "goAdminTickets": "Open Ticket Management"
+    },
+    "submit": {
+      "title": "Submit New Feedback"
+    },
+    "form": {
+      "type": "Type",
+      "title": "Title",
+      "content": "Content"
+    },
+    "placeholders": {
+      "type": "Select feedback type",
+      "title": "Briefly describe the issue or request",
+      "content": "Describe reproduction steps, expected behavior, or your feature idea"
+    },
+    "notifications": {
+      "title": "Notifications",
+      "markAllRead": "Mark All Read",
+      "markRead": "Mark Read",
+      "empty": "No notifications"
+    },
+    "list": {
+      "count": "{count} total",
+      "submitter": "Submitted by: {username}",
+      "adminNote": "Admin note:",
+      "empty": "No feedback yet"
+    },
+    "options": {
+      "type": {
+        "feature": "Feature",
+        "other": "Other"
+      },
+      "status": {
+        "all": "All Statuses",
+        "open": "Open",
+        "inProgress": "In Progress",
+        "resolved": "Resolved"
+      }
+    },
+    "messages": {
+      "loadFailed": "Failed to load feedback",
+      "fillTitle": "Please enter a feedback title",
+      "fillContent": "Please enter feedback content",
+      "submitFailed": "Submission failed",
+      "submitSuccess": "Feedback submitted successfully",
+      "operationFailed": "Operation failed",
+      "notificationsMarkedAllRead": "All notifications have been marked as read"
+    }
+  },
+  "adminInvitesPage": {
+    "common": {
+      "dash": "-"
+    },
+    "title": "Admin Invite Codes",
+    "subtitle": "Generate invite codes and manage registration access",
+    "creator": {
+      "count": "Generate Count",
+      "type": "Invite Type",
+      "featureScope": "Feature Scope",
+      "bindTokenLimit": "Bind Token Limit"
+    },
+    "actions": {
+      "generate": "Generate Invite Codes",
+      "copyCode": "Copy Invite Code",
+      "disableCode": "Disable Invite Code",
+      "copy": "Copy",
+      "disable": "Disable"
+    },
+    "overview": {
+      "total": "Total Invite Codes",
+      "available": "Available",
+      "used": "Used"
+    },
+    "list": {
+      "title": "Invite Code List",
+      "count": "{count} total"
+    },
+    "fields": {
+      "code": "Invite Code",
+      "createdBy": "Created By",
+      "usedBy": "Used By",
+      "type": "Type",
+      "bindTokenLimit": "Token Limit",
+      "createdAt": "Created At",
+      "autoDisableAt": "48h Auto Disable"
+    },
+    "types": {
+      "normal": "Regular Invite Code",
+      "temporary": "Temporary Invite Code (7 days after registration)",
+      "shortNormal": "Regular",
+      "shortTemporary": "Temporary"
+    },
+    "featureScopes": {
+      "full": "Full Features",
+      "taskControlOnly": "Task Control Only",
+      "shortFull": "Full",
+      "shortTaskControlOnly": "Task Only"
+    },
+    "status": {
+      "active": "Unused",
+      "available": "Available",
+      "used": "Used",
+      "disabled": "Disabled",
+      "autoExpired": "Expired in 48h"
+    },
+    "messages": {
+      "codeCopied": "Invite code copied",
+      "copyFailed": "Copy failed. Please copy it manually",
+      "loadFailed": "Failed to load invite codes",
+      "disableFailed": "Disable failed",
+      "disabled": "Invite code disabled",
+      "createFailed": "Failed to generate invite codes",
+      "createdAndCopied": "Generated {count} invite code(s) and copied them",
+      "created": "Generated {count} invite code(s)",
+      "autoCopyFailed": "Auto copy failed. Please copy the list manually"
+    },
+    "columns": {
+      "code": "Invite Code",
+      "type": "Type",
+      "bindTokenLimit": "Token Limit",
+      "status": "Status",
+      "createdBy": "Created By",
+      "usedBy": "Used By",
+      "createdAt": "Created At",
+      "autoDisableAt": "48h Auto Disable",
+      "actions": "Actions"
+    },
+    "empty": "No invite code data"
+  }
+}

@@ -1,0 +1,184 @@
+// 颜色变量
+:root {
+  --font-family-base:
+    "Avenir Next", "PingFang SC", "HarmonyOS Sans SC", "Segoe UI Variable",
+    "Microsoft YaHei", sans-serif;
+  --font-family-mono:
+    "JetBrains Mono", "SF Mono", "Monaco", "Inconsolata", "Roboto Mono",
+    monospace;
+
+  // 主题色
+  --primary-color: #3f77ad;
+  --primary-color-hover: #345f8a;
+  --primary-color-light: #edf3f8;
+  --primary-color-pressed: #2b4f74;
+
+  // 辅助色
+  --secondary-color: #5a9b8e;
+  --success-color: #3f8f6b;
+  --warning-color: #c9954d;
+  --error-color: #bc5a71;
+  --info-color: #4b83b8;
+
+  // 中性色
+  --text-primary: #101828;
+  --text-secondary: #344054;
+  --text-tertiary: #667085;
+  --text-disabled: #98a2b3;
+
+  // 背景色
+  --bg-primary: #ffffff;
+  --bg-secondary: #f7f9fc;
+  --bg-tertiary: #eef2f7;
+  --bg-elevated: #ffffff;
+  --bg-overlay: rgba(0, 0, 0, 0.5);
+  --bg-gradient:
+    radial-gradient(
+      circle at 8% 12%,
+      rgba(63, 119, 173, 0.07),
+      transparent 32%
+    ),
+    radial-gradient(
+      circle at 92% 84%,
+      rgba(90, 155, 142, 0.08),
+      transparent 38%
+    ),
+    linear-gradient(180deg, #f7f9fc 0%, #f3f6fa 42%, #f6f7fa 100%);
+
+  // 边框色
+  --border-light: #e4e7ec;
+  --border-medium: #d0d5dd;
+  --border-dark: #98a2b3;
+
+  // 阴影
+  --shadow-light: 0 2px 10px rgba(16, 24, 40, 0.05);
+  --shadow-medium: 0 8px 24px rgba(16, 24, 40, 0.09);
+  --shadow-heavy: 0 16px 40px rgba(16, 24, 40, 0.14);
+  --shadow-glow: 0 8px 22px rgba(63, 119, 173, 0.16);
+
+  // 圆角
+  --border-radius-small: 6px;
+  --border-radius-medium: 8px;
+  --border-radius-large: 14px;
+  --border-radius-xl: 18px;
+  --border-radius-full: 999px;
+
+  // 间距
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+  --spacing-2xl: 48px;
+
+  // 字体
+  --font-size-xs: 12px;
+  --font-size-sm: 14px;
+  --font-size-md: 16px;
+  --font-size-lg: 18px;
+  --font-size-xl: 20px;
+  --font-size-2xl: 24px;
+  --font-size-3xl: 32px;
+
+  --font-weight-light: 300;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  // 行高
+  --line-height-tight: 1.2;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.75;
+
+  // 动画
+  --transition-fast: 0.15s ease;
+  --transition-normal: 0.3s ease;
+  --transition-slow: 0.5s ease;
+  --transition-bounce: 0.2s cubic-bezier(0.2, 0.9, 0.2, 1);
+
+  --surface-glass: rgba(255, 255, 255, 0.66);
+  --surface-glass-strong: rgba(255, 255, 255, 0.8);
+  --surface-glass-border: rgba(63, 119, 173, 0.14);
+  --flow-orb-a: rgba(63, 119, 173, 0.34);
+  --flow-orb-b: rgba(90, 155, 142, 0.3);
+  --flow-orb-c: rgba(75, 131, 184, 0.26);
+  --flow-grain: rgba(17, 24, 39, 0.12);
+
+  // Z-index
+  --z-dropdown: 1000;
+  --z-sticky: 1020;
+  --z-fixed: 1030;
+  --z-modal-backdrop: 1040;
+  --z-modal: 1050;
+  --z-popover: 1060;
+  --z-tooltip: 1070;
+  --z-toast: 1080;
+}
+
+// 暗色主题
+[data-theme="dark"] {
+  --primary-color-light: rgba(63, 119, 173, 0.18);
+
+  --text-primary: #f2f4f7;
+  --text-secondary: #d0d5dd;
+  --text-tertiary: #98a2b3;
+  --text-disabled: #667085;
+
+  --bg-primary: #111a2f;
+  --bg-secondary: #0a1224;
+  --bg-tertiary: #1a2742;
+  --bg-elevated: #12203a;
+  --bg-overlay: rgba(0, 0, 0, 0.7);
+  --bg-gradient:
+    radial-gradient(circle at 6% 12%, rgba(71, 122, 178, 0.2), transparent 32%),
+    radial-gradient(
+      circle at 94% 88%,
+      rgba(90, 155, 142, 0.16),
+      transparent 40%
+    ),
+    linear-gradient(180deg, #08121f 0%, #0a1626 52%, #0c1b2d 100%);
+
+  --border-light: #25324d;
+  --border-medium: #34435f;
+  --border-dark: #475467;
+
+  --shadow-light: 0 4px 18px rgba(0, 0, 0, 0.32);
+  --shadow-medium: 0 16px 34px rgba(0, 0, 0, 0.38);
+  --shadow-heavy: 0 26px 54px rgba(0, 0, 0, 0.45);
+  --shadow-glow: 0 8px 22px rgba(71, 122, 178, 0.22);
+
+  --surface-glass: rgba(12, 25, 45, 0.74);
+  --surface-glass-strong: rgba(14, 29, 52, 0.88);
+  --surface-glass-border: rgba(97, 130, 168, 0.24);
+  --flow-orb-a: rgba(83, 132, 182, 0.3);
+  --flow-orb-b: rgba(87, 144, 132, 0.24);
+  --flow-orb-c: rgba(76, 124, 170, 0.22);
+  --flow-grain: rgba(203, 213, 225, 0.12);
+}
+
+@media (max-width: 768px) {
+  :root {
+    --font-size-xs: 12px;
+    --font-size-sm: 13px;
+    --font-size-md: 15px;
+    --font-size-lg: 16px;
+    --font-size-xl: 18px;
+    --font-size-2xl: 22px;
+    --font-size-3xl: 28px;
+
+    --spacing-xs: 4px;
+    --spacing-sm: 8px;
+    --spacing-md: 12px;
+    --spacing-lg: 16px;
+    --spacing-xl: 24px;
+    --spacing-2xl: 32px;
+  }
+}
+
+@media (max-width: 640px) {
+  :root {
+    --font-size-md: 14px;
+    --spacing-md: 10px;
+  }
+}

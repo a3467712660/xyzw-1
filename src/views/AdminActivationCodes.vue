@@ -1,0 +1,642 @@
+<template>
+  <div v-if="canAccess" class="admin-activation-codes-page">
+    <div class="container">
+      <div class="page-header">
+        <div class="page-header__main">
+          <h1>激活码管理</h1>
+          <p>为 token 生成一次性激活码，管理绑定账号与有效期。</p>
+        </div>
+
+        <div class="activation-creator">
+          <div class="activation-creator__field">
+            <span class="activation-creator__label">生成数量</span>
+            <n-input-number
+              v-model:value="createCount"
+              :max="100"
+              :min="1"
+            ></n-input-number>
+          </div>
+          <div class="activation-creator__field">
+            <span class="activation-creator__label">有效时长</span>
+            <n-select
+              v-model:value="durationMonths"
+              :options="durationOptions"
+            ></n-select>
+          </div>
+          <NButton class="activation-creator__button" type="primary" :loading="creating" @click="createCodes">
+            生成激活码
+          </NButton>
+          <NButton
+            class="activation-creator__button"
+            type="warning"
+            :loading="loading"
+            @click="unbindAllCodes"
+          >
+            清空全部绑定
+          </NButton>
+        </div>
+      </div>
+
+      <n-card v-if="!isMobile" embedded>
+        <n-data-table
+          class="activation-codes-table"
+          :columns="columns"
+          :data="codes"
+          :loading="loading"
+          :pagination="{ pageSize: 12 }"
+        ></n-data-table>
+      </n-card>
+
+      <div v-else class="mobile-list">
+        <n-card
+          v-for="row in codes"
+          :key="row.id"
+          embedded
+          class="mobile-code-card"
+          size="small"
+        >
+          <div class="mobile-code-top">
+            <div class="mobile-code-value">{{ row.code }}</div>
+            <NTag size="small" :type="statusTag(row).type">{{ statusTag(row).text }}</NTag>
+          </div>
+          <div class="mobile-meta-grid">
+            <div class="meta-row">
+              <span class="meta-label">时长</span>
+              <span>{{ Math.max(1, Number(row.durationMonths) || 1) }}个月</span>
+            </div>
+            <div class="meta-row">
+              <span class="meta-label">绑定信息</span>
+              <span>{{ row.bindingRoleName || "-" }}</span>
+            </div>
+            <div class="meta-row">
+              <span class="meta-label">到期时间</span>
+              <span>{{ formatTime(row.bindingExpiresAt) }}</span>
+            </div>
+          </div>
+          <div class="mobile-actions">
+            <NButton tertiary size="small" @click="copyCode(row.code)">复制</NButton>
+            <NButton
+              v-if="canUnbind(row)"
+              tertiary
+              size="small"
+              type="warning"
+              @click="unbindCode(row)"
+            >
+              解绑
+            </NButton>
+            <NButton tertiary size="small" type="error" @click="deleteCode(row)">删除</NButton>
+            <NButton
+              v-if="row.isActive && !row.usedAt"
+              tertiary
+              size="small"
+              type="warning"
+              @click="disableCode(row)"
+            >
+              禁用
+            </NButton>
+          </div>
+        </n-card>
+        <n-empty
+          v-if="!loading && !codes.length"
+          description="暂无激活码"
+        ></n-empty>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { computed, h, onBeforeUnmount, onMounted, ref } from "vue";
+import { NButton, NTag, useMessage } from "naive-ui/es";
+import { useRouter } from "vue-router";
+import api from "@/api";
+import { useAuthStore } from "@/stores/auth";
+
+const router = useRouter();
+const message = useMessage();
+const authStore = useAuthStore();
+
+const canAccess = computed(() => authStore.isAuthenticated && authStore.user?.isAdmin);
+const loading = ref(false);
+const creating = ref(false);
+const createCount = ref(1);
+const durationMonths = ref(1);
+const codes = ref([]);
+const isMobile = ref(false);
+const MOBILE_BREAKPOINT = 768;
+const sensitiveConfirmToken = ref("");
+const sensitiveConfirmExpiresAt = ref(0);
+
+const durationOptions = [
+  { label: "1个月", value: 1 },
+  { label: "1季度", value: 3 },
+  { label: "半年", value: 6 },
+  { label: "一年", value: 12 },
+];
+
+const formatTime = (value) => {
+  if (!value) return "-";
+  return new Date(value).toLocaleString();
+};
+
+const statusTag = (row) => {
+  if (row.usedAt) {
+    return { type: "success", text: "已使用" };
+  }
+  if (!row.isActive) {
+    return { type: "warning", text: "已禁用" };
+  }
+  return { type: "info", text: "可用" };
+};
+
+const canUnbind = (row) =>
+  Boolean(
+    row?.bindingId
+    || row?.bindingTokenId
+    || row?.bindingRoleId
+    || row?.usedAt,
+  );
+
+const formatBindingAccount = (row) => {
+  const roleName = String(row?.bindingRoleName || "").trim();
+  const region = String(row?.bindingRegion || "").trim();
+  const roleId = String(row?.bindingRoleId || row?.boundGameAccountId || "").trim();
+  const sessId = String(row?.bindingSessId || row?.bindingSessionId || "").trim();
+  if (!roleName && !region && !roleId) return "-";
+  return [
+    sessId || "无SessID",
+    roleId || "-",
+    region || "未知大区",
+    roleName || "未命名角色",
+  ].join(" / ");
+};
+
+const copyCode = async (code) => {
+  try {
+    await navigator.clipboard.writeText(String(code || ""));
+    message.success("激活码已复制");
+  } catch {
+    message.error("复制失败");
+  }
+};
+
+const getCachedSensitiveConfirmToken = () => {
+  if (
+    sensitiveConfirmToken.value
+    && Number.isFinite(sensitiveConfirmExpiresAt.value)
+    && sensitiveConfirmExpiresAt.value > Date.now() + 3000
+  ) {
+    return sensitiveConfirmToken.value;
+  }
+  return "";
+};
+
+const clearSensitiveConfirmToken = () => {
+  sensitiveConfirmToken.value = "";
+  sensitiveConfirmExpiresAt.value = 0;
+};
+
+const ensureSensitiveActionConfirmed = async (actionLabel = "高危操作") => {
+  const cached = getCachedSensitiveConfirmToken();
+  if (cached) return cached;
+
+  const credential = window.prompt(
+    `执行“${actionLabel}”前，请输入当前管理员密码完成二次验证`,
+  );
+  if (credential == null) {
+    message.warning("已取消二次验证");
+    return "";
+  }
+  const password = String(credential || "").trim();
+  if (!password) {
+    message.warning("请输入当前管理员密码");
+    return "";
+  }
+  try {
+    const res = await api.admin.confirmSensitiveAction({ password });
+    if (!res?.success || !res?.data?.token) {
+      message.error(res?.message || "二次验证失败");
+      return "";
+    }
+    const expiresTs = new Date(res.data.expiresAt || "").getTime();
+    sensitiveConfirmToken.value = String(res.data.token || "");
+    sensitiveConfirmExpiresAt.value = Number.isFinite(expiresTs)
+      ? expiresTs
+      : Date.now() + 5 * 60 * 1000;
+    message.success("二次验证通过（5分钟内有效）");
+    return sensitiveConfirmToken.value;
+  } catch (error) {
+    message.error(error.message || "二次验证失败");
+    return "";
+  }
+};
+
+const disableCode = async (row) => {
+  try {
+    const res = await api.admin.disableActivationCode(row.id);
+    if (!res?.success) {
+      message.error(res?.message || "禁用失败");
+      return;
+    }
+    message.success(res.message || "已禁用");
+    await loadCodes();
+  } catch (error) {
+    message.error(error.message || "禁用失败");
+  }
+};
+
+const deleteCode = async (row) => {
+  const ok = window.confirm(`确认删除激活码 ${row.code} 吗？`);
+  if (!ok) return;
+  try {
+    const res = await api.admin.deleteActivationCode(row.id);
+    if (!res?.success) {
+      message.error(res?.message || "删除失败");
+      return;
+    }
+    message.success(res.message || "已删除");
+    await loadCodes();
+  } catch (error) {
+    message.error(error.message || "删除失败");
+  }
+};
+
+const unbindCode = async (row) => {
+  const ok = window.confirm(`确认解绑激活码 ${row.code} 的账号绑定吗？`);
+  if (!ok) return;
+  try {
+    const confirmToken = await ensureSensitiveActionConfirmed("解绑激活码绑定");
+    if (!confirmToken) return;
+    const res = await api.admin.unbindActivationCode(row.id, confirmToken);
+    if (!res?.success) {
+      message.error(res?.message || "解绑失败");
+      return;
+    }
+    message.success(res.message || "已解绑");
+    await loadCodes();
+  } catch (error) {
+    if (Number(error?.status || 0) === 401 || Number(error?.status || 0) === 403) {
+      clearSensitiveConfirmToken();
+    }
+    message.error(error.message || "解绑失败");
+  }
+};
+
+const unbindAllCodes = async () => {
+  const ok = window.confirm("确认清空全部账号的激活码绑定吗？该操作会重置所有已绑定状态。");
+  if (!ok) return;
+  try {
+    const confirmToken = await ensureSensitiveActionConfirmed("清空全部激活码绑定");
+    if (!confirmToken) return;
+    const res = await api.admin.unbindAllActivationCodes(confirmToken);
+    if (!res?.success) {
+      message.error(res?.message || "清空失败");
+      return;
+    }
+    const deletedBindings = Number(res?.data?.deletedBindings || 0);
+    const resetCodes = Number(res?.data?.resetCodes || 0);
+    message.success(`已清空绑定：解绑记录 ${deletedBindings} 条，重置激活码 ${resetCodes} 条`);
+    await loadCodes();
+  } catch (error) {
+    if (Number(error?.status || 0) === 401 || Number(error?.status || 0) === 403) {
+      clearSensitiveConfirmToken();
+    }
+    message.error(error.message || "清空失败");
+  }
+};
+
+const columns = computed(() => [
+  {
+    title: "激活码",
+    key: "code",
+    width: 220,
+    render: (row) =>
+      h("span", { class: "table-code-cell", title: row.code }, row.code),
+  },
+  {
+    title: "状态",
+    key: "status",
+    width: 130,
+    render: (row) => {
+      const tag = statusTag(row);
+      return h("div", { class: "table-stack-cell" }, [
+        h(NTag, { size: "small", type: tag.type }, { default: () => tag.text }),
+        h(
+          "span",
+          { class: "table-subtext-cell" },
+          `${Math.max(1, Number(row.durationMonths) || 1)}个月`,
+        ),
+      ]);
+    },
+  },
+  {
+    title: "绑定信息",
+    key: "bindingInfo",
+    minWidth: 220,
+    render: (row) => {
+      const value = String(row.bindingRoleName || "").trim() || "-";
+      return h("span", { class: "table-text-cell", title: value }, value);
+    },
+  },
+  {
+    title: "到期时间",
+    key: "timeInfo",
+    width: 180,
+    render: (row) => {
+      const expiresAt = formatTime(row.bindingExpiresAt);
+      return h("span", { class: "table-text-cell", title: expiresAt }, expiresAt);
+    },
+  },
+  {
+    title: "操作",
+    key: "actions",
+    width: 220,
+    render: (row) => {
+      const buttons = [
+        h(
+          NButton,
+          {
+            size: "small",
+            tertiary: true,
+            onClick: () => copyCode(row.code),
+          },
+          { default: () => "复制" },
+        ),
+        h(
+          NButton,
+          {
+            size: "small",
+            tertiary: true,
+            type: "error",
+            onClick: () => deleteCode(row),
+          },
+          { default: () => "删除" },
+        ),
+      ];
+      if (canUnbind(row)) {
+        buttons.push(
+          h(
+            NButton,
+            {
+              size: "small",
+              tertiary: true,
+              type: "warning",
+              onClick: () => unbindCode(row),
+            },
+            { default: () => "解绑" },
+          ),
+        );
+      }
+      if (row.isActive && !row.usedAt) {
+        buttons.push(
+          h(
+            NButton,
+            {
+              size: "small",
+              tertiary: true,
+              type: "warning",
+              onClick: () => disableCode(row),
+            },
+            { default: () => "禁用" },
+          ),
+        );
+      }
+      return h("div", { class: "table-actions-cell" }, buttons);
+    },
+  },
+]);
+
+const updateMobileState = () => {
+  isMobile.value = window.innerWidth < MOBILE_BREAKPOINT;
+};
+
+const loadCodes = async () => {
+  if (!canAccess.value) {
+    router.replace("/admin/dashboard");
+    return;
+  }
+  loading.value = true;
+  try {
+    const res = await api.admin.listActivationCodes();
+    if (!res?.success) {
+      message.error(res?.message || "加载失败");
+      return;
+    }
+    codes.value = Array.isArray(res.data) ? res.data : [];
+  } catch (error) {
+    message.error(error.message || "加载失败");
+  } finally {
+    loading.value = false;
+  }
+};
+
+const createCodes = async () => {
+  creating.value = true;
+  try {
+    const res = await api.admin.createActivationCodes({
+      count: Math.max(1, Math.min(100, Number(createCount.value) || 1)),
+      durationMonths: Number(durationMonths.value) || 1,
+    });
+    if (!res?.success) {
+      message.error(res?.message || "生成失败");
+      return;
+    }
+    message.success(res.message || "生成成功");
+    await loadCodes();
+  } catch (error) {
+    message.error(error.message || "生成失败");
+  } finally {
+    creating.value = false;
+  }
+};
+
+onMounted(() => {
+  updateMobileState();
+  window.addEventListener("resize", updateMobileState);
+  loadCodes();
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener("resize", updateMobileState);
+});
+</script>
+
+<style scoped>
+.admin-activation-codes-page {
+  padding: 20px;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  padding: var(--spacing-lg);
+  border: 1px solid var(--surface-glass-border);
+  border-radius: var(--border-radius-xl);
+  background: var(--surface-glass);
+  box-shadow: var(--shadow-light);
+  backdrop-filter: blur(12px);
+}
+
+.page-header__main h1 {
+  margin: 0;
+}
+
+.page-header__main p {
+  margin: 4px 0 0;
+  color: var(--text-secondary);
+}
+
+.activation-creator {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.activation-creator__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 140px;
+}
+
+.activation-creator__label {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.activation-creator__button {
+  flex-shrink: 0;
+}
+
+.activation-codes-table :deep(.n-data-table-th),
+.activation-codes-table :deep(.n-data-table-td) {
+  white-space: normal;
+}
+
+.activation-codes-table :deep(.n-data-table-td) {
+  vertical-align: middle;
+}
+
+.table-stack-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.table-code-cell,
+.table-text-cell {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.table-code-cell {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-weight: 600;
+}
+
+.table-subtext-cell {
+  font-size: 12px;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.table-actions-cell {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mobile-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mobile-code-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mobile-code-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.mobile-code-value {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 14px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.mobile-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 12px;
+}
+
+.meta-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.meta-label {
+  color: var(--text-secondary);
+}
+
+.mobile-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+@media (max-width: 768px) {
+  .admin-activation-codes-page {
+    padding: 12px;
+  }
+
+  .page-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .activation-creator {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .activation-creator__field,
+  .activation-creator__button {
+    width: 100%;
+  }
+
+  .mobile-meta-grid {
+    grid-template-columns: 1fr;
+  }
+}
+</style>

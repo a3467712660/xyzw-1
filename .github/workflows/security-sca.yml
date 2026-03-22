@@ -1,0 +1,44 @@
+name: Security SCA
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  sca-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            backend/package-lock.json
+
+      - name: Run legacy guard
+        run: npm run guard:legacy
+
+      - name: Install root deps (locked)
+        run: npm ci
+
+      - name: Install backend deps (locked)
+        run: npm --prefix backend ci
+
+      - name: Guard release build mode
+        env:
+          BUILD_MODE: production
+          VITE_DEV_DEBUG_PROXY: "false"
+        run: npm run security:build-mode
+
+      - name: Run SCA gate
+        run: npm run security:sca

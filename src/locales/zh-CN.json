@@ -1,0 +1,3358 @@
+{
+  "common": {
+    "bin-file": "bin文件"
+  },
+  "login": {
+    "title": "游戏管理系统",
+    "subtitle": "一套围绕效率打造的运营控制台。登录后可直接进入角色管理、任务自动化与实时数据面板。",
+    "cardTitle": "登录账户",
+    "cardDesc": "输入账号信息，继续管理你的游戏运营数据",
+    "usernamePlaceholder": "用户名或邮箱",
+    "passwordPlaceholder": "密码",
+    "rememberMe": "记住我",
+    "forgotPassword": "忘记密码",
+    "submit": "登录",
+    "otherMethods": "其他登录方式",
+    "qqLogin": "QQ登录",
+    "wechatLogin": "微信登录",
+    "noAccount": "还没有账户？",
+    "registerNow": "立即注册",
+    "tempInviteHint": "没有邀请码？",
+    "viewTempInvites": "查看临时邀请码",
+    "validation": {
+      "usernameRequired": "请输入用户名或邮箱",
+      "passwordRequired": "请输入密码"
+    },
+    "features": {
+      "roles": {
+        "title": "多角色管理",
+        "desc": "角色状态集中展示，快速切换与操作"
+      },
+      "automation": {
+        "title": "任务自动化",
+        "desc": "批量执行日常任务，减少重复劳动"
+      },
+      "analytics": {
+        "title": "数据统计",
+        "desc": "关键指标可视化，进度趋势一眼可见"
+      },
+      "settings": {
+        "title": "个性化配置",
+        "desc": "按玩法和账号定制你自己的流程策略"
+      }
+    },
+    "notice": {
+      "title": "测试说明",
+      "content": "本项目目前处于测试阶段，若有功能无法正常使用，请联系管理员处理。",
+      "confirm": "我知道了"
+    },
+    "messages": {
+      "success": "登录成功",
+      "mfaCodePrompt": "请输入 2FA 验证码（6位）或恢复码：",
+      "mfaCancelled": "已取消二步验证",
+      "mfaFailed": "二步验证失败",
+      "mfaSuccess": "二步验证通过",
+      "rateLimitCooldown": "登录尝试过于频繁，请在 {seconds} 秒后重试。",
+      "qqPending": "QQ登录功能开发中...",
+      "wechatPending": "微信登录功能开发中..."
+    },
+    "mfa": {
+      "title": "二次验证",
+      "totpHint": "请输入验证器里的 6 位动态验证码。",
+      "recoveryHint": "请输入一次性恢复码（例如 XXXX-XXXX）。",
+      "qrHint": "请用手机浏览器或微信扫码打开验证页（不是 Authenticator 扫码）。在手机页输入验证码后，当前页面会自动完成登录。",
+      "totpPlaceholder": "输入 6 位验证码",
+      "recoveryPlaceholder": "输入恢复码",
+      "useRecoveryCode": "使用恢复码",
+      "useAuthenticator": "使用验证码",
+      "useQr": "改用扫码验证",
+      "useCode": "改用验证码",
+      "qrLoading": "二维码生成中...",
+      "qrPending": "等待手机端确认",
+      "qrExpired": "二维码已失效，请刷新",
+      "qrRefresh": "刷新二维码",
+      "backToLogin": "返回登录",
+      "verifySubmit": "验证并登录"
+    }
+  },
+  "mfaQrApprove": {
+    "title": "扫码二次验证",
+    "desc": "请在手机上输入当前验证码，确认后桌面端将自动登录。",
+    "invalidSession": "会话无效或已过期，请回到登录页重新扫码。",
+    "submit": "确认验证",
+    "success": "验证成功，请返回桌面端继续。"
+  },
+  "forgotPassword": {
+    "kicker": "PASSWORD RECOVERY",
+    "title": "通过短时验证码重置密码",
+    "subtitle": "忘记密码时，请先联系管理员获取“短时验证码”，验证码通常在短时间内有效且仅可使用一次。",
+    "cardTitle": "重置密码",
+    "cardDesc": "请输入账号信息、短时验证码和新密码",
+    "placeholders": {
+      "identity": "用户名或邮箱",
+      "shortCode": "短时验证码（例：RST-1A2B3C）",
+      "newPassword": "新密码（默认至少12位）",
+      "confirmPassword": "确认新密码"
+    },
+    "steps": {
+      "contactAdmin": "联系管理员，提供你的用户名或邮箱",
+      "getCode": "获取短时验证码（示例：RST-XXXX）",
+      "reset": "在右侧填写信息并设置新密码"
+    },
+    "actions": {
+      "submit": "提交重置",
+      "backToLogin": "返回登录",
+      "register": "注册新账号"
+    },
+    "validation": {
+      "identityRequired": "请输入用户名或邮箱",
+      "shortCodeRequired": "请输入短时验证码",
+      "newPasswordRequired": "请输入新密码",
+      "confirmPasswordRequired": "请确认新密码",
+      "passwordPolicy": "密码默认至少12位（启用两步验证后可为8位），且不能使用常见弱口令",
+      "passwordMismatch": "两次输入的密码不一致"
+    },
+    "messages": {
+      "resetFailed": "重置失败",
+      "resetSuccess": "密码重置成功"
+    }
+  },
+  "temporaryInvites": {
+    "title": "临时邀请码",
+    "subtitle": "系统已关闭自动发放临时邀请码。",
+    "empty": "当前没有可公开使用的临时邀请码",
+    "fields": {
+      "expiresAt": "过期时间"
+    },
+    "actions": {
+      "back": "返回",
+      "refresh": "刷新列表",
+      "copy": "复制"
+    },
+    "messages": {
+      "loadFailed": "加载临时邀请码失败",
+      "copySuccess": "邀请码已复制",
+      "copyFailed": "复制失败，请手动复制"
+    }
+  },
+  "dashboard": {
+    "welcome": {
+      "title": "欢迎回来，{name}！",
+      "subtitle": "今天是 {date}，继续您的游戏管理之旅吧",
+      "defaultPlayer": "游戏玩家"
+    },
+    "actions": {
+      "enterGameFeatures": "进入游戏功能",
+      "manageTokens": "管理 Token"
+    },
+    "quickActions": {
+      "title": "快速操作",
+      "items": {
+        "gameFeatures": {
+          "title": "游戏功能",
+          "description": "访问所有游戏功能模块"
+        },
+        "addToken": {
+          "title": "添加 Token",
+          "description": "快速添加新的游戏 Token"
+        },
+        "websocketTest": {
+          "title": "WebSocket 测试",
+          "description": "测试 WebSocket 连接和游戏命令"
+        }
+      }
+    },
+    "messages": {
+      "navigateTokenFailed": "导航到 Token 管理页面失败"
+    }
+  },
+  "gameFeatures": {
+    "title": "游戏功能",
+    "noTokenSelected": "未选择 Token",
+    "connection": {
+      "title": "连接状态",
+      "disconnect": "断开连接",
+      "reconnect": "重新连接",
+      "websocketStatus": "WebSocket 状态:",
+      "currentToken": "当前 Token:",
+      "lastActivity": "最后活动:",
+      "notSelected": "未选择 Token",
+      "connected": "已连接",
+      "disconnected": "未连接"
+    },
+    "messages": {
+      "selectTokenFirst": "请先选择 Token",
+      "websocketNotConnected": "WebSocket 未连接，请先建立连接",
+      "teamChallengeStart": "开始执行队伍挑战...",
+      "arenaTargetFailed": "获取竞技场目标失败：{message}",
+      "noArenaTarget": "未找到可挑战的竞技场目标",
+      "arenaBattleStarted": "竞技场战斗已发起",
+      "arenaBattleFailed": "竞技场战斗失败：{message}",
+      "dailyTasksStart": "启动每日任务服务...",
+      "saltRobotClaim": "领取盐罐机器人奖励...",
+      "idleRewardClaim": "领取挂机时间奖励...",
+      "powerSwitchRun": "执行威震大开关...",
+      "clubRankingSignup": "报名俱乐部排位...",
+      "clubCheckin": "执行俱乐部签到...",
+      "towerStart": "开始爬塔挑战...",
+      "notImplemented": "功能暂未实现",
+      "selectOneTokenFirst": "请先选择一个 Token",
+      "websocketConnecting": "正在建立 WebSocket 连接...",
+      "websocketConnected": "WebSocket 连接成功",
+      "websocketConnectFailed": "WebSocket 连接失败",
+      "websocketDisconnected": "WebSocket 连接已断开",
+      "tokenExpiredRefreshing": "Token 已过期，正在尝试自动刷新...",
+      "tokenExpiredReimport": "当前 Token 已过期，请重新导入后再试"
+    }
+  },
+  "adminUsers": {
+    "common": {
+      "dash": "-",
+      "noEmail": "未设置邮箱"
+    },
+    "title": "账号管理",
+    "subtitle": "查看账号、调整管理员权限、重置密码、生成短时验证码与删除账号",
+    "overview": {
+      "totalUsers": "账号总数",
+      "adminCount": "管理员数量",
+      "localRoleCache": "本机角色缓存"
+    },
+    "status": {
+      "currentUser": "当前账号",
+      "admin": "管理员",
+      "tokenActive": "有效",
+      "tokenExpired": "已过期"
+    },
+    "accountTypes": {
+      "full": "全功能",
+      "normal": "普通版"
+    },
+    "fields": {
+      "roleCount": "角色数",
+      "inviteCount": "邀请码",
+      "tokenBindLimit": "Token上限",
+      "createdAt": "创建时间",
+      "lastLoginAt": "最后上线",
+      "adminPermission": "管理员权限",
+      "accountType": "账号类型",
+      "account": "账号",
+      "newPassword": "新密码",
+      "confirmPassword": "确认新密码",
+      "targetAccount": "目标账号",
+      "confirmUsername": "确认账号名",
+      "shortCode": "短时验证码",
+      "expiresAt": "有效截止时间",
+      "boundAt": "绑定时间",
+      "tokenId": "TokenID",
+      "roleName": "角色名称",
+      "roleId": "RoleID",
+      "tokenActivationStatus": "激活状态",
+      "tokenActivationTotal": "总绑定数",
+      "tokenActivationActive": "有效数",
+      "tokenActivationExpired": "过期数",
+      "tableFilteredCount": "当前展示 {count} 个账号",
+      "tableHint": "可在右上角搜索用户名或邮箱快速定位",
+      "dateWithRelative": "{date}（{relative}）"
+    },
+    "hints": {
+      "currentUserAdminLocked": "当前账号不可取消自身管理员权限",
+      "switchDirectly": "可直接切换"
+    },
+    "placeholders": {
+      "newPassword": "默认至少12位（启用两步验证后可为8位），避免常见弱口令",
+      "confirmPassword": "再次输入新密码",
+      "confirmCurrentPassword": "输入当前管理员密码",
+      "confirmTotpCode": "输入 6 位动态验证码",
+      "confirmRecoveryCode": "输入一次性恢复码（例如 XXXX-XXXX）",
+      "confirmUsername": "输入上方账号名后才能删除",
+      "searchUser": "搜索用户名或邮箱"
+    },
+    "actions": {
+      "refresh": "刷新",
+      "createResetCode": "生成短时验证码",
+      "resetPassword": "重置密码",
+      "deleteUser": "删除账号",
+      "cancel": "取消",
+      "confirmReset": "确认重置",
+      "confirmDelete": "确认删除",
+      "close": "关闭",
+      "copyResetCode": "复制验证码",
+      "shortCode": "短时验证码",
+      "updateTokenBindLimit": "设置Token上限",
+      "viewTokenExpiry": "查看Token到期",
+      "more": "更多"
+    },
+    "modals": {
+      "resetPassword": {
+        "title": "重置密码"
+      },
+      "deleteUser": {
+        "title": "删除账号确认"
+      },
+      "resetCode": {
+        "title": "短时验证码"
+      },
+      "tokenActivation": {
+        "title": "Token 到期情况"
+      },
+      "sensitiveConfirm": {
+        "title": "高危操作二次确认",
+        "confirm": "确认"
+      }
+    },
+    "validation": {
+      "passwordPolicy": "密码默认至少12位（启用两步验证后可为8位），且不能使用常见弱口令",
+      "passwordMismatch": "两次输入的密码不一致",
+      "deleteConfirmMismatch": "请输入正确的账号名以确认删除",
+      "tokenBindLimit": "Token上限必须是 1 到 999 的整数"
+    },
+    "messages": {
+      "confirmPrompt": "执行“{action}”前，请输入当前管理员密码进行二次确认",
+      "confirmCancelled": "已取消二次确认",
+      "confirmFailed": "二次确认失败",
+      "confirmSuccess": "二次确认通过（5 分钟内有效）",
+      "confirmMethodTotp": "动态验证码（推荐）",
+      "confirmMethodRecovery": "恢复码",
+      "confirmMethodPassword": "当前密码（兜底）",
+      "confirmMfaPreferredHint": "已开启 MFA：优先使用动态验证码或恢复码，密码可作为兜底。",
+      "confirmRemaining": "高权限剩余 {minutes} 分 {seconds} 秒",
+      "loadFailed": "加载账号失败",
+      "updateAdminFailed": "更新管理员权限失败",
+      "updateAdminSuccess": "权限已更新",
+      "tokenLimitPrompt": "请输入 {username} 的 Token 上限（1-999），当前：{current}",
+      "updateTokenBindLimitFailed": "更新Token上限失败",
+      "updateTokenBindLimitSuccess": "Token上限已更新",
+      "updateAccountTypeFailed": "更新账号类型失败",
+      "updateAccountTypeSuccess": "账号类型已更新",
+      "resetPasswordFailed": "重置密码失败",
+      "resetPasswordSuccess": "密码已重置",
+      "deleteFailed": "删除账号失败",
+      "deleteSuccess": "账号已删除",
+      "createResetCodeFailed": "生成短时验证码失败",
+      "createResetCodeSuccess": "短时验证码已生成",
+      "loadTokenActivationsFailed": "加载Token到期情况失败",
+      "noResetCodeToCopy": "暂无可复制的验证码",
+      "resetCodeCopied": "验证码已复制",
+      "copyFailed": "复制失败，请手动复制"
+    },
+    "columns": {
+      "account": "账号",
+      "roleCount": "角色数",
+      "inviteCount": "邀请码",
+      "accountType": "账号类型",
+      "tokenBindLimit": "Token上限",
+      "admin": "管理员",
+      "createdAt": "创建时间",
+      "lastLoginAt": "最后上线",
+      "timeSummary": "时间信息",
+      "actions": "操作"
+    },
+    "relativeTime": {
+      "justNow": "刚刚",
+      "minutesAgo": "{count} 分钟前",
+      "hoursAgo": "{count} 小时前",
+      "daysAgo": "{count} 天前",
+      "weeksAgo": "{count} 周前",
+      "monthsAgo": "{count} 个月前",
+      "yearsAgo": "{count} 年前"
+    },
+    "empty": "暂无账号数据"
+  },
+  "notFound": {
+    "title": "页面未找到",
+    "description": "抱歉，您访问的页面不存在或已被移除。",
+    "actions": {
+      "home": "返回首页",
+      "back": "返回上一页"
+    }
+  },
+  "changelog": {
+    "title": "更新日志",
+    "description": "查看系统的最新更新和改进内容",
+    "filters": {
+      "versionType": "版本类型："
+    },
+    "stats": {
+      "totalVersions": "总版本数",
+      "totalFeatures": "新功能",
+      "totalFixes": "修复问题",
+      "totalImprovements": "优化改进"
+    },
+    "versionTypes": {
+      "all": "全部",
+      "major": "主要版本",
+      "minor": "次要版本",
+      "patch": "补丁",
+      "hotfix": "热修复"
+    },
+    "empty": "暂无该类型的更新日志",
+    "subscribe": {
+      "title": "订阅更新通知",
+      "description": "第一时间获取系统更新信息"
+    },
+    "actions": {
+      "resetFilter": "重置筛选",
+      "subscribe": "立即订阅",
+      "subscribed": "已订阅",
+      "broadcastAll": "提交更新日志并通知所有账户",
+      "broadcasting": "发送中..."
+    },
+    "messages": {
+      "subscribed": "已成功订阅更新通知！",
+      "unsubscribed": "已取消订阅",
+      "noLatestVersion": "未找到可发送的最新更新日志",
+      "broadcastSuccess": "已向 {count} 个账号发送更新日志通知",
+      "broadcastFailed": "发送更新日志通知失败"
+    }
+  },
+  "carTaskCard": {
+    "alt": "赛车",
+    "title": "俱乐部赛车",
+    "ticketsRemaining": "剩余车票: {count}",
+    "empty": "暂无车辆数据",
+    "rewards": "奖励:",
+    "bigPrizeTag": "[大奖]",
+    "bigPrizeBadge": "包含大奖!",
+    "actions": {
+      "refresh": "刷新",
+      "claim": "收车",
+      "send": "发车",
+      "smartSend": "智能发车",
+      "claimAll": "一键收车"
+    },
+    "colors": {
+      "common": "普通",
+      "rare": "稀有",
+      "epic": "史诗",
+      "legendary": "传说",
+      "mythic": "神话",
+      "unknown": "未知({color})"
+    },
+    "status": {
+      "claimable": "可收菜",
+      "sent": "已发车",
+      "unsent": "未发车"
+    },
+    "rewardTypes": {
+      "coin": "金币: {value}",
+      "ingot": "金砖: {value}",
+      "item": "{item}: {value}",
+      "other": "类型{type}物品{itemId}: {value}"
+    }
+  },
+  "skinChallengeCard": {
+    "alt": "换皮闯关",
+    "title": "换皮闯关",
+    "subtitle": "挑战关卡赢取奖励",
+    "todayChallenge": "今日挑战 {count}/10",
+    "todayAvailable": "今日可挑战 {info}",
+    "activityEnded": "活动已结束",
+    "currentActivityEnded": "当前活动已结束",
+    "bossTitle": "BOSS {type}",
+    "level": "第 {level} 层",
+    "status": {
+      "cleared": "已通关",
+      "locked": "未开放",
+      "active": "进行中"
+    },
+    "actions": {
+      "challenge": "挑战",
+      "refresh": "刷新进度",
+      "refreshing": "刷新中..."
+    },
+    "weekdays": {
+      "sunday": "周日",
+      "monday": "周一",
+      "tuesday": "周二",
+      "wednesday": "周三",
+      "thursday": "周四",
+      "friday": "周五",
+      "saturday": "周六"
+    },
+    "schedule": {
+      "allOpen": "{day} - 全部开放",
+      "bossesOpen": "{day} - BOSS {bosses}",
+      "noActivity": "{day} - 无活动"
+    },
+    "messages": {
+      "progressRefreshed": "进度已刷新",
+      "challengeStarted": "开始挑战 BOSS {type}",
+      "challengeSuccess": "BOSS {type} 第 {level} 层挑战成功",
+      "bossFullyCleared": "BOSS {type} 已全部通关",
+      "challengeFailed": "BOSS {type} 第 {level} 层挑战失败",
+      "challengeStoppedAfterFailures": "BOSS {type} 第 {level} 层连续失败 3 次，停止挑战",
+      "challengeError": "挑战出错: {message}"
+    }
+  },
+  "studyChallengeCard": {
+    "iconAlt": "学习图标",
+    "title": "咸鱼大冲关",
+    "subtitle": "每日知识挑战",
+    "badge": "每周任务",
+    "description": "没有什么可以阻挡我求知的欲望！",
+    "actions": {
+      "start": "🎯 一键答题"
+    },
+    "status": {
+      "starting": "正在获取题库...",
+      "answering": "答题中...",
+      "claimingRewards": "正在领取奖励...",
+      "completed": "答题完成",
+      "doneThisWeek": "✅ 已完成无需作答"
+    },
+    "messages": {
+      "started": "🚀 开始一键答题... (题库包含 {count} 道题目)",
+      "alreadyCompleted": "✅ 咸鱼大冲关任务已完成，无需重复作答！",
+      "timeoutReset": "答题超时，已自动重置状态",
+      "startFailed": "启动答题失败: {error}"
+    },
+    "logs": {
+      "starting": "开始答题",
+      "startFailed": "启动答题失败:"
+    }
+  },
+  "dreamHelperCard": {
+    "iconAlt": "梦境图标",
+    "title": "梦境助手",
+    "status": {
+      "running": "运行中",
+      "stopped": "已停止"
+    },
+    "tabs": {
+      "battle": "战斗模块",
+      "buy": "购买模块"
+    },
+    "labels": {
+      "currentTeam": "当前队伍",
+      "merchantList": "商品列表",
+      "unknownItem": "未知商品({index})"
+    },
+    "actions": {
+      "stop": "停止",
+      "continuousBattle": "连续战斗",
+      "getTeam": "获取队伍",
+      "selectLineup": "选择阵容",
+      "stopAll": "停止所有",
+      "getItems": "获取商品",
+      "buyAllGold": "一键购买金币商品",
+      "buyAllGoldFish": "一键购买高级商人鱼竿",
+      "start": "启动梦境助手"
+    },
+    "messages": {
+      "notOpen": "当前不是梦境开放时间（周三/周四/周日/周一）",
+      "selectTokenFirst": "请先选择Token",
+      "teamLoaded": "队伍信息获取成功",
+      "teamExtractFailed": "无法提取队伍数据",
+      "getDefaultFailed": "获取默认队伍信息出错: {error}",
+      "getTeamFirst": "请先获取默认队伍",
+      "noHeroes": "队伍中没有英雄",
+      "lineupSelected": "梦境阵容选择成功",
+      "selectLineupFailed": "选择梦境阵容出错: {error}",
+      "continuousBattleStarted": "{hero} 开始连续战斗",
+      "continuousBattleStopped": "{hero} 连续战斗已停止",
+      "allBattlesStopped": "所有连续战斗已停止",
+      "selectItemsFirst": "请先选择要购买的商品",
+      "levelTooLow": "关卡数小于4000，无法购买金币商品",
+      "batchBuyDone": "批量购买完成: 成功 {success} 件, 失败 {fail} 件",
+      "quickBuyDone": "一键购买完成: 成功 {success} 件, 失败 {fail} 件",
+      "startMerchantFlow": "开始自动获取商品列表流程...",
+      "merchantLoaded": "商品列表获取完成",
+      "merchantLoadFailed": "获取商品列表失败: {error}",
+      "running": "梦境助手运行中",
+      "done": "梦境助手运行完毕"
+    },
+    "logs": {
+      "extractDefaultFailed": "提取默认信息出错:",
+      "getRoleInfoFailed": "获取角色信息失败:",
+      "buyItemFailed": "购买商品失败:"
+    }
+  },
+  "monthlyTasksCard": {
+    "iconAlt": "月度任务",
+    "title": "月度任务",
+    "subtitle": "进度与一键补齐",
+    "badge": {
+      "remainingDays": "剩余 {days} 天",
+      "lastDay": "本月最后一天"
+    },
+    "rows": {
+      "fish": "钓鱼进度",
+      "arena": "竞技场进度",
+      "arenaClosed": "(当前未在开放时间)"
+    },
+    "actions": {
+      "refresh": "刷新进度",
+      "refreshing": "刷新中...",
+      "toppingUp": "补齐中...",
+      "fishTopUp": "钓鱼补齐",
+      "arenaTopUp": "竞技场补齐",
+      "completeAll": "一键完成"
+    },
+    "description": "补齐规则：让“当前天数比例”和“完成比例”一致；若无剩余天数则按满额（{fishTarget}/{arenaTarget}）计算。",
+    "messages": {
+      "selectTokenFirst": "请先选择Token",
+      "connectWsFirst": "请先建立WS连接",
+      "progressUpdated": "月度任务进度已更新",
+      "fetchFailed": "获取月度任务失败：{error}",
+      "alreadyOnTrack": "当前进度已达标，无需补齐",
+      "alreadyComplete": "已满额，无需完成",
+      "freeFishDetected": "检测到今日免费钓鱼次数，开始消耗 3 次",
+      "freeFishDone": "已通过免费次数完成当日目标",
+      "paidFishStart": "开始付费钓鱼补齐：共需 {count} 次（每次最多10）",
+      "fishFailed": "钓鱼失败：{error}",
+      "fishDone": "钓鱼补齐完成",
+      "fishStopped": "钓鱼补齐已停止，未达到目标",
+      "arenaClosed": "竞技场活动已关闭，请在 6:00-22:00 时间段内操作",
+      "arenaRound": "竞技场补齐 第{round}轮：计划战斗 {count} 场（估算每胜+2）",
+      "arenaTargetFailed": "获取竞技场目标失败：{error}",
+      "noArenaTarget": "未找到可用的竞技场目标，已停止此轮",
+      "arenaFightFailed": "竞技场对决失败：{error}",
+      "arenaDone": "竞技场补齐完成",
+      "arenaSafetyStop": "达到安全上限，已停止竞技场补齐",
+      "arenaStopped": "竞技场补齐已停止，未达到目标"
+    }
+  },
+  "tenHallTeamBattleCard": {
+    "iconAlt": "十殿图标",
+    "title": "十殿试炼",
+    "subtitle": "队伍搜索、申请、创建、布阵、出战与开战",
+    "common": {
+      "unknownError": "未知错误",
+      "failed": "失败"
+    },
+    "status": {
+      "connected": "已连接",
+      "disconnected": "未连接"
+    },
+    "summary": {
+      "connectionStatus": "连接状态",
+      "myTeamId": "我的队伍ID",
+      "roomId": "房间ID",
+      "currentStage": "当前关卡",
+      "stageValue": "第{value}关",
+      "teamSize": "队伍人数"
+    },
+    "panels": {
+      "teamDetails": "队伍详情",
+      "myTeam": "我的队伍管理",
+      "lineupAndFight": "布阵与出战",
+      "realtimeLogs": "实时日志"
+    },
+    "sections": {
+      "recommendedTeams": "推荐队伍",
+      "applyList": "申请列表",
+      "lineupTemplates": "阵容模板"
+    },
+    "fields": {
+      "teamName": "队伍名称",
+      "allowApply": "允许申请",
+      "secretOnly": "仅邀请(密队)"
+    },
+    "placeholders": {
+      "teamId": "输入队伍ID",
+      "teamName": "队伍名称",
+      "selectFormation": "选择阵容",
+      "templateName": "模板名（不填则自动命名）",
+      "selectTemplate": "选择阵容模板",
+      "selectFighter": "选择几号位成员出战"
+    },
+    "actions": {
+      "search": "搜索",
+      "refreshRecommended": "刷新推荐",
+      "createTeam": "创建队伍",
+      "apply": "申请",
+      "applyJoin": "申请加入",
+      "saveSettings": "保存设置",
+      "startTrial": "开始试炼",
+      "stop": "停止",
+      "dismiss": "解散",
+      "approve": "通过",
+      "readCurrentLineup": "读取当前阵容",
+      "switchFormation": "切换阵容",
+      "syncLineup": "同步到十殿布阵",
+      "saveTemplate": "保存当前阵容为模板",
+      "syncTemplateToPhone": "模板同步到手机端",
+      "applyTemplate": "应用模板",
+      "exchangeByTemplate": "按模板无损换将",
+      "deleteTemplate": "删除模板",
+      "setFighter": "设为出战者",
+      "prepare": "准备",
+      "startFight": "开始战斗",
+      "clear": "清空"
+    },
+    "empty": {
+      "recommendedTeams": "暂无推荐队伍（可先用搜索/创建）",
+      "applyList": "暂无申请",
+      "lineup": "未读取到阵容"
+    },
+    "labels": {
+      "teamFallback": "队伍 {id}",
+      "teamMeta": "ID: {id} · 服务器: {serverId}",
+      "roleMeta": "{roleId} · 战力 {power}",
+      "position": "{value}号位",
+      "unset": "未设置",
+      "templateFallback": "模板 {id}",
+      "templateAutoName": "阵容模板{value}",
+      "formation": "阵容{value}",
+      "heroFallback": "武将{id}",
+      "heroOption": "{name} (Lv.{level})"
+    },
+    "defaults": {
+      "myTeam": "我的队伍"
+    },
+    "dialogs": {
+      "exchangeTitle": "确认按模板无损换将",
+      "exchangeContent": "将执行以下换将：\n{preview}",
+      "confirm": "确认执行",
+      "cancel": "取消"
+    },
+    "messages": {
+      "selectTokenFirst": "请先选择Token",
+      "wsDisconnected": "WebSocket未连接",
+      "enterTeamId": "请输入队伍ID",
+      "searchSuccess": "队伍搜索成功",
+      "searchFailed": "搜索失败：{error}",
+      "recommendPending": "推荐列表命令未确认，先等待你补抓请求（{error}）",
+      "createAttempted": "已尝试创建队伍",
+      "createPending": "创建命令未确认，等你补抓请求（{error}）",
+      "applySent": "申请已发送",
+      "applyFailed": "申请失败：{error}",
+      "noTeamId": "当前没有队伍ID",
+      "settingsSaved": "队伍设置已保存",
+      "settingsSaveFailed": "保存设置失败：{error}",
+      "applyApproved": "已通过申请",
+      "applyApproveFailed": "通过申请失败：{error}",
+      "teamTooSmall": "开始试炼前，队伍人数需大于2",
+      "trialStarted": "已发起试炼开始",
+      "trialStartFailed": "试炼开始失败：{error}",
+      "trialStopped": "已停止试炼",
+      "stopFailed": "停止失败：{error}",
+      "teamDismissed": "已解散队伍",
+      "dismissFailed": "解散失败：{error}",
+      "templateSyncedFromCloud": "已从云端同步阵容模板",
+      "templateCloudReadFailed": "读取云端模板失败：{error}",
+      "loginBeforeSync": "请先登录账号后再同步模板到手机端",
+      "templateSyncedToPhone": "阵容模板已同步到手机端",
+      "templateSyncFailed": "同步模板失败：{error}",
+      "emptyLineupCannotSave": "当前阵容为空，无法保存模板",
+      "templateSaved": "阵容模板已保存",
+      "selectTemplateFirst": "请先选择模板",
+      "templateMissing": "模板不存在",
+      "templateApplied": "模板已应用，可继续同步到十殿",
+      "templateAlreadyMatched": "当前阵容与模板一致，无需换将",
+      "exchangeSucceeded": "已按模板执行无损换将（{count}次），请按需手动同步到十殿",
+      "exchangeFailed": "无损换将失败：{error}",
+      "templateDeleted": "模板已删除",
+      "lineupReadPartial": "已读取阵容{formation}，有效武将{count}个",
+      "lineupReadSuccess": "已读取阵容{formation}",
+      "lineupReadFailed": "读取阵容失败：{error}",
+      "switchSucceeded": "已切换到阵容{teamId}",
+      "switchFailed": "切换阵容失败：{error}",
+      "readLineupFirst": "请先读取阵容",
+      "invalidLineupCount": "布阵必须为5名有效武将，当前为{count}名",
+      "duplicateHeroes": "布阵存在重复武将，请检查后重试",
+      "lineupSynced": "十殿布阵已同步",
+      "lineupSyncFailed": "同步布阵失败：{error}",
+      "selectRoomMemberFirst": "请先选择房间成员",
+      "fighterSet": "已设置出战者",
+      "setFighterFailed": "设置失败：{error}",
+      "prepareSent": "已发送准备请求",
+      "prepareFailed": "准备失败：{error}",
+      "fightStarted": "已发起战斗",
+      "fightFailed": "开战失败：{error}"
+    },
+    "logs": {
+      "commandSent": "发送 {cmd}",
+      "powerEstimate": "十殿模板试算战力: {power}",
+      "templateSyncedToCloud": "阵容模板已同步到云端",
+      "templateCloudSyncFailed": "阵容模板云同步失败: {error}",
+      "heroExchanged": "无损换将 {from} -> {to}",
+      "teamRestored": "已恢复当前队伍 {teamId}",
+      "roomMembersRestored": "已恢复房间成员信息",
+      "restoreStateFailed": "恢复队伍状态失败: {error}",
+      "lineupRead": "读取阵容{formation} (use={useTeamId}) => [{lineup}]",
+      "switchConfirmTimeout": "阵容切换确认超时，继续强制读取阵容{teamId}",
+      "teamStatusNotify": "收到队伍状态通知",
+      "roomUpdated": "房间更新：ID {roomId}",
+      "fightResultNotify": "收到战斗结果通知",
+      "prepareStatusNotify": "收到准备状态通知",
+      "recommendedUpdated": "推荐队伍列表更新",
+      "hallInfoNotify": "收到大厅信息",
+      "viewReady": "十殿界面已就绪，等待你补抓创建、推荐、大厅请求包"
+    }
+  },
+  "taskControl": {
+    "title": "任务控制",
+    "common": {
+      "enabled": "已开启",
+      "disabled": "已关闭",
+      "auto": "自动",
+      "manual": "手动",
+      "system": "系统"
+    },
+    "quietWindow": {
+      "label": "不上线时段（周六19:50-21:10 / 周日19:50-20:40）",
+      "saturday": "周六 19:50-21:10",
+      "sunday": "周日 19:50-20:40"
+    },
+    "actions": {
+      "enableAll": "全开",
+      "disableAll": "全关",
+      "refresh": "刷新",
+      "cancel": "取消",
+      "save": "保存",
+      "settings": "设置",
+      "run": "执行",
+      "running": "执行中",
+      "clearAccountOverride": "清除该账号单独配置"
+    },
+    "logs": {
+      "title": "执行日志",
+      "clear": "清空日志",
+      "stopAutoScroll": "停止自动滚动",
+      "resumeAutoScroll": "恢复自动滚动",
+      "empty": "暂无执行日志"
+    },
+    "extraTasks": {
+      "genieSweep": "扫荡灯神"
+    },
+    "settings": {
+      "title": "任务设置",
+      "fields": {
+        "taskName": "任务名称",
+        "autoExecute": "自动执行",
+        "schedule": "执行周期",
+        "type": "类型",
+        "everyHours": "每几小时",
+        "weekday": "星期",
+        "time": "时间",
+        "cron": "Cron表达式",
+        "extraTasks": "追加任务",
+        "friendGold": "好友金币",
+        "recruit": "招募",
+        "payRecruit": "付费招募",
+        "openBox": "开木箱",
+        "freeFish": "免费钓鱼",
+        "mengjing": "咸王梦境",
+        "dailyBoss": "每日BOSS",
+        "legionBoss": "军团BOSS",
+        "legionBossTimes": "军团BOSS次数",
+        "legionBossFormation": "军团BOSS阵容",
+        "dailyBossFormation": "每日BOSS阵容",
+        "selectAccount": "选择账号",
+        "minColor": "最低颜色",
+        "goldFallback": "金砖刷新",
+        "matchRule": "条件关系",
+        "goldThreshold": "金砖阈值",
+        "recruitThreshold": "招募令阈值",
+        "jadeThreshold": "白玉阈值",
+        "ticketThreshold": "刷新券阈值",
+        "maxRefreshAttempts": "最大刷新次数",
+        "helperAnalysis": "护卫阵容分析",
+        "preferredLineups": "优先阵容关键词",
+        "arenaFormation": "竞技场阵容",
+        "logicMode": "逻辑模式",
+        "fightCount": "战斗次数",
+        "skipLineups": "跳过阵容关键词",
+        "goodsIds": "购买商品",
+        "onlyUnbought": "跳过已买",
+        "tokenIds": "执行账号"
+      },
+      "placeholders": {
+        "selectSchedule": "请选择执行周期",
+        "selectCustomType": "请选择普通自定义类型",
+        "selectWeekdays": "选择星期几",
+        "hour": "小时",
+        "minute": "分钟",
+        "cron": "例如: 0 */2 * * *",
+        "selectLegionBossFormation": "选择军团BOSS阵容",
+        "selectDailyBossFormation": "选择每日BOSS阵容",
+        "selectAccountOverride": "选择要单独配置的账号",
+        "minColor": "最低发车颜色",
+        "preferredLineups": "选择优先匹配的阵容关键词",
+        "selectArenaFormation": "选择竞技场阵容",
+        "skipLineups": "选择要跳过的阵容关键词",
+        "goodsIds": "可多选，默认四圣碎片(6)",
+        "tokenIds": "不选则默认全部账号"
+      }
+    },
+    "sections": {
+      "dailyRunner": "日常主流程开关",
+      "tokenOverride": "账号单独配置（覆盖全局）",
+      "smartCar": "智能发车条件设置（0为不限制）",
+      "arena": "竞技场执行逻辑",
+      "clubStore": "俱乐部商店购买设置"
+    },
+    "tasks": {
+      "daily": { "title": "日常任务", "subtitle": "自动完成日常任务" },
+      "hangup": { "title": "领取挂机", "subtitle": "自动领取挂机奖励" },
+      "bottle": { "title": "重置罐子", "subtitle": "自动重置盐罐" },
+      "tower": { "title": "爬咸将塔", "subtitle": "自动爬咸将塔" },
+      "sendCar": { "title": "智能发车", "subtitle": "按条件自动刷新并发车" },
+      "claimCar": { "title": "收车", "subtitle": "自动收取发车收益" },
+      "study": { "title": "答题", "subtitle": "自动执行答题任务" },
+      "legacy": { "title": "领取功法残卷", "subtitle": "自动领取功法残卷" },
+      "arena": { "title": "竞技场战斗", "subtitle": "自动竞技场战斗3次" },
+      "clubStore": { "title": "俱乐部商店购买", "subtitle": "自动购买俱乐部商店物品" }
+    },
+    "scheduleOptions": {
+      "daily0100": "每天 01:00",
+      "daily0930": "每天 09:30",
+      "hourly4": "每 4 小时",
+      "hourly8": "每 8 小时",
+      "weeklyMon0030": "每周一 00:30",
+      "weeklyMon0900": "每周一 09:00",
+      "weekly1230630": "每周一到周三 06:30",
+      "weekly1231100": "每周一到周三 11:00",
+      "customSimple": "普通自定义",
+      "customAdvanced": "自定义（高级）"
+    },
+    "customTypes": {
+      "daily": "每天固定时间",
+      "hourly": "每隔N小时",
+      "weekly": "每周固定时间"
+    },
+    "weekdays": {
+      "monday": "周一",
+      "tuesday": "周二",
+      "wednesday": "周三",
+      "thursday": "周四",
+      "friday": "周五",
+      "saturday": "周六",
+      "sunday": "周日"
+    },
+    "matchModes": {
+      "any": "满足任一条件",
+      "all": "满足全部条件"
+    },
+    "arenaModes": {
+      "batch": "批量竞技场（3次）",
+      "standalone": "单独竞技场逻辑"
+    },
+    "defaultLineups": {
+      "lvZhao": "吕赵",
+      "guanYu": "关羽"
+    },
+    "carColors": {
+      "orangePlus": "橙及以上",
+      "redPlus": "红及以上",
+      "goldPlus": "金及以上"
+    },
+    "clubStoreGoods": {
+      "1": "竞技场挑战书",
+      "2": "青铜宝箱",
+      "3": "军团玉璧",
+      "4": "进阶石",
+      "5": "精铁",
+      "6": "四圣碎片",
+      "7": "招募令",
+      "8": "木质宝箱",
+      "9": "铸币",
+      "10": "金鱼竿",
+      "11": "金砖",
+      "101": "红将碎片",
+      "102": "橙将碎片",
+      "103": "万能红将碎片",
+      "104": "万能橙将碎片"
+    },
+    "arenaFormation": "阵容{value}",
+    "delimiter": "、",
+    "validation": {
+      "intervalHours": "间隔小时必须在 1 到 23 之间",
+      "hour": "小时必须在 0 到 23 之间",
+      "minute": "分钟必须在 0 到 59 之间",
+      "weekday": "请至少选择一个星期"
+    },
+    "messages": {
+      "notConfigured": "未配置",
+      "dailyAt": "每天 {hour}:{minute}",
+      "everyHours": "每 {count} 小时",
+      "closed": "已关闭",
+      "unmatched": "未匹配",
+      "saveStateFailed": "保存任务状态失败",
+      "unmatchedRoles": "未匹配账号",
+      "roleListSummary": "{roles} 等 {count} 个角色",
+      "onlyUnbought": "仅未购买",
+      "tryAll": "尝试全部",
+      "clubStoreTaskItem": "购买商品：{ids}（{mode}）",
+      "arenaTaskItem": "{mode}，阵容{formation}，次数{count}，跳过：{skip}",
+      "executorNotReady": "自动化执行器未就绪",
+      "carTaskSkipped": "当前不在发车活动开放时段（周一至周三 06:00 后），本次自动执行已跳过",
+      "noExecutableAccounts": "未找到可执行账号，请先导入并选择账号",
+      "runtimeLog": "[任务过程] {message}",
+      "taskStarted": "{source}开始执行任务：{item}（{count}个账号，角色：{roles}）",
+      "arenaDetails": "竞技场详细信息：{item}，执行角色：{roles}",
+      "dailyFlowPreparing": "准备执行日常主流程（角色：{role}，延迟500ms）",
+      "extraTaskPreparing": "追加任务：{task}（角色：{role}，延迟500ms）",
+      "arenaRolePreparing": "竞技场角色详情：{role} 即将执行，延迟500ms后开始",
+      "taskPreparing": "准备执行任务（角色：{role}，延迟500ms）",
+      "taskFinished": "任务执行完成：{item}（角色：{roles}）",
+      "taskFailed": "任务执行失败：{item}，{error}（角色：{roles}）",
+      "tokenActivationSkipSummary": "本次跳过未激活或已过期账号：{roles}",
+      "activationCheckFailed": "校验Token激活状态失败",
+      "activationCheckFailedWithReason": "校验Token激活状态失败：{error}",
+      "executionFailed": "执行失败",
+      "quietWindowActive": "不上线时段生效（{time}），自动执行暂停，已断开 {count} 个连接",
+      "autoExecutionEnabled": "已启用自动执行",
+      "autoExecutionDisabled": "已关闭自动执行",
+      "invalidSimpleCustomConfig": "普通自定义配置无效",
+      "invalidCron": "Cron表达式无效",
+      "settingsSaved": "任务设置已保存",
+      "quietWindowEnabledNow": "不上线时段已开启并生效（{time}），已断开 {count} 个连接",
+      "quietWindowEnabled": "不上线时段已开启",
+      "quietWindowDisabled": "不上线时段已关闭",
+      "clearLogsFailed": "清空日志失败",
+      "allTasksEnabled": "所有任务已启用",
+      "allTasksDisabled": "所有任务已关闭",
+      "stateRefreshed": "任务状态已刷新"
+    },
+    "table": {
+      "taskName": "任务名称",
+      "description": "说明",
+      "status": "状态",
+      "nextRun": "下次执行",
+      "settings": "设置",
+      "action": "操作"
+    }
+  },
+  "register": {
+    "title": "创建你的 XYZW 账户",
+    "subtitle": "使用邀请码完成注册后，即可进入控制台开始配置角色、任务和数据面板。",
+    "cardTitle": "注册 XYZW 账户",
+    "cardDesc": "请填写完整信息并同意条款后提交",
+    "usernamePlaceholder": "用户名",
+    "emailPlaceholder": "邮箱地址",
+    "passwordPlaceholder": "密码",
+    "inviteCodePlaceholder": "邀请码",
+    "confirmPasswordPlaceholder": "确认密码",
+    "agreePrefix": "我已阅读并同意",
+    "and": "和",
+    "termsTitle": "服务条款",
+    "privacyTitle": "隐私政策",
+    "submit": "注册账户",
+    "hasAccount": "已有账户？",
+    "loginNow": "立即登录",
+    "tempInviteHint": "需要邀请码？",
+    "viewTempInvites": "查看临时邀请码",
+    "points": {
+      "fast": {
+        "title": "1 分钟完成注册",
+        "desc": "填写基础信息即可开通管理能力"
+      },
+      "invite": {
+        "title": "按邀请码授权",
+        "desc": "支持临时邀请码和正式邀请码接入"
+      },
+      "ready": {
+        "title": "注册后立即可用",
+        "desc": "完成后直接跳转登录继续操作"
+      }
+    },
+    "validation": {
+      "usernameRequired": "请输入用户名",
+      "usernameLength": "用户名长度应在3-20个字符之间",
+      "emailRequired": "请输入邮箱地址",
+      "emailInvalid": "请输入正确的邮箱格式",
+      "passwordRequired": "请输入密码",
+      "passwordPolicy": "密码默认至少12位（启用两步验证后可为8位），且不能使用常见弱口令",
+      "inviteRequired": "请输入邀请码",
+      "confirmPasswordRequired": "请确认密码",
+      "passwordMismatch": "两次输入的密码不一致"
+    },
+    "messages": {
+      "agreeRequired": "请先同意服务条款和隐私政策",
+      "successLogin": "注册成功，请登录",
+      "successTrial": "注册成功，请在到期前完成正式使用"
+    },
+    "trialNotice": {
+      "title": "临时账号提醒",
+      "desc": "您使用的是临时邀请码，账号可用期为注册后 7 天。",
+      "expiresAt": "到期时间",
+      "confirm": "我知道了"
+    },
+    "terms": {
+      "items": {
+        "1": "1. 本工具仅面向已获授权的账号使用，不得用于未授权访问、破坏或绕过平台限制。",
+        "2": "2. 用户需自行保管账号、Token、BIN 文件等敏感数据，并对使用结果负责。",
+        "3": "3. 系统提供的自动化、数据展示和下载能力仅作为辅助工具，不保证持续可用或绝对无误。",
+        "4": "4. 若发现异常调用、滥用邀请码或影响其他用户的行为，管理员有权暂停或关闭账号。"
+      }
+    },
+    "privacy": {
+      "items": {
+        "1": "1. 注册与登录过程中会保存用户名、邮箱、登录时间及必要的认证信息，用于账号识别和安全控制。",
+        "2": "2. 用户上传的 BIN 文件、偏好设置和任务数据仅用于当前账号功能，不会默认向其他用户公开。",
+        "3": "3. 远程下载 BIN 文件默认关闭，只有在个人设置中主动开启后，系统才允许下载后端保存的文件。",
+        "4": "4. 如需删除账户数据或处理敏感信息问题，请联系管理员人工处理。"
+      }
+    }
+  },
+  "profile": {
+    "title": "个人资料",
+    "subtitle": "管理您的账户信息和偏好设置",
+    "sections": {
+      "basic": "基本信息",
+      "password": "密码修改",
+      "preferences": "系统偏好",
+      "security": "账户安全"
+    },
+    "fields": {
+      "username": "用户名",
+      "accountDisplayId": "账号ID",
+      "email": "邮箱",
+      "nickname": "昵称",
+      "phone": "手机",
+      "currentPassword": "当前密码",
+      "newPassword": "新密码",
+      "confirmPassword": "确认新密码",
+      "theme": "主题设置",
+      "language": "语言设置",
+      "notifications": "通知设置",
+      "autoExecute": "自动执行"
+    },
+    "placeholders": {
+      "nickname": "请输入昵称",
+      "phone": "请输入手机号",
+      "currentPassword": "请输入当前密码",
+      "newPassword": "请输入新密码",
+      "confirmPassword": "请再次输入新密码"
+    },
+    "extra": {
+      "theme": "选择您喜欢的界面主题",
+      "language": "选择界面显示语言",
+      "notifications": "接收任务完成通知",
+      "autoExecute": "默认开启任务自动执行"
+    },
+    "themeOptions": {
+      "auto": "跟随系统",
+      "light": "浅色主题",
+      "dark": "深色主题"
+    },
+    "languageOptions": {
+      "zhCN": "简体中文",
+      "en": "English"
+    },
+    "actions": {
+      "saveProfile": "保存更改",
+      "changePassword": "修改密码",
+      "setup": "设置",
+      "confirm": "确认",
+      "done": "完成",
+      "copy": "复制",
+      "view": "查看",
+      "export": "导出",
+      "logout": "退出",
+      "delete": "删除"
+    },
+    "security": {
+      "twoFactor": {
+        "title": "两步验证",
+        "desc": "为您的账户添加额外的安全保护"
+      },
+      "loginHistory": {
+        "title": "登录历史",
+        "desc": "查看最近的登录记录"
+      },
+      "exportData": {
+        "title": "数据导出",
+        "desc": "导出您的所有数据"
+      },
+      "remoteBin": {
+        "title": "允许远程下载 BIN 文件",
+        "desc": "开启后可从已保存 BIN 列表下载后端存储文件，默认关闭"
+      },
+      "refreshSecondVerify": {
+        "title": "刷新 Token 需要二次验证",
+        "desc": "关闭后，Token 刷新读取 BIN 时不再要求输入当前密码（建议仅在受信设备关闭）"
+      },
+      "safeMode": {
+        "title": "安全模式（推荐）",
+        "desc": "开启后不在浏览器持久化存储敏感 Token，刷新页面后需重新导入。"
+      },
+      "logout": {
+        "title": "退出登录",
+        "desc": "退出当前账号并返回登录页"
+      },
+      "deleteAccount": {
+        "title": "删除账户",
+        "desc": "永久删除您的账户和所有数据"
+      }
+    },
+    "validation": {
+      "passwordPolicy": "密码默认至少12位（启用两步验证后可为8位），且不能使用常见弱口令",
+      "currentPasswordRequired": "请输入当前密码",
+      "newPasswordRequired": "请输入新密码",
+      "passwordMismatch": "两次输入的密码不一致"
+    },
+    "messages": {
+      "loadFailed": "加载个人信息失败",
+      "saveFailed": "保存失败，请稍后重试",
+      "saveSuccess": "个人信息保存成功",
+      "passwordChangeFailed": "密码修改失败",
+      "passwordChangeSuccess": "密码修改成功，请重新登录",
+      "preferencesSaved": "偏好设置保存成功",
+      "remoteBinEnabled": "已开启远程 BIN 下载",
+      "remoteBinDisabled": "已关闭远程 BIN 下载",
+      "remoteBinSaveFailed": "保存远程 BIN 下载设置失败",
+      "refreshSecondVerifyEnabled": "已开启“刷新 Token 二次验证”",
+      "refreshSecondVerifyDisabled": "已关闭“刷新 Token 二次验证”",
+      "refreshSecondVerifySaveFailed": "保存“刷新 Token 二次验证”设置失败",
+      "safeModeEnabled": "安全模式已开启：Token 不再落盘，刷新后需重新导入",
+      "safeModeDisabled": "安全模式已关闭：将允许本地持久化非敏感 Token 元数据",
+      "safeModeSaveFailed": "保存安全模式设置失败",
+      "sensitiveConfirmPrompt": "这是敏感操作，请输入当前密码继续：",
+      "sensitiveConfirmMethodTotp": "动态验证码（推荐）",
+      "sensitiveConfirmMethodRecovery": "恢复码",
+      "sensitiveConfirmMethodPassword": "当前密码（兜底）",
+      "sensitiveConfirmTotpPlaceholder": "输入 6 位动态验证码",
+      "sensitiveConfirmRecoveryPlaceholder": "输入一次性恢复码（例如 XXXX-XXXX）",
+      "sensitiveConfirmMfaHint": "已开启 MFA：优先使用动态验证码或恢复码，密码可作为兜底。",
+      "sensitiveConfirmCancelled": "已取消二次确认",
+      "sensitiveConfirmFailed": "二次确认失败，请检查当前密码",
+      "sensitiveConfirmSuccess": "二次确认通过",
+      "copySuccess": "复制成功",
+      "copyFailed": "复制失败，请手动复制",
+      "twoFactorPending": "两步验证设置功能开发中...",
+      "twoFactorAdminOnly": "仅管理员可配置两步验证",
+      "twoFactorAlreadyEnabled": "当前账号已启用两步验证",
+      "twoFactorPasswordPrompt": "请输入当前密码以继续配置两步验证：",
+      "twoFactorSetupInstruction": "请在认证器中添加该账号（支持手动输入 secret 或 otpauth 链接）",
+      "twoFactorSetupReady": "初始化成功，请在认证器中录入并输入 6 位验证码确认",
+      "twoFactorQrHint": "可直接扫码绑定，也可复制下方 secret / otpauth 链接手动添加",
+      "twoFactorQrAlt": "2FA 二维码",
+      "twoFactorQrGenerateFailed": "二维码生成失败，请改用手动复制",
+      "twoFactorCodePrompt": "请输入认证器当前显示的 6 位验证码：",
+      "twoFactorSetupFailed": "初始化两步验证失败",
+      "twoFactorEnableFailed": "启用两步验证失败",
+      "twoFactorEnabled": "两步验证已启用",
+      "twoFactorRecoveryCodes": "请保存以下一次性恢复码（每个仅可使用一次）",
+      "twoFactorCancelled": "已取消两步验证配置",
+      "loginHistoryPending": "登录历史查看功能开发中...",
+      "exportPending": "数据导出功能开发中...",
+      "logoutSuccess": "已退出当前账号",
+      "deletePending": "账户删除功能暂未开放"
+    },
+    "dialogs": {
+      "sensitiveConfirm": {
+        "title": "安全确认"
+      }
+    },
+    "deleteDialog": {
+      "title": "删除账户",
+      "content": "此操作将永久删除您的账户和所有数据，且无法恢复。确定要继续吗？",
+      "confirm": "确定删除",
+      "cancel": "取消"
+    }
+  },
+  "tokenManager": {
+    "common": {
+      "confirm": "确定",
+      "cancel": "取消"
+    },
+    "actions": {
+      "refresh": "刷新",
+      "export": "导出",
+      "import": "导入",
+      "clear": "清除",
+      "cleanExpired": "清理过期Token",
+      "clearAll": "清除所有Token",
+      "connectWs": "连接WS",
+      "disconnectWs": "断开WS"
+    },
+    "labels": {
+      "token": "Token:",
+      "wsUrl": "WebSocket URL:",
+      "createdAt": "创建时间:",
+      "lastUsed": "最后使用:",
+      "connectionStatus": "连接状态:"
+    },
+    "userToken": {
+      "title": "用户认证Token",
+      "empty": "未设置用户Token"
+    },
+    "gameTokens": {
+      "title": "游戏角色Token ({count}个)"
+    },
+    "wsStatus": {
+      "connected": "已连接",
+      "error": "连接错误",
+      "connecting": "连接中",
+      "disconnected": "未连接"
+    },
+    "menu": {
+      "edit": "编辑",
+      "copyToken": "复制脱敏Token",
+      "copyFullToken": "复制完整Token",
+      "refreshFromUrl": "从URL刷新",
+      "refreshToken": "刷新Token",
+      "delete": "删除"
+    },
+    "dialogs": {
+      "clearUserToken": {
+        "title": "清除用户Token",
+        "content": "确定要清除用户认证Token吗？这将会退出登录。"
+      },
+      "regenerateToken": {
+        "title": "重新获取Token",
+        "content": "确定要从源地址重新获取此角色的Token吗？"
+      },
+      "deleteToken": {
+        "title": "删除Token",
+        "content": "确定要删除此角色的游戏Token吗？这将断开相关的WebSocket连接。",
+        "confirm": "确定删除"
+      },
+      "refreshFromUrl": {
+        "title": "从URL刷新Token",
+        "content": "确定要从源URL重新获取Token吗？\n源地址：{sourceUrl}"
+      },
+      "copyFullToken": {
+        "title": "复制完整Token",
+        "content": "完整Token将写入剪贴板，可能被其他应用读取。请输入 COPY 继续。",
+        "placeholder": "请输入 COPY 以确认"
+      },
+      "cleanExpired": {
+        "title": "清理过期Token",
+        "content": "确定要清理超过24小时未使用的Token吗？"
+      },
+      "clearAll": {
+        "title": "清除所有Token",
+        "content": "确定要清除所有游戏Token吗？这将断开所有WebSocket连接。此操作不可恢复！",
+        "confirm": "确定清除"
+      }
+    },
+    "exportWizard": {
+      "title": "导出Token备份",
+      "confirm": "开始导出",
+      "description": "导出文件可能包含敏感Token，请勿分享给他人或上传到公开网盘。",
+      "modes": {
+        "metadata": "仅导出配置/元数据（推荐）",
+        "encrypted": "导出加密Token（推荐给高级用户）",
+        "plaintext": "导出完整Token（明文，高风险）"
+      },
+      "plaintextWarning": "明文导出会直接暴露Token，任何拿到文件的人都可能接管你的账号。",
+      "riskAcknowledge": "我已了解明文导出的风险",
+      "keywordPlaceholder": "请输入 EXPORT 以确认明文导出",
+      "passphrasePlaceholder": "输入加密口令（至少8位）"
+    },
+    "importWizard": {
+      "decryptTitle": "导入加密备份",
+      "decryptPrompt": "该文件为加密Token备份，请输入导出时设置的口令。",
+      "decryptPlaceholder": "输入加密口令"
+    },
+    "messages": {
+      "tokensRefreshed": "Token数据已刷新",
+      "userTokenCleared": "用户Token已清除",
+      "wsDisconnected": "WebSocket连接已断开",
+      "wsConnecting": "正在建立WebSocket连接...",
+      "wsConnectFailed": "建立WebSocket连接失败",
+      "tokenNotFound": "找不到对应的Token数据",
+      "sourceUrlMissing": "该Token没有配置源地址，无法重新生成。请手动重新导入Token。",
+      "sourceUrlMissingShort": "该Token没有配置源URL",
+      "regeneratingToken": "正在重新获取Token...",
+      "tokenRegenerated": "Token已成功重新获取",
+      "tokenRegenerateFailed": "Token重新获取失败",
+      "tokenDeleted": "Token已删除",
+      "editPending": "编辑功能正在开发中",
+      "tokenCopiedMasked": "已复制脱敏Token到剪贴板",
+      "tokenCopiedFull": "完整Token已复制到剪贴板",
+      "copyFullConfirmMissing": "请输入 COPY 后再复制完整Token",
+      "clipboardCopyFailed": "复制失败，请重试",
+      "fetchingFromUrl": "正在从URL获取新Token...",
+      "tokenRefreshSuccess": "Token刷新成功",
+      "refreshFailedWithReason": "刷新失败: {error}",
+      "tokensExported": "Token数据已导出",
+      "tokensExportedMetadata": "Token元数据已导出（不含敏感字段）",
+      "tokensExportedPlaintext": "Token明文备份已导出，请妥善保管",
+      "tokensExportedEncrypted": "加密Token备份已导出",
+      "exportFailedWithReason": "导出失败: {error}",
+      "webCryptoUnsupported": "当前环境不支持WebCrypto，无法进行加密导出",
+      "passphraseTooShort": "加密口令至少需要8位",
+      "exportPlaintextConfirmMissing": "请勾选风险确认并输入 EXPORT 后再导出明文",
+      "importFormatError": "导入失败：文件格式错误",
+      "importFileTooLarge": "导入失败：文件过大（最大 {maxSizeMb}MB）",
+      "decryptCancelled": "已取消解密导入",
+      "decryptFormatInvalid": "加密备份格式无效",
+      "importFailedWithReason": "导入失败: {error}",
+      "importSuccessWithCount": "导入成功，共处理 {count} 个Token",
+      "cleanedExpired": "已清理 {count} 个过期Token",
+      "allTokensCleared": "所有游戏Token已清除"
+    },
+    "errors": {
+      "corsBlocked": "跨域请求被阻止。请确保目标服务器支持CORS。错误详情: {error}",
+      "requestFailed": "请求失败: {status} {statusText}",
+      "tokenFieldMissing": "返回数据中未找到token字段",
+      "httpError": "HTTP {status}: {statusText}"
+    }
+  },
+  "tokenImport": {
+    "common": {
+      "confirm": "确认",
+      "cancel": "取消",
+      "save": "保存"
+    },
+    "header": {
+      "notLoggedIn": "未登录",
+      "accountIsolation": "账号隔离：仅显示当前账号BIN/Token",
+      "logout": "退出账号",
+      "title": "游戏Token管理"
+    },
+    "importModal": {
+      "title": "添加游戏Token"
+    },
+    "importMethods": {
+      "manual": "手动输入",
+      "url": "URL获取",
+      "wxQrcode": "微信扫码获取",
+      "bin": "BIN多角色获取",
+      "singlebin": "BIN单角色获取"
+    },
+    "binFiles": {
+      "title": "已保存 BIN 文件 ({count})",
+      "desc": "仅显示当前登录账号在后端本地加密保存的 BIN 文件",
+      "refresh": "刷新列表",
+      "columns": {
+        "tokenId": "Token ID",
+        "fileName": "文件名",
+        "size": "大小",
+        "updatedAt": "更新时间",
+        "actions": "操作"
+      }
+    },
+    "tokenList": {
+      "title": "我的Token列表 ({count}个)"
+    },
+    "viewModes": {
+      "list": "列表",
+      "card": "卡片"
+    },
+    "sort": {
+      "name": "名称",
+      "server": "服务器",
+      "createdAt": "创建时间",
+      "lastUsed": "最后使用"
+    },
+    "actions": {
+      "batchFeatures": "批量功能",
+      "addToken": "添加Token",
+      "bulkActions": "批量操作",
+      "refresh": "刷新",
+      "reacquire": "重新获取",
+      "upgradePermanent": "升级为长期有效",
+      "enterConsole": "进入控制台",
+      "upgrade": "升级",
+      "console": "控制台",
+      "download": "下载",
+      "delete": "删除"
+    },
+    "labels": {
+      "token": "Token:",
+      "remark": "备注：",
+      "created": "创建：",
+      "used": "使用：",
+      "storageType": "存储类型：",
+      "sourceFile": "源文件："
+    },
+    "placeholders": {
+      "remarkLong": "添加备注信息...",
+      "remarkShort": "添加备注...",
+      "remarkClick": "点击添加备注"
+    },
+    "storage": {
+      "long": "长期有效",
+      "temporary": "临时存储",
+      "longShort": "长期",
+      "temporaryShort": "临时"
+    },
+    "tokenCard": {
+      "missingSource": "缺少源文件",
+      "missingBinSource": "缺少 BIN 源文件"
+    },
+    "empty": {
+      "noTokens": "还没有导入任何Token",
+      "openManager": "打开Token管理"
+    },
+    "editModal": {
+      "title": "编辑Token",
+      "fields": {
+        "name": "名称",
+        "token": "Token字符串",
+        "server": "服务器",
+        "wsUrl": "WebSocket地址",
+        "remark": "备注"
+      },
+      "placeholders": {
+        "token": "粘贴Token字符串...",
+        "remark": "添加备注信息..."
+      }
+    },
+    "validation": {
+      "nameRequired": "请输入Token名称",
+      "tokenRequired": "请输入Token字符串"
+    },
+    "bulk": {
+      "refreshAll": "刷新所有Token",
+      "updateInfo": "更新token信息",
+      "exportAll": "导出所有Token",
+      "importFile": "导入Token文件",
+      "cleanExpired": "清理过期Token",
+      "disconnectAll": "断开所有连接",
+      "clearAll": "清除所有Token"
+    },
+    "exportWizard": {
+      "title": "导出Token备份",
+      "confirm": "开始导出",
+      "description": "导出文件可能包含敏感Token，请勿分享给他人或上传到公开网盘。",
+      "modes": {
+        "metadata": "仅导出配置/元数据（推荐）",
+        "encrypted": "导出加密Token（推荐）",
+        "plaintext": "导出完整Token（明文，高风险）"
+      },
+      "plaintextWarning": "明文导出会直接暴露Token，任何拿到文件的人都可能接管你的账号。",
+      "riskAcknowledge": "我已了解明文导出的风险",
+      "keywordPlaceholder": "请输入 EXPORT 以确认明文导出",
+      "passphrasePlaceholder": "输入加密口令（至少8位）"
+    },
+    "importWizard": {
+      "decryptTitle": "导入加密备份",
+      "decryptPrompt": "该文件为加密Token备份，请输入导出时设置的口令。",
+      "decryptPlaceholder": "输入加密口令"
+    },
+    "connection": {
+      "connected": "已连接",
+      "connecting": "连接中...",
+      "disconnected": "已断开",
+      "error": "连接错误",
+      "disconnecting": "断开中...",
+      "notConnected": "未连接"
+    },
+    "wsSecurity": {
+      "advancedSettings": "高级设置（自定义 wsUrl）",
+      "riskWarning": "当前 wsUrl 非官方域名或格式异常，可能导致连接失败或带来安全风险。仅在你确认来源可信时继续。"
+    },
+    "menu": {
+      "edit": "编辑",
+      "copyToken": "复制Token",
+      "refreshFromUrl": "从URL刷新",
+      "reacquire": "重新获取",
+      "activateToken": "激活/续期",
+      "delete": "删除"
+    },
+    "dialogs": {
+      "reacquireToken": {
+        "title": "重新获取Token",
+        "content": "Token \"{name}\" 是通过微信扫码登录导入的，没有配置自动刷新地址。\n\n请选择以下操作：\n1. 重新手动导入新的Token\n2. 尝试重新连接现有Token",
+        "importAgain": "重新导入",
+        "reconnect": "重新连接"
+      },
+      "upgradePermanent": {
+        "title": "升级为长期有效",
+        "content": "确认要将Token \"{name}\" 升级为长期有效吗？升级后该Token将不会因24小时未使用而被自动清理。",
+        "confirm": "确认升级"
+      },
+      "bulkRefresh": {
+        "title": "批量刷新Token",
+        "content": "确定要刷新所有支持自动刷新的Token吗?",
+        "confirm": "开始刷新"
+      },
+      "clearAll": {
+        "title": "清除所有Token",
+        "content": "确定要清除所有Token吗？此操作无法恢复！",
+        "confirm": "确定清除"
+      },
+      "updateAllInfo": {
+        "title": "更新所有Token信息",
+        "content": "此操作将逐个连接所有Token，获取最新的角色名称和服务器信息，完成后自动断开连接。\n\n预计耗时：约3-5秒/个Token",
+        "confirm": "开始更新"
+      },
+      "deleteBin": {
+        "title": "删除 BIN 文件",
+        "content": "确定删除 BIN 文件 \"{fileName}\" 吗？{tokenHint}",
+        "confirm": "确定删除",
+        "tokenHintLinked": "对应 Token 仍在列表中，删除 BIN 后该 Token 的自动刷新会失效。",
+        "tokenHintStandalone": "删除后将无法再从后端恢复这份 BIN 文件。"
+      },
+      "deleteToken": {
+        "title": "删除Token",
+        "content": "确定要删除Token \"{name}\" 吗？此操作无法恢复。",
+        "confirm": "确定删除"
+      },
+      "sensitiveConfirm": {
+        "title": "二次验证"
+      }
+    },
+    "messages": {
+      "enableRemoteBinFirst": "请先在个人设置-账户安全中开启“允许远程下载 BIN 文件”",
+      "binDownloaded": "BIN 文件已下载: {fileName}",
+      "binDownloadTicketFailed": "下载授权票据获取失败",
+      "binDownloadFailed": "BIN 文件下载失败",
+      "binDeleted": "BIN 文件已删除",
+      "binDeleteFailed": "BIN 文件删除失败",
+      "binListLoadFailed": "BIN 文件列表获取失败",
+      "restoredFromBin": "已从后端 BIN 自动恢复 {count} 个 Token",
+      "loggedOut": "已退出账号",
+      "tokenOrderUpdated": "Token 顺序已更新",
+      "tokenRefreshSuccess": "Token刷新成功",
+      "missingBinSource": "缺少 BIN 源文件，请重新上传或恢复该 BIN 文件",
+      "tokenRefreshFailed": "Token刷新失败",
+      "tokenInfoUpdated": "Token信息已更新",
+      "tokenCopied": "Token已复制到剪贴板",
+      "copyFailed": "复制失败",
+      "remarkSaved": "备注已保存",
+      "tokenDeleted": "Token已删除",
+      "enteringConsole": "正在进入 {name} 的控制台",
+      "reconnecting": "正在尝试重新连接...",
+      "upgradePermanentSuccess": "Token \"{name}\" 已升级为长期有效！",
+      "upgradePermanentFailed": "升级失败，该Token可能已经是长期有效状态",
+      "disconnectedToken": "已断开 {name} 的连接",
+      "tokenConnecting": "{name} 正在连接中...",
+      "forceReconnect": "强制重连：{name}",
+      "reselectedReconnect": "重新连接：{name}",
+      "selectedToken": "已选择：{name}",
+      "selectTokenFailed": "选择Token失败：{name}",
+      "noRefreshableTokens": "没有可刷新的Token",
+      "noAutoRefreshTokens": "没有支持自动刷新的Token",
+      "bulkRefreshProgress": "正在批量刷新Token ({current}/{total})",
+      "bulkRefreshItemProgress": "正在刷新Token ({current}/{total}): {name}",
+      "bulkRefreshAllSuccess": "批量刷新完成！成功刷新 {count} 个Token",
+      "bulkRefreshPartial": "批量刷新完成，成功 {success} 个，失败 {fail} 个",
+      "manualTokensNeedRefresh": "{count} 个手动导入的Token需要手动刷新",
+      "bulkRefreshError": "批量刷新过程中发生错误: {error}",
+      "tokensExported": "Token数据已导出",
+      "exportFailed": "导出失败",
+      "fileFormatError": "文件格式错误",
+      "tokensExportedMetadata": "Token元数据已导出（不含敏感字段）",
+      "tokensExportedPlaintext": "Token明文备份已导出，请妥善保管",
+      "tokensExportedEncrypted": "加密Token备份已导出",
+      "exportFailedWithReason": "导出失败: {error}",
+      "webCryptoUnsupported": "当前环境不支持WebCrypto，无法进行加密导出",
+      "passphraseTooShort": "加密口令至少需要8位",
+      "exportPlaintextConfirmMissing": "请勾选风险确认并输入 EXPORT 后再导出明文",
+      "importFileTooLarge": "导入失败：文件过大（最大 {maxSizeMb}MB）",
+      "decryptCancelled": "已取消解密导入",
+      "decryptFormatInvalid": "加密备份格式无效",
+      "importSuccessWithCount": "导入成功，共处理 {count} 个Token",
+      "importSummaryTitle": "导入摘要",
+      "importSummaryContent": "导入Token数量：{importedCount}\n包含敏感Token字段：{hasSensitive}\n含敏感Token条目数：{sensitiveTokenCount}\n覆盖现有Token数量：{replacedExisting}",
+      "yes": "是",
+      "no": "否",
+      "cleanedExpired": "已清理 {count} 个过期Token",
+      "allDisconnected": "所有连接已断开",
+      "allTokensCleared": "所有Token已清除",
+      "noUpdatableTokens": "没有可更新的Token",
+      "updateInfoProgress": "正在更新Token信息 ({current}/{total})",
+      "updateInfoItemProgress": "正在更新Token信息 ({current}/{total}): {name}",
+      "updateInfoItemSuccess": "Token \"{name}\" 信息更新成功",
+      "updateInfoItemFailed": "Token \"{name}\" 信息更新失败",
+      "updateInfoAllSuccess": "所有Token信息更新完成！成功更新 {count} 个Token",
+      "updateInfoPartial": "Token信息更新完成，成功 {success} 个，失败 {fail} 个",
+      "updateInfoError": "更新过程中发生错误: {error}",
+      "importingFromApi": "正在从API获取token...",
+      "importingToken": "正在导入token...",
+      "importedFromApiDefaultName": "通过API导入的Token",
+      "importedFromUrlDefaultName": "通过URL导入的Token",
+      "tokenImportSuccess": "Token \"{name}\" 导入成功！",
+      "redirectingToConsole": "正在跳转到控制台...",
+      "tokenImportFailed": "Token导入失败",
+      "importFailedWithReason": "导入失败: {error}",
+      "sensitiveConfirmPrompt": "执行“{action}”前需要二次确认，请输入当前密码：",
+      "sensitiveConfirmPromptDownload": "执行“{action}”前需要二次确认（高敏感，仅短时授权），请先输入当前密码：",
+      "sensitiveConfirmMethodTotp": "动态验证码（推荐）",
+      "sensitiveConfirmMethodRecovery": "恢复码",
+      "sensitiveConfirmMethodPassword": "当前密码（兜底）",
+      "sensitiveConfirmTotpPlaceholder": "输入 6 位动态验证码",
+      "sensitiveConfirmRecoveryPlaceholder": "输入一次性恢复码（例如 XXXX-XXXX）",
+      "sensitiveConfirmMfaHint": "已开启 MFA：优先使用动态验证码或恢复码，密码可作为兜底。",
+      "sensitiveConfirmCancelled": "已取消二次确认",
+      "sensitiveConfirmFailed": "二次确认失败，请检查当前密码",
+      "sensitiveConfirmSuccess": "二次确认通过",
+      "highPrivilegeRemaining": "高权限剩余 {minutes} 分 {seconds} 秒"
+    },
+    "errors": {
+      "corsBlocked": "跨域请求被阻止。请确保目标服务器支持CORS。错误详情: {error}",
+      "requestFailed": "请求失败: {status} {statusText}",
+      "tokenFieldMissing": "返回数据中未找到token字段",
+      "ambiguousBinRelink": "检测到 {count} 个同角色候选 BIN，已停止自动重绑，请手动重新导入对应 BIN",
+      "apiRequestFailed": "API请求失败: {status} {statusText}",
+      "apiTokenFieldMissing": "API返回数据中未找到token字段"
+    }
+  },
+  "tokenImportManual": {
+    "fields": {
+      "name": "游戏角色名称",
+      "token": "Token字符串",
+      "server": "服务器",
+      "wsUrl": "自定义连接地址"
+    },
+    "placeholders": {
+      "name": "例如：主号战士",
+      "token": "粘贴Token字符串...",
+      "server": "服务器名称",
+      "wsUrl": "留空使用默认连接"
+    },
+    "tokenFormat": "输入格式为：｛\"roleToken\":\"****\",\"sessId\":***,\"connId\":***,\"isRestore\":***｝",
+    "optional": {
+      "title": "角色详情 (可选)"
+    },
+    "actions": {
+      "submit": "添加Token",
+      "cancel": "取消"
+    },
+    "validation": {
+      "nameRequired": "请输入角色名称",
+      "nameLength": "名称长度应在1到50个字符之间",
+      "tokenRequired": "请输入Token字符串",
+      "tokenLength": "Token字符串长度应至少20个字符"
+    },
+    "messages": {
+      "addSuccess": "Token添加成功",
+      "addFailed": "添加Token失败: {error}"
+    }
+  },
+  "tokenImportUrl": {
+    "fields": {
+      "name": "游戏角色名称",
+      "url": "Token获取地址",
+      "server": "服务器",
+      "wsUrl": "自定义连接地址"
+    },
+    "placeholders": {
+      "name": "例如：主号战士",
+      "url": "输入API接口地址...",
+      "server": "服务器名称",
+      "wsUrl": "留空使用默认连接"
+    },
+    "feedback": {
+      "tokenField": "接口应返回包含token字段的JSON数据",
+      "cors": "注意：如果是跨域URL，服务器需要支持CORS，否则会被浏览器阻止"
+    },
+    "optional": {
+      "title": "角色详情 (可选)"
+    },
+    "actions": {
+      "submit": "获取并添加Token",
+      "cancel": "取消"
+    },
+    "validation": {
+      "nameRequired": "请输入角色名称",
+      "nameLength": "名称长度应在1到50个字符之间",
+      "urlRequired": "请输入Token获取地址",
+      "urlValid": "请输入有效的URL地址"
+    },
+    "messages": {
+      "fixFormErrors": "请修正表单中的错误后再提交",
+      "unknownServer": "未知",
+      "addSuccess": "Token添加成功",
+      "invalidResponse": "接口返回数据格式不正确，未找到token字段",
+      "fetchFailed": "获取Token失败，请检查URL地址或网络连接"
+    }
+  },
+  "tokenImportBin": {
+    "fields": {
+      "binFile": "bin文件",
+      "nameTemplate": "角色命名格式"
+    },
+    "placeholders": {
+      "binFile": "粘贴Token字符串..."
+    },
+    "feedback": {
+      "nameTemplate": "支持变量: {name}角色名, {id}角色ID, {index}角色序号, {server}区服"
+    },
+    "serverListTitle": "服务器角色列表",
+    "columns": {
+      "server": "区服",
+      "roleIndex": "角色序号",
+      "roleId": "角色ID",
+      "name": "角色名称",
+      "power": "战力",
+      "actions": "操作"
+    },
+    "roleLabels": {
+      "name": "角色名称:",
+      "token": "Token:",
+      "server": "服务器:",
+      "roleIndex": "角色序号:"
+    },
+    "roleFallbacks": {
+      "unnamed": "未命名角色",
+      "unspecified": "未指定"
+    },
+    "actions": {
+      "add": "添加",
+      "download": "下载",
+      "delete": "删除",
+      "submit": "添加Token",
+      "cancel": "取消"
+    },
+    "messages": {
+      "binMissingUpload": "Bin数据丢失，请重新上传",
+      "downloadStarted": "已开始下载: {fileName}",
+      "downloadFailed": "下载失败: {error}",
+      "roleFallback": "角色_{roleId}",
+      "roleAlreadyQueued": "角色 {name} 已在待添加列表中",
+      "roleAdded": "已添加角色: {name}",
+      "addRoleFailed": "添加角色失败: {error}",
+      "serverListLoaded": "获取服务器角色列表成功，请选择角色添加",
+      "serverListLoadFailed": "获取服务器角色列表失败，请检查文件是否正确",
+      "parseFailed": "Bin文件解析失败: {error}",
+      "readFailed": "读取文件失败，请重试",
+      "uploadFirst": "请先上传bin文件！",
+      "importSuccess": "Token添加成功"
+    }
+  },
+  "tokenImportSingleBin": {
+    "fields": {
+      "name": "游戏角色名称",
+      "binFile": "bin文件",
+      "server": "服务器",
+      "wsUrl": "自定义连接地址"
+    },
+    "placeholders": {
+      "name": "例如：主号战士",
+      "binFile": "粘贴Token字符串...",
+      "server": "服务器名称",
+      "wsUrl": "留空使用默认连接"
+    },
+    "optional": {
+      "title": "角色详情 (可选)"
+    },
+    "roleLabels": {
+      "name": "角色名称:",
+      "token": "Token:",
+      "server": "服务器:"
+    },
+    "roleFallbacks": {
+      "unnamed": "未命名角色",
+      "unspecified": "未指定"
+    },
+    "actions": {
+      "submit": "添加Token",
+      "cancel": "取消"
+    },
+    "messages": {
+      "duplicateUpload": "上传列表中已存在同名角色!",
+      "roleExistsWillUpdate": "角色\"{name}\"已存在，将更新该角色的Token",
+      "tokenReadSuccess": "Token读取成功，请检查角色名称等信息后提交",
+      "readFailed": "读取文件失败，请重试",
+      "uploadFirst": "请先上传bin文件！",
+      "importSuccess": "Token添加成功"
+    }
+  },
+  "tokenImportWxQrcode": {
+    "flow": {
+      "title": "微信扫码登录流程",
+      "step1": "点击下方按钮获取微信登录二维码",
+      "step2": "使用微信扫码并确认登录",
+      "step3Prefix": "系统将获取",
+      "step3Highlight": "该微信下所有角色",
+      "step3Suffix": "的Token信息"
+    },
+    "alt": {
+      "qrcode": "微信登录二维码"
+    },
+    "fields": {
+      "nameTemplate": "角色命名格式"
+    },
+    "feedback": {
+      "nameTemplate": "支持变量: {name}角色名, {id}角色ID, {index}角色序号, {server}区服"
+    },
+    "serverListTitle": "服务器角色列表",
+    "columns": {
+      "serverId": "区服ID",
+      "roleIndex": "角色序号",
+      "roleId": "角色ID",
+      "name": "角色名称",
+      "power": "战力",
+      "actions": "操作"
+    },
+    "mobile": {
+      "server": "区服:",
+      "roleIndex": "序号:",
+      "roleId": "角色ID:"
+    },
+    "roleLabels": {
+      "name": "角色名称:",
+      "token": "Token:",
+      "server": "服务器:",
+      "roleIndex": "角色序号:"
+    },
+    "roleFallbacks": {
+      "unnamed": "未命名角色",
+      "unspecified": "未指定"
+    },
+    "actions": {
+      "getQrcode": "获取二维码",
+      "refreshQrcode": "刷新二维码",
+      "add": "添加",
+      "download": "下载",
+      "delete": "删除",
+      "submit": "添加Token",
+      "cancel": "取消"
+    },
+    "status": {
+      "clickToGet": "点击获取微信登录二维码",
+      "loading": "正在获取二维码...",
+      "scanPrompt": "请使用微信扫码登录",
+      "timeout": "二维码已超时，请重新获取",
+      "expired": "二维码已过期，请重新生成",
+      "scanRemaining": "请扫码，剩余 {remain} 秒",
+      "loginSuccess": "扫码成功，正在登录... 用户：{nickname}",
+      "unknownUser": "未知用户"
+    },
+    "messages": {
+      "binMissingScan": "Bin数据丢失，请重新扫码",
+      "binMissingUpload": "Bin数据丢失，请重新上传",
+      "downloadStarted": "已开始下载: {fileName}",
+      "downloadFailed": "下载失败: {error}",
+      "roleFallback": "角色_{roleId}",
+      "roleAlreadyQueued": "角色 {name} 已在待添加列表中",
+      "roleAdded": "已添加角色: {name}",
+      "addRoleFailed": "添加角色失败: {error}",
+      "qrcodeFailed": "二维码获取失败",
+      "qrcodeFailedWithReason": "二维码获取失败：{error}",
+      "processFailed": "处理失败：{error}",
+      "serverListLoaded": "获取服务器角色列表成功，请选择角色添加",
+      "serverListLoadFailed": "获取服务器角色列表失败",
+      "parseFailed": "Bin文件解析失败: {error}",
+      "uploadFirst": "请先上传bin文件！",
+      "importSuccess": "Token添加成功"
+    },
+    "errors": {
+      "networkError": "网络错误",
+      "requestTimeout": "请求超时",
+      "httpStatus": "HTTP 状态码：{status}",
+      "qrcodeUrlMissing": "未找到二维码图片地址",
+      "runtimeHostNotAllowed": "当前域名 {host} 未被允许加载高风险运行时脚本，请迁移到隔离子域并配置 VITE_XYZW_RUNTIME_ALLOWED_HOSTS",
+      "loginFailed": "登录失败",
+      "loginTimeout": "登录超时",
+      "loginFailedWithReason": "登录失败：{error}",
+      "invalidLoginResponse": "登录响应结构异常",
+      "cryptoModuleMissing": "游戏加密模块未加载，不能生成 bin"
+    }
+  },
+  "gameStatus": {
+    "sections": {
+      "daily": "日常",
+      "club": "俱乐部",
+      "activity": "活动",
+      "tools": "工具",
+      "saltField": "盐场",
+      "peachGroup": "蟠桃园",
+      "rankGroup": "排行榜",
+      "fightPvp": "切磋",
+      "arenaPvp": "竞技场",
+      "resourceChanges": "资源数据变化",
+      "goldFishCalc": "金鱼计算",
+      "tenHall": "十殿"
+    },
+    "legionMatch": {
+      "iconAlt": "俱乐部图标",
+      "title": "俱乐部排位",
+      "subtitle": "赛事状态",
+      "statusRegistered": "已报名",
+      "statusNotRegistered": "未报名",
+      "descriptionLine1": "每逢周三周四周五有比赛",
+      "descriptionLine2": "立即报名参与精彩对决！",
+      "actionRegistered": "已报名",
+      "actionRegister": "立即报名"
+    },
+    "legionSignin": {
+      "iconAlt": "签到图标",
+      "title": "俱乐部签到",
+      "subtitle": "每日签到状态",
+      "statusSigned": "已签到",
+      "statusPending": "待签到",
+      "currentClub": "当前俱乐部",
+      "noClub": "尚未加入任何俱乐部",
+      "actionSigned": "已签到",
+      "actionSign": "立即签到"
+    },
+    "saltFieldTabs": {
+      "warrank": "盐场",
+      "weekBattle": "本周盐场战绩",
+      "monthBattle": "本月盐场战绩",
+      "legionWarMap": "盐场地图",
+      "legionWarStatistics": "盐场战况"
+    },
+    "peachTabs": {
+      "peach": "蟠桃园信息",
+      "peachBattle": "蟠桃园战绩"
+    },
+    "rankTabs": {
+      "serverrank": "区服榜",
+      "toprank": "巅峰榜",
+      "topclubrank": "俱乐部榜",
+      "goldclubrank": "黄金积分榜",
+      "greatRouteRank": "伟大航路积分榜"
+    }
+  },
+  "dailyTasks": {
+    "common": {
+      "confirm": "确定",
+      "cancel": "取消"
+    },
+    "title": "日常任务",
+    "subtitle": "管理和执行您的日常游戏任务",
+    "actions": {
+      "refresh": "刷新任务",
+      "bulk": "批量操作"
+    },
+    "labels": {
+      "selectRole": "选择角色："
+    },
+    "placeholders": {
+      "selectRole": "请选择游戏角色",
+      "search": "搜索任务..."
+    },
+    "stats": {
+      "total": "总任务：",
+      "completed": "已完成：",
+      "progress": "进度："
+    },
+    "filters": {
+      "all": "全部任务",
+      "pending": "待完成",
+      "completed": "已完成",
+      "auto": "自动执行"
+    },
+    "empty": "暂无任务数据",
+    "loading": "正在加载任务数据...",
+    "bulk": {
+      "executeAllPending": "执行所有待完成任务",
+      "markAllCompleted": "标记所有为已完成",
+      "resetAll": "重置所有任务状态"
+    },
+    "dialogs": {
+      "executeAll": {
+        "title": "批量执行任务",
+        "content": "确定要执行 {count} 个待完成任务吗？"
+      },
+      "markAllCompleted": {
+        "title": "标记所有任务为已完成",
+        "content": "确定要将 {count} 个待完成任务标记为已完成吗？"
+      },
+      "resetAll": {
+        "title": "重置所有任务状态",
+        "content": "确定要重置所有任务状态吗？此操作将清除所有完成记录。"
+      }
+    },
+    "messages": {
+      "selectRoleFirst": "请先选择游戏角色",
+      "loadFailed": "任务加载失败",
+      "refreshSuccess": "任务数据刷新成功",
+      "executeFailed": "任务执行失败",
+      "executeSuccess": "任务执行成功",
+      "executeSuccessWithName": "任务 \"{title}\" 执行成功",
+      "executeFailedWithReason": "任务执行失败: {error}",
+      "statusUpdated": "任务状态已更新",
+      "saveConfigFailed": "保存任务配置失败",
+      "noPendingTasks": "没有可执行的待完成任务",
+      "bulkExecuteFinished": "批量执行完成：成功 {success} 个，失败 {fail} 个",
+      "allCompleted": "所有任务都已完成",
+      "markAllCompletedSuccess": "所有任务已标记为完成",
+      "resetAllSuccess": "所有任务状态已重置",
+      "taskDone": "任务已执行完成",
+      "scheduledUpdate": "定时任务更新：{title}"
+    }
+  },
+  "clubCarKing": {
+    "common": {
+      "confirm": "确定",
+      "cancel": "取消"
+    },
+    "title": "疯狂赛车",
+    "summary": {
+      "totalCars": "共 {count} 辆",
+      "noData": "暂无数据",
+      "freeRefresh": "有 {count} 辆可免费刷新",
+      "noFreeRefresh": "无免费刷新",
+      "tickets": "剩余车票: {count}"
+    },
+    "actions": {
+      "loading": "加载中...",
+      "refreshData": "刷新数据",
+      "smartSend": "智能发车",
+      "claimAll": "一键收车",
+      "freeRefresh": "免费刷新",
+      "refreshGrade": "刷新品阶(需车票)",
+      "send": "发车",
+      "claim": "收车",
+      "claimWithRemaining": "收车(剩余{remaining})",
+      "helper": "护卫"
+    },
+    "empty": {
+      "selectToken": "请先选择 Token 并建立连接",
+      "noCars": "暂无车辆数据"
+    },
+    "fallbacks": {
+      "carName": "车辆 #{id}"
+    },
+    "labels": {
+      "star": "{value}星",
+      "status": "状态",
+      "helper": "护卫"
+    },
+    "status": {
+      "idle": "未发车",
+      "sent": "已发车"
+    },
+    "helperDialog": {
+      "title": "选择护卫",
+      "memberLabel": "护卫成员",
+      "placeholder": "选择俱乐部成员",
+      "tip": "说明：次数满 4 的成员不可再被选择。",
+      "optionLabel": "{name}（战力: {power} | 红粹: {redQuench} | 已护卫 {count}/4）"
+    },
+    "helperStatus": {
+      "none": "未携带",
+      "available": "可携带",
+      "na": "—"
+    },
+    "time": {
+      "zeroMinutes": "0分",
+      "hoursMinutes": "{hours}小时{minutes}分",
+      "minutes": "{minutes}分"
+    },
+    "messages": {
+      "selectTokenFirst": "请先选择 Token 并建立连接",
+      "smartParseEnabled": "未识别到车辆字段，已启用智能解析。如仍为空请提供返回示例",
+      "dataUpdated": "疯狂赛车数据已更新",
+      "fetchFailed": "获取车辆数据失败：{error}",
+      "unknownError": "未知错误",
+      "carIdMissing": "未找到车辆ID",
+      "refreshOnlyIdle": "仅未发车的车辆可刷新品阶",
+      "consumeTicketRefresh": "将消耗车票进行刷新",
+      "refreshDone": "刷新完成：{grade}",
+      "gradeRefreshDone": "品阶刷新完成",
+      "refreshFailed": "刷新失败：{error}",
+      "alreadySent": "该车辆已发车",
+      "activityClosed": "非活动时间不可发车（仅周一至周三开放）",
+      "sending": "发车中...",
+      "sent": "已发车",
+      "sendFailed": "发车失败：{error}",
+      "claimTooEarly": "未到可收车时间（需超过4小时）",
+      "claiming": "收车中...",
+      "claimDone": "收车完成",
+      "claimFailed": "收车失败：{error}",
+      "claimRemaining": "未到可收车时间，剩余 {remaining}",
+      "claimAllDone": "一键收车完成",
+      "claimAllFailed": "一键收车失败：{error}",
+      "helperAssigned": "已自动分配护卫：{name} (已助战: {used}/4)",
+      "helperUnavailable": "车辆[{grade}]需要护卫，但所有护卫次数已满",
+      "smartSendDone": "智能发车完成",
+      "smartSendFailed": "智能发车失败：{error}",
+      "helperGradeLimit": "仅品阶≥5的车辆可设置护卫",
+      "helperSentDisabled": "已发车车辆不可设置护卫",
+      "helperFetchFailed": "获取护卫数据失败：{error}"
+    }
+  },
+  "goldFishCalculator": {
+    "iconAlt": "金鱼计算图标",
+    "title": "金鱼计算",
+    "subtitle": "估算到下次获取金鱼前可获取的资源数量",
+    "festivalOption": "{label}（{date}）",
+    "ratePerDay": "{value}/天",
+    "labels": {
+      "targetFestival": "目标节日",
+      "daysToNext": "距离下次获取金鱼：{days} 天"
+    },
+    "actions": {
+      "refreshRoleInfo": "刷新角色数据"
+    },
+    "hints": {
+      "usingDefault": "未检测到资源变化记录，已按默认值计算：各资源日均获取均为 0。",
+      "estimatedDate": "{label} 暂无官方日期，当前按 {estimateBase} 估算。"
+    },
+    "table": {
+      "resource": "资源",
+      "current": "当前数量",
+      "target": "目标值",
+      "dailyGain": "日均获取",
+      "gainInDays": "{days} 天可获取",
+      "total": "预计总量",
+      "gap": "距目标差值",
+      "source": "数据来源"
+    },
+    "festivals": {
+      "dragonBoat": "端午节",
+      "midAutumn": "中秋节",
+      "newYear": "元旦节"
+    },
+    "resources": {
+      "diamond": "金砖",
+      "chestPoint": "宝箱积分",
+      "goldRod": "金鱼杆",
+      "recruit": "招募令"
+    },
+    "sources": {
+      "default": "默认",
+      "changeLog": "变化记录"
+    }
+  },
+  "recruitHelperCard": {
+    "iconAlt": "招募助手图标",
+    "title": "招募助手",
+    "resourceName": "招募令",
+    "count": "数量：{count}",
+    "status": {
+      "running": "运行中",
+      "stopped": "已停止"
+    },
+    "actions": {
+      "start": "开始招募"
+    },
+    "messages": {
+      "selectTokenFirst": "请先选择Token",
+      "running": "招募助手运行中",
+      "done": "招募完毕"
+    }
+  },
+  "starUpgradeCard": {
+    "iconAlt": "升星助手图标",
+    "title": "升星助手",
+    "subtitle": "升星、图鉴升星、领取奖励",
+    "status": {
+      "running": "运行中",
+      "stopped": "已停止"
+    },
+    "labels": {
+      "delay": "延迟(ms)",
+      "heroCount": "英雄数量：{count}"
+    },
+    "actions": {
+      "heroUpgrade": "升星",
+      "bookUpgrade": "图鉴",
+      "claimRewards": "领奖",
+      "stop": "停止"
+    },
+    "confirm": {
+      "title": "确认执行",
+      "content": "将对预设英雄执行升星、图鉴升星并领取奖励。",
+      "confirm": "开始",
+      "cancel": "取消"
+    },
+    "messages": {
+      "selectTokenFirst": "请先选择Token",
+      "wsDisconnected": "WebSocket未连接",
+      "wsDisconnectedExecute": "WebSocket未连接，无法执行",
+      "startHero": "开始升星",
+      "heroDoneBookStart": "英雄升星完成，开始图鉴升星",
+      "bookDoneClaimStart": "图鉴升星完成，开始领取奖励",
+      "allDone": "升星全部完成",
+      "executeError": "升星任务执行出错",
+      "stopped": "已停止",
+      "heroDone": "英雄升星完成",
+      "bookDone": "图鉴升星完成",
+      "claimDone": "领取奖励完成"
+    },
+    "logs": {
+      "retryWait": "请求过快，等待 {seconds} 秒后重试",
+      "wsMissing": "WebSocket连接缺失",
+      "taskStarted": "升星任务启动",
+      "heroDone": "英雄升星全部完成",
+      "bookDone": "图鉴升星全部完成",
+      "allDone": "升星任务全部完成",
+      "executeError": "升星任务执行出错: {error}",
+      "heroAttempt": "英雄ID:{heroId} 升星第{current}/10次",
+      "heroAttemptFailed": "英雄ID:{heroId} 升星第{current}/10次失败，跳过剩余次数",
+      "bookAttempt": "英雄ID:{heroId} 图鉴升星第{current}/10次",
+      "bookAttemptFailed": "英雄ID:{heroId} 图鉴升星第{current}/10次失败，跳过剩余次数",
+      "claimAttempt": "领取图鉴奖励第{current}/10次",
+      "claimAttemptFailed": "领取图鉴奖励第{current}/10次失败，跳过剩余次数"
+    },
+    "errors": {
+      "tooFast": "操作太快",
+      "requestFailed": "请求失败",
+      "heroUpgradeFailed": "升星失败",
+      "bookUpgradeFailed": "图鉴升星失败",
+      "claimFailed": "领取奖励失败"
+    }
+  },
+  "peachInfo": {
+    "toolbar": {
+      "queryDate": "查询日期:",
+      "exportImage": "导出图片",
+      "refresh": "刷新"
+    },
+    "title": "{date} 蟠桃大会对战",
+    "common": {
+      "unknown": "未知",
+      "none": "无",
+      "close": "关闭"
+    },
+    "club": {
+      "server": "{serverId}服",
+      "id": "ID: {id}",
+      "memberCount": "{count}人",
+      "quenchNum": "{count}红"
+    },
+    "states": {
+      "loadingOpponent": "正在加载敌方数据...",
+      "noLineup": "暂无阵容数据",
+      "noOpponentData": "暂无敌方数据"
+    },
+    "table": {
+      "title": "敌方信息",
+      "columns": {
+        "index": "序号",
+        "avatar": "头像",
+        "roleName": "角色名称",
+        "power": "战力",
+        "redQuench": "红淬",
+        "lineup": "阵容(红数)[四圣等级]",
+        "lineupType": "阵容类型"
+      }
+    },
+    "modals": {
+      "playerInfoTitle": "对手信息"
+    },
+    "labels": {
+      "power": "战力: {value}",
+      "redQuench": "红淬 {count}",
+      "lineupType": "阵容类型：",
+      "serverName": "区服: {name}",
+      "legionName": "俱乐部: {name}",
+      "totalRedCount": "总红数: {count}",
+      "totalHoleCount": "总开孔数: {count}",
+      "holyBeastCount": "四圣数: {count}"
+    },
+    "duel": {
+      "countLabel": "切磋次数:",
+      "countPlaceholder": "请输入切磋次数",
+      "rangeHint": "范围: 1-100",
+      "start": "切磋",
+      "inProgress": "切磋进行中",
+      "totalCount": "总次数: {count}",
+      "completedCount": "已完成: {count}",
+      "remainingCount": "剩余: {count}",
+      "winCount": "胜: {count}",
+      "lossCount": "负: {count}",
+      "resultTitle": "切磋结果",
+      "summary": {
+        "totalCount": "总次数：",
+        "win": "胜：",
+        "loss": "负：",
+        "winRate": "胜率：",
+        "ourDieRate": "我方掉将率：",
+        "enemyDieRate": "敌方掉将率："
+      },
+      "battleIndex": "第 {index} 场",
+      "win": "胜利",
+      "loss": "失败",
+      "dieHeroCount": "掉将: {count} 个",
+      "retry": "重新切磋",
+      "closeResult": "关闭结果"
+    },
+    "heroes": {
+      "title": "武将阵容",
+      "count": "武将数量: {count}",
+      "star": "星级: {value}",
+      "red": "红数: {value}",
+      "hole": "开孔: {value}",
+      "holyBeastOpened": "已开四圣",
+      "holyBeastClosed": "未开四圣",
+      "holyBeastLevel": "四圣等级: {value}",
+      "empty": "未查询到武将信息",
+      "listEmpty": "武将列表为空",
+      "listUndefined": "武将列表未定义"
+    },
+    "heroModal": {
+      "title": "武将详情",
+      "level": "等级: {value}",
+      "star": "星级: {value}",
+      "activated": "已激活",
+      "notActivated": "未激活",
+      "equipmentTitle": "装备详情",
+      "labels": {
+        "power": "战力",
+        "level": "等级",
+        "star": "星级",
+        "hole": "开孔数",
+        "red": "红孔数",
+        "holyBeastStatus": "四圣状态",
+        "holyBeastLevel": "四圣等级",
+        "fishInfo": "鱼灵",
+        "pearlSkill": "鱼珠技能",
+        "pearlWash": "鱼灵洗练"
+      },
+      "equipment": {
+        "weapon": "武器:",
+        "clothes": "衣服:",
+        "helmet": "头盔:",
+        "mount": "坐骑:"
+      }
+    },
+    "power": {
+      "billion": "{value}亿",
+      "tenThousand": "{value}万"
+    },
+    "fallbacks": {
+      "unknownHero": "未知武将_{index}",
+      "ownClub": "我方俱乐部",
+      "opponentClub": "敌方俱乐部"
+    },
+    "export": {
+      "filenamePrefix": "蟠桃园敌方信息"
+    },
+    "messages": {
+      "selectRoleFirst": "请先选择游戏角色",
+      "wsDisconnectedQueryRecord": "WebSocket未连接，无法查询战绩",
+      "wsDisconnectedDuel": "WebSocket未连接，无法发起切磋",
+      "wsDisconnectedQuery": "WebSocket未连接，无法查询",
+      "opponentNotFound": "未查询到对手信息",
+      "querySuccess": "查询成功",
+      "queryFailed": "查询失败: {error}",
+      "invalidFightCount": "请输入有效的切磋次数 (1-100)",
+      "duelStarted": "开始连续切磋: {name}，共{count}次",
+      "duelRunning": "正在进行第 {current}/{total} 场切磋",
+      "duelSingleFailed": "第 {current} 场切磋失败: {error}",
+      "duelFinished": "连续切磋完成，共{count}场",
+      "duelFailed": "连续切磋失败: {error}",
+      "noBattleData": "未返回战斗数据",
+      "networkError": "网络错误",
+      "battlefieldMissing": "未获取到战场信息",
+      "opponentClubIdMissing": "未获取到对战俱乐部ID",
+      "historyMissing": "未获取到历史对战记录",
+      "recordNotFound": "未找到 {date} 的对战记录",
+      "opponentClubDetailMissing": "无法获取对手俱乐部详情",
+      "fetchDataFailed": "获取数据失败: {error}",
+      "exportTargetMissing": "未找到要导出的内容",
+      "exportGenerating": "正在生成图片，请稍候...",
+      "exportSuccess": "图片导出成功",
+      "exportSuccessWithPages": "图片导出成功，共 {count} 张",
+      "exportFailed": "导出图片失败，请重试"
+    }
+  },
+  "heroUpgradeCard": {
+    "iconAlt": "武将升级图标",
+    "title": "武将升级",
+    "subtitle": "武将升级，方便卡速",
+    "status": {
+      "running": "运行中",
+      "stopped": "已停止"
+    },
+    "labels": {
+      "heroSelect": "武将选择",
+      "attack": "攻击：{value}",
+      "speed": "速度：{value}",
+      "levelUpgrade": "升级等级"
+    },
+    "actions": {
+      "levelUpgrade": "升级",
+      "orderUpgrade": "进阶"
+    },
+    "messages": {
+      "retrying": "请求过快，{seconds}秒后自动重试",
+      "selectRoleFirst": "请先选择游戏角色",
+      "wsDisconnected": "WebSocket未连接，无法执行命令",
+      "orderSuccess": "进阶成功",
+      "orderFailed": "进阶失败",
+      "orderFailedWithReason": "进阶失败: {error}",
+      "manualUpgradeRequired": "请手动升级到{level}级，然后进行进阶",
+      "levelFailedWithReason": "升级失败: {error}"
+    },
+    "errors": {
+      "tooFast": "操作太快",
+      "requestFailed": "请求失败"
+    }
+  },
+  "refineHelperCard": {
+    "iconAlt": "洗练图标",
+    "title": "洗练助手",
+    "subtitle": "装备洗练、锁定孔位、自动洗练",
+    "status": {
+      "running": "运行中",
+      "stopped": "已停止"
+    },
+    "common": {
+      "or": " 或 "
+    },
+    "labels": {
+      "whiteJade": "白玉: {count}",
+      "colorJade": "彩玉: {count}",
+      "selectHero": "选择武将",
+      "selectEquip": "选择装备",
+      "quenchTimes": "淬炼次数",
+      "slotLock": "孔位锁定",
+      "slot": "孔{id}",
+      "secondaryPassword": "解锁二级密码：",
+      "enterSecondaryPassword": "请输入二级密码",
+      "quenchedCount": "已淬炼:",
+      "autoSettings": "自动淬炼设置",
+      "attribute": "属性",
+      "selectAttribute": "选择属性",
+      "delay": "延迟(ms)"
+    },
+    "actions": {
+      "refreshHeroes": "刷新阵容",
+      "reset": "清零",
+      "verify": "验证",
+      "reverify": "重新验证",
+      "quenchOnce": "淬炼一次",
+      "quenchContinuous": "连续淬炼",
+      "autoQuench": "自动淬炼",
+      "stop": "停止",
+      "remove": "删除",
+      "addCondition": "+ 添加条件"
+    },
+    "states": {
+      "loading": "加载中...",
+      "emptyHeroes": "暂无武将数据",
+      "notQuenched": "未淬炼",
+      "passwordVerified": "密码已验证"
+    },
+    "attributes": {
+      "attack": "攻击",
+      "hp": "血量",
+      "defense": "防御",
+      "speed": "速度",
+      "armorBreak": "破甲",
+      "armorBreakResist": "破甲抵抗",
+      "accuracy": "精准",
+      "block": "格挡",
+      "damageReduction": "减伤",
+      "critical": "暴击",
+      "criticalResist": "暴击抵抗",
+      "criticalDamage": "爆伤",
+      "criticalDamageResist": "爆伤抵抗",
+      "skillDamage": "技能伤害",
+      "controlResist": "免控",
+      "stunResist": "眩晕免疫",
+      "freezeResist": "冰冻免疫",
+      "silenceResist": "沉默免疫",
+      "bleedResist": "流血免疫",
+      "poisonResist": "中毒免疫",
+      "burnResist": "灼烧免疫"
+    },
+    "parts": {
+      "weapon": "武器",
+      "armor": "铠甲",
+      "helmet": "头冠",
+      "mount": "坐骑"
+    },
+    "fallbacks": {
+      "equipment": "装备{id}",
+      "hero": "武将{id}",
+      "attribute": "属性{id}"
+    },
+    "messages": {
+      "selectTokenFirst": "请先选择Token",
+      "wsDisconnectedRefresh": "WebSocket未连接，无法刷新阵容",
+      "refreshSuccess": "阵容刷新成功",
+      "refreshFailed": "刷新阵容失败: {error}",
+      "enterPassword": "请输入密码",
+      "wsDisconnectedVerify": "WebSocket未连接，无法验证密码",
+      "passwordVerified": "密码验证成功",
+      "verifyFailed": "验证失败: {error}",
+      "verifyPasswordFailed": "密码验证失败: {error}",
+      "selectHeroAndEquip": "请先选择武将和装备",
+      "verifyPasswordBeforeUnlock": "请先验证二级密码以解锁孔位",
+      "slotLocked": "孔位已锁定",
+      "slotUnlocked": "孔位已解锁",
+      "lockSlotFailed": "锁定孔位失败: {error}",
+      "selectHeroAndPart": "请先选择武将和装备部位",
+      "continuousStarted": "开始连续淬炼，出现橙色或红色属性时自动暂停",
+      "continuousAutoStopped": "发现橙色或红色属性，已自动暂停",
+      "continuousFailed": "连续淬炼失败: {error}",
+      "keepOneCondition": "至少需要保留一个条件",
+      "setValidCondition": "请至少设置一个有效的目标属性和数值",
+      "autoStarted": "开始自动淬炼，目标：{conditions}",
+      "autoStoppedOnTarget": "已达到目标条件，自动淬炼已停止",
+      "autoFailed": "自动淬炼失败: {error}",
+      "wsDisconnectedQuench": "WebSocket未连接，无法执行淬炼",
+      "weaponLevelInsufficient": "武器等级不足，需要4000级以上（当前{level}级）",
+      "equipmentSlotsMissing": "未获取到装备孔位信息",
+      "quenchFailed": "淬炼失败: {error}",
+      "quenchStopped": "淬炼已停止",
+      "resetDone": "已清零"
+    }
+  },
+  "fishHelperCard": {
+    "iconAlt": "普通鱼竿图标",
+    "title": "钓鱼助手",
+    "count": "数量：{count}",
+    "status": {
+      "running": "运行中",
+      "stopped": "已停止"
+    },
+    "types": {
+      "normalRod": "普通鱼竿",
+      "goldRod": "黄金鱼竿"
+    },
+    "actions": {
+      "start": "开始钓鱼"
+    },
+    "messages": {
+      "selectTokenFirst": "请先选择Token",
+      "running": "钓鱼助手运行中",
+      "done": "钓鱼完毕"
+    }
+  },
+  "boxHelperCard": {
+    "iconAlt": "宝箱图标",
+    "title": "宝箱助手",
+    "count": "数量：{count}",
+    "status": {
+      "running": "运行中",
+      "stopped": "已停止"
+    },
+    "labels": {
+      "totalPoints": "宝箱总积分："
+    },
+    "types": {
+      "wooden": "木质宝箱",
+      "bronze": "青铜宝箱",
+      "gold": "黄金宝箱",
+      "platinum": "铂金宝箱"
+    },
+    "actions": {
+      "open": "开启宝箱",
+      "claimPoints": "领取宝箱积分"
+    },
+    "messages": {
+      "selectTokenFirst": "请先选择Token",
+      "claimDone": "宝箱积分领取完毕",
+      "opening": "宝箱开启中",
+      "openDone": "宝箱开启完毕"
+    }
+  },
+  "bottleHelperCard": {
+    "iconAlt": "盐罐图标",
+    "title": "盐罐机器人",
+    "subtitle": "剩余时间",
+    "status": {
+      "running": "运行中",
+      "stopped": "已停止"
+    },
+    "actions": {
+      "start": "启动服务",
+      "restart": "重启服务"
+    },
+    "messages": {
+      "selectTokenFirst": "请先选择Token",
+      "starting": "启动盐罐机器人",
+      "restarting": "重启盐罐机器人"
+    }
+  },
+  "fightHelperCard": {
+    "iconAlt": "竞技场图标",
+    "title": "竞技场助手",
+    "status": {
+      "running": "运行中",
+      "stopped": "已停止"
+    },
+    "labels": {
+      "ticketCount": "当前咸神门票数量："
+    },
+    "actions": {
+      "start": "开始战斗"
+    },
+    "messages": {
+      "selectTokenFirst": "请先选择Token",
+      "notEnoughTickets": "咸神门票不足以完成该战斗次数",
+      "running": "竞技场战斗中",
+      "targetFailed": "获取竞技场目标失败：{error}",
+      "noTarget": "未找到可用的竞技场目标，已停止",
+      "fightFailed": "竞技场对决失败：{error}",
+      "done": "竞技场战斗完毕"
+    }
+  },
+  "fightPvpCard": {
+    "iconAlt": "切磋图标",
+    "title": "切磋系统",
+    "subtitle": "查询对手信息并进行切磋",
+    "common": {
+      "unknown": "未知",
+      "unknownPlayer": "未知玩家",
+      "unknownHero": "未知武将",
+      "unknownError": "未知错误",
+      "none": "无",
+      "noClub": "无俱乐部"
+    },
+    "placeholders": {
+      "targetId": "请输入对手ID",
+      "fightCount": "请选择或输入切磋次数"
+    },
+    "actions": {
+      "queryTarget": "查询对手",
+      "startFight": "开始切磋",
+      "exportData": "导出数据",
+      "exportRaw": "导出原始",
+      "syncFromGame": "从游戏同步",
+      "clearCurrent": "清空当前",
+      "use": "使用",
+      "delete": "删除",
+      "close": "关闭"
+    },
+    "targetLists": {
+      "history": "历史切磋",
+      "friends": "好友列表",
+      "follows": "关注列表"
+    },
+    "labels": {
+      "fightCount": "切磋次数：",
+      "serverName": "区服: {value}",
+      "redCount": "红数: {value}",
+      "updatedAt": "更新时间:",
+      "holeCount": "孔数: {value}",
+      "heroCount": "{value} 名武将",
+      "clickAvatarHint": "（点击头像图片可看详情）",
+      "holyBeastOpened": "已开四圣",
+      "holyBeastClosed": "未开四圣",
+      "powerValue": "战力: {value}",
+      "starValue": "星级: {value}",
+      "holyBeastLevel": "四圣等级: {value}",
+      "battleIndex": "第 {value} 场",
+      "dieCount": "掉将: {value} 个"
+    },
+    "sections": {
+      "opponentInfo": "对手信息",
+      "opponentLineup": "对手阵容",
+      "fightResult": "切磋结果"
+    },
+    "info": {
+      "name": "游戏名：",
+      "server": "区服：",
+      "power": "战力：",
+      "weapon": "玩具：",
+      "lineup": "阵容：",
+      "club": "俱乐部：",
+      "clubPower": "俱乐部战力：",
+      "currentRed": "当前红数："
+    },
+    "summary": {
+      "total": "总次数：",
+      "win": "胜：",
+      "loss": "负：",
+      "winRate": "胜率：",
+      "ourDieRate": "我方掉将率：",
+      "enemyDieRate": "敌方掉将率：",
+      "winResult": "胜利",
+      "lossResult": "失败"
+    },
+    "empty": {
+      "history": "暂无历史切磋记录",
+      "friends": "暂无好友目标",
+      "prompt": "请输入对手ID并点击查询按钮获取对手信息"
+    },
+    "heroModal": {
+      "title": "武将信息",
+      "heroId": "武将ID: {value}",
+      "level": "等级: {value}",
+      "star": "星级: {value}",
+      "activated": "已激活",
+      "notActivated": "未激活",
+      "equipmentTitle": "装备详情",
+      "labels": {
+        "power": "战力",
+        "level": "等级",
+        "star": "星级",
+        "hole": "开孔数",
+        "red": "红孔数",
+        "holyBeastStatus": "四圣状态",
+        "holyBeastLevel": "四圣等级",
+        "fishInfo": "鱼灵",
+        "pearlSkill": "鱼珠技能",
+        "pearlWash": "鱼灵洗练"
+      },
+      "equipment": {
+        "weapon": "武器:",
+        "clothes": "衣服:",
+        "helmet": "头盔:",
+        "mount": "坐骑:"
+      }
+    },
+    "messages": {
+      "loadingTarget": "正在查询对手信息...",
+      "loadingFight": "正在进行切磋，请稍候...",
+      "queryTargetFirst": "请先查询对手信息",
+      "addedToList": "已加入{list}",
+      "noDiagnosticData": "暂无诊断数据，请先点击“从游戏同步”",
+      "diagnosticExported": "同步诊断已导出为文件：{filename}",
+      "exportFailed": "导出诊断失败: {error}",
+      "selectRoleFirst": "请先选择游戏角色",
+      "wsDisconnectedSyncFriends": "WebSocket未连接，无法同步好友列表",
+      "friendListNotRecognized": "未识别到游戏内好友列表数据",
+      "friendsSyncedFillingRed": "已同步好友列表，正在补全红数...",
+      "syncDone": "同步完成：好友{count}人",
+      "wsDisconnectedQueryRecord": "WebSocket未连接，无法查询战绩",
+      "fightError": "切磋错误",
+      "fightDone": "切磋完成",
+      "queryFailed": "查询失败: {error}",
+      "targetNotFound": "未查询到对手信息",
+      "targetLoaded": "对手信息加载成功",
+      "noRawData": "暂无原始数据，请先查询对手信息",
+      "rawExported": "原始数据已导出：{filename}",
+      "rawExportFailed": "导出原始数据失败: {error}",
+      "exportDomNotFound": "未找到要导出的内容",
+      "exportImageFileName": "切磋结果.png",
+      "exportImageFailedLog": "导出切磋结果图片失败:",
+      "exportImageFailed": "导出图片失败，请重试"
+    }
+  },
+  "arenaPvpCard": {
+    "iconAlt": "竞技场图标",
+    "title": "竞技场",
+    "subtitle": "对接游戏内竞技场，支持战斗与积分排名查看",
+    "common": {
+      "unknown": "未知",
+      "unknownPlayer": "未知玩家",
+      "unknownError": "未知错误",
+      "unknownMark": "?",
+      "dash": "-"
+    },
+    "summary": {
+      "status": "开放状态",
+      "open": "开放中(06:00-22:00)",
+      "closed": "已关闭(06:00-22:00)",
+      "ticket": "竞技场门票",
+      "score": "我的积分",
+      "rank": "我的排名"
+    },
+    "actions": {
+      "formation": "竞技场阵容",
+      "fightCount": "攻打次数",
+      "refresh": "刷新积分排名",
+      "start": "开始竞技场",
+      "skipLineups": "跳过对手阵容（默认含吕赵、关羽）",
+      "manualTarget": "手动归类目标",
+      "manualRoleId": "或输入对手ID",
+      "manualName": "或输入对手名",
+      "manualLineup": "归类阵容",
+      "saveManual": "保存归类",
+      "delete": "删除",
+      "pullRecords": "拉取游戏记录",
+      "exportImage": "导出图片",
+      "clearRecords": "清空记录"
+    },
+    "placeholders": {
+      "skipLineups": "可输入自定义阵容关键词",
+      "manualTarget": "从榜单/记录选择",
+      "manualRoleId": "如：277019638",
+      "manualName": "如：咸鱼也EMO"
+    },
+    "sections": {
+      "logs": "最近战斗日志",
+      "records": "竞技场记录",
+      "rankList": "当前竞技场榜单"
+    },
+    "labels": {
+      "updatedAt": "最近更新：{value}",
+      "recordRate": "记录胜率：{value}%",
+      "recordTotal": "总场次：{value}",
+      "recordWins": "胜：{value}",
+      "recordLosses": "负：{value}",
+      "correctedLineup": "已纠正阵容：{value}",
+      "recordSourceOption": "{name} (记录来源)",
+      "manual": "手动",
+      "attack": "攻",
+      "defense": "守",
+      "win": "胜",
+      "loss": "负",
+      "winResult": "胜利",
+      "lossResult": "失败"
+    },
+    "columns": {
+      "rank": "排名",
+      "player": "玩家",
+      "score": "积分",
+      "lineup": "阵容",
+      "power": "战力"
+    },
+    "empty": {
+      "logs": "暂无战斗记录",
+      "records": "暂无竞技场记录，可先拉取游戏记录",
+      "rankList": "暂无当前竞技场排名数据，请先刷新"
+    },
+    "options": {
+      "formation": "阵容{value}",
+      "fightCount": "{value}次"
+    },
+    "sources": {
+      "ocr": "截图识别",
+      "manual": "手动",
+      "game": "游戏记录",
+      "auto": "自动"
+    },
+    "messages": {
+      "selectManualLineup": "请选择要归类的阵容",
+      "selectManualTarget": "请选择榜单目标或输入对手ID/名称",
+      "manualSavedWithRoleId": "已保存 {name}({roleId}) 的手动阵容：{lineupType}",
+      "manualSaved": "已保存 {name} 的手动阵容：{lineupType}",
+      "noGameRecords": "未获取到竞技场游戏记录",
+      "recordsPulled": "已拉取 {count} 条竞技场游戏记录",
+      "pullRecordsFailed": "拉取竞技场游戏记录失败：{error}",
+      "selectTokenFirst": "请先选择Token",
+      "connectWebSocketFirst": "WebSocket未连接，请先建立连接",
+      "noExportableRecords": "暂无可导出的记录内容",
+      "exportImageFileName": "竞技场记录-{time}.png",
+      "exportImageSuccess": "竞技场记录图片已导出",
+      "exportImageFailed": "导出图片失败：{error}",
+      "refreshSuccess": "竞技场积分与排名已更新",
+      "refreshFailed": "刷新竞技场数据失败：{error}",
+      "activityClosed": "竞技场未开放，请在 06:00-22:00 时间段内操作",
+      "noTickets": "竞技场门票不足",
+      "invalidFightCount": "攻打次数无效",
+      "battleCompleted": "竞技场操作完成，实际执行 {count} 次",
+      "battleFailed": "竞技场操作失败：{error}"
+    },
+    "logs": {
+      "switchFormation": "切换竞技场阵容：{value}",
+      "skipTarget": "第{index}次：跳过 {name}（{lineupType}）",
+      "prioritizedCandidates": "第{index}次：胜率优先候选 {topText}",
+      "skipTargetAfterRefresh": "第{index}次：刷新后仍跳过 {name}（{lineupType}）",
+      "prioritizedCandidatesAfterRefresh": "第{index}次：刷新后胜率优先候选 {topText}",
+      "noAvailableTarget": "第{index}次：未找到可挑战目标（命中跳过阵容规则），本轮跳过",
+      "challengeResult": "第{index}次：挑战 {name}({lineupType}) {result}",
+      "challengeFailed": "第{index}次：挑战 {name} 失败 ({error})",
+      "restoreFormation": "恢复原阵容：{value}",
+      "restoreFormationFailed": "恢复原阵容失败：{error}"
+    }
+  },
+  "towerStatus": {
+    "iconAlt": "爬塔图标",
+    "energyAlt": "小鱼干",
+    "title": "咸将塔",
+    "subtitle": "一个不小心就过了",
+    "common": {
+      "unknownError": "未知错误"
+    },
+    "labels": {
+      "currentFloor": "当前层数"
+    },
+    "actions": {
+      "start": "开始爬塔",
+      "climbing": "爬塔中...",
+      "stop": "停止爬塔",
+      "reset": "重置状态"
+    },
+    "messages": {
+      "manuallyStopped": "已手动停止批量爬塔",
+      "selectTokenFirst": "请先选择Token",
+      "cannotClimb": "体力不足或正在爬塔中",
+      "autoStoppedByTimeout": "批量爬塔已超时自动停止",
+      "climbCommandSent": "第{count}次爬塔命令已发送",
+      "climbCompleted": "已自动爬塔{count}次，体力已耗尽或达到上限。",
+      "climbFailed": "批量爬塔失败: {error}",
+      "stateReset": "爬塔状态已重置",
+      "challengeSuccess": "咸将塔挑战成功！",
+      "autoRewardClaimed": "自动领取第{floor}层奖励",
+      "challengeFailed": "咸将塔挑战失败"
+    }
+  },
+  "weirdTowerStatus": {
+    "iconAlt": "怪异塔图标",
+    "energyAlt": "小鱼干",
+    "title": "怪异塔",
+    "subtitle": "一个不小心就过了",
+    "common": {
+      "unknownError": "未知错误"
+    },
+    "labels": {
+      "currentFloor": "当前层数"
+    },
+    "actions": {
+      "startClimb": "开始爬塔",
+      "climbing": "爬塔中...",
+      "stopClimb": "停止爬塔",
+      "useItems": "一键使用道具",
+      "stopUsing": "停止使用",
+      "autoMerge": "一键合成",
+      "merging": "合成中..."
+    },
+    "messages": {
+      "manuallyStoppedClimb": "已手动停止批量爬塔",
+      "manuallyStoppedItems": "已手动停止使用道具",
+      "selectTokenFirst": "请先选择Token",
+      "climbingInProgress": "正在爬塔中，请稍后再试",
+      "mergingInProgress": "正在合成中，请稍后再试",
+      "useItemsTimeout": "一键使用道具已超时自动停止",
+      "fetchActivityFailed": "获取活动信息失败",
+      "noItemsLeft": "没有剩余道具可使用",
+      "useItemsStarted": "开始使用道具，剩余：{remaining}，已用：{used}",
+      "useItemsCompleted": "已使用道具 {count} 次",
+      "useItemsFailed": "使用道具失败: {error}",
+      "otherActionInProgress": "正在执行其他操作，请稍后再试",
+      "mergeTimeout": "一键合成已超时自动停止",
+      "mergingLoading": "正在执行一键合成...",
+      "mergeBoxMissing": "返回数据缺少 mergeBox",
+      "noMergeableItems": "当前没有可合成的物品",
+      "mergeCompleted": "一键合成操作完成",
+      "mergeFailed": "一键合成失败: {error}",
+      "activityClosed": "怪异塔活动未开始或已结束",
+      "cannotClimb": "体力不足或正在执行其他操作",
+      "climbTimeout": "批量爬塔已超时自动停止",
+      "climbCommandSent": "第{count}次爬塔命令已发送",
+      "dailyRewardClaimed": "领取每日任务奖励 {taskId} 成功",
+      "chapterRewardClaimed": "成功领取第{chapter}章通关奖励！",
+      "freeItemsClaimed": "成功领取免费道具{count}个！",
+      "climbCompleted": "已自动爬塔{count}次，体力已耗尽或达到上限。",
+      "climbFailed": "批量爬塔失败: {error}"
+    }
+  },
+  "roleProfileCard": {
+    "common": {
+      "role": "角色",
+      "unknownRole": "未知角色",
+      "max": "MAX"
+    },
+    "labels": {
+      "power": "战力 {value}"
+    },
+    "units": {
+      "yi": "{value}亿",
+      "wan": "{value}万"
+    },
+    "ranks": {
+      "beginner": {
+        "title": "初出茅庐",
+        "description": "初登江湖，尚显青涩。"
+      },
+      "known": {
+        "title": "小有名气",
+        "description": "已有名声，立足江湖。"
+      },
+      "veteran": {
+        "title": "出入江湖",
+        "description": "身经百战，渐成人物。"
+      },
+      "master": {
+        "title": "纵横四方",
+        "description": "武艺精进，名震一域。"
+      },
+      "hero": {
+        "title": "盖世豪杰",
+        "description": "豪迈英勇，威震四方。"
+      },
+      "overlord": {
+        "title": "一方枭雄",
+        "description": "才智兼备，呼风唤雨。"
+      },
+      "supreme": {
+        "title": "睥睨江湖",
+        "description": "实力深不可测，世人仰望。"
+      },
+      "emperor": {
+        "title": "独霸天下",
+        "description": "威势登峰造极，号令天下。"
+      },
+      "legend": {
+        "title": "不世之尊",
+        "description": "超凡入圣，江湖传说。"
+      },
+      "infinite": {
+        "title": "无极至尊",
+        "description": "超越传说，无人能及。"
+      }
+    }
+  },
+  "homePage": {
+    "common": {
+      "dash": "-"
+    },
+    "brandSubtitle": "游戏管理系统",
+    "actions": {
+      "login": "登录",
+      "register": "注册",
+      "registerNow": "立即注册",
+      "enterDashboard": "进入控制台",
+      "createAccount": "创建账户",
+      "viewCapabilities": "查看核心能力"
+    },
+    "nav": {
+      "home": "首页",
+      "dashboard": "控制台",
+      "features": "游戏功能",
+      "tokens": "Token管理",
+      "changelog": "更新日志"
+    },
+    "trial": {
+      "expiry": "试用到期时间",
+      "countdown": "剩余倒计时",
+      "expired": "已到期",
+      "countdownValue": "{days}天 {hours}小时 {minutes}分 {seconds}秒"
+    },
+    "hero": {
+      "title": "把繁琐操作，折叠成一块清晰面板",
+      "subtitle": "角色、任务、数据、活动一次接入。你只需要制定策略，重复动作交给系统处理。",
+      "tags": {
+        "multiRole": "多角色协同",
+        "automation": "自动化任务",
+        "monitoring": "实时监控"
+      }
+    },
+    "panel": {
+      "title": "今日概览",
+      "liveSync": "实时同步"
+    },
+    "sections": {
+      "featuresTitle": "核心功能模块",
+      "featuresSubtitle": "为日常运营设计的完整工具链，从执行到复盘一站完成。"
+    },
+    "cards": {
+      "roleHub": {
+        "title": "角色中枢",
+        "description": "多账号状态统一巡检"
+      },
+      "smartTasks": {
+        "title": "智能任务",
+        "description": "日常任务自动执行编排"
+      },
+      "snapshots": {
+        "title": "数据快照",
+        "description": "关键进度与波动实时回看"
+      }
+    },
+    "features": {
+      "roleManagement": {
+        "title": "角色管理",
+        "description": "统一管理多个游戏角色，支持快速切换、状态聚合与关键信息监控。"
+      },
+      "taskAutomation": {
+        "title": "任务自动化",
+        "description": "将重复任务抽象为流程，自动执行并输出可追踪结果。"
+      },
+      "analytics": {
+        "title": "数据分析",
+        "description": "沉淀关键指标，快速发现收益变化与异常波动。"
+      },
+      "personalization": {
+        "title": "个性化配置",
+        "description": "按角色和场景定义策略参数，构建你的专属运营面板。"
+      }
+    },
+    "stats": {
+      "activeUsers": "活跃用户",
+      "managedRoles": "管理角色",
+      "executedTasks": "执行任务",
+      "uptime": "服务可用"
+    },
+    "footer": {
+      "brand": "XYZW 游戏管理系统",
+      "privacy": "隐私政策",
+      "terms": "服务条款"
+    }
+  },
+  "gameRolesPage": {
+    "title": "游戏角色",
+    "subtitle": "管理您的所有游戏角色",
+    "actions": {
+      "addRole": "添加角色",
+      "add": "添加",
+      "save": "保存",
+      "cancel": "取消"
+    },
+    "labels": {
+      "levelUnit": "级",
+      "exp": "经验",
+      "gold": "金币"
+    },
+    "status": {
+      "active": "活跃",
+      "offline": "离线"
+    },
+    "empty": {
+      "description": "暂无游戏角色",
+      "addFirst": "添加第一个角色"
+    },
+    "modal": {
+      "addTitle": "添加游戏角色",
+      "editTitle": "编辑游戏角色"
+    },
+    "form": {
+      "name": "角色名称",
+      "server": "服务器",
+      "profession": "职业",
+      "level": "等级",
+      "account": "账号信息",
+      "note": "备注"
+    },
+    "placeholders": {
+      "name": "请输入角色名称",
+      "server": "请选择服务器",
+      "profession": "请选择职业",
+      "level": "角色等级",
+      "account": "游戏账号（可选）",
+      "note": "角色备注信息（可选）"
+    },
+    "validation": {
+      "name": "请输入角色名称",
+      "server": "请选择服务器",
+      "profession": "请选择职业",
+      "level": "请输入角色等级"
+    },
+    "options": {
+      "servers": {
+        "fengyun": "风云服",
+        "shenhua": "神话服",
+        "chuanqi": "传奇服",
+        "menghuan": "梦幻服",
+        "yingxiong": "英雄服"
+      },
+      "professions": {
+        "warrior": "战士",
+        "mage": "法师",
+        "taoist": "道士",
+        "assassin": "刺客",
+        "archer": "弓手",
+        "priest": "牧师"
+      }
+    },
+    "menu": {
+      "edit": "编辑",
+      "setPrimary": "设为主角色",
+      "viewDetails": "查看详情",
+      "delete": "删除"
+    },
+    "messages": {
+      "switchedRole": "已切换到角色：{name}",
+      "detailsInProgress": "角色详情功能开发中..."
+    },
+    "dialog": {
+      "deleteTitle": "删除角色",
+      "deleteContent": "确定要删除角色 \"{name}\" 吗？此操作无法恢复。",
+      "confirmDelete": "确定删除"
+    },
+    "units": {
+      "yi": "{value}亿",
+      "wan": "{value}万"
+    }
+  },
+  "feedbackCenter": {
+    "common": {
+      "dash": "-"
+    },
+    "title": "功能反馈",
+    "subtitle": "提交 bug 或需求，管理员处理后可标记为已完成",
+    "actions": {
+      "refresh": "刷新",
+      "submit": "提交反馈",
+      "goAdminTickets": "前往工单管理页处理"
+    },
+    "submit": {
+      "title": "提交新反馈"
+    },
+    "form": {
+      "type": "类型",
+      "title": "标题",
+      "content": "内容"
+    },
+    "placeholders": {
+      "type": "请选择反馈类型",
+      "title": "请简要描述问题或需求",
+      "content": "请写清复现步骤、期望行为或你的功能想法"
+    },
+    "notifications": {
+      "title": "站内通知",
+      "markAllRead": "全部已读",
+      "markRead": "标记已读",
+      "empty": "暂无通知"
+    },
+    "list": {
+      "count": "共 {count} 条",
+      "submitter": "提交人：{username}",
+      "adminNote": "管理员备注：",
+      "empty": "暂无反馈"
+    },
+    "options": {
+      "type": {
+        "feature": "需求",
+        "other": "其他"
+      },
+      "status": {
+        "all": "全部状态",
+        "open": "待处理",
+        "inProgress": "处理中",
+        "resolved": "已完成"
+      }
+    },
+    "messages": {
+      "loadFailed": "加载反馈失败",
+      "fillTitle": "请填写反馈标题",
+      "fillContent": "请填写反馈内容",
+      "submitFailed": "提交失败",
+      "submitSuccess": "反馈提交成功",
+      "operationFailed": "操作失败",
+      "notificationsMarkedAllRead": "通知已全部标记为已读"
+    }
+  },
+  "adminInvitesPage": {
+    "common": {
+      "dash": "-"
+    },
+    "title": "管理员邀请码",
+    "subtitle": "生成邀请码并管理注册入口",
+    "creator": {
+      "count": "生成数量",
+      "type": "邀请码类型",
+      "featureScope": "功能范围",
+      "bindTokenLimit": "绑定Token数量"
+    },
+    "actions": {
+      "generate": "生成邀请码",
+      "copyCode": "复制邀请码",
+      "disableCode": "禁用邀请码",
+      "copy": "复制",
+      "disable": "禁用"
+    },
+    "overview": {
+      "total": "邀请码总数",
+      "available": "可用数量",
+      "used": "已使用数量"
+    },
+    "list": {
+      "title": "邀请码列表",
+      "count": "共 {count} 条"
+    },
+    "fields": {
+      "code": "邀请码",
+      "createdBy": "创建人",
+      "usedBy": "使用人",
+      "type": "类型",
+      "bindTokenLimit": "Token上限",
+      "createdAt": "创建时间",
+      "autoDisableAt": "48h 自动禁用"
+    },
+    "types": {
+      "normal": "常规邀请码",
+      "temporary": "临时邀请码（注册后7天）",
+      "shortNormal": "常规",
+      "shortTemporary": "临时"
+    },
+    "featureScopes": {
+      "full": "全功能",
+      "taskControlOnly": "普通版本",
+      "shortFull": "全功能",
+      "shortTaskControlOnly": "普通版本"
+    },
+    "status": {
+      "active": "未使用",
+      "available": "可用",
+      "used": "已使用",
+      "disabled": "已禁用",
+      "autoExpired": "48h失效"
+    },
+    "messages": {
+      "codeCopied": "邀请码已复制",
+      "copyFailed": "复制失败，请手动复制",
+      "loadFailed": "加载邀请码失败",
+      "disableFailed": "禁用失败",
+      "disabled": "邀请码已禁用",
+      "createFailed": "生成邀请码失败",
+      "createdAndCopied": "已生成 {count} 个邀请码（已复制）",
+      "created": "已生成 {count} 个邀请码",
+      "autoCopyFailed": "自动复制失败，请手动复制列表"
+    },
+    "columns": {
+      "code": "邀请码",
+      "type": "类型",
+      "bindTokenLimit": "Token上限",
+      "status": "状态",
+      "createdBy": "创建人",
+      "usedBy": "使用人",
+      "createdAt": "创建时间",
+      "autoDisableAt": "48h自动禁用",
+      "actions": "操作"
+    },
+    "empty": "暂无邀请码数据"
+  }
+}

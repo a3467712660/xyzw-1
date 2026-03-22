@@ -1,0 +1,2692 @@
+<template>
+  <MyCard class="club-info" :status-class="{ active: !!club }">
+    <template #icon>
+      <img alt="俱乐部图标" src="/icons/1733492491706152.png">
+    </template>
+    <template #title>
+      <h3>俱乐部信息</h3>
+      <p>军团/俱乐部概览与成员</p>
+    </template>
+    <template #badge>
+      <span>{{ club ? "已加入" : "暂无俱乐部" }}</span>
+    </template>
+    <template #default>
+      <div v-if="!club" class="empty-club">
+        <n-empty description="暂无俱乐部"></n-empty>
+        <div class="actions">
+          <NButton size="small" @click="refreshClub">刷新</NButton>
+        </div>
+      </div>
+      <div v-else>
+        <div class="toolbar">
+          <NSpace size="small">
+            <!-- 申请列表按钮 -->
+            <NButton
+v-if="canKick"
+size="small"
+@click="getApplyList"
+              >申请列表</NButton
+            >
+            <NButton size="small" @click="refreshClub">刷新</NButton>
+          </NSpace>
+        </div>
+
+        <!-- 申请列表悬浮界面 -->
+        <NModal
+          class="modal-w-700 modal-max-h-80"
+          preset="card"
+          title="俱乐部申请列表"
+          v-model:show="showApplyList"
+          :close-on-esc="true"
+          :content-style="{
+            padding: '0',
+            maxHeight: 'calc(80vh - 60px)',
+            overflow: 'auto',
+          }"
+          :mask-closable="true"
+          :show-close-button="true"
+          :show-footer="false"
+        >
+          <template #header-extra>
+            <NSpace size="small">
+              <NButton
+                size="small"
+                type="primary"
+                :disabled="applyList.length === 0"
+                @click="approveAll"
+              >
+                一键通过
+              </NButton>
+              <NButton
+                size="small"
+                type="error"
+                :disabled="applyList.length === 0"
+                @click="rejectAll"
+              >
+                一键拒绝
+              </NButton>
+            </NSpace>
+          </template>
+          <div v-if="loadingApply" class="loading">
+            <n-spin size="small"></n-spin>
+            <span class="ml-8">正在加载申请列表...</span>
+          </div>
+          <div v-else-if="applyList.length === 0" class="empty-apply">
+            <n-empty description="暂无申请"></n-empty>
+          </div>
+          <div v-else class="apply-list-container">
+            <div class="apply-list apply-list-lg">
+              <div
+                v-for="apply in applyList"
+                :key="apply.roleId"
+                class="apply-item"
+                :class="{ 'apply-item-hover': hoveredItemId === apply.roleId }"
+                @mouseenter="hoveredItemId = apply.roleId"
+                @mouseleave="hoveredItemId = null"
+              >
+                <div class="apply-left">
+                  <NAvatar
+                    :size="28"
+                    :src="apply.headImg || '/icons/xiaoyugan.png'"
+                  ></NAvatar>
+                  <div class="apply-info">
+                    <div class="apply-name">
+                      {{ apply.name }}(ID:{{ apply.roleId }})
+                    </div>
+                    <div class="apply-details">
+                      <span>等级: {{ apply.level || 0 }}</span>
+                      <span class="apply-power">{{
+                        formatNumber(apply.power || 0)
+                      }}</span>
+                      <span v-if="apply.serverId"
+                        >服务器: {{ apply.serverId }}</span
+                      >
+                    </div>
+                    <div v-if="apply.applyReason" class="apply-reason">
+                      申请留言: {{ apply.applyReason }}
+                    </div>
+                  </div>
+                </div>
+                <div class="apply-right">
+                  <NSpace size="small">
+                    <NButton
+                      size="tiny"
+                      type="primary"
+                      @click="approveApply(apply.roleId)"
+                    >
+                      通过
+                    </NButton>
+                    <NButton size="tiny" @click="rejectApply(apply.roleId)">
+                      拒绝
+                    </NButton>
+                  </NSpace>
+                </div>
+              </div>
+            </div>
+          </div>
+        </NModal>
+
+        <n-tabs animated type="line" v-model:value="activeTab">
+          <n-tab-pane display-directive="show:lazy" name="overview" tab="概览">
+            <div class="overview">
+              <NGrid item-responsive cols="2" x-gap="12" y-gap="12">
+                <!-- 头部信息 -->
+                <NGi span="2">
+                  <NCard
+                    embedded
+                    class="overview-header-card"
+                    :bordered="false"
+                  >
+                    <NThing>
+                      <template #avatar>
+                        <NAvatar
+                          class="club-logo-avatar"
+                          :size="64"
+                          :src="club.logo || '/icons/xiaoyugan.png'"
+                        ></NAvatar>
+                      </template>
+                      <template #header>
+                        <span class="club-name">{{ club.name }}</span>
+                      </template>
+                      <template #description>
+                        <NSpace class="mt-4" size="small">
+                          <NTag
+size="small"
+type="warning"
+:bordered="false"
+                            >ID: {{ club.id }}</NTag
+                          >
+                          <NTag
+size="small"
+type="info"
+:bordered="false"
+                            >服务器: {{ club.serverId - 27 }}</NTag
+                          >
+                          <NTag
+size="small"
+type="success"
+:bordered="false"
+                            >成员: {{ memberCount }}</NTag
+                          >
+                        </NSpace>
+                      </template>
+                      <template #header-extra>
+                        <NButton
+                          size="small"
+                          :disabled="legionSignedIn"
+                          :secondary="legionSignedIn"
+                          :type="legionSignedIn ? 'success' : 'primary'"
+                          @click="signInLegion"
+                        >
+                          <template #icon>
+                            <n-icon><ShieldCheckmark></ShieldCheckmark></n-icon>
+                          </template>
+                          {{ legionSignedIn ? "已签到" : "俱乐部签到" }}
+                        </NButton>
+                      </template>
+                    </NThing>
+                  </NCard>
+                </NGi>
+
+                <!-- 统计数据 -->
+                <NGi>
+                  <NCard embedded class="h-full" size="small" :bordered="false">
+                    <NStatistic label="战力">
+                      <template #prefix>
+                        <n-icon color="#18a058"><BarChart></BarChart></n-icon>
+                      </template>
+                      {{ formatNumber(clubOverview.power) }}
+                    </NStatistic>
+                  </NCard>
+                </NGi>
+                <NGi>
+                  <NCard embedded class="h-full" size="small" :bordered="false">
+                    <NStatistic label="红粹">
+                      <template #prefix>
+                        <n-icon color="#d03050"><Flame></Flame></n-icon>
+                      </template>
+                      {{ clubOverview.redQuench }}
+                    </NStatistic>
+                  </NCard>
+                </NGi>
+                <NGi>
+                  <NCard embedded class="h-full" size="small" :bordered="false">
+                    <NStatistic label="当前BossId">
+                      <template #prefix>
+                        <n-icon color="#8a2be2"><Skull></Skull></n-icon>
+                      </template>
+                      {{ clubOverview.currentBossId }}
+                    </NStatistic>
+                  </NCard>
+                </NGi>
+                <NGi>
+                  <NCard embedded class="h-full" size="small" :bordered="false">
+                    <NStatistic label="Boss剩余血量">
+                      <template #prefix>
+                        <n-icon color="#f0a020"><Skull></Skull></n-icon>
+                      </template>
+                      {{ clubOverview.currentHP }}
+                    </NStatistic>
+                  </NCard>
+                </NGi>
+
+                <!-- Boss 击杀情况 -->
+                <NGi
+                  v-if="
+                    clubOverview.unfoughtBosses &&
+                    clubOverview.unfoughtBosses.length > 0
+                  "
+                  span="2"
+                >
+                  <NAlert type="warning" :bordered="false">
+                    <template #icon>
+                      <n-icon><Skull></Skull></n-icon>
+                    </template>
+                    <div class="boss-summary-head">
+                      <div>
+                        <span class="fw-bold">Boss 击杀情况</span>
+                        <div class="boss-summary-meta">
+                          已击杀:
+                          {{ 150 - clubOverview.unfoughtBosses.length }} / 150
+                          <span class="boss-missing"
+                            >遗漏:
+                            {{ clubOverview.unfoughtBosses.length }}</span
+                          >
+                        </div>
+                      </div>
+                    </div>
+                    <NCollapse arrow-placement="right" class="mt-8">
+                      <NCollapseItem name="1" title="展开查看遗漏Boss列表">
+                        <NSpace class="mt-8" size="small">
+                          <NTag
+                            v-for="boss in clubOverview.unfoughtBosses"
+                            :key="boss"
+                            size="small"
+                            type="error"
+                            :bordered="false"
+                          >
+                            {{ boss }}
+                          </NTag>
+                        </NSpace>
+                      </NCollapseItem>
+                    </NCollapse>
+                  </NAlert>
+                </NGi>
+
+                <!-- 公告 -->
+                <NGi v-if="club.announcement" span="2">
+                  <NCard embedded size="small" title="公告" :bordered="false">
+                    <template #header-extra>
+                      <n-icon
+color="#f0a020"
+size="18"
+                        ><Megaphone></Megaphone
+                      ></n-icon>
+                    </template>
+                    <div class="announcement-text">
+                      {{ club.announcement }}
+                    </div>
+                  </NCard>
+                </NGi>
+
+                <!-- 会长 -->
+                <NGi v-if="leader" span="2">
+                  <NCard embedded size="small" title="会长" :bordered="false">
+                    <template #header-extra>
+                      <n-icon
+color="#2080f0"
+size="18"
+                        ><Person></Person
+                      ></n-icon>
+                    </template>
+                    <div class="leader-wrap">
+                      <NAvatar
+                        round
+                        class="leader-avatar"
+                        :size="40"
+                        :src="leader.headImg || '/icons/xiaoyugan.png'"
+                      ></NAvatar>
+                      <div>
+                        <div class="leader-name">{{ leader.name }}</div>
+                        <div class="leader-id">ID: {{ leader.roleId }}</div>
+                      </div>
+                    </div>
+                  </NCard>
+                </NGi>
+              </NGrid>
+            </div>
+          </n-tab-pane>
+
+          <n-tab-pane display-directive="show:lazy" name="members" tab="成员">
+            <div
+              ref="exportDom"
+              class="members"
+              :class="{ 'is-exporting-image': isExporting }"
+            >
+              <div class="members-actions-bar">
+                <NButton
+                  secondary
+                  class="members-actions-btn"
+                  size="small"
+                  type="primary"
+                  :disabled="batchLoading"
+                  @click="fetchAllMembersLineup"
+                >
+                  获取阵容
+                </NButton>
+                <NButton
+                  secondary
+                  class="members-actions-btn"
+                  size="small"
+                  type="info"
+                  :disabled="isExporting"
+                  @click="handleExportImage"
+                >
+                  导出图片
+                </NButton>
+              </div>
+              <div v-if="isExporting" class="member-export-banner">
+                <div class="member-export-title">俱乐部成员信息总览</div>
+                <div class="member-export-club">
+                  俱乐部：{{ club?.name || "未知俱乐部" }}
+                </div>
+                <div class="member-export-meta">
+                  导出时间 {{ memberExportTimeText }} · 共
+                  {{ topMembers.length }} 名成员
+                </div>
+              </div>
+              <NDataTable
+                v-if="!isMobileView"
+                flex-height
+                striped
+                class="member-table"
+                size="small"
+                :bordered="false"
+                :columns="memberColumns"
+                :data="topMembers"
+                :row-key="(row) => row.roleId"
+                :scroll-x="650"
+              ></NDataTable>
+              <div v-else class="members-mobile-wrap">
+                <div class="member-mobile-title">俱乐部成员详细</div>
+                <div class="members-mobile-list">
+                  <div
+                    v-for="(member, index) in topMembers"
+                    :key="member.roleId"
+                    class="member-mobile-item"
+                  >
+                    <div class="member-mobile-strip">
+                      <div
+                        class="member-mobile-left"
+                        @click="fetchTargetInfo(member.roleId)"
+                      >
+                        <img
+                          v-if="member.headImg"
+                          class="member-mobile-avatar"
+                          :alt="member.name"
+                          :src="member.headImg"
+                        >
+                        <div
+                          v-else
+                          class="member-mobile-avatar member-mobile-avatar--placeholder"
+                        >
+                          {{ member.name?.charAt(0) || "?" }}
+                        </div>
+                        <div>
+                          <div class="member-mobile-name">
+                            {{ index + 1 }}. {{ member.name }}
+                          </div>
+                          <div class="member-mobile-id">
+                            ID: {{ member.roleId }}
+                          </div>
+                        </div>
+                      </div>
+                      <div class="member-mobile-metrics">
+                        <div class="metric-item metric-item--inline">
+                          <span class="metric-label">战力</span>
+                          <span class="metric-value">{{
+                            formatNumber(
+                              member.power || member.custom?.s_power || 0,
+                            )
+                          }}</span>
+                        </div>
+                        <div class="metric-item metric-item--inline">
+                          <span class="metric-label">红淬</span>
+                          <span class="metric-value red">{{
+                            redQuenchlabel(member.custom?.red_quench_cnt || 0)
+                          }}</span>
+                        </div>
+                        <NTag
+                          size="small"
+                          :bordered="false"
+                          :color="getJobTagColor(member.job)"
+                        >
+                          {{ jobLabel(member.job) }}
+                        </NTag>
+                      </div>
+                      <div class="member-mobile-lineup">
+                        <NTag
+                          v-if="member.lineupType"
+                          class="member-lineup-tag"
+                          size="small"
+                          :bordered="false"
+                          :color="getLineupTagColor(member.lineupType)"
+                        >
+                          {{ member.lineupType }}
+                        </NTag>
+                        <NTag v-else size="small" :bordered="false">-</NTag>
+                      </div>
+                    </div>
+
+                    <div
+                      v-if="canKick && member.job !== 1"
+                      class="member-mobile-actions"
+                    >
+                      <NButton
+                        block
+                        ghost
+                        size="tiny"
+                        type="error"
+                        @click="kickMember(member.roleId, member.name)"
+                      >
+                        踢出成员
+                      </NButton>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </n-tab-pane>
+
+          <n-tab-pane
+            display-directive="show:lazy"
+            name="history"
+            tab="俱乐部历史战绩"
+          >
+            <ClubHistoryRecords inline></ClubHistoryRecords>
+          </n-tab-pane>
+
+          <n-tab-pane
+            display-directive="show:lazy"
+            name="weirdtower"
+            tab="怪异塔信息"
+          >
+            <ClubWeirdTowerInfo inline></ClubWeirdTowerInfo>
+          </n-tab-pane>
+
+          <n-tab-pane
+            display-directive="show:lazy"
+            name="carsocre"
+            tab="赛车积分信息"
+          >
+            <CarScoreInfo inline></CarScoreInfo>
+          </n-tab-pane>
+        </n-tabs>
+      </div>
+    </template>
+  </MyCard>
+
+  <!-- 玩家信息模态框 -->
+  <NModal
+    class="modal-w-800"
+    preset="card"
+    title="成员信息"
+    v-model:show="showPlayerInfoModal"
+    :bordered="false"
+    :segmented="{ content: 'soft', footer: 'soft' }"
+    :show-close="false"
+  >
+    <template #header-extra>
+      <span v-if="playerInfo" class="player-id">ID: {{ playerInfo.id }}</span>
+    </template>
+
+    <div v-if="playerInfo" class="player-info-content">
+      <div class="player-info-main">
+        <NAvatar
+          round
+          class="player-avatar"
+          :size="60"
+          :src="playerInfo.headImg"
+        ></NAvatar>
+        <div class="player-info-detail">
+          <h3>
+            {{ playerInfo.name }}
+            <NTag
+              v-if="playerInfo.legacy > 0"
+              class="legacy-tag ml-8"
+              size="small"
+              :style="{ '--legacy-bg': legacycolor[playerInfo.legacy]?.value }"
+            >
+              {{ legacycolor[playerInfo.legacy]?.name || "未知" }}
+            </NTag>
+          </h3>
+          <div class="detail-row">
+            <span
+              >战力:
+              <span class="highlight">{{
+                formatNumber(playerInfo.power)
+              }}</span></span
+            >
+            <span>服务器: {{ playerInfo.serverName }}</span>
+          </div>
+          <div class="detail-row">
+            <span>俱乐部: {{ playerInfo.legionName }}</span>
+          </div>
+          <div class="detail-row">
+            <span
+              >总红数:
+              <span class="red-text">{{ playerInfo.totalRedCount }}</span></span
+            >
+            <span
+              >总开孔:
+              <span class="blue-text">{{
+                playerInfo.totalHoleCount
+              }}</span></span
+            >
+            <span
+              >四圣:
+              <span class="green-text">{{ playerInfo.holyBeast }}</span></span
+            >
+          </div>
+        </div>
+      </div>
+
+      <div class="hero-section">
+        <h4>武将阵容</h4>
+        <div v-if="playerInfo.heroList" class="debug-info debug-info-bottom">
+          武将数量: {{ playerInfo.heroList.length }}
+        </div>
+        <div
+          v-if="playerInfo.heroList && playerInfo.heroList.length > 0"
+          class="hero-list"
+        >
+          <div
+            v-for="(hero, index) in playerInfo.heroList"
+            :key="hero.heroId || index"
+            class="hero-item"
+            @click="selectHeroInfo(hero)"
+          >
+            <NAvatar
+              round
+              class="cursor-pointer"
+              :size="40"
+              :src="hero.heroAvate"
+            ></NAvatar>
+            <div class="hero-info">
+              <span class="hero-name">{{ hero.heroName }}</span>
+              <div class="hero-stats">
+                <span>战力: {{ formatNumber(hero.power || 0) }}</span>
+                <span>星级: {{ hero.star || 0 }}</span>
+                <span>红数: {{ hero.red || 0 }}</span>
+                <span>开孔: {{ hero.hole || 0 }}</span>
+                <span :class="hero.HolyBeast ? 'opened' : 'closed'">
+                  {{ hero.HolyBeast ? "已开四圣" : "未开四圣" }}
+                </span>
+                <span v-if="hero.HolyBeast"
+                  >四圣等级: {{ hero.HBlevel || 0 }}</span
+                >
+              </div>
+            </div>
+          </div>
+        </div>
+        <div v-else class="empty-heroes">
+          <p>未查询到武将信息</p>
+          <!-- 添加调试信息 -->
+          <div v-if="playerInfo.heroList" class="debug-info debug-info-top">
+            武将列表为空
+          </div>
+          <div v-else class="debug-info debug-info-top">武将列表未定义</div>
+        </div>
+      </div>
+    </div>
+    <template #footer>
+      <NButton @click="showPlayerInfoModal = false">关闭</NButton>
+    </template>
+  </NModal>
+
+  <!-- 武将详情模态框 -->
+  <NModal
+    class="hero-detail-modal modal-w-600"
+    preset="card"
+    title="武将详情"
+    v-model:show="showHeroModal"
+    :bordered="false"
+    :segmented="{ content: 'soft', footer: 'soft' }"
+  >
+    <div v-if="heroModealTemp" class="hero-modal-content">
+      <div class="hero-modal-header">
+        <NAvatar
+          round
+          class="hero-modal-avatar"
+          :size="80"
+          :src="heroModealTemp.heroAvate"
+        ></NAvatar>
+        <div class="hero-modal-basic">
+          <h3 class="hero-modal-name">{{ heroModealTemp.heroName }}</h3>
+          <div class="hero-modal-stats">
+            <span class="stat-item">{{
+              formatNumber(heroModealTemp.power)
+            }}</span>
+            <span class="stat-item">等级: {{ heroModealTemp.level }}</span>
+            <span class="stat-item">星级: {{ heroModealTemp.star }}</span>
+            <NTag :type="heroModealTemp.HolyBeast ? 'success' : 'warning'">
+              {{ heroModealTemp.HolyBeast ? "已激活" : "未激活" }}
+            </NTag>
+          </div>
+        </div>
+      </div>
+
+      <div class="hero-modal-details">
+        <NDescriptions bordered column="3" label-placement="left">
+          <NDescriptionsItem label="战力">
+            {{ formatNumber(heroModealTemp.power) }}
+          </NDescriptionsItem>
+          <NDescriptionsItem label="等级">
+            {{ heroModealTemp.level }}
+          </NDescriptionsItem>
+          <NDescriptionsItem label="星级">
+            {{ heroModealTemp.star }}
+          </NDescriptionsItem>
+          <NDescriptionsItem label="开孔数">
+            {{ heroModealTemp.hole }}
+          </NDescriptionsItem>
+          <NDescriptionsItem label="红孔数">
+            {{ heroModealTemp.red }}
+          </NDescriptionsItem>
+          <NDescriptionsItem label="四圣状态">
+            {{ heroModealTemp.HolyBeast ? "已激活" : "未激活" }}
+          </NDescriptionsItem>
+          <NDescriptionsItem v-if="heroModealTemp.HolyBeast" label="四圣等级">
+            {{ heroModealTemp.HBlevel }}
+          </NDescriptionsItem>
+          <NDescriptionsItem label="鱼灵">
+            {{
+              heroModealTemp?.PearlInfo?.FishInfo?.name !== undefined
+                ? heroModealTemp.PearlInfo?.FishInfo?.name
+                : "无"
+            }}
+          </NDescriptionsItem>
+          <NDescriptionsItem label="鱼珠技能">
+            {{
+              heroModealTemp?.PearlInfo?.PearlSkill?.name !== undefined
+                ? heroModealTemp.PearlInfo?.PearlSkill?.name
+                : "无"
+            }}
+          </NDescriptionsItem>
+          <NDescriptionsItem label="鱼灵洗练">
+            <div v-if="heroModealTemp?.PearlInfo?.slotMap?.length > 0">
+              <div
+                v-for="item in heroModealTemp.PearlInfo.slotMap"
+                :key="item.id"
+                class="ModalEquipment"
+                :style="{ '--equip-color': item.value }"
+              ></div>
+            </div>
+            <div v-else>无</div>
+          </NDescriptionsItem>
+        </NDescriptions>
+      </div>
+
+      <div class="hero-modal-equipment">
+        <h4 class="section-title">装备详情</h4>
+        <div class="equipment-grid">
+          <div class="equipment-item">
+            <span class="equipment-label">武器:</span>
+            <div class="equipment-slots">
+              <div
+                v-for="(item, idx) in Object.values(
+                  Object.values(heroModealTemp.equipment)[0]?.quenches || {},
+                )"
+                :key="idx"
+                class="equipment-slot"
+                :class="{ 'red-slot': item.colorId === 6 }"
+              ></div>
+            </div>
+          </div>
+          <div class="equipment-item">
+            <span class="equipment-label">衣服:</span>
+            <div class="equipment-slots">
+              <div
+                v-for="(item, idx) in Object.values(
+                  Object.values(heroModealTemp.equipment)[1]?.quenches || {},
+                )"
+                :key="idx"
+                class="equipment-slot"
+                :class="{ 'red-slot': item.colorId === 6 }"
+              ></div>
+            </div>
+          </div>
+          <div class="equipment-item">
+            <span class="equipment-label">头盔:</span>
+            <div class="equipment-slots">
+              <div
+                v-for="(item, idx) in Object.values(
+                  Object.values(heroModealTemp.equipment)[2]?.quenches || {},
+                )"
+                :key="idx"
+                class="equipment-slot"
+                :class="{ 'red-slot': item.colorId === 6 }"
+              ></div>
+            </div>
+          </div>
+          <div class="equipment-item">
+            <span class="equipment-label">坐骑:</span>
+            <div class="equipment-slots">
+              <div
+                v-for="(item, idx) in Object.values(
+                  Object.values(heroModealTemp.equipment)[3]?.quenches || {},
+                )"
+                :key="idx"
+                class="equipment-slot"
+                :class="{ 'red-slot': item.colorId === 6 }"
+              ></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <template #footer>
+      <NButton @click="showHeroModal = false">关闭</NButton>
+    </template>
+  </NModal>
+</template>
+
+<script setup>
+import { computed, h, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
+import {
+  NAlert,
+  NAvatar,
+  NButton,
+  NCard,
+  NCollapse,
+  NCollapseItem,
+  NDataTable,
+  NDescriptions,
+  NDescriptionsItem,
+  NGi,
+  NGrid,
+  NModal,
+  NSpace,
+  NStatistic,
+  NTag,
+  NThing,
+  useDialog,
+  useMessage,
+} from "naive-ui/es";
+import { useTokenStore } from "@/stores/tokenStore";
+import {
+  BarChart,
+  Flame,
+  Megaphone,
+  Person,
+  ShieldCheckmark,
+  Skull,
+} from "@vicons/ionicons5";
+import ClubHistoryRecords from "./ClubHistoryRecords.vue";
+import ClubWeirdTowerInfo from "./ClubWeirdTowerInfo.vue";
+import CarScoreInfo from "./CarScoreInfo.vue";
+import {
+  getLineupType,
+  HERO_DICT,
+  HeroFillInfo,
+  legacycolor,
+  LINEUP_RULES,
+} from "@/utils/HeroList";
+import { useClubAdminActions } from "@/composables/useClubAdminActions";
+import { captureWithHtml2canvas } from "@/utils/html2canvasLoader";
+import { downloadCanvasAsImage } from "@/utils/imageExport";
+
+const tokenStore = useTokenStore();
+const message = useMessage();
+const dialog = useDialog();
+
+const info = computed(() => tokenStore.gameData?.legionInfo || null);
+const club = computed(() => info.value?.info || null);
+
+const membersObj = computed(() => club.value?.members || {});
+const members = computed(() => Object.values(membersObj.value || {}));
+const memberCount = computed(() => members.value.length);
+
+const leader = computed(() => {
+  const lid = club.value?.leaderId;
+  if (!lid) return null;
+  return members.value.find((m) => Number(m.roleId) === Number(lid)) || null;
+});
+
+const topMembers = computed(() => {
+  return [...members.value].sort((a, b) => {
+    // 1. 职位排序：会长(1) > 副会长(2) > 成员(0)
+    const jobA = a.job === 0 ? 99 : a.job;
+    const jobB = b.job === 0 ? 99 : b.job;
+    if (jobA !== jobB) return jobA - jobB;
+
+    // 2. 红淬排序：降序
+    const redA = Number(a.custom?.red_quench_cnt || 0);
+    const redB = Number(b.custom?.red_quench_cnt || 0);
+    if (redA !== redB) return redB - redA;
+
+    // 3. 战力排序：降序（兜底）
+    const powerA = Number(a.power || a.custom?.s_power || 0);
+    const powerB = Number(b.power || b.custom?.s_power || 0);
+    return powerB - powerA;
+  });
+});
+
+const showPlayerInfoModal = ref(false);
+const playerInfo = ref(null);
+const queryLoading = ref(false);
+const showHeroModal = ref(false);
+const heroModealTemp = ref(null);
+const batchLoading = ref(false);
+const isExporting = ref(false);
+const exportDom = ref(null);
+const isMobileView = ref(false);
+const memberExportTimeText = computed(() => {
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+});
+
+const updateViewportMode = () => {
+  const ua = navigator.userAgent || "";
+  const isMobileUA =
+    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+  const isSmallScreen = window.innerWidth <= 900;
+  isMobileView.value = isMobileUA || isSmallScreen;
+};
+
+// 提取英雄信息
+const getHeroInfo = (heroObj) => {
+  // 统计总红数
+  let redCount = 0;
+  let holeCount = 0;
+  let heroList = [];
+
+  try {
+    // 检查英雄数据结构，确保可以遍历
+    let heroesToProcess = [];
+
+    if (Array.isArray(heroObj)) {
+      // 如果是数组，直接使用
+      heroesToProcess = heroObj;
+    } else if (typeof heroObj === "object" && heroObj !== null) {
+      // 如果是对象，转换为数组
+      heroesToProcess = Object.values(heroObj);
+    } else {
+      console.error("英雄数据格式错误:", typeof heroObj);
+      return { redCount, holeCount, heroList };
+    }
+
+    heroesToProcess.forEach((hero, index) => {
+      // 跳过无效英雄数据
+      if (!hero) return;
+
+      // 兼容 id 和 heroId
+      const id = hero.heroId || hero.id;
+
+      const heroInfo = HERO_DICT[id] || {};
+      const equipmentInfo = hero.equipment
+        ? getEquipment(hero.equipment)
+        : { redCount: 0, holeCount: 0 };
+
+      // 检查英雄基本信息
+      const heroId = id || `unknown_${index}`;
+      const heroName =
+        hero.heroName || hero.name || heroInfo.name || `未知武将_${index}`;
+
+      const tempObj = {
+        heroId, // 英雄ID
+        artifactId: hero.artifactId || "", // 英雄装备ID，用于匹配鱼灵信息
+        power: hero.power || 0, // 英雄战力
+        star: hero.star || 0, // 英雄星级
+        equipment: hero.equipment, // 英雄具体孔数和红数
+        heroName, // 英雄姓名
+        heroAvate: hero.heroAvate || hero.headImg || heroInfo.avatar || "",
+        level: hero.level || 0, // 英雄等级
+        hole: equipmentInfo.holeCount, // 英雄开孔数量
+        red: equipmentInfo.redCount, // 英雄红数
+        // 兼容 hB 和 fourBasest
+        HolyBeast: hero.hB?.active === true || hero.fourBasest?.level > 0, // 激活四圣
+        HBlevel: hero.hB?.order || hero.fourBasest?.level || 0, // 四圣等级
+        // 添加英雄详情信息
+        skillList: hero.skillList || [],
+        attributeList: hero.attributeList || [],
+        battleTeamSlot: hero.battleTeamSlot, // 阵容站位
+      };
+
+      // 只添加有效的英雄
+      if (heroId) {
+        redCount += tempObj.red;
+        holeCount += tempObj.hole;
+        heroList.push(tempObj);
+      }
+    });
+  } catch (error) {
+    console.error("处理英雄信息时发生错误:", error);
+    heroList = [];
+  }
+  // 按站位排序
+  heroList.sort((a, b) => a.battleTeamSlot - b.battleTeamSlot);
+
+  return { redCount, holeCount, heroList };
+};
+
+// 获取装备信息红数和孔数
+const getEquipment = (equipment) => {
+  let redCount = 0;
+  let holeCount = 0;
+  // 遍历4件装备
+  Object.values(equipment).forEach((equ) => {
+    // 遍历每件装备的属性
+    Object.values(equ.quenches).forEach((item) => {
+      holeCount++;
+      if (item.colorId === 6) {
+        redCount++;
+      }
+    });
+  });
+  return { redCount, holeCount };
+};
+
+const selectHeroInfo = (heroInfo) => {
+  showHeroModal.value = true;
+  heroModealTemp.value = heroInfo;
+};
+
+const handleExportImage = async () => {
+  // 校验：确保DOM已正确绑定
+  if (!exportDom.value) {
+    message.error("未找到要导出的内容");
+    return;
+  }
+
+  try {
+    isExporting.value = true;
+    message.loading("正在生成图片，请稍候...");
+
+    // 等待Vue更新DOM（移除操作列等）
+    await nextTick();
+
+    const isMobileExport =
+      isMobileView.value ||
+      /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+        navigator.userAgent || "",
+      );
+
+    // 桌面端临时放大导出区域，避免成员列（尤其阵容）被压缩
+    exportDom.value.dataset.originalWidth = exportDom.value.style.width;
+    exportDom.value.dataset.originalMinWidth = exportDom.value.style.minWidth;
+    exportDom.value.dataset.originalMaxWidth = exportDom.value.style.maxWidth;
+    exportDom.value.dataset.originalOverflow = exportDom.value.style.overflow;
+    if (!isMobileExport) {
+      exportDom.value.style.width = "1200px";
+      exportDom.value.style.minWidth = "1200px";
+      exportDom.value.style.maxWidth = "none";
+      exportDom.value.style.overflow = "visible";
+    } else {
+      exportDom.value.style.width = "100%";
+      exportDom.value.style.minWidth = "0";
+      exportDom.value.style.maxWidth = "100%";
+      exportDom.value.style.overflow = "visible";
+    }
+
+    // 获取 table-container
+    const tableContainer = exportDom.value.querySelector(".n-data-table");
+
+    // 临时调整表格容器高度，确保所有内容可见
+    if (tableContainer) {
+      // 尝试找到 n-data-table 的滚动容器
+      const scrollContainer = tableContainer.querySelector(
+        ".n-data-table-base-table-body",
+      );
+      if (scrollContainer) {
+        // 保存原始样式
+        scrollContainer.dataset.originalHeight = scrollContainer.style.height;
+        scrollContainer.dataset.originalOverflow =
+          scrollContainer.style.overflow;
+
+        // 强制展开
+        scrollContainer.style.height = "auto";
+        scrollContainer.style.overflow = "visible";
+      }
+
+      // 保存外层table容器的样式
+      tableContainer.dataset.originalHeight = tableContainer.style.height;
+      tableContainer.dataset.originalWidth = tableContainer.style.width;
+      tableContainer.dataset.originalMinWidth = tableContainer.style.minWidth;
+      tableContainer.style.height = "auto";
+      tableContainer.style.width = "100%";
+      tableContainer.style.minWidth = isMobileExport ? "0" : "1180px";
+    }
+
+    // 5. 用html2canvas渲染DOM为Canvas
+    const canvas = await captureWithHtml2canvas(exportDom.value, {
+      scale: isMobileExport ? 3 : 2, // 手机端提高导出清晰度
+      useCORS: true, // 允许跨域图片
+      backgroundColor: "#ffffff", // 避免透明背景
+      logging: false, // 关闭控制台日志
+      allowTaint: true, // 允许跨域图片污染画布
+    });
+
+    // 6. Canvas转图片链接并下载
+    const dateStr = new Date().toLocaleDateString().replace(/\//g, "-");
+    const filename = `俱乐部成员信息_${dateStr}.png`;
+    downloadCanvasAsImage(canvas, filename);
+
+    message.success("图片导出成功");
+  } catch (err) {
+    console.error("DOM转图片失败：", err);
+    message.error("导出图片失败，请重试");
+  } finally {
+    // 恢复原始样式
+    const tableContainer = exportDom.value?.querySelector(".n-data-table");
+    if (tableContainer) {
+      const scrollContainer = tableContainer.querySelector(
+        ".n-data-table-base-table-body",
+      );
+      if (scrollContainer) {
+        if (scrollContainer.dataset.originalHeight) {
+          scrollContainer.style.height = scrollContainer.dataset.originalHeight;
+        } else {
+          scrollContainer.style.removeProperty("height");
+        }
+
+        if (scrollContainer.dataset.originalOverflow) {
+          scrollContainer.style.overflow =
+            scrollContainer.dataset.originalOverflow;
+        } else {
+          scrollContainer.style.removeProperty("overflow");
+        }
+
+        delete scrollContainer.dataset.originalHeight;
+        delete scrollContainer.dataset.originalOverflow;
+      }
+
+      // 恢复外层table容器样式
+      if (tableContainer.dataset.originalHeight) {
+        tableContainer.style.height = tableContainer.dataset.originalHeight;
+      } else {
+        tableContainer.style.removeProperty("height");
+      }
+      if (tableContainer.dataset.originalWidth) {
+        tableContainer.style.width = tableContainer.dataset.originalWidth;
+      } else {
+        tableContainer.style.removeProperty("width");
+      }
+      if (tableContainer.dataset.originalMinWidth) {
+        tableContainer.style.minWidth = tableContainer.dataset.originalMinWidth;
+      } else {
+        tableContainer.style.removeProperty("min-width");
+      }
+      delete tableContainer.dataset.originalHeight;
+      delete tableContainer.dataset.originalWidth;
+      delete tableContainer.dataset.originalMinWidth;
+    }
+
+    // 恢复导出容器样式
+    if (exportDom.value) {
+      if (exportDom.value.dataset.originalWidth) {
+        exportDom.value.style.width = exportDom.value.dataset.originalWidth;
+      } else {
+        exportDom.value.style.removeProperty("width");
+      }
+      if (exportDom.value.dataset.originalMinWidth) {
+        exportDom.value.style.minWidth =
+          exportDom.value.dataset.originalMinWidth;
+      } else {
+        exportDom.value.style.removeProperty("min-width");
+      }
+      if (exportDom.value.dataset.originalMaxWidth) {
+        exportDom.value.style.maxWidth =
+          exportDom.value.dataset.originalMaxWidth;
+      } else {
+        exportDom.value.style.removeProperty("max-width");
+      }
+      if (exportDom.value.dataset.originalOverflow) {
+        exportDom.value.style.overflow =
+          exportDom.value.dataset.originalOverflow;
+      } else {
+        exportDom.value.style.removeProperty("overflow");
+      }
+      delete exportDom.value.dataset.originalWidth;
+      delete exportDom.value.dataset.originalMinWidth;
+      delete exportDom.value.dataset.originalMaxWidth;
+      delete exportDom.value.dataset.originalOverflow;
+    }
+
+    isExporting.value = false;
+  }
+};
+
+// 查询玩家信息
+const fetchTargetInfo = async (roleId) => {
+  if (!tokenStore.selectedToken) {
+    message.warning("请先选择游戏角色");
+    return;
+  }
+
+  const tokenId = tokenStore.selectedToken.id;
+  const wsStatus = tokenStore.getWebSocketStatus(tokenId);
+  if (wsStatus !== "connected") {
+    message.error("WebSocket未连接，无法查询信息");
+    return;
+  }
+
+  queryLoading.value = true;
+
+  try {
+    const result = await tokenStore.sendMessageWithPromise(
+      tokenId,
+      "rank_getroleinfo",
+      {
+        bottleType: 0,
+        includeBottleTeam: false,
+        isSearch: false,
+        roleId,
+        includeHero: true,
+        includeHeroDetail: true,
+        includePearl: true,
+      },
+      5000,
+    );
+
+    if (!result.roleInfo) {
+      message.warning("未查询到玩家信息");
+      return;
+    }
+
+    // 处理鱼灵信息
+    const fishInfo = HeroFillInfo(result.roleInfo);
+
+    // 获取英雄信息
+    let heroAndholdAndRed = { redCount: 0, holeCount: 0, heroList: [] };
+    if (result.roleInfo.heroes) {
+      try {
+        heroAndholdAndRed = getHeroInfo(result.roleInfo.heroes);
+      } catch (error) {
+        console.error("处理英雄信息失败:", error);
+        heroAndholdAndRed = { redCount: 0, holeCount: 0, heroList: [] };
+      }
+    }
+
+    // 将鱼灵信息添加到英雄列表中
+    heroAndholdAndRed.heroList.forEach((hero) => {
+      hero.PearlInfo = fishInfo[hero.artifactId] || {};
+    });
+
+    // 计算总红数和总开孔数
+    const totalRedCount = heroAndholdAndRed.redCount;
+    const totalHoleCount = heroAndholdAndRed.holeCount;
+
+    // 从角色信息中获取红淬数据
+    const roleRedQuench = result.roleInfo.red || 0;
+    const roleMaxRed = result.roleInfo.maxRed || 0;
+
+    // 从俱乐部信息中获取红淬数据（如果有）
+    const legionRedQuench =
+      result.legionInfo?.statistics?.["battle:red:quench"] || roleRedQuench;
+    const legionMaxRed =
+      result.legionInfo?.statistics?.["red:quench"] || roleMaxRed;
+    const legionMaxPower =
+      result.legionInfo?.statistics?.["max:power"] ||
+      result.roleInfo.maxPower ||
+      0;
+
+    // 计算阵容类型
+    const lineupType = getLineupType(heroAndholdAndRed.heroList);
+
+    // 更新本地成员列表中的阵容信息（如果存在）
+    if (
+      tokenStore.gameData?.legionInfo?.info?.members &&
+      tokenStore.gameData.legionInfo.info.members[roleId]
+    ) {
+      tokenStore.gameData.legionInfo.info.members[roleId].lineupType =
+        lineupType;
+    }
+
+    const playerData = {
+      id: roleId,
+      name: result.roleInfo.name,
+      headImg: result.roleInfo.headImg,
+      power: result.roleInfo.power,
+      level: result.roleInfo.level,
+      serverName: result.roleInfo.serverName,
+      legionName: result.legionInfo?.name || "无",
+      redQuench: roleRedQuench,
+      holyBeast: heroAndholdAndRed.heroList.filter((hero) => hero.HolyBeast)
+        .length,
+      maxPower: formatNumber(legionMaxPower),
+      currentRedDrum: roleRedQuench,
+      maxRedDrum: roleMaxRed,
+      totalRedCount,
+      totalHoleCount,
+      legionRedQuench,
+      legionMaxRed,
+      heroList: heroAndholdAndRed.heroList,
+      legacy: result.roleInfo.legacy?.color || 0,
+      lineupType,
+    };
+
+    playerInfo.value = playerData;
+    showPlayerInfoModal.value = true;
+    message.success("查询成功");
+  } catch (error) {
+    message.error(`查询失败: ${error.message}`);
+    console.error("查询失败详细信息:", error);
+  } finally {
+    queryLoading.value = false;
+  }
+};
+
+// 成员表格列定义
+const memberColumns = computed(() => {
+  const cols = [
+    {
+      title: "序号",
+      key: "index",
+      width: 60,
+      align: "center",
+      render: (_, index) => index + 1,
+    },
+    {
+      title: "头像",
+      key: "headImg",
+      width: 60,
+      align: "center",
+      render: (row) => {
+        if (row.headImg) {
+          return h("img", {
+            src: row.headImg,
+            class: "member-avatar-cell",
+            style: {
+              width: "32px",
+              height: "32px",
+              borderRadius: "50%",
+              objectFit: "cover",
+            },
+            alt: row.name,
+          });
+        }
+        return h(
+          "div",
+          {
+            class: "member-avatar-placeholder-cell",
+            style: {
+              width: "32px",
+              height: "32px",
+              borderRadius: "50%",
+              background: "#f0f0f0",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "14px",
+              color: "#999",
+            },
+          },
+          row.name?.charAt(0) || "?",
+        );
+      },
+    },
+    {
+      title: "成员",
+      key: "name",
+      align: "left",
+      minWidth: 150, // 增加最小宽度
+      render: (row) => {
+        return h(
+          "div",
+          {
+            style: {
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "center", // 垂直居中
+              cursor: "pointer",
+              whiteSpace: isExporting.value ? "normal" : "nowrap",
+              wordBreak: isExporting.value ? "break-all" : "normal",
+            },
+            onClick: () => fetchTargetInfo(row.roleId),
+          },
+          [
+            h(
+              "span",
+              {
+                style: {
+                  fontWeight: "500",
+                  color: "#1890ff",
+                  lineHeight: "1.2",
+                },
+              },
+              row.name,
+            ),
+            h(
+              "span",
+              {
+                style: {
+                  fontSize: "12px",
+                  color: "#999",
+                  lineHeight: "1.2",
+                  marginTop: "2px",
+                },
+              },
+              `ID: ${row.roleId}`,
+            ),
+          ],
+        );
+      },
+    },
+    {
+      title: "战力",
+      key: "power",
+      width: 100,
+      align: "center",
+      render: (row) => formatNumber(row.power || row.custom?.s_power || 0),
+    },
+    {
+      title: "红淬",
+      key: "redQuench",
+      width: 80,
+      align: "center",
+      render: (row) =>
+        h(
+          "span",
+          { style: { color: "#ff4d4f" } },
+          redQuenchlabel(row.custom?.red_quench_cnt || 0),
+        ),
+    },
+    {
+      title: "阵容",
+      key: "lineupType",
+      width: 80,
+      align: "center",
+      render: (row) => {
+        if (!row.lineupType) return "-";
+        const rule = LINEUP_RULES.find((r) => r.name === row.lineupType);
+        const colorProps = rule ? rule.colorProps : {};
+        return h(
+          NTag,
+          {
+            size: "small",
+            bordered: false,
+            color: colorProps,
+          },
+          { default: () => row.lineupType },
+        );
+      },
+    },
+  ];
+
+  cols.push({
+    title: "职位",
+    key: "job",
+    width: 80,
+    align: "center",
+    render: (row) =>
+      h(
+        NTag,
+        {
+          size: "small",
+          bordered: false,
+          color: getJobTagColor(row.job),
+        },
+        { default: () => jobLabel(row.job) },
+      ),
+  });
+
+  if (canKick.value && !isExporting.value) {
+    cols.push({
+      title: "操作",
+      key: "actions",
+      width: 80,
+      align: "center",
+      render: (row) => {
+        if (row.job !== 1) {
+          return h(
+            NButton,
+            {
+              size: "tiny",
+              type: "error",
+              ghost: true,
+              style: { fontSize: "12px" },
+              onClick: () => kickMember(row.roleId, row.name),
+            },
+            { default: () => "踢出" },
+          );
+        }
+        return null;
+      },
+    });
+  }
+
+  return [
+    {
+      title: () =>
+        h(
+          "div",
+          {
+            style: {
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              width: "100%",
+              padding: "0 8px",
+            },
+          },
+          [
+            h(
+              "span",
+              {
+                style: { fontSize: "16px", fontWeight: "bold", color: "#333" },
+              },
+              "俱乐部成员详情",
+            ),
+          ],
+        ),
+      key: "title_group",
+      align: "center",
+      children: cols,
+    },
+  ];
+});
+
+// 获取当前角色在俱乐部中的职位
+const currentMemberJob = computed(() => {
+  const roleId = tokenStore.gameData?.roleInfo?.role?.roleId;
+  if (!roleId) return 0;
+  const currentMember = members.value.find(
+    (m) => Number(m.roleId) === Number(roleId),
+  );
+  return currentMember?.job || 0;
+});
+
+// 检查是否有踢人权限（会长或副会长）
+const canKick = computed(() => {
+  return [1, 2].includes(currentMemberJob.value);
+});
+
+const activeTab = ref("overview");
+
+// 申请列表状态
+const showApplyList = ref(false);
+const loadingApply = ref(false);
+const applyList = ref([]);
+
+// 选择状态
+const hoveredItemId = ref(null);
+
+// 组件挂载时添加事件监听器
+onMounted(() => {
+  updateViewportMode();
+  window.addEventListener("resize", updateViewportMode);
+  // 监听申请列表响应事件（已改为Promise直接处理，不再监听）
+  // $emit.on("legion_applylistresp", handleApplyListResp);
+});
+
+watch(activeTab, (val) => {
+  if (val === "members" && !batchLoading.value) {
+    const hasLineup = members.value.some((m) => m.lineupType);
+    if (!hasLineup) {
+      fetchAllMembersLineup();
+    }
+  }
+});
+
+// 组件卸载时移除事件监听器
+onUnmounted(() => {
+  window.removeEventListener("resize", updateViewportMode);
+  // 移除申请列表响应事件监听（已改为Promise直接处理，不再监听）
+  // $emit.off("legion_applylistresp", handleApplyListResp);
+});
+
+// 今日是否已进行俱乐部签到
+const legionSignedIn = computed(() => {
+  const ts = Number(
+    tokenStore.gameData?.roleInfo?.role?.statisticsTime?.["legion:sign:in"] ||
+      0,
+  );
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todaySec = Math.floor(today.getTime() / 1000);
+  return ts > todaySec;
+});
+
+const signInLegion = () => {
+  const token = tokenStore.selectedToken;
+  if (!token || legionSignedIn.value) return;
+  tokenStore.sendMessage(token.id, "legion_signin");
+  tokenStore.sendMessage(token.id, "role_getroleinfo");
+  message.info("俱乐部签到");
+};
+
+// 兼容不同服务端字段：从 info.info 和顶层 info 以及 statistics 中聚合
+const clubOverview = computed(() => {
+  const i = info.value || {};
+  const base = i.info || {};
+  const boss = base.currentBoss || {};
+  const stats = i.statistics || i.stat || {};
+
+  const power = Number(base.power ?? i.power ?? base.s_power ?? i.s_power ?? 0);
+  const dan = base.dan ?? i.dan ?? base.rank ?? i.rank ?? "-";
+  const redQuench = Number(
+    base.redQuenchCnt ??
+      i.redQuenchCnt ??
+      stats["red:quench"] ??
+      stats.red_quench ??
+      0,
+  );
+  const lastWarRank =
+    stats["last:war:rank"] ??
+    stats.lastWarRank ??
+    stats["legion:last:war:rank"] ??
+    "-";
+  const noApply = Boolean(base.noApply ?? i.noApply);
+
+  const currentHP = formatNumber(boss.currentHP || 0);
+  const currentBossId = boss.bossId || 0;
+  const unfoughtBosses = [];
+  for (let k = 1; k <= 150; k++) {
+    if (!tokenStore.gameData?.roleInfo?.role?.statistics[`lb:${k}`]) {
+      unfoughtBosses.push(k);
+    }
+  }
+
+  return {
+    power,
+    dan: dan ?? "-",
+    redQuench,
+    lastWarRank,
+    noApply,
+    currentHP,
+    currentBossId,
+    unfoughtBosses,
+  };
+});
+
+const refreshClub = () => {
+  const token = tokenStore.selectedToken;
+  if (!token) return;
+  tokenStore.sendMessage(token.id, "legion_getinfo");
+
+  // 如果当前在成员页，也刷新阵容信息
+  if (activeTab.value === "members") {
+    fetchAllMembersLineup();
+  }
+};
+
+const {
+  approveAll,
+  approveApply,
+  fetchAllMembersLineup,
+  getApplyList,
+  handleApplyListResp,
+  kickMember,
+  rejectAll,
+  rejectApply,
+} = useClubAdminActions({
+  applyList,
+  batchLoading,
+  dialog,
+  getHeroInfo,
+  getLineupType,
+  loadingApply,
+  members,
+  message,
+  refreshClub,
+  showApplyList,
+  tokenStore,
+});
+
+const jobLabel = (job) => {
+  if (job === 1) return "会长";
+  if (job === 2) return "副会长";
+  return "成员";
+};
+
+const getJobTagColor = (job) => {
+  if (job === 1) {
+    return {
+      color: "#fff7e6",
+      borderColor: "#ffd591",
+      textColor: "#ad6800",
+    };
+  }
+  if (job === 2) {
+    return {
+      color: "#f0f5ff",
+      borderColor: "#adc6ff",
+      textColor: "#1d39c4",
+    };
+  }
+  return {
+    color: "#f6ffed",
+    borderColor: "#b7eb8f",
+    textColor: "#237804",
+  };
+};
+
+const redQuenchlabel = (redQuenchl) => {
+  return `${redQuenchl}红`;
+};
+
+const getLineupTagColor = (lineupType) => {
+  if (!lineupType) return {};
+  const rule = LINEUP_RULES.find((r) => r.name === lineupType);
+  return rule?.colorProps || {};
+};
+
+const formatNumber = (num) => {
+  const n = Number(num || 0);
+  if (n >= 1e12) return `${(n / 1e12).toFixed(2)}兆`;
+  if (n >= 1e8) return `${(n / 1e8).toFixed(2)}亿`;
+  if (n >= 1e4) return `${(n / 1e4).toFixed(2)}万`;
+  return String(n);
+};
+</script>
+
+<style scoped lang="scss">
+.club-info {
+  min-width: 0;
+  width: 100%;
+
+  :deep(.n-tabs) {
+    min-width: 0;
+  }
+
+  :deep(.n-tabs-nav-scroll-wrapper) {
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  :deep(.n-tabs-nav-scroll-content) {
+    min-width: max-content;
+  }
+
+  :deep(.n-tabs-tab) {
+    white-space: nowrap;
+  }
+
+  :deep(.n-tab-pane) {
+    min-width: 0;
+  }
+
+  .modal-w-700 {
+    width: min(700px, calc(100vw - 24px));
+  }
+
+  .modal-max-h-80 {
+    max-height: 80vh;
+  }
+
+  .modal-w-800 {
+    width: min(800px, calc(100vw - 24px));
+  }
+
+  .modal-w-600 {
+    width: min(600px, calc(100vw - 24px));
+  }
+
+  .ml-8 {
+    margin-left: 8px;
+  }
+
+  .mt-4 {
+    margin-top: 4px;
+  }
+
+  .mt-8 {
+    margin-top: 8px;
+  }
+
+  .h-full {
+    height: 100%;
+  }
+
+  .fw-bold {
+    font-weight: 700;
+  }
+
+  .toolbar {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: var(--spacing-sm);
+  }
+
+  .overview {
+    /* No specific styles needed for grid layout */
+  }
+
+  .overview-header-card :deep(.n-card__content) {
+    padding: 16px;
+  }
+
+  .club-logo-avatar {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+
+  .club-name {
+    font-size: 18px;
+    font-weight: 700;
+  }
+
+  .boss-summary-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  .boss-summary-meta {
+    margin-top: 4px;
+    font-size: 12px;
+  }
+
+  .boss-missing {
+    margin-left: 12px;
+    color: #d03050;
+  }
+
+  .announcement-text {
+    white-space: pre-wrap;
+    font-size: 13px;
+    line-height: 1.6;
+    color: #666;
+  }
+
+  .leader-wrap {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .leader-avatar {
+    border: 2px solid #fff;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+
+  .leader-name {
+    font-weight: 700;
+    font-size: 14px;
+  }
+
+  .leader-id {
+    font-size: 12px;
+    color: #999;
+  }
+
+  .member-table {
+    height: min(600px, calc(100dvh - 260px));
+  }
+
+  .members-mobile-list {
+    display: grid;
+    gap: 10px;
+  }
+
+  .members-mobile-wrap {
+    display: grid;
+    gap: 10px;
+  }
+
+  .member-mobile-title {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    position: relative;
+    padding: 8px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--border-light);
+    background: linear-gradient(
+      180deg,
+      var(--bg-tertiary) 0%,
+      var(--bg-secondary) 100%
+    );
+    font-size: 13px;
+    font-weight: 700;
+    text-align: center;
+    color: var(--text-primary);
+    letter-spacing: 0.5px;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+  }
+
+  .member-mobile-title::before,
+  .member-mobile-title::after {
+    content: "";
+    flex: 1;
+    max-width: 56px;
+    height: 1px;
+    background: var(--border-light);
+  }
+
+  .members-actions-bar {
+    display: flex;
+    justify-content: flex-start;
+    gap: 8px;
+    margin-bottom: 12px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-light);
+  }
+
+  .members-actions-btn {
+    min-width: 88px;
+  }
+
+  .is-exporting-image .members-actions-bar {
+    display: none !important;
+  }
+
+  .is-exporting-image {
+    padding: 16px;
+    background: linear-gradient(180deg, #f8fbff 0%, #ffffff 100%);
+    border-radius: 16px;
+    border: 1px solid #e6edf9;
+    box-sizing: border-box;
+    box-shadow: 0 10px 24px rgba(31, 63, 116, 0.08);
+  }
+
+  .member-export-banner {
+    border-radius: 14px;
+    padding: 14px 16px;
+    margin-bottom: 12px;
+    background: linear-gradient(135deg, #eef4ff 0%, #f6fbff 55%, #f2fff8 100%);
+    border: 1px solid #dce8ff;
+    box-shadow: 0 6px 16px rgba(32, 102, 214, 0.08);
+  }
+
+  .member-export-title {
+    font-size: 22px;
+    line-height: 1.2;
+    font-weight: 700;
+    color: #1f3f74;
+    letter-spacing: 0.5px;
+  }
+
+  .member-export-club {
+    margin-top: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #2b4d86;
+  }
+
+  .member-export-meta {
+    margin-top: 6px;
+    font-size: 13px;
+    color: #5e6b85;
+  }
+
+  .is-exporting-image :deep(.n-data-table) {
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid #e2e8f5;
+    box-shadow: 0 4px 12px rgba(15, 35, 75, 0.06);
+    background: #fff;
+  }
+
+  .is-exporting-image :deep(.n-data-table-th) {
+    background: linear-gradient(180deg, #f2f7ff 0%, #eaf2ff 100%);
+    color: #294676;
+    font-weight: 700;
+  }
+
+  .is-exporting-image :deep(.n-data-table-td) {
+    border-bottom-color: #edf2fb;
+  }
+
+  .is-exporting-image .members-mobile-list {
+    gap: 12px;
+  }
+
+  .is-exporting-image .member-mobile-item {
+    background: #fff;
+    border: 1px solid #e2e8f5;
+    box-shadow: 0 4px 12px rgba(15, 35, 75, 0.06);
+  }
+
+  .member-mobile-item {
+    border: 1px solid var(--border-light);
+    border-radius: 12px;
+    padding: 10px 12px;
+    background: linear-gradient(
+      180deg,
+      var(--bg-tertiary) 0%,
+      var(--bg-secondary) 100%
+    );
+    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.05);
+  }
+
+  .member-mobile-strip {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .member-mobile-left {
+    display: flex;
+    gap: 8px;
+    cursor: pointer;
+    min-width: 0;
+  }
+
+  .member-mobile-avatar {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+    border: 1px solid var(--border-light);
+  }
+
+  .member-mobile-avatar--placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-primary);
+    color: var(--text-secondary);
+    font-size: 13px;
+    border: 1px solid var(--border-light);
+  }
+
+  .member-mobile-name {
+    color: #1890ff;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.25;
+    word-break: break-all;
+  }
+
+  .member-mobile-id {
+    margin-top: 2px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    word-break: break-all;
+  }
+
+  .member-mobile-metrics {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: nowrap;
+    gap: 6px;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .metric-item {
+    padding: 5px 7px;
+    border-radius: 8px;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-light);
+  }
+
+  .metric-item--inline {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .metric-label {
+    font-size: 11px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+  }
+
+  .metric-value {
+    font-size: 12px;
+    color: var(--text-primary);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .metric-value.red {
+    color: #ff4d4f;
+  }
+
+  .member-lineup-tag {
+    font-weight: 700;
+    max-width: 96px;
+  }
+
+  .member-mobile-lineup {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    min-width: 62px;
+    justify-self: end;
+    flex-shrink: 0;
+  }
+
+  .member-mobile-actions {
+    margin-top: 8px;
+  }
+
+  .members-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .member-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    padding: 8px;
+    border-radius: 8px;
+    background: var(--bg-tertiary);
+  }
+
+  .member-row .left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .member-row .right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-secondary);
+  }
+
+  .member-row .name {
+    font-weight: var(--font-weight-medium);
+  }
+
+  .member-row .power {
+    font-feature-settings: "tnum" 1;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .member-row .red-quench {
+    font-feature-settings: "tnum" 1;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .hint {
+    margin-top: 8px;
+    color: var(--text-tertiary);
+    font-size: var(--font-size-xs);
+  }
+
+  .empty-club {
+    text-align: center;
+  }
+
+  .empty-club .actions {
+    margin-top: var(--spacing-sm);
+  }
+}
+
+.status-icon {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  border-radius: 8px;
+  margin-right: var(--spacing-md);
+}
+
+.status-info {
+  flex: 1;
+
+  h3 {
+    margin: 0;
+    font-size: var(--font-size-lg);
+  }
+
+  p {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+  }
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+
+  &.active {
+    background: rgba(24, 160, 88, 0.12);
+    color: var(--success-color);
+  }
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* 申请列表样式 */
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.empty-apply {
+  padding: 30px 0;
+}
+
+.apply-list-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.apply-list {
+  max-height: 200px;
+  overflow-y: auto;
+  padding-right: 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-primary);
+}
+
+.apply-list-lg {
+  max-height: 800px;
+  overflow-y: auto;
+}
+
+.apply-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  margin: 0;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-primary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.apply-item:last-child {
+  border-bottom: none;
+}
+
+/* 悬停效果 */
+.apply-item-hover {
+  background: var(--bg-tertiary);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* 选中状态 */
+.apply-item-selected {
+  background: var(--primary-color-light);
+  border-left: 3px solid var(--primary-color);
+}
+
+.apply-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+
+.apply-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.apply-name {
+  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+}
+
+.apply-details {
+  display: flex;
+  gap: 12px;
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
+
+.apply-power {
+  font-feature-settings: "tnum" 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.apply-reason {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  margin-top: 4px;
+  word-break: break-word;
+  white-space: normal;
+  line-height: 1.4;
+}
+
+.apply-right {
+  display: flex;
+  gap: 8px;
+}
+
+/* 批量操作栏样式 */
+.apply-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: var(--bg-tertiary);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+
+.selected-info {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  margin-left: auto;
+}
+
+/* 滚动条样式 */
+.apply-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.apply-list::-webkit-scrollbar-track {
+  background: var(--bg-tertiary);
+  border-radius: 3px;
+}
+
+.apply-list::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 3px;
+}
+
+.apply-list::-webkit-scrollbar-thumb:hover {
+  background: var(--text-tertiary);
+}
+
+/* 玩家信息模态框样式 */
+.player-info-content {
+  padding: 20px;
+}
+
+.player-info-main {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid var(--border-light, #eee);
+}
+
+.player-avatar {
+  border: 2px solid var(--primary-color, #1890ff);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.player-info-detail h3 {
+  margin: 0 0 8px 0;
+  font-size: var(--font-size-lg, 16px);
+  font-weight: var(--font-weight-bold, bold);
+}
+
+.legacy-tag {
+  color: #fff;
+  background-color: var(--legacy-bg);
+}
+
+.player-info-detail p {
+  margin: 0 0 4px 0;
+  font-size: var(--font-size-sm, 14px);
+  color: var(--text-secondary, #666);
+}
+
+.player-info-detail .detail-row {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 4px;
+  font-size: var(--font-size-sm, 14px);
+  color: var(--text-secondary, #666);
+}
+
+.red-text {
+  color: #ff4d4f;
+}
+.green-text {
+  color: #52c41a;
+}
+.blue-text {
+  color: #1890ff;
+}
+.highlight {
+  color: #1890ff;
+  font-weight: bold;
+}
+
+/* 武将列表样式 */
+.hero-section {
+  margin-top: 20px;
+
+  h4 {
+    margin: 0 0 12px 0;
+    font-size: var(--font-size-base, 14px);
+    font-weight: var(--font-weight-bold, bold);
+  }
+}
+
+.hero-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.hero-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg-secondary, #f9f9f9);
+  padding: 12px 16px;
+  border-radius: var(--border-radius-sm, 4px);
+  border: 1px solid var(--border-light, #eee);
+  transition: all var(--transition-fast, 0.3s ease);
+  cursor: pointer;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.1));
+    border-color: var(--primary-color, #1890ff);
+  }
+}
+
+.hero-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.hero-name {
+  font-size: var(--font-size-sm, 14px);
+  font-weight: var(--font-weight-medium, 500);
+}
+
+.hero-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: var(--font-size-xs, 12px);
+  color: var(--text-secondary, #666);
+
+  span {
+    padding: 2px 6px;
+    background: var(--bg-primary, #fff);
+    border-radius: var(--border-radius-full, 99px);
+    border: 1px solid var(--border-light, #eee);
+  }
+
+  span.opened {
+    background: rgba(82, 196, 26, 0.1);
+    color: var(--success-color, #52c41a);
+    border-color: var(--success-color, #52c41a);
+  }
+
+  span.closed {
+    background: rgba(250, 173, 20, 0.1);
+    color: var(--warning-color, #faad14);
+    border-color: var(--warning-color, #faad14);
+  }
+}
+
+.empty-heroes {
+  background: var(--bg-secondary, #f9f9f9);
+  padding: 30px;
+  border-radius: var(--border-radius-sm, 4px);
+  border: 1px solid var(--border-light, #eee);
+  text-align: center;
+  color: var(--text-secondary, #666);
+  font-size: var(--font-size-sm, 14px);
+}
+
+.debug-info {
+  font-size: 12px;
+  color: #999;
+}
+
+.debug-info-bottom {
+  margin-bottom: 10px;
+}
+
+.debug-info-top {
+  margin-top: 10px;
+}
+
+.cursor-pointer {
+  cursor: pointer;
+}
+
+/* 武将详情模态框样式 */
+.hero-detail-modal {
+  .hero-modal-content {
+    padding: 20px 0;
+  }
+
+  .hero-modal-header {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    margin-bottom: 20px;
+  }
+
+  .hero-modal-avatar {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    background: var(--bg-secondary, #f9f9f9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    border: 2px solid var(--border-light, #eee);
+
+    img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+  }
+
+  .hero-modal-basic {
+    flex: 1;
+  }
+
+  .hero-modal-name {
+    margin: 0 0 10px 0;
+    font-size: var(--font-size-lg, 16px);
+    font-weight: var(--font-weight-bold, bold);
+  }
+
+  .hero-modal-stats {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    font-size: var(--font-size-sm, 14px);
+    color: var(--text-secondary, #666);
+
+    .stat-item {
+      padding: 4px 8px;
+      background: var(--bg-secondary, #f9f9f9);
+      border-radius: var(--border-radius-sm, 4px);
+      border: 1px solid var(--border-light, #eee);
+    }
+  }
+
+  .hero-modal-details {
+    margin-bottom: 20px;
+
+    :deep(.n-descriptions) {
+      font-size: var(--font-size-sm, 14px);
+
+      .n-descriptions-item-label {
+        font-weight: var(--font-weight-medium, 500);
+        color: var(--text-primary, #333);
+      }
+
+      .n-descriptions-item-content {
+        color: var(--text-secondary, #666);
+      }
+    }
+  }
+
+  .hero-modal-equipment {
+    margin-top: 20px;
+  }
+
+  .section-title {
+    margin: 0 0 15px 0;
+    font-size: var(--font-size-base, 14px);
+    font-weight: var(--font-weight-bold, bold);
+  }
+
+  .equipment-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 15px;
+  }
+
+  .equipment-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .equipment-label {
+    font-size: var(--font-size-sm, 14px);
+    color: var(--text-primary, #333);
+    font-weight: var(--font-weight-medium, 500);
+    width: 60px;
+  }
+
+  .equipment-slots {
+    display: flex;
+    gap: 6px;
+  }
+
+  .equipment-slot {
+    width: 20px;
+    height: 20px;
+    border: 1px solid var(--border-light, #eee);
+    border-radius: var(--border-radius-sm, 4px);
+    background: var(--bg-secondary, #f9f9f9);
+  }
+
+  .equipment-slot.red-slot {
+    background: var(--error-color, #ff4d4f);
+    border-color: var(--error-color, #ff4d4f);
+  }
+
+  /* 鱼灵洗练颜色块 */
+  .ModalEquipment {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    margin-right: 4px;
+    display: inline-block;
+    vertical-align: middle;
+    background-color: var(--equip-color);
+  }
+}
+
+@media (max-width: 768px) {
+  .club-info {
+    overflow-x: hidden;
+
+    :deep(.n-card .n-card__content) {
+      padding: 10px;
+    }
+
+    :deep(.n-tabs-tab) {
+      padding: 6px 8px;
+      font-size: 12px;
+    }
+
+    :deep(.n-tabs-bar) {
+      height: 2px;
+    }
+
+    .toolbar {
+      width: 100%;
+    }
+
+    .toolbar :deep(.n-space) {
+      width: 100%;
+      flex-wrap: wrap;
+    }
+
+    .toolbar :deep(.n-space .n-button) {
+      flex: 1 1 120px;
+      min-width: 0;
+    }
+
+    .member-table {
+      height: auto;
+      max-height: calc(100dvh - 220px);
+    }
+
+    .members-actions-bar {
+      flex-wrap: wrap;
+      padding: 6px;
+      gap: 6px;
+    }
+
+    .members-actions-btn {
+      flex: 1 1 120px;
+      min-width: 0;
+    }
+
+    .members {
+      overflow-x: visible;
+    }
+
+    .member-mobile-strip {
+      grid-template-columns: 1fr;
+      align-items: stretch;
+      gap: 8px;
+    }
+
+    .member-mobile-metrics {
+      justify-content: flex-start;
+      flex-wrap: wrap;
+      gap: 4px;
+      overflow: visible;
+    }
+
+    .member-mobile-lineup {
+      min-width: 0;
+      justify-content: flex-start;
+      justify-self: start;
+    }
+
+    .member-mobile-item {
+      padding: 8px 10px;
+    }
+
+    .member-mobile-avatar {
+      width: 34px;
+      height: 34px;
+    }
+
+    .member-mobile-name {
+      font-size: 13px;
+    }
+
+    .member-mobile-id {
+      font-size: 11px;
+    }
+
+    .metric-item {
+      padding: 3px 6px;
+    }
+
+    .metric-label {
+      font-size: 10px;
+    }
+
+    .metric-value {
+      font-size: 11px;
+    }
+
+    .member-lineup-tag {
+      max-width: 84px;
+    }
+
+    :deep(.n-tag) {
+      font-size: 11px;
+      padding: 0 6px;
+    }
+
+    .toolbar :deep(.n-button) {
+      font-size: 12px;
+      min-height: 30px;
+      padding: 0 10px;
+    }
+  }
+
+  .hero-detail-modal {
+    :deep(.n-modal-content) {
+      padding: 0 !important;
+    }
+
+    .hero-modal-header {
+      flex-direction: column;
+      text-align: center;
+    }
+
+    .equipment-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+}
+</style>

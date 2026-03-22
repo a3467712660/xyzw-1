@@ -1,0 +1,24 @@
+{
+  "name": "xyzw-web-helper-backend",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "node --watch src/index.js",
+    "start": "node src/index.js",
+    "init-admin": "node src/scripts/initAdmin.js",
+    "init-admin-mfa": "node src/scripts/initAdminMfa.js",
+    "test": "JWT_SECRET=test-jwt-secret AES_KEY=test-aes-key DB_PATH=./data/test.sqlite.bin BIN_STORAGE_PATH=./data/test-bin node --test"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.8.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.6.1",
+    "express": "^4.21.2",
+    "helmet": "^7.2.0",
+    "node-cron": "^4.2.1",
+    "otplib": "^13.3.0",
+    "ws": "^8.18.3",
+    "zod": "^3.25.76"
+  }
+}
