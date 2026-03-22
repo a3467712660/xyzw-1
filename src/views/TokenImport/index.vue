@@ -986,6 +986,38 @@ const resolveTokenSessId = (token) => {
   );
 };
 
+const parseBoundSessId = (accountIdentity) => {
+  const parts = String(accountIdentity || "").split("|");
+  return normalizeSessId(parts[0] || "");
+};
+
+const resolveServerActivationBinding = async (tokenId) => {
+  const res = await api.tokenActivation.listMine();
+  const bindings = Array.isArray(res?.data) ? res.data : [];
+  const matched = bindings.find(
+    (item) => String(item?.tokenId || "").trim() === String(tokenId || "").trim(),
+  );
+  if (!matched) {
+    return null;
+  }
+
+  const roleId = normalizeRoleId(matched?.roleId || matched?.gameAccountId || "");
+  if (!roleId) {
+    return null;
+  }
+
+  return {
+    sessId: parseBoundSessId(matched?.accountIdentity),
+    roleId,
+    roleName: String(matched?.roleName || "").trim(),
+    region: String(matched?.region || "").trim(),
+    roleIndex: String(matched?.roleIndex ?? "").trim(),
+    expiresAt: matched?.expiresAt || null,
+    boundAt: matched?.boundAt || null,
+    active: Boolean(matched?.active),
+  };
+};
+
 const requestActivationInput = (token, options = {}) =>
   new Promise((resolve) => {
     activationTargetToken.value = token;
@@ -1063,11 +1095,21 @@ const ensureTokenActivation = async (token, options = {}) => {
         roleId: normalizedRoleId,
         activationRoleId: normalizedRoleId,
         activationGameAccountId: normalizedRoleId,
+        activationRoleName: String(
+          token?.activationRoleName || token?.name || "",
+        ).trim(),
+        activationRegion: String(
+          token?.activationRegion || token?.server || "",
+        ).trim(),
       });
     }
   }
-  const normalizedRoleName = String(token?.name || "").trim() || "未命名角色";
-  const normalizedRegion = String(token?.server || "").trim() || "未知大区";
+  const normalizedRoleName = String(
+    token?.activationRoleName || token?.name || "",
+  ).trim() || "未命名角色";
+  const normalizedRegion = String(
+    token?.activationRegion || token?.server || "",
+  ).trim() || "未知大区";
   const normalizedRoleIndex = String(token?.roleIndex ?? "").trim();
   if (normalizedRoleId && !options.forceRenew) {
     try {
@@ -1090,13 +1132,76 @@ const ensureTokenActivation = async (token, options = {}) => {
           roleId: normalizedRoleId,
           activationRoleId: normalizedRoleId,
           activationGameAccountId: normalizedRoleId,
+          activationRoleName: String(
+            status.data.roleName || normalizedRoleName,
+          ).trim(),
+          activationRegion: String(
+            status.data.region || normalizedRegion,
+          ).trim(),
           activationExpiresAt: status.data.expiresAt || token.activationExpiresAt || null,
           activationBoundAt: status.data.boundAt || token.activationBoundAt || null,
         });
         return true;
       }
-    } catch {
-      // 如果校验失败，继续走手动激活流程。
+    } catch (error) {
+      const messageText = String(error?.message || "").trim();
+      if (!messageText.includes("未绑定当前账号标识")) {
+        // 如果校验失败，继续走手动激活流程。
+      } else {
+        try {
+          const binding = await resolveServerActivationBinding(token.id);
+          if (binding) {
+            const status = await api.tokenActivation.getStatus(
+              token.id,
+              binding.roleId,
+              {
+                sessId: binding.sessId,
+                roleName: binding.roleName || normalizedRoleName,
+                region: binding.region || normalizedRegion,
+                server: binding.region || normalizedRegion,
+                roleIndex: binding.roleIndex || normalizedRoleIndex,
+              },
+            );
+            if (status?.success && status?.data?.active) {
+              tokenStore.updateToken(token.id, {
+                sessId: binding.sessId || token.sessId || "",
+                activationSessId:
+                  normalizeSessId(status.data.sessId || binding.sessId || token.activationSessId || token.sessId),
+                roleId: binding.roleId,
+                activationRoleId: binding.roleId,
+                activationGameAccountId: binding.roleId,
+                activationRoleName: String(
+                  status.data.roleName || binding.roleName || normalizedRoleName,
+                ).trim(),
+                activationRegion: String(
+                  status.data.region || binding.region || normalizedRegion,
+                ).trim(),
+                activationExpiresAt:
+                  status.data.expiresAt || binding.expiresAt || token.activationExpiresAt || null,
+                activationBoundAt:
+                  status.data.boundAt || binding.boundAt || token.activationBoundAt || null,
+              });
+              return true;
+            }
+            if (binding.active) {
+              tokenStore.updateToken(token.id, {
+                sessId: binding.sessId || token.sessId || "",
+                activationSessId: binding.sessId || token.activationSessId || token.sessId || "",
+                roleId: binding.roleId,
+                activationRoleId: binding.roleId,
+                activationGameAccountId: binding.roleId,
+                activationRoleName: binding.roleName || normalizedRoleName,
+                activationRegion: binding.region || normalizedRegion,
+                activationExpiresAt: binding.expiresAt || token.activationExpiresAt || null,
+                activationBoundAt: binding.boundAt || token.activationBoundAt || null,
+              });
+              return true;
+            }
+          }
+        } catch {
+          // 回退失败后继续走手动激活流程。
+        }
+      }
     }
   }
 
@@ -1128,6 +1233,8 @@ const ensureTokenActivation = async (token, options = {}) => {
       roleId: input.roleId,
       activationRoleId: input.roleId,
       activationGameAccountId: input.roleId,
+      activationRoleName: normalizedRoleName,
+      activationRegion: normalizedRegion,
       activationExpiresAt: res.data?.expiresAt || null,
       activationBoundAt: res.data?.boundAt || new Date().toISOString(),
     });

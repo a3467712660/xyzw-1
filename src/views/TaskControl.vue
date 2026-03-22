@@ -12,32 +12,37 @@
 </template>
 
 <script setup>
-import { defineAsyncComponent, ref, watch } from "vue";
+import { onMounted, ref } from "vue";
 import { useMessage } from "naive-ui/es";
 import TaskControlList from "@/components/Task/TaskControlList.vue";
-
-const BatchDailyTasks = defineAsyncComponent(
-  () => import("@/views/BatchDailyTasks.vue"),
-);
+import BatchDailyTasks from "@/views/BatchDailyTasks.vue";
 
 const message = useMessage();
 const batchRunnerRef = ref(null);
-const showHiddenRunner = ref(false);
+const showHiddenRunner = ref(true);
 const isPreparingRunner = ref(false);
-let resolveBatchRunnerReady;
-const batchRunnerReady = new Promise((resolve) => {
-  resolveBatchRunnerReady = resolve;
-});
 
-watch(
-  batchRunnerRef,
-  (instance) => {
-    if (instance && typeof instance.executeQuickTask === "function") {
-      resolveBatchRunnerReady?.(instance);
+const waitForBatchRunnerReady = async (timeoutMs = 20000) => {
+  const start = Date.now();
+
+  while (Date.now() - start < timeoutMs) {
+    if (
+      batchRunnerRef.value
+      && typeof batchRunnerRef.value.executeQuickTask === "function"
+    ) {
+      return batchRunnerRef.value;
     }
-  },
-  { immediate: true },
-);
+    await new Promise((resolve) => {
+      setTimeout(resolve, 100);
+    });
+  }
+
+  const hasRef = Boolean(batchRunnerRef.value);
+  const exposedKeys = hasRef ? Object.keys(batchRunnerRef.value) : [];
+  throw new Error(
+    `自动化执行器加载超时，请稍后重试（ref=${hasRef ? "ready" : "null"}，methods=${exposedKeys.join(",") || "none"}）`,
+  );
+};
 
 const runFeatureTask = async ({
   taskName,
@@ -56,14 +61,7 @@ const runFeatureTask = async ({
   ) {
     isPreparingRunner.value = true;
     try {
-      await Promise.race([
-        batchRunnerReady,
-        new Promise((_, reject) => {
-          setTimeout(() => {
-            reject(new Error("自动化执行器加载超时，请稍后重试"));
-          }, 8000);
-        }),
-      ]);
+      await waitForBatchRunnerReady();
     } finally {
       isPreparingRunner.value = false;
     }
@@ -87,6 +85,10 @@ const runFeatureTask = async ({
     throw error;
   }
 };
+
+onMounted(() => {
+  showHiddenRunner.value = true;
+});
 </script>
 
 <style scoped lang="scss">

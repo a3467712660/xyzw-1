@@ -66,24 +66,22 @@
     </div>
 
     <n-grid item-responsive responsive="screen" :x-gap="16" :y-gap="16">
-      <n-grid-item span="24 l:16">
+      <n-grid-item span="24 l:18">
         <section class="app-section-card game-features-panel">
           <div class="section-head">
             <div>
               <h2>功能面板</h2>
-              <p>保留现有业务能力，只重构壳层、信息层级和响应式编排。</p>
             </div>
           </div>
           <GameStatus></GameStatus>
         </section>
       </n-grid-item>
 
-      <n-grid-item span="24 l:8">
+      <n-grid-item span="24 l:6">
         <section class="app-section-card connection-card">
           <div class="section-head">
             <div>
               <h2>{{ t("gameFeatures.connection.title") }}</h2>
-              <p>把连接相关信息收成一张卡，桌面端放右侧，移动端自然下沉。</p>
             </div>
           </div>
 
@@ -107,20 +105,6 @@
           </div>
         </section>
 
-        <section class="app-section-card tips-card">
-          <div class="section-head">
-            <div>
-              <h2>改造说明</h2>
-              <p>这次优先改信息可读性，不改核心动作和协议。</p>
-            </div>
-          </div>
-
-          <ol class="tips-list">
-            <li>先统一顶部壳层、主题和断点，让桌面与手机同一套导航逻辑。</li>
-            <li>保留原有功能组件，仅把连接信息、状态信息拆成右侧摘要卡。</li>
-            <li>移动端改成单列流式阅读，避免功能面板和状态卡相互挤压。</li>
-          </ol>
-        </section>
       </n-grid-item>
     </n-grid>
   </div>

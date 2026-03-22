@@ -52,6 +52,8 @@ const ALLOWED_IMPORT_TOKEN_KEYS = new Set([
   "activationSessId",
   "activationRoleId",
   "activationGameAccountId",
+  "activationRoleName",
+  "activationRegion",
   "activationExpiresAt",
   "activationBoundAt",
 ]);

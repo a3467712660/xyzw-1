@@ -24,6 +24,8 @@ export interface TokenData {
   activationSessId?: string;
   activationRoleId?: string;
   activationGameAccountId?: string;
+  activationRoleName?: string;
+  activationRegion?: string;
   activationExpiresAt?: string | null;
   activationBoundAt?: string | null;
 }

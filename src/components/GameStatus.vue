@@ -686,21 +686,20 @@ onUnmounted(() => {
 
 .game-status-container {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--spacing-lg);
   padding: var(--spacing-lg);
   overflow-x: hidden;
+  align-items: start;
 
-  // 在大屏幕上限制最大列数以确保卡片有足够宽度
-  @media (min-width: 1400px) {
+  // 超宽屏再扩到三列，避免在嵌入式面板里过早挤压
+  @media (min-width: 1800px) {
     grid-template-columns: repeat(3, 1fr);
-    max-width: 1400px;
-    margin: 0 auto;
   }
 
-  // 在中等屏幕上确保有足够空间
-  @media (max-width: 1200px) {
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  // 中等桌面宽度收成单列，保证卡片内容完整展示
+  @media (max-width: 1280px) {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   // 在较小屏幕上使用单列布局

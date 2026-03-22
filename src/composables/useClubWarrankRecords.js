@@ -83,9 +83,7 @@ export function useClubWarrankRecords({
   const inputDate1 = ref(getLastSaturday());
 
   const disabledDate = (current) => {
-    return (
-      (current.getDay() !== 6 && current.getDay() !== 0) || current > Date.now()
-    );
+    return current.getDay() !== 6 || current > Date.now();
   };
 
   const fetchClubDetails = async (tokenId, club, score) => {

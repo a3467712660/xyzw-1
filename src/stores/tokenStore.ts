@@ -174,6 +174,8 @@ export const useTokenStore = defineStore("tokens", () => {
         tokenData.activationGameAccountId
         || tokenData.activationRoleId
         || "",
+      activationRoleName: tokenData.activationRoleName || tokenData.name || "",
+      activationRegion: tokenData.activationRegion || tokenData.server || "",
       activationExpiresAt: tokenData.activationExpiresAt || null,
       activationBoundAt: tokenData.activationBoundAt || null,
       binSourceState:
@@ -199,6 +201,39 @@ export const useTokenStore = defineStore("tokens", () => {
       return true;
     }
     return false;
+  };
+
+  const parseBoundSessId = (accountIdentity: unknown) => {
+    const parts = String(accountIdentity || "").split("|");
+    return String(parts[0] || "").trim();
+  };
+
+  const resolveActivationBinding = async (tokenId: string) => {
+    const res = await api.tokenActivation.listMine();
+    const bindings = Array.isArray(res?.data) ? res.data : [];
+    const matched = bindings.find(
+      (item) => String(item?.tokenId || "").trim() === String(tokenId || "").trim(),
+    );
+    if (!matched) {
+      return null;
+    }
+
+    const roleId = String(
+      matched?.roleId || matched?.gameAccountId || "",
+    ).trim();
+    if (!roleId) {
+      return null;
+    }
+
+    return {
+      sessId: parseBoundSessId(matched?.accountIdentity),
+      roleId,
+      roleName: String(matched?.roleName || "").trim(),
+      region: String(matched?.region || "").trim(),
+      roleIndex: String(matched?.roleIndex ?? "").trim(),
+      expiresAt: matched?.expiresAt || null,
+      boundAt: matched?.boundAt || null,
+    };
   };
 
   const markBinSourceState = (
@@ -387,23 +422,77 @@ export const useTokenStore = defineStore("tokens", () => {
         throw new Error("该Token激活已过期，请续期后再使用");
       }
 
-      const statusRes = await api.tokenActivation.getStatus(tokenId, roleId, {
+      const currentActivation = {
         sessId: String(token.activationSessId || token.sessId || "").trim(),
-        roleName: String(token.name || "").trim() || "未命名角色",
-        region: String(token.server || "").trim() || "未知大区",
-        server: String(token.server || "").trim() || "未知大区",
-        roleIndex: token.roleIndex ?? "",
-      });
+        roleId,
+        roleName: String(
+          token.activationRoleName || token.name || "",
+        ).trim() || "未命名角色",
+        region: String(
+          token.activationRegion || token.server || "",
+        ).trim() || "未知大区",
+        roleIndex: String(token.roleIndex ?? "").trim(),
+      };
+      let statusRes;
+
+      try {
+        statusRes = await api.tokenActivation.getStatus(tokenId, currentActivation.roleId, {
+          sessId: currentActivation.sessId,
+          roleName: currentActivation.roleName,
+          region: currentActivation.region,
+          server: currentActivation.region,
+          roleIndex: currentActivation.roleIndex,
+        });
+      } catch (error: any) {
+        const message = String(error?.message || "").trim();
+        if (!message.includes("未绑定当前账号标识")) {
+          throw error;
+        }
+
+        const binding = await resolveActivationBinding(tokenId);
+        if (!binding) {
+          throw error;
+        }
+
+        statusRes = await api.tokenActivation.getStatus(tokenId, binding.roleId, {
+          sessId: binding.sessId,
+          roleName: binding.roleName || currentActivation.roleName,
+          region: binding.region || currentActivation.region,
+          server: binding.region || currentActivation.region,
+          roleIndex: binding.roleIndex || currentActivation.roleIndex,
+        });
+
+        updateToken(tokenId, {
+          activationSessId: binding.sessId || currentActivation.sessId,
+          activationRoleId: binding.roleId,
+          activationGameAccountId: binding.roleId,
+          activationRoleName: binding.roleName || currentActivation.roleName,
+          activationRegion: binding.region || currentActivation.region,
+          activationExpiresAt: binding.expiresAt || token.activationExpiresAt || null,
+          activationBoundAt: binding.boundAt || token.activationBoundAt || null,
+        });
+      }
+
       if (!statusRes?.success || !statusRes?.data?.active) {
         throw new Error(statusRes?.message || "该Token未激活或已过期");
       }
 
       updateToken(tokenId, {
         activationSessId: String(
-          statusRes?.data?.sessId || token.activationSessId || token.sessId || "",
+          statusRes?.data?.sessId || currentActivation.sessId,
         ).trim(),
-        activationRoleId: roleId,
-        activationGameAccountId: roleId,
+        activationRoleId: String(
+          statusRes?.data?.roleId || statusRes?.data?.gameAccountId || roleId,
+        ).trim(),
+        activationGameAccountId: String(
+          statusRes?.data?.gameAccountId || statusRes?.data?.roleId || roleId,
+        ).trim(),
+        activationRoleName: String(
+          statusRes?.data?.roleName || currentActivation.roleName,
+        ).trim(),
+        activationRegion: String(
+          statusRes?.data?.region || currentActivation.region,
+        ).trim(),
         activationExpiresAt: statusRes?.data?.expiresAt || token.activationExpiresAt || null,
         activationBoundAt: statusRes?.data?.boundAt || token.activationBoundAt || null,
       });

@@ -140,7 +140,7 @@ export function useTokenImportBinFiles({
 
   const parseRoleMetaFromBinFileName = (fileName) => {
     const normalized = String(fileName || "").replace(/\.enc$/, "").trim();
-    const matched = normalized.match(/^bin-(.*?)服-([0-2])-(\d{1,20})-(.*)\.bin$/);
+    const matched = normalized.match(/^bin-(.*?)服-(\d{1,2})-(\d{1,20})-(.*)\.bin$/);
     if (!matched) {
       return null;
     }
@@ -231,7 +231,7 @@ export function useTokenImportBinFiles({
       actionType: "refresh",
       actionLabel: t("tokenImport.actions.refresh"),
     });
-    if (!confirmToken) {
+    if (refreshSecondVerifyEnabled.value && !confirmToken) {
       return { status: "confirm-required", userToken: null };
     }
 
@@ -516,10 +516,34 @@ export function useTokenImportBinFiles({
     }
   };
 
+  const getServerFromTokenPayload = (tokenText, fallback = "") => {
+    try {
+      const parsed = JSON.parse(tokenText || "{}");
+      const candidates = [
+        parsed?.server,
+        parsed?.serverName,
+        parsed?.role?.server,
+        parsed?.role?.serverName,
+      ];
+      const hit = candidates.find(
+        (item) => typeof item === "string" && item.trim(),
+      );
+      return hit ? String(hit).trim() : fallback;
+    } catch {
+      return fallback;
+    }
+  };
+
+  const isUnusableRoleName = (value, tokenId = "") => {
+    const text = String(value || "").trim();
+    if (!text) {
+      return true;
+    }
+    return text === String(tokenId || "").trim();
+  };
+
   const tryRestoreTokensFromSavedBins = async () => {
     if (!authStore.isAuthenticated)
-      return 0;
-    if (tokenStore.gameTokens.length > 0)
       return 0;
     if (!Array.isArray(binFiles.value) || binFiles.value.length === 0)
       return 0;
@@ -534,7 +558,7 @@ export function useTokenImportBinFiles({
       actionType: "refresh",
       actionLabel: t("tokenImport.actions.refresh"),
     });
-    if (!confirmToken) {
+    if (refreshSecondVerifyEnabled.value && !confirmToken) {
       return 0;
     }
 
@@ -561,31 +585,54 @@ export function useTokenImportBinFiles({
           if (!token)
             continue;
 
+          const parseResult = tokenStore.parseBase64Token(token);
+          const roleId = parseResult?.success
+            ? String(
+                parseResult?.data?.activationRoleId
+                || parseResult?.data?.activationGameAccountId
+                || parseResult?.data?.roleId
+                || "",
+              ).trim()
+            : "";
+          const sessId = parseResult?.success
+            ? String(
+                parseResult?.data?.activationSessId
+                || parseResult?.data?.sessId
+                || "",
+              ).trim()
+            : "";
+
           const targetServerId = parseServerIdFromBinBuffer(userToken);
-          let roleName = getNameFromTokenPayload(
-            token,
-            fileMeta?.roleName || tokenId,
-          );
-          if (roleName === tokenId) {
+          let roleName = String(fileMeta?.roleName || "").trim();
+          if (isUnusableRoleName(roleName, tokenId)) {
+            roleName = getNameFromTokenPayload(token, "");
+          }
+          let resolvedServer = String(fileMeta?.server || "").trim();
+          if (!resolvedServer) {
+            resolvedServer = getServerFromTokenPayload(token, "");
+          }
+          if (isUnusableRoleName(roleName, tokenId) || !resolvedServer) {
+            const wsProfile = await getRoleProfileFromWs(token);
+            if (wsProfile?.name && isUnusableRoleName(roleName, tokenId)) {
+              roleName = wsProfile.name;
+            }
+            if (wsProfile?.server && !resolvedServer) {
+              resolvedServer = wsProfile.server;
+            }
+          }
+          if (isUnusableRoleName(roleName, tokenId)) {
             roleName = await getNameFromServerList(
               userToken,
-              fileMeta?.roleName || tokenId,
+              tokenId,
               token,
               targetServerId,
             );
           }
-          let resolvedServer = fileMeta?.server || "";
-          if (!roleName || roleName === tokenId) {
-            const wsProfile = await getRoleProfileFromWs(token);
-            if (wsProfile?.name) {
-              roleName = wsProfile.name;
-            }
-            if (wsProfile?.server) {
-              resolvedServer = wsProfile.server;
-            }
-          }
-          if (!roleName || roleName === tokenId) {
+          if (isUnusableRoleName(roleName, tokenId)) {
             roleName = fileMeta?.roleName || tokenId;
+          }
+          if (!resolvedServer) {
+            resolvedServer = fileMeta?.server || "";
           }
 
           const nowIso = new Date().toISOString();
@@ -594,6 +641,8 @@ export function useTokenImportBinFiles({
             name: roleName,
             token,
             server: resolvedServer,
+            roleId,
+            sessId,
             wsUrl: null,
             remark: "",
             level: 1,
@@ -604,6 +653,11 @@ export function useTokenImportBinFiles({
             importMethod: "bin",
             binSourceState: "available",
             binSourceMissingAt: null,
+            activationSessId: sessId,
+            activationRoleId: roleId,
+            activationGameAccountId: roleId,
+            activationRoleName: roleName,
+            activationRegion: resolvedServer,
           });
           existingIds.add(tokenId);
           restored += 1;

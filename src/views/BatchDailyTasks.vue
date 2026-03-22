@@ -2543,29 +2543,6 @@ const {
 });
 
 const {
-  currentGuessCount,
-  fetchWarGuessRank,
-  handleWarGuessCheer,
-  openWarGuessModal,
-  selectedWarGuessLegionId,
-  showWarGuessModal,
-  warGuessCoin,
-  warGuessColumns,
-  warGuessList,
-  warGuessLoading,
-  warGuessRowProps,
-} = useWarGuessManager({
-  addLog,
-  batchWarGuessCheer,
-  h,
-  isRunning,
-  message,
-  selectedTokens,
-  tokenStore,
-  tokens,
-});
-
-const {
   filteredAccountTemplates,
   filteredTaskTemplates,
   filterAccountTemplates,
@@ -3092,6 +3069,29 @@ const {
   shouldSendCar,
   shouldStop,
   tokenStatus,
+  tokenStore,
+  tokens,
+});
+
+const {
+  currentGuessCount,
+  fetchWarGuessRank,
+  handleWarGuessCheer,
+  openWarGuessModal,
+  selectedWarGuessLegionId,
+  showWarGuessModal,
+  warGuessCoin,
+  warGuessColumns,
+  warGuessList,
+  warGuessLoading,
+  warGuessRowProps,
+} = useWarGuessManager({
+  addLog,
+  batchWarGuessCheer,
+  h,
+  isRunning,
+  message,
+  selectedTokens,
   tokenStore,
   tokens,
 });
