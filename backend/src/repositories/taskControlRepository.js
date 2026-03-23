@@ -93,10 +93,16 @@ export const taskControlRepository = {
     status = "",
     taskId = "",
     message = "",
+    backendOnly = true,
   }) {
     const safeLimit = Math.max(1, Math.min(2000, Number(limit) || 500));
     const clauses = [];
     const params = {};
+
+    if (backendOnly) {
+      clauses.push("l.message LIKE $backendMessagePrefix");
+      params.$backendMessagePrefix = "[backend]%";
+    }
 
     if (String(username || "").trim()) {
       clauses.push("u.username LIKE $username");

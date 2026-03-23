@@ -26,7 +26,35 @@ const sanitizeGameTokenForPersistence = (tokenData = {}) => {
 
 function openDB() {
   return new Promise((resolve, reject) => {
+    if (typeof indexedDB === "undefined") {
+      reject(new Error("当前环境不支持 IndexedDB"));
+      return;
+    }
+
     const req = indexedDB.open(DB_NAME, DB_VERSION);
+    let settled = false;
+    const timeoutId = setTimeout(() => {
+      if (settled)
+        return;
+      settled = true;
+      reject(new Error("打开本地 Token 数据库超时"));
+    }, 5000);
+
+    const finishResolve = (value) => {
+      if (settled)
+        return;
+      settled = true;
+      clearTimeout(timeoutId);
+      resolve(value);
+    };
+
+    const finishReject = (error) => {
+      if (settled)
+        return;
+      settled = true;
+      clearTimeout(timeoutId);
+      reject(error);
+    };
 
     req.onupgradeneeded = (event) => {
       const db = req.result;
@@ -38,8 +66,9 @@ function openDB() {
       }
     };
 
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
+    req.onsuccess = () => finishResolve(req.result);
+    req.onerror = () => finishReject(req.error || new Error("打开本地 Token 数据库失败"));
+    req.onblocked = () => finishReject(new Error("本地 Token 数据库被占用，请关闭其他标签页后重试"));
   });
 }
 

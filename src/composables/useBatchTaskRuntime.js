@@ -1,4 +1,5 @@
 import { createBatchTaskDeps } from "./createBatchTaskDeps.js";
+import { BATCH_TASK_MODULE_GROUPS } from "./batchTaskModuleRegistry.js";
 import { useBatchExecutionRunner } from "./useBatchExecutionRunner.js";
 import { useBatchTaskHandlers } from "./useBatchTaskHandlers.js";
 import { useBatchTaskModules } from "./useBatchTaskModules.js";
@@ -65,6 +66,11 @@ export function useBatchTaskRuntime({
 }, overrides = {}) {
   const runtimeDeps = resolveRuntimeDependencies(overrides);
   const taskHandlers = {};
+  const taskModuleHandlerNames = [
+    ...new Set(
+      BATCH_TASK_MODULE_GROUPS.flatMap((group) => group.handlerNames || []),
+    ),
+  ];
 
   const { executeScheduledTask } = runtimeDeps.useScheduledTaskExecutor({
     addLog,
@@ -117,6 +123,10 @@ export function useBatchTaskRuntime({
   });
 
   const taskModules = runtimeDeps.useBatchTaskModules(taskDeps);
+  const resolvedTaskModuleHandlers = taskModuleHandlerNames.reduce((acc, handlerName) => {
+    acc[handlerName] = taskModules[handlerName];
+    return acc;
+  }, {});
 
   const { startBatch, stopBatch } = runtimeDeps.useBatchExecutionRunner({
     DailyTaskRunner,
@@ -139,7 +149,7 @@ export function useBatchTaskRuntime({
     taskHandlers,
     runtimeDeps.useBatchTaskHandlers({
       startBatch,
-      ...taskModules,
+      ...resolvedTaskModuleHandlers,
     }).taskHandlers,
   );
 

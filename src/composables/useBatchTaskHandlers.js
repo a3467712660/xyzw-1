@@ -71,6 +71,7 @@ export function useBatchTaskHandlers({
     batchClaimPeachTasks,
     batchGenieSweep,
     batchBuyDreamItems,
+    batchWarGuessCheer,
   };
 
   return {

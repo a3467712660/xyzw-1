@@ -1006,6 +1006,7 @@ router.get(
       status: req.query.status,
       taskId: req.query.taskId,
       message: req.query.message,
+      backendOnly: true,
     });
     return res.json({
       success: true,

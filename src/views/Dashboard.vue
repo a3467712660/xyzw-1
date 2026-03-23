@@ -81,11 +81,8 @@ import { computed, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { useMessage } from "naive-ui/es";
 import { useI18n } from "vue-i18n";
-import api from "@/api";
 import { useTokenStore } from "@/stores/tokenStore";
 import { useAuthStore } from "@/stores/auth";
-import { loadBinBuffer } from "@/utils/binStorage";
-import { transformToken } from "@/utils/token";
 import {
   Add,
   CalendarClear,
@@ -99,126 +96,6 @@ const message = useMessage();
 const tokenStore = useTokenStore();
 const authStore = useAuthStore();
 const { locale, t } = useI18n();
-
-const getNameFromTokenPayload = (tokenText, fallback) => {
-  try {
-    const parsed = JSON.parse(tokenText || "{}");
-    const candidates = [parsed?.roleName, parsed?.role?.name, parsed?.name];
-    const hit = candidates.find(
-      (item) => typeof item === "string" && item.trim(),
-    );
-    return hit ? String(hit).trim() : fallback;
-  } catch {
-    return fallback;
-  }
-};
-
-const getServerFromTokenPayload = (tokenText, fallback = "") => {
-  try {
-    const parsed = JSON.parse(tokenText || "{}");
-    const candidates = [
-      parsed?.server,
-      parsed?.serverName,
-      parsed?.role?.server,
-      parsed?.role?.serverName,
-    ];
-    const hit = candidates.find(
-      (item) => typeof item === "string" && item.trim(),
-    );
-    return hit ? String(hit).trim() : fallback;
-  } catch {
-    return fallback;
-  }
-};
-
-const restoreTokensFromBackendBins = async () => {
-  if (!authStore.isAuthenticated || tokenStore.hasTokens) {
-    return 0;
-  }
-
-  try {
-    const listRes = await api.binFiles.list();
-    const rows = Array.isArray(listRes?.data) ? listRes.data : [];
-    if (rows.length === 0) {
-      return 0;
-    }
-
-    const restoredTokens = [];
-
-    for (const row of rows) {
-      const tokenId = String(row?.tokenId || "").trim();
-      if (!tokenId) {
-        continue;
-      }
-
-      try {
-        const userToken = await loadBinBuffer(tokenId, [tokenId]);
-        if (!userToken) {
-          continue;
-        }
-
-        const token = await transformToken(userToken);
-        if (!token) {
-          continue;
-        }
-
-        const parseResult = tokenStore.parseBase64Token(token);
-        const roleId = parseResult?.success
-          ? String(
-              parseResult?.data?.activationRoleId
-              || parseResult?.data?.activationGameAccountId
-              || parseResult?.data?.roleId
-              || "",
-            ).trim()
-          : "";
-        const sessId = parseResult?.success
-          ? String(
-              parseResult?.data?.activationSessId
-              || parseResult?.data?.sessId
-              || "",
-            ).trim()
-          : "";
-        const roleName = getNameFromTokenPayload(token, tokenId);
-        const server = getServerFromTokenPayload(token, "");
-        const nowIso = new Date().toISOString();
-
-        restoredTokens.push({
-          id: tokenId,
-          name: roleName,
-          token,
-          wsUrl: null,
-          server,
-          roleId,
-          sessId,
-          activationSessId: sessId,
-          activationRoleId: roleId,
-          activationGameAccountId: roleId,
-          remark: "",
-          createdAt: nowIso,
-          lastUsed: nowIso,
-          importMethod: "bin",
-          binSourceState: "available",
-          binSourceMissingAt: null,
-        });
-      } catch {
-        // 后端 BIN 需要确认时，这里静默跳过，避免控制台启动被打断。
-      }
-    }
-
-    if (restoredTokens.length > 0) {
-      tokenStore.gameTokens = restoredTokens;
-      message.success(
-        t("tokenImport.messages.restoredFromBin", {
-          count: restoredTokens.length,
-        }),
-      );
-    }
-
-    return restoredTokens.length;
-  } catch {
-    return 0;
-  }
-};
 
 const currentDate = computed(() => {
   return new Date().toLocaleDateString(locale.value, {
@@ -344,7 +221,6 @@ const handleQuickAction = (action) => {
 
 onMounted(async () => {
   tokenStore.initTokenStore();
-  await restoreTokensFromBackendBins();
 });
 </script>
 
