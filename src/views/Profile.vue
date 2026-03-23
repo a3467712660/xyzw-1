@@ -157,7 +157,9 @@
               <h3>{{ t("profile.security.twoFactor.title") }}</h3>
               <p>{{ t("profile.security.twoFactor.desc") }}</p>
             </div>
-            <n-button @click="setupTwoFactor"> {{ t("profile.actions.setup") }} </n-button>
+            <n-button @click="setupTwoFactor">
+              {{ isTwoFactorEnabled ? t("profile.actions.reset") : t("profile.actions.setup") }}
+            </n-button>
           </div>
 
           <div class="security-item">
@@ -406,6 +408,9 @@ const securityPreferences = reactive({
 const safeModeEnabled = ref(Boolean(safeModePreference.value));
 const isMfaBusy = computed(() => isMfaSetupLoading.value || isMfaEnableLoading.value);
 const mfaEnabledDone = computed(() => mfaRecoveryCodes.value.length > 0);
+const isTwoFactorEnabled = computed(() =>
+  Boolean(authStore.userInfo?.mfaEnabled || authStore.user?.mfaEnabled),
+);
 
 // 选项数据
 const themeOptions = ref([]);
@@ -1055,13 +1060,11 @@ const confirmEnableMfa = async () => {
 };
 
 const setupTwoFactor = () => {
-  const alreadyEnabled = !!authStore.userInfo?.mfaEnabled;
-  if (alreadyEnabled) {
-    message.success(t("profile.messages.twoFactorAlreadyEnabled"));
-    return;
-  }
   resetMfaSetupState();
   isMfaSetupModalVisible.value = true;
+  if (isTwoFactorEnabled.value) {
+    message.info(t("profile.messages.twoFactorResetReady"));
+  }
 };
 
 const viewLoginHistory = async () => {
