@@ -120,10 +120,12 @@ npm --prefix backend run init-admin
 ## 任务控制后端调度说明
 
 - 执行模式：后端扫描任务控制配置后，按 Cron 自动触发。
+- 当前支持任务：`daily`、`hangup`、`bottle`、`tower`、`study`、`legacy`、`arena`、`club-store`、`claim-car`、`send-car`。
 - 固定禁跑窗口：每周五 `04:50-07:00` 不执行任务，命中后自动延后并在窗口后补跑。
 - 多账号执行策略：全局串行队列（同一时间仅执行 1 个账号），避免同刻并发挤压。
 - 日志增强：会写入排队信息（如“前方排队 N 个”）与延后/补跑原因。
 - 管理中心查看入口：前端管理员页 `GET /admin/task-control-logs`（路由页面），数据接口 `GET /api/v1/admin/task-control/logs`。
+- 日志口径：管理员页默认只展示带 `[backend]` 前缀的服务端调度日志，不展示前端手动执行写入的普通任务日志。
 
 认证真相接口：
 - `GET /api/v1/auth/me`（前端应以此作为刷新后登录态判断依据）
