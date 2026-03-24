@@ -3,13 +3,347 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="XYZW 游戏管理系统，提供更清晰的角色管理、任务控制和账号保护体验。"
+    />
+    <meta name="theme-color" content="#0d6efd" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="XYZW 游戏管理系统" />
+    <meta
+      property="og:description"
+      content="更清晰的角色管理、任务控制和账号保护体验。"
+    />
+    <meta property="og:image" content="/icons/xiaoyugan.png" />
+    <meta property="og:locale" content="zh_CN" />
     <title>XYZW 游戏管理系统</title>
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="icon" type="image/png" href="/icons/xiaoyugan.png" />
+    <link rel="apple-touch-icon" href="/icons/xiaoyugan.png" />
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: "Avenir Next", "PingFang SC", "Microsoft YaHei", sans-serif;
+        background:
+          radial-gradient(circle at top left, rgba(13, 110, 253, 0.14), transparent 32%),
+          radial-gradient(circle at bottom right, rgba(21, 184, 166, 0.12), transparent 36%),
+          linear-gradient(180deg, #f7fbff 0%, #eef4fb 100%);
+        color: #0f172a;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        min-height: 100%;
+        margin: 0;
+      }
+
+      body {
+        min-height: 100vh;
+      }
+
+      .bootstrap-shell {
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: 24px;
+      }
+
+      .bootstrap-brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+        color: #0f172a;
+      }
+
+      .bootstrap-brand img {
+        width: 44px;
+        height: 44px;
+        border-radius: 14px;
+        box-shadow: 0 10px 26px rgba(13, 35, 74, 0.16);
+      }
+
+      .bootstrap-brand strong {
+        display: block;
+        font-size: 18px;
+        line-height: 1.1;
+      }
+
+      .bootstrap-brand span {
+        display: block;
+        margin-top: 3px;
+        color: #516071;
+        font-size: 13px;
+      }
+
+      .bootstrap-center {
+        width: 100%;
+        display: flex;
+        justify-content: center;
+        padding: 32px 0;
+      }
+
+      .bootstrap-card {
+        width: min(100%, 560px);
+        background: rgba(255, 255, 255, 0.84);
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        border-radius: 24px;
+        padding: 28px;
+        box-shadow: 0 26px 70px rgba(15, 23, 42, 0.12);
+        backdrop-filter: blur(14px);
+      }
+
+      .bootstrap-card__head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 18px;
+      }
+
+      .bootstrap-card__head h1 {
+        margin: 0;
+        font-size: clamp(28px, 4vw, 36px);
+        line-height: 1.08;
+        letter-spacing: -0.03em;
+      }
+
+      .bootstrap-card__head p {
+        margin: 10px 0 0;
+        color: #516071;
+        line-height: 1.7;
+        font-size: 14px;
+      }
+
+      .bootstrap-spinner {
+        flex: 0 0 auto;
+        width: 48px;
+        height: 48px;
+        border-radius: 16px;
+        background: linear-gradient(135deg, #0d6efd, #1fb6ff);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 16px 36px rgba(13, 110, 253, 0.28);
+      }
+
+      .bootstrap-spinner::before {
+        content: "";
+        width: 18px;
+        height: 18px;
+        border: 2px solid rgba(255, 255, 255, 0.35);
+        border-top-color: #fff;
+        border-radius: 999px;
+        animation: bootstrap-spin 0.9s linear infinite;
+      }
+
+      .bootstrap-skeletons {
+        display: grid;
+        gap: 12px;
+        margin: 22px 0 14px;
+      }
+
+      .bootstrap-skeleton {
+        position: relative;
+        overflow: hidden;
+        height: 14px;
+        border-radius: 999px;
+        background: rgba(148, 163, 184, 0.18);
+      }
+
+      .bootstrap-skeleton:nth-child(1) {
+        width: 82%;
+      }
+
+      .bootstrap-skeleton:nth-child(2) {
+        width: 96%;
+      }
+
+      .bootstrap-skeleton:nth-child(3) {
+        width: 68%;
+      }
+
+      .bootstrap-skeleton::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        transform: translateX(-100%);
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.8), transparent);
+        animation: bootstrap-shimmer 1.5s ease-in-out infinite;
+      }
+
+      .bootstrap-status {
+        margin: 16px 0 0;
+        color: #475569;
+        font-size: 14px;
+      }
+
+      .bootstrap-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 26px;
+      }
+
+      .bootstrap-button {
+        min-width: 118px;
+        height: 42px;
+        padding: 0 18px;
+        border-radius: 12px;
+        border: 1px solid transparent;
+        font-size: 14px;
+        font-weight: 600;
+        text-decoration: none;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+      }
+
+      .bootstrap-button:hover {
+        transform: translateY(-1px);
+      }
+
+      .bootstrap-button--primary {
+        color: #fff;
+        background: linear-gradient(135deg, #0d6efd, #1277d7);
+        box-shadow: 0 14px 28px rgba(13, 110, 253, 0.2);
+      }
+
+      .bootstrap-button--ghost {
+        color: #0f172a;
+        background: rgba(255, 255, 255, 0.72);
+        border-color: rgba(148, 163, 184, 0.28);
+      }
+
+      .bootstrap-footer {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        gap: 12px 20px;
+        color: #64748b;
+        font-size: 13px;
+      }
+
+      .bootstrap-footer__links {
+        display: inline-flex;
+        flex-wrap: wrap;
+        gap: 16px;
+      }
+
+      .bootstrap-footer__links a,
+      .bootstrap-footer__links button {
+        color: inherit;
+        background: none;
+        border: none;
+        padding: 0;
+        font: inherit;
+        text-decoration: none;
+        cursor: pointer;
+      }
+
+      .bootstrap-footer__links a:hover,
+      .bootstrap-footer__links button:hover {
+        color: #0d6efd;
+      }
+
+      @keyframes bootstrap-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      @keyframes bootstrap-shimmer {
+        to {
+          transform: translateX(100%);
+        }
+      }
+
+      @media (max-width: 640px) {
+        .bootstrap-shell {
+          padding: 18px;
+        }
+
+        .bootstrap-card {
+          padding: 22px;
+          border-radius: 20px;
+        }
+
+        .bootstrap-card__head {
+          align-items: flex-start;
+        }
+
+        .bootstrap-actions {
+          flex-direction: column;
+        }
+
+        .bootstrap-button {
+          width: 100%;
+        }
+
+        .bootstrap-footer {
+          flex-direction: column;
+        }
+      }
+    </style>
   </head>
   <body>
     <div id="app">
-      <div class="app-bootstrap-loading">正在加载应用...</div>
+      <div class="bootstrap-shell">
+        <header class="bootstrap-brand" aria-label="XYZW">
+          <img alt="XYZW" src="/icons/xiaoyugan.png" />
+          <div>
+            <strong>XYZW</strong>
+            <span>游戏管理系统</span>
+          </div>
+        </header>
+
+        <main class="bootstrap-center">
+          <section class="bootstrap-card" aria-live="polite">
+            <div class="bootstrap-card__head">
+              <div>
+                <h1>应用正在准备中</h1>
+                <p>正在连接界面资源、恢复基础设置，并检查当前登录状态。</p>
+              </div>
+              <div class="bootstrap-spinner" aria-hidden="true"></div>
+            </div>
+
+            <div class="bootstrap-skeletons" aria-hidden="true">
+              <div class="bootstrap-skeleton"></div>
+              <div class="bootstrap-skeleton"></div>
+              <div class="bootstrap-skeleton"></div>
+            </div>
+
+            <p class="bootstrap-status">如果停留时间过长，可以先刷新页面，或直接前往登录 / 注册。</p>
+
+            <div class="bootstrap-actions">
+              <a class="bootstrap-button bootstrap-button--primary" href="/login">登录</a>
+              <a class="bootstrap-button bootstrap-button--ghost" href="/register">注册</a>
+              <button
+                class="bootstrap-button bootstrap-button--ghost"
+                type="button"
+                onclick="window.location.reload()"
+              >
+                刷新页面
+              </button>
+            </div>
+          </section>
+        </main>
+
+        <footer class="bootstrap-footer">
+          <span>XYZW 游戏管理系统</span>
+          <div class="bootstrap-footer__links">
+            <span>首屏加载中</span>
+            <span>v2.0.0</span>
+          </div>
+        </footer>
+      </div>
     </div>
+    <noscript>当前页面需要启用 JavaScript 才能正常使用，请开启后刷新。</noscript>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

@@ -83,7 +83,7 @@ const authHeaders = ({ userId, username }) => {
   };
 };
 
-test("refresh second verify preference: both disabling and enabling require confirm", async (t) => {
+test("refresh second verify preference: users cannot disable directly, enabling still requires confirm", async (t) => {
   await initDatabase();
 
   const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -138,15 +138,7 @@ test("refresh second verify preference: both disabling and enabling require conf
     },
     body: JSON.stringify({ value: false }),
   });
-  assert.equal(disableRes.status, 200);
-
-  const [disabledRow] = query(
-    `SELECT value_json as valueJson
-     FROM user_preferences
-     WHERE user_id = $userId AND pref_key = $key`,
-    { $userId: userId, $key: PREF_KEY },
-  );
-  assert.equal(disabledRow?.valueJson, "false");
+  assert.equal(disableRes.status, 403);
 
   const enableRes = await fetch(`${baseUrl}/api/v1/user/preferences/${encodeURIComponent(PREF_KEY)}`, {
     method: "PUT",

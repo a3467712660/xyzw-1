@@ -18,6 +18,7 @@ import { inviteCodeRepository } from "../repositories/inviteCodeRepository.js";
 import { activationCodeRepository } from "../repositories/activationCodeRepository.js";
 import { tokenActivationRepository } from "../repositories/tokenActivationRepository.js";
 import { userRepository } from "../repositories/userRepository.js";
+import { userPreferenceRepository } from "../repositories/userPreferenceRepository.js";
 import { adminAuditRepository } from "../repositories/adminAuditRepository.js";
 import { refreshTokenRepository } from "../repositories/refreshTokenRepository.js";
 import { taskControlRepository } from "../repositories/taskControlRepository.js";
@@ -67,6 +68,9 @@ const updateUserAccessScopeBodySchema = z.object({
 const updateTokenBindLimitBodySchema = z.object({
   tokenBindLimit: z.coerce.number().int().min(1).max(999),
 }).strict();
+const updateTokenRefreshSecondVerifyBodySchema = z.object({
+  enabled: z.boolean(),
+}).strict();
 const resetUserPasswordBodySchema = z.object({
   password: z.string().min(1).max(128),
 }).strict();
@@ -106,6 +110,7 @@ const adminSecurityEventsQuerySchema = z.object({
   userId: z.string().trim().max(64).optional().default(""),
 });
 const adminRateKey = (req) => `${req.auth?.user?.id || "anonymous"}:${req.ip || "anonymous"}`;
+const REFRESH_SECOND_VERIFY_PREF_KEY = "security.token_refresh_second_verify_enabled";
 const adminApiLimiter = createRateLimiter({
   scope: "admin_api",
   windowMs: 60 * 1000,
@@ -270,11 +275,25 @@ router.get("/users", (req, res) => {
         },
       });
 
+      const refreshVerifyPref = userPreferenceRepository.findByUserAndKey({
+        userId: row.id,
+        key: REFRESH_SECOND_VERIFY_PREF_KEY,
+      });
+      let refreshSecondVerifyEnabled = true;
+      try {
+        if (refreshVerifyPref) {
+          refreshSecondVerifyEnabled = JSON.parse(refreshVerifyPref.valueJson) !== false;
+        }
+      } catch {
+        refreshSecondVerifyEnabled = true;
+      }
+
       return {
         ...row,
         roleCount: binCount > 0 ? binCount : Number(row.roleCount) || 0,
         inviteCount: Number(row.inviteCount) || 0,
         tokenBindLimit: Math.max(1, Math.min(999, Number(row.tokenBindLimit) || 999)),
+        refreshSecondVerifyEnabled,
         isCurrentUser: row.id === req.auth.user.id,
       };
     }),
@@ -439,6 +458,66 @@ router.patch(
       data: {
         id: target.id,
         tokenBindLimit,
+      },
+    });
+  },
+);
+
+router.patch(
+  "/users/:id/token-refresh-second-verify",
+  adminWriteLimiter,
+  sensitiveActionRequired,
+  validateRequest({ params: userIdParamSchema, body: updateTokenRefreshSecondVerifyBodySchema }),
+  (req, res) => {
+    const target = userRepository.findAdminUserBasic(req.params.id);
+    if (!target) {
+      return res.status(404).json({ success: false, message: "用户不存在" });
+    }
+
+    const enabled = req.body?.enabled !== false;
+    const ts = nowIso();
+    userPreferenceRepository.upsert({
+      userId: target.id,
+      key: REFRESH_SECOND_VERIFY_PREF_KEY,
+      valueJson: JSON.stringify(enabled),
+      createdAt: ts,
+      updatedAt: ts,
+    });
+
+    recordAdminAudit({
+      adminUserId: req.auth.user.id,
+      action: "update_user_token_refresh_second_verify",
+      targetType: "user",
+      targetId: target.id,
+      detail: {
+        targetUsername: target.username,
+        enabled,
+      },
+      ...reqMeta(req),
+    });
+
+    createUserNotification({
+      userId: target.id,
+      type: "security",
+      title: enabled ? "管理员已开启刷新 Token 二次验证" : "管理员已关闭刷新 Token 二次验证",
+      content: enabled
+        ? "后续刷新 Token 读取 BIN 时，将继续要求安全确认。"
+        : "管理员已为你关闭刷新 Token 二次验证。请注意，这会提高 Token 被盗后的风险。",
+      payload: {
+        key: REFRESH_SECOND_VERIFY_PREF_KEY,
+        value: enabled,
+        updatedBy: req.auth.user.id,
+      },
+    });
+
+    return res.json({
+      success: true,
+      message: enabled
+        ? `已为 ${target.username} 开启刷新 Token 二次验证`
+        : `已为 ${target.username} 关闭刷新 Token 二次验证`,
+      data: {
+        id: target.id,
+        refreshSecondVerifyEnabled: enabled,
       },
     });
   },

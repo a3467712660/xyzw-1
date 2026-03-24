@@ -3,6 +3,7 @@ import { z } from "zod";
 import { authRequired } from "../middleware/auth.js";
 import { validateRequest } from "../middleware/validate.js";
 import {
+  deleteAllNotifications,
   listUserNotifications,
   markAllNotificationsRead,
   markNotificationRead,
@@ -43,6 +44,15 @@ router.patch("/notifications/read-all", (req, res) => {
   markAllNotificationsRead({ userId: req.auth.user.id });
 
   return res.json({ success: true, message: "全部通知已标记为已读" });
+});
+
+router.delete("/notifications", (req, res) => {
+  const deleted = deleteAllNotifications({ userId: req.auth.user.id });
+  return res.json({
+    success: true,
+    message: deleted > 0 ? "历史通知已清除" : "当前没有可清除的通知",
+    data: { deleted },
+  });
 });
 
 export default router;

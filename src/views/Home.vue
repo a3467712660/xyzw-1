@@ -49,47 +49,27 @@
       v-model:show="isMobileMenuOpen"
     >
       <div class="drawer-menu">
-        <router-link
-          class="drawer-item"
-          to="/"
-          @click="isMobileMenuOpen = false"
-        >
-          <n-icon><Ribbon></Ribbon></n-icon>
-          <span>{{ t("homePage.nav.home") }}</span>
-        </router-link>
-        <router-link
-          class="drawer-item"
-          to="/admin/dashboard"
-          @click="isMobileMenuOpen = false"
-        >
-          <n-icon><Speedometer></Speedometer></n-icon>
-          <span>{{ t("homePage.nav.dashboard") }}</span>
-        </router-link>
-        <router-link
-          class="drawer-item"
-          to="/admin/game-features"
-          @click="isMobileMenuOpen = false"
-        >
-          <n-icon><Cube></Cube></n-icon>
-          <span>{{ t("homePage.nav.features") }}</span>
-        </router-link>
-        <router-link
-          class="drawer-item"
-          to="/tokens"
-          @click="isMobileMenuOpen = false"
-        >
-          <n-icon><PersonCircle></PersonCircle></n-icon>
-          <span>{{ t("homePage.nav.tokens") }}</span>
-        </router-link>
-        <router-link
-          class="drawer-item"
-          to="/changelog"
-          @click="isMobileMenuOpen = false"
-        >
-          <n-icon><DocumentText></DocumentText></n-icon>
-          <span>{{ t("homePage.nav.changelog") }}</span>
-        </router-link>
-        <div v-if="!authStore.isAuthenticated" class="drawer-actions">
+        <template v-if="!authStore.isAuthenticated">
+          <button class="drawer-item drawer-item--button" type="button" @click="closeDrawerAndScrollTop">
+            <n-icon><Ribbon></Ribbon></n-icon>
+            <span>{{ t("homePage.nav.home") }}</span>
+          </button>
+          <button class="drawer-item drawer-item--button" type="button" @click="closeDrawerAndScrollToFeatures">
+            <n-icon><Cube></Cube></n-icon>
+            <span>{{ t("homePage.nav.features") }}</span>
+          </button>
+          <button class="drawer-item drawer-item--button" type="button" @click="closeDrawerAndScrollToSecurity">
+            <n-icon><LockClosed></LockClosed></n-icon>
+            <span>{{ t("homePage.nav.security") }}</span>
+          </button>
+          <router-link
+            class="drawer-item"
+            to="/changelog"
+            @click="isMobileMenuOpen = false"
+          >
+            <n-icon><DocumentText></DocumentText></n-icon>
+            <span>{{ t("homePage.nav.changelog") }}</span>
+          </router-link>
           <n-button
             block
             type="primary"
@@ -109,9 +89,51 @@
               isMobileMenuOpen = false;
             "
           >
-            {{ t("homePage.actions.register") }}
+            {{ t("homePage.actions.registerNow") }}
           </n-button>
-        </div>
+        </template>
+        <template v-else>
+          <router-link
+            class="drawer-item"
+            to="/"
+            @click="isMobileMenuOpen = false"
+          >
+            <n-icon><Ribbon></Ribbon></n-icon>
+            <span>{{ t("homePage.nav.home") }}</span>
+          </router-link>
+          <router-link
+            class="drawer-item"
+            to="/admin/dashboard"
+            @click="isMobileMenuOpen = false"
+          >
+            <n-icon><Speedometer></Speedometer></n-icon>
+            <span>{{ t("homePage.nav.dashboard") }}</span>
+          </router-link>
+          <router-link
+            class="drawer-item"
+            to="/admin/game-features"
+            @click="isMobileMenuOpen = false"
+          >
+            <n-icon><Cube></Cube></n-icon>
+            <span>{{ t("homePage.nav.features") }}</span>
+          </router-link>
+          <router-link
+            class="drawer-item"
+            to="/tokens"
+            @click="isMobileMenuOpen = false"
+          >
+            <n-icon><PersonCircle></PersonCircle></n-icon>
+            <span>{{ t("homePage.nav.tokens") }}</span>
+          </router-link>
+          <router-link
+            class="drawer-item"
+            to="/changelog"
+            @click="isMobileMenuOpen = false"
+          >
+            <n-icon><DocumentText></DocumentText></n-icon>
+            <span>{{ t("homePage.nav.changelog") }}</span>
+          </router-link>
+        </template>
       </div>
     </n-drawer>
 
@@ -149,7 +171,6 @@
       <section class="hero-section">
         <div class="container hero-shell">
           <div class="hero-text reveal-up">
-            <p class="hero-kicker">GAME OPS CONSOLE</p>
             <h1 class="hero-title">{{ t("homePage.hero.title") }}</h1>
             <p class="hero-subtitle">
               {{ t("homePage.hero.subtitle") }}
@@ -170,7 +191,7 @@
                 {{
                   authStore.isAuthenticated
                     ? t("homePage.actions.enterDashboard")
-                    : t("homePage.actions.createAccount")
+                    : t("homePage.actions.registerNow")
                 }}
               </n-button>
               <n-button
@@ -182,12 +203,6 @@
                 {{ t("homePage.actions.viewCapabilities") }}
               </n-button>
             </div>
-            <div class="hero-tags">
-              <span class="hero-tag">{{ t("homePage.hero.tags.multiRole") }}</span>
-              <span class="hero-tag">{{ t("homePage.hero.tags.automation") }}</span>
-              <span class="hero-tag">{{ t("homePage.hero.tags.monitoring") }}</span>
-            </div>
-
             <div class="hero-trust-strip">
               <div
                 v-for="item in trustPoints"
@@ -203,44 +218,73 @@
           </div>
 
           <div class="hero-panel reveal-up reveal-delay-2">
-            <div class="panel-header">
-              <strong>{{ t("homePage.panel.title") }}</strong>
-              <span>{{ t("homePage.panel.liveSync") }}</span>
-            </div>
-            <div class="panel-metrics">
-              <div v-for="stat in stats" :key="stat.id" class="metric-item">
-                <div class="metric-value">{{ stat.number }}</div>
-                <div class="metric-label">{{ stat.label }}</div>
+            <div class="mockup-window">
+              <div class="mockup-topbar">
+                <div class="mockup-dots">
+                  <span></span>
+                  <span></span>
+                  <span></span>
+                </div>
+                <div class="mockup-pill">{{ t("homePage.panel.liveSync") }}</div>
               </div>
-            </div>
-            <div class="quick-cards">
-              <article
-                v-for="card in featureCards"
-                :key="card.id"
-                class="quick-card"
-              >
-                <div class="card-icon">
-                  <component :is="card.icon"></component>
-                </div>
-                <div>
-                  <h3>{{ card.title }}</h3>
-                  <p>{{ card.description }}</p>
-                </div>
-              </article>
-            </div>
+              <div class="mockup-body">
+                <aside class="mockup-sidebar">
+                  <div class="mockup-brand">
+                    <img alt="XYZW" src="/icons/xiaoyugan.png">
+                    <strong>XYZW</strong>
+                  </div>
+                  <div class="mockup-nav">
+                    <div
+                      v-for="card in featureCards"
+                      :key="card.id"
+                      class="mockup-nav__item"
+                    >
+                      <div class="mockup-nav__icon">
+                        <component :is="card.icon"></component>
+                      </div>
+                      <div>
+                        <strong>{{ card.title }}</strong>
+                        <span>{{ card.description }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </aside>
 
-            <div class="ops-timeline">
-              <div class="timeline-title">{{ t("homePage.panel.flowTitle") }}</div>
-              <div class="timeline-list">
-                <div
-                  v-for="item in workflowSteps"
-                  :key="item.id"
-                  class="timeline-item"
-                >
-                  <span class="timeline-step">{{ item.step }}</span>
-                  <div>
-                    <strong>{{ item.title }}</strong>
-                    <p>{{ item.description }}</p>
+                <div class="mockup-main">
+                  <div class="mockup-summary">
+                    <div class="mockup-summary__copy">
+                      <span>{{ t("homePage.panel.title") }}</span>
+                      <strong>{{ t("homePage.mockup.title") }}</strong>
+                      <p>{{ t("homePage.mockup.subtitle") }}</p>
+                    </div>
+                    <div class="mockup-summary__badge">{{ t("homePage.mockup.badge") }}</div>
+                  </div>
+
+                  <div class="mockup-highlights">
+                    <article
+                      v-for="item in mockupHighlights"
+                      :key="item.id"
+                      class="mockup-highlight"
+                    >
+                      <span>{{ item.kicker }}</span>
+                      <strong>{{ item.title }}</strong>
+                      <p>{{ item.description }}</p>
+                    </article>
+                  </div>
+
+                  <div class="mockup-activity">
+                    <div class="mockup-section-title">{{ t("homePage.mockup.activityTitle") }}</div>
+                    <div
+                      v-for="item in workflowSteps"
+                      :key="item.id"
+                      class="mockup-activity__item"
+                    >
+                      <span class="mockup-activity__step">{{ item.step }}</span>
+                      <div>
+                        <strong>{{ item.title }}</strong>
+                        <p>{{ item.description }}</p>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -249,7 +293,30 @@
         </div>
       </section>
 
-      <section class="security-section">
+      <section class="workflow-section">
+        <div class="container">
+          <div class="section-header">
+            <h2 class="section-title">{{ t("homePage.workflow.sectionTitle") }}</h2>
+            <p class="section-subtitle">
+              {{ t("homePage.workflow.sectionSubtitle") }}
+            </p>
+          </div>
+
+          <div class="workflow-grid">
+            <article
+              v-for="item in workflowSteps"
+              :key="item.id"
+              class="workflow-card"
+            >
+              <span class="workflow-card__step">{{ item.step }}</span>
+              <h3>{{ item.title }}</h3>
+              <p>{{ item.description }}</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section ref="securitySection" class="security-section">
         <div class="container security-shell">
           <div class="security-layout">
             <div class="security-grid">
@@ -310,8 +377,6 @@
           >
             {{ t("homePage.nav.changelog") }}
           </router-link>
-          <a class="footer-link" href="#">{{ t("homePage.footer.privacy") }}</a>
-          <a class="footer-link" href="#">{{ t("homePage.footer.terms") }}</a>
         </div>
       </div>
       <div class="container footer-bottom">
@@ -346,6 +411,7 @@ const router = useRouter();
 const authStore = useAuthStore();
 const { locale, t } = useI18n();
 const featuresSection = ref(null);
+const securitySection = ref(null);
 const isMobileMenuOpen = ref(false);
 const nowTs = ref(Date.now());
 const isPageReady = ref(false);
@@ -504,17 +570,52 @@ const securityCards = computed(() => [
   },
 ]);
 
-const stats = computed(() => [
-  { id: 1, number: "1000+", label: t("homePage.stats.activeUsers") },
-  { id: 2, number: "50K+", label: t("homePage.stats.managedRoles") },
-  { id: 3, number: "100K+", label: t("homePage.stats.executedTasks") },
-  { id: 4, number: "99.9%", label: t("homePage.stats.uptime") },
+const mockupHighlights = computed(() => [
+  {
+    id: 1,
+    kicker: t("homePage.mockup.items.stepUp.kicker"),
+    title: t("homePage.mockup.items.stepUp.title"),
+    description: t("homePage.mockup.items.stepUp.description"),
+  },
+  {
+    id: 2,
+    kicker: t("homePage.mockup.items.codes.kicker"),
+    title: t("homePage.mockup.items.codes.title"),
+    description: t("homePage.mockup.items.codes.description"),
+  },
+  {
+    id: 3,
+    kicker: t("homePage.mockup.items.audit.kicker"),
+    title: t("homePage.mockup.items.audit.title"),
+    description: t("homePage.mockup.items.audit.description"),
+  },
 ]);
 
 const scrollToFeatures = () => {
   if (featuresSection.value) {
     featuresSection.value.scrollIntoView({ behavior: "smooth" });
   }
+};
+
+const scrollToSecurity = () => {
+  if (securitySection.value) {
+    securitySection.value.scrollIntoView({ behavior: "smooth" });
+  }
+};
+
+const closeDrawerAndScrollTop = () => {
+  isMobileMenuOpen.value = false;
+  window.scrollTo({ top: 0, behavior: "smooth" });
+};
+
+const closeDrawerAndScrollToFeatures = () => {
+  isMobileMenuOpen.value = false;
+  scrollToFeatures();
+};
+
+const closeDrawerAndScrollToSecurity = () => {
+  isMobileMenuOpen.value = false;
+  scrollToSecurity();
 };
 
 onMounted(async () => {
@@ -694,6 +795,7 @@ onUnmounted(() => {
 }
 
 .drawer-item {
+  width: 100%;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -701,6 +803,14 @@ onUnmounted(() => {
   border-radius: 10px;
   color: var(--text-secondary);
   border: 1px solid transparent;
+}
+
+.drawer-item--button {
+  background: none;
+  font: inherit;
+  text-align: left;
+  border: 1px solid transparent;
+  cursor: pointer;
 }
 
 .drawer-item.router-link-active {
@@ -768,8 +878,8 @@ onUnmounted(() => {
 
 .hero-shell {
   display: grid;
-  grid-template-columns: 1.02fr 0.98fr;
-  gap: 26px;
+  grid-template-columns: 0.9fr 1.1fr;
+  gap: 32px;
   align-items: stretch;
 }
 
@@ -788,16 +898,6 @@ onUnmounted(() => {
 
 .home-page--ready .reveal-delay-2 {
   animation-delay: 0.16s;
-}
-
-.hero-kicker {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--primary-color);
-  font-size: 13px;
-  letter-spacing: 0.14em;
-  margin-bottom: 14px;
 }
 
 .hero-title {
@@ -826,45 +926,8 @@ onUnmounted(() => {
   min-width: 160px;
 }
 
-.hero-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.hero-tag {
-  border: 1px solid rgba(15, 107, 255, 0.26);
-  color: var(--text-secondary);
-  background: rgba(255, 255, 255, 0.7);
-  border-radius: 999px;
-  padding: 7px 12px;
-  font-size: 13px;
-  opacity: 0;
-  transform: translateY(10px);
-}
-
-[data-theme="dark"] .hero-tag {
-  background: rgba(10, 20, 38, 0.7);
-}
-
-.home-page--ready .hero-tag {
-  animation: reveal-up 0.58s ease forwards;
-}
-
-.home-page--ready .hero-tag:nth-child(1) {
-  animation-delay: 0.24s;
-}
-
-.home-page--ready .hero-tag:nth-child(2) {
-  animation-delay: 0.32s;
-}
-
-.home-page--ready .hero-tag:nth-child(3) {
-  animation-delay: 0.4s;
-}
-
 .hero-trust-strip {
-  margin-top: 22px;
+  margin-top: 10px;
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
@@ -888,7 +951,7 @@ onUnmounted(() => {
 }
 
 .hero-panel {
-  padding: 22px;
+  padding: 18px;
   border-radius: 20px;
   border: 1px solid rgba(15, 107, 255, 0.2);
   background: linear-gradient(
@@ -898,6 +961,7 @@ onUnmounted(() => {
   );
   box-shadow: var(--shadow-medium);
   backdrop-filter: blur(12px);
+  min-width: 0;
 }
 
 [data-theme="dark"] .hero-panel {
@@ -908,98 +972,114 @@ onUnmounted(() => {
   );
 }
 
-.panel-header {
+.mockup-window {
+  display: grid;
+  gap: 14px;
+}
+
+.mockup-topbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 14px;
 }
 
-.panel-header strong {
-  font-size: var(--font-size-lg);
+.mockup-dots {
+  display: inline-flex;
+  gap: 8px;
 }
 
-.panel-header span {
-  font-size: var(--font-size-sm);
-  color: var(--text-tertiary);
+.mockup-dots span {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.45);
 }
 
-.panel-metrics {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-  margin-bottom: 14px;
+.mockup-dots span:nth-child(1) {
+  background: rgba(248, 113, 113, 0.76);
 }
 
-.metric-item {
-  border: 1px solid var(--border-light);
-  border-radius: 14px;
-  padding: 12px;
-  background: rgba(255, 255, 255, 0.76);
+.mockup-dots span:nth-child(2) {
+  background: rgba(251, 191, 36, 0.76);
 }
 
-[data-theme="dark"] .metric-item {
-  background: rgba(10, 21, 38, 0.7);
+.mockup-dots span:nth-child(3) {
+  background: rgba(52, 211, 153, 0.76);
 }
 
-.metric-value {
-  font-size: 26px;
-  line-height: 1;
-  font-weight: var(--font-weight-bold);
+.mockup-pill {
+  padding: 7px 11px;
+  border-radius: 999px;
+  background: rgba(15, 107, 255, 0.1);
   color: var(--primary-color);
+  font-size: 12px;
+  font-weight: 600;
 }
 
-.metric-label {
-  margin-top: 6px;
-  color: var(--text-tertiary);
-  font-size: 13px;
-}
-
-.quick-cards {
+.mockup-body {
   display: grid;
-  gap: 10px;
-  margin-bottom: 16px;
+  grid-template-columns: 210px minmax(0, 1fr);
+  gap: 16px;
+  min-height: 390px;
 }
 
-.quick-card {
+.mockup-sidebar {
   display: grid;
-  grid-template-columns: auto 1fr;
+  align-content: start;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  background: rgba(255, 255, 255, 0.68);
+}
+
+[data-theme="dark"] .mockup-sidebar {
+  background: rgba(10, 22, 40, 0.72);
+}
+
+.mockup-brand {
+  display: inline-flex;
   gap: 12px;
-  align-items: start;
-  border-radius: 14px;
-  border: 1px solid var(--border-light);
-  background: rgba(255, 255, 255, 0.7);
-  padding: 12px;
-  opacity: 0;
-  transform: translateY(10px);
+  align-items: center;
 }
 
-[data-theme="dark"] .quick-card {
-  background: rgba(11, 24, 44, 0.64);
-}
-
-.home-page--ready .quick-card {
-  animation: reveal-up 0.6s ease forwards;
-}
-
-.home-page--ready .quick-card:nth-child(1) {
-  animation-delay: 0.26s;
-}
-
-.home-page--ready .quick-card:nth-child(2) {
-  animation-delay: 0.34s;
-}
-
-.home-page--ready .quick-card:nth-child(3) {
-  animation-delay: 0.42s;
-}
-
-.card-icon {
+.mockup-brand img {
   width: 38px;
   height: 38px;
+  border-radius: 12px;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
+}
+
+.mockup-brand strong {
+  font-size: 15px;
+}
+
+.mockup-nav {
+  display: grid;
+  gap: 10px;
+}
+
+.mockup-nav__item {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  align-items: start;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  background: rgba(255, 255, 255, 0.66);
+}
+
+[data-theme="dark"] .mockup-nav__item {
+  background: rgba(8, 19, 34, 0.78);
+}
+
+.mockup-nav__icon {
+  width: 36px;
+  height: 36px;
   display: grid;
   place-items: center;
-  border-radius: 11px;
+  border-radius: 12px;
   color: #fff;
   background: linear-gradient(
     135deg,
@@ -1008,68 +1088,227 @@ onUnmounted(() => {
   );
 }
 
-.card-icon :deep(svg) {
-  width: 19px;
-  height: 19px;
+.mockup-nav__icon :deep(svg) {
+  width: 18px;
+  height: 18px;
 }
 
-.quick-card h3 {
-  font-size: 15px;
-  margin-bottom: 2px;
+.mockup-nav__item strong,
+.mockup-activity__item strong {
+  display: block;
+  font-size: 14px;
+  margin-bottom: 4px;
 }
 
-.quick-card p {
-  font-size: 13px;
+.mockup-nav__item span,
+.mockup-activity__item p {
   color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
 }
 
-.ops-timeline {
-  border-top: 1px solid rgba(15, 107, 255, 0.14);
-  padding-top: 16px;
-}
-
-.timeline-title {
-  font-size: 13px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--text-tertiary);
-  margin-bottom: 12px;
-}
-
-.timeline-list {
+.mockup-main {
   display: grid;
-  gap: 12px;
+  align-content: start;
+  gap: 16px;
+  padding: 18px;
+  border-radius: 18px;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.74), rgba(244, 248, 255, 0.78)),
+    radial-gradient(circle at top right, rgba(15, 107, 255, 0.08), transparent 34%);
 }
 
-.timeline-item {
+[data-theme="dark"] .mockup-main {
+  background:
+    linear-gradient(180deg, rgba(10, 22, 40, 0.82), rgba(9, 20, 36, 0.82)),
+    radial-gradient(circle at top right, rgba(59, 130, 246, 0.14), transparent 38%);
+}
+
+.mockup-summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.mockup-summary__copy span {
+  display: inline-flex;
+  margin-bottom: 6px;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.mockup-summary__copy strong {
+  display: block;
+  font-size: 24px;
+  line-height: 1.15;
+  margin-bottom: 8px;
+}
+
+.mockup-summary__copy p {
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.mockup-summary__badge {
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(15, 107, 255, 0.1);
+  color: var(--primary-color);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.mockup-highlights {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.mockup-highlight {
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  background: rgba(255, 255, 255, 0.72);
+  min-width: 0;
+}
+
+.mockup-highlight:nth-child(3) {
+  grid-column: 1 / -1;
+}
+
+[data-theme="dark"] .mockup-highlight {
+  background: rgba(8, 19, 34, 0.76);
+}
+
+.mockup-highlight span {
+  display: block;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  margin-bottom: 8px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.mockup-highlight strong {
+  display: block;
+  font-size: 17px;
+  line-height: 1.35;
+  margin-bottom: 8px;
+}
+
+.mockup-highlight p {
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.mockup-section-title {
+  margin-bottom: 10px;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.mockup-activity {
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  background: rgba(255, 255, 255, 0.68);
+}
+
+[data-theme="dark"] .mockup-activity {
+  background: rgba(8, 19, 34, 0.76);
+}
+
+@media (max-width: 1240px) {
+  .hero-shell {
+    grid-template-columns: 0.96fr 1.04fr;
+    gap: 24px;
+  }
+
+  .mockup-body {
+    grid-template-columns: 188px minmax(0, 1fr);
+  }
+}
+
+.mockup-activity__item {
   display: grid;
   grid-template-columns: auto 1fr;
   gap: 12px;
   align-items: start;
 }
 
-.timeline-step {
-  width: 38px;
-  height: 38px;
-  border-radius: 11px;
+.mockup-activity__item + .mockup-activity__item {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.mockup-activity__step {
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
   display: grid;
   place-items: center;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.08em;
   background: rgba(15, 107, 255, 0.1);
   color: var(--primary-color);
 }
 
-.timeline-item strong {
-  display: block;
-  margin-bottom: 4px;
+.workflow-section {
+  padding: 8px 0 36px;
 }
 
-.timeline-item p {
+.workflow-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.workflow-card {
+  padding: 22px;
+  border-radius: 20px;
+  border: 1px solid var(--border-light);
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.05);
+}
+
+[data-theme="dark"] .workflow-card {
+  background: rgba(9, 22, 40, 0.74);
+}
+
+.workflow-card__step {
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  margin-bottom: 14px;
+  border-radius: 14px;
+  background: rgba(15, 107, 255, 0.1);
+  color: var(--primary-color);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.workflow-card h3 {
+  margin-bottom: 8px;
+  font-size: 17px;
+}
+
+.workflow-card p {
   color: var(--text-secondary);
-  font-size: 13px;
-  line-height: 1.6;
+  line-height: 1.7;
+  font-size: 14px;
 }
 
 .security-section {
@@ -1394,6 +1633,15 @@ onUnmounted(() => {
     grid-template-columns: 1fr;
   }
 
+  .mockup-body,
+  .workflow-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .mockup-highlight:nth-child(3) {
+    grid-column: auto;
+  }
+
   .features-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1420,6 +1668,10 @@ onUnmounted(() => {
     padding-top: 30px;
   }
 
+  .hero-panel {
+    padding: 14px;
+  }
+
   .hero-actions {
     flex-direction: column;
   }
@@ -1435,6 +1687,14 @@ onUnmounted(() => {
 
   .features-grid {
     grid-template-columns: 1fr;
+  }
+
+  .mockup-highlights {
+    grid-template-columns: 1fr;
+  }
+
+  .mockup-summary {
+    flex-direction: column;
   }
 
   .footer-content,

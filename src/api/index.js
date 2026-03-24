@@ -511,6 +511,7 @@ const api = {
     },
     markRead: (id) => request.patch(`/notifications/${id}/read`),
     markAllRead: () => request.patch("/notifications/read-all"),
+    clearAll: () => request.delete("/notifications"),
   },
 
   admin: {
@@ -565,6 +566,14 @@ const api = {
       request.patch(
         `/admin/users/${id}/token-bind-limit`,
         { tokenBindLimit },
+        {
+          headers: api.admin.adminConfirmHeaders(confirmToken),
+        },
+      ),
+    updateUserRefreshSecondVerify: (id, enabled, confirmToken) =>
+      request.patch(
+        `/admin/users/${id}/token-refresh-second-verify`,
+        { enabled },
         {
           headers: api.admin.adminConfirmHeaders(confirmToken),
         },

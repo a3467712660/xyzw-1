@@ -1,14 +1,21 @@
 <template>
   <div class="register-page" :class="{ 'register-page--ready': isPageReady }">
     <div aria-hidden="true" class="register-bg">
-      <span class="bg-bubble bubble-a"></span>
-      <span class="bg-bubble bubble-b"></span>
-      <span class="bg-lines"></span>
+      <span class="bg-orb orb-a"></span>
+      <span class="bg-orb orb-b"></span>
+      <span class="bg-orb orb-c"></span>
+      <span class="grid-mask"></span>
     </div>
 
     <div class="register-shell">
       <aside class="register-intro reveal-up">
-        <p class="intro-kicker">ONBOARDING</p>
+        <div class="intro-brand">
+          <img alt="XYZW" class="brand-logo brand-logo--intro" src="/icons/xiaoyugan.png">
+          <div>
+            <p class="intro-kicker">XYZW</p>
+            <span class="intro-brand__sub">{{ t("homePage.brandSubtitle") }}</span>
+          </div>
+        </div>
         <h1>{{ t("register.title") }}</h1>
         <p>{{ t("register.subtitle") }}</p>
 
@@ -120,6 +127,22 @@
               </template>
             </n-input>
           </n-form-item>
+          <div
+            v-if="registerForm.password"
+            class="password-strength"
+            :class="`password-strength--${passwordStrength.tone}`"
+          >
+            <div class="password-strength__head">
+              <span>{{ t("register.passwordStrength.title") }}</span>
+              <strong>{{ passwordStrength.label }}</strong>
+            </div>
+            <div aria-hidden="true" class="password-strength__track">
+              <span
+                class="password-strength__fill"
+                :style="{ width: `${passwordStrength.percent}%` }"
+              ></span>
+            </div>
+          </div>
 
           <n-form-item path="inviteCode">
             <n-input
@@ -250,7 +273,7 @@
 </template>
 
 <script setup>
-import { nextTick, onMounted, reactive, ref } from "vue";
+import { computed, nextTick, onMounted, reactive, ref } from "vue";
 import { useRouter } from "vue-router";
 import { useMessage } from "naive-ui/es";
 import { useI18n } from "vue-i18n";
@@ -285,6 +308,56 @@ const registerForm = reactive({
   inviteCode: "",
   confirmPassword: "",
   agreeTerms: false,
+});
+
+const passwordStrength = computed(() => {
+  const password = String(registerForm.password || "");
+  const checks = [
+    password.length >= 8,
+    password.length >= 12,
+    /[a-z]/.test(password) && /[A-Z]/.test(password),
+    /\d/.test(password),
+    /[^a-z0-9]/i.test(password),
+  ];
+  const passed = checks.filter(Boolean).length;
+
+  if (!password) {
+    return {
+      percent: 0,
+      tone: "empty",
+      label: "",
+    };
+  }
+
+  if (passed <= 2) {
+    return {
+      percent: 25,
+      tone: "weak",
+      label: t("register.passwordStrength.weak"),
+    };
+  }
+
+  if (passed === 3) {
+    return {
+      percent: 50,
+      tone: "medium",
+      label: t("register.passwordStrength.medium"),
+    };
+  }
+
+  if (passed === 4) {
+    return {
+      percent: 75,
+      tone: "strong",
+      label: t("register.passwordStrength.strong"),
+    };
+  }
+
+  return {
+    percent: 100,
+    tone: "very-strong",
+    label: t("register.passwordStrength.veryStrong"),
+  };
 });
 
 const registerRules = {
@@ -441,47 +514,58 @@ onMounted(() => {
   position: absolute;
   inset: 0;
   pointer-events: none;
+  overflow: hidden;
 }
 
-.bg-bubble {
+.bg-orb {
   position: absolute;
-  border-radius: 50%;
-  filter: blur(58px);
+  border-radius: 999px;
+  filter: blur(72px);
 }
 
-.bubble-a {
+.orb-a {
   width: 34vw;
   height: 34vw;
-  min-width: 240px;
-  min-height: 240px;
-  left: -8vw;
-  bottom: -10vh;
+  min-width: 260px;
+  min-height: 260px;
+  left: -10vw;
+  bottom: -12vh;
   background: radial-gradient(
     circle,
-    rgba(15, 107, 255, 0.34),
+    rgba(15, 107, 255, 0.24),
     transparent 72%
   );
 }
 
-.bubble-b {
+.orb-b {
   width: 32vw;
   height: 32vw;
   min-width: 220px;
   min-height: 220px;
   right: -9vw;
   top: -8vh;
-  background: radial-gradient(circle, rgba(0, 163, 137, 0.32), transparent 72%);
+  background: radial-gradient(circle, rgba(0, 163, 137, 0.2), transparent 72%);
 }
 
-.bg-lines {
+.orb-c {
+  width: 28vw;
+  height: 28vw;
+  min-width: 200px;
+  min-height: 200px;
+  right: 20vw;
+  top: 12vh;
+  background: radial-gradient(circle, rgba(14, 116, 144, 0.16), transparent 74%);
+}
+
+.grid-mask {
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(rgba(15, 107, 255, 0.08) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(15, 107, 255, 0.08) 1px, transparent 1px);
+    linear-gradient(rgba(15, 107, 255, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(15, 107, 255, 0.06) 1px, transparent 1px);
   background-size: 44px 44px;
-  opacity: 0.28;
-  mask-image: radial-gradient(circle at center, black 30%, transparent 90%);
+  opacity: 0.26;
+  mask-image: radial-gradient(circle at center, black 30%, transparent 86%);
 }
 
 .register-shell {
@@ -532,10 +616,10 @@ onMounted(() => {
 .register-intro,
 .register-card {
   border: 1px solid var(--border-light);
-  border-radius: 20px;
+  border-radius: 24px;
   box-shadow: var(--shadow-medium);
   background: rgba(255, 255, 255, 0.8);
-  backdrop-filter: blur(14px);
+  backdrop-filter: blur(16px);
 }
 
 [data-theme="dark"] .register-intro,
@@ -547,11 +631,26 @@ onMounted(() => {
   padding: 26px;
 }
 
+.intro-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.intro-brand__sub {
+  display: block;
+  margin-top: 2px;
+  color: var(--text-tertiary);
+  font-size: 13px;
+}
+
 .intro-kicker {
-  letter-spacing: 0.13em;
+  letter-spacing: 0.08em;
   color: var(--primary-color);
-  font-size: 12px;
-  margin-bottom: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 0;
 }
 
 .register-intro h1 {
@@ -647,6 +746,11 @@ onMounted(() => {
   border-radius: 11px;
 }
 
+.brand-logo--intro {
+  border-radius: 12px;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
+}
+
 .card-header h2 {
   font-size: 28px;
 }
@@ -657,6 +761,81 @@ onMounted(() => {
 
 .form-options {
   margin: 4px 0 12px;
+}
+
+.password-strength {
+  margin: -4px 0 14px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(255, 255, 255, 0.72);
+}
+
+[data-theme="dark"] .password-strength {
+  background: rgba(7, 21, 39, 0.72);
+}
+
+.password-strength__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.password-strength__head span {
+  color: var(--text-secondary);
+}
+
+.password-strength__head strong {
+  font-size: 13px;
+}
+
+.password-strength__track {
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.18);
+  overflow: hidden;
+}
+
+.password-strength__fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  transition: width 0.2s ease, background-color 0.2s ease;
+}
+
+.password-strength--weak .password-strength__head strong {
+  color: #dc2626;
+}
+
+.password-strength--weak .password-strength__fill {
+  background: linear-gradient(90deg, #ef4444, #dc2626);
+}
+
+.password-strength--medium .password-strength__head strong {
+  color: #d97706;
+}
+
+.password-strength--medium .password-strength__fill {
+  background: linear-gradient(90deg, #f59e0b, #d97706);
+}
+
+.password-strength--strong .password-strength__head strong {
+  color: #0f766e;
+}
+
+.password-strength--strong .password-strength__fill {
+  background: linear-gradient(90deg, #14b8a6, #0f766e);
+}
+
+.password-strength--very-strong .password-strength__head strong {
+  color: #0d6efd;
+}
+
+.password-strength--very-strong .password-strength__fill {
+  background: linear-gradient(90deg, #3b82f6, #0d6efd);
 }
 
 .register-button {

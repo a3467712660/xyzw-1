@@ -214,7 +214,9 @@
   "adminUsers": {
     "common": {
       "dash": "-",
-      "noEmail": "No email set"
+      "noEmail": "No email set",
+      "enabled": "Enabled",
+      "disabled": "Disabled"
     },
     "title": "Account Management",
     "subtitle": "Review accounts, adjust admin permissions, reset passwords, generate short-lived codes, and delete accounts.",
@@ -237,6 +239,7 @@
       "roleCount": "Roles",
       "inviteCount": "Invite Codes",
       "tokenBindLimit": "Token Limit",
+      "refreshSecondVerify": "Require refresh verification",
       "createdAt": "Created At",
       "lastLoginAt": "Last Active",
       "adminPermission": "Admin Permission",
@@ -262,7 +265,8 @@
     },
     "hints": {
       "currentUserAdminLocked": "The current account cannot revoke its own admin permission",
-      "switchDirectly": "Can be switched directly"
+      "switchDirectly": "Can be switched directly",
+      "refreshSecondVerifyRisk": "Turning this off means refresh no longer requires secondary verification, which increases token theft risk"
     },
     "placeholders": {
       "newPassword": "At least 12 characters by default (8+ allowed when MFA is enabled), avoid common weak passwords",
@@ -274,9 +278,12 @@
       "searchUser": "Search by username or email"
     },
     "actions": {
+      "highRiskAction": "High-risk action",
       "refresh": "Refresh",
       "createResetCode": "Generate Short-lived Code",
       "resetPassword": "Reset Password",
+      "updateAdmin": "Change admin permission",
+      "updateAccountType": "Change account type",
       "deleteUser": "Delete Account",
       "cancel": "Cancel",
       "confirmReset": "Confirm Reset",
@@ -286,6 +293,9 @@
       "shortCode": "Short-lived Code",
       "updateTokenBindLimit": "Set Token Limit",
       "viewTokenExpiry": "View Token Expiry",
+      "updateRefreshSecondVerify": "Adjust whether refresh verification is required",
+      "enableRefreshSecondVerify": "Enable refresh verification",
+      "disableRefreshSecondVerify": "Disable refresh verification",
       "more": "More"
     },
     "modals": {
@@ -319,8 +329,8 @@
       "confirmSuccess": "Secondary confirmation passed (valid for 5 minutes)",
       "confirmMethodTotp": "Authenticator code (Recommended)",
       "confirmMethodRecovery": "Recovery code",
-      "confirmMethodPassword": "Current password (Fallback)",
-      "confirmMfaPreferredHint": "MFA is enabled: use authenticator/recovery first, password is fallback.",
+      "confirmMethodPassword": "Current password",
+      "confirmMfaPreferredHint": "MFA is enabled: use your authenticator code or a recovery code to confirm.",
       "confirmRemaining": "High privilege remaining: {minutes}m {seconds}s",
       "loadFailed": "Failed to load accounts",
       "updateAdminFailed": "Failed to update admin permission",
@@ -328,6 +338,9 @@
       "tokenLimitPrompt": "Enter the token limit for {username} (1-999), current: {current}",
       "updateTokenBindLimitFailed": "Failed to update token limit",
       "updateTokenBindLimitSuccess": "Token limit updated",
+      "updateRefreshSecondVerifyEnabled": "This account now requires secondary verification during refresh",
+      "updateRefreshSecondVerifyDisabled": "This account no longer requires secondary verification during refresh",
+      "updateRefreshSecondVerifyFailed": "Failed to update whether refresh verification is required",
       "updateAccountTypeFailed": "Failed to update account type",
       "updateAccountTypeSuccess": "Account type updated",
       "resetPasswordFailed": "Failed to reset password",
@@ -347,6 +360,7 @@
       "inviteCount": "Invite Codes",
       "accountType": "Account Type",
       "tokenBindLimit": "Token Limit",
+      "refreshSecondVerify": "Require refresh verification",
       "admin": "Admin",
       "createdAt": "Created At",
       "lastLoginAt": "Last Active",
@@ -1070,6 +1084,13 @@
       "successLogin": "Registration successful. Please sign in.",
       "successTrial": "Registration successful. Please complete formal use before expiration."
     },
+    "passwordStrength": {
+      "title": "Current password strength",
+      "weak": "Weak",
+      "medium": "Medium",
+      "strong": "Strong",
+      "veryStrong": "Very strong"
+    },
     "trialNotice": {
       "title": "Temporary Account Notice",
       "desc": "You used a temporary invite code. The account is available for 7 days after registration.",
@@ -1148,6 +1169,8 @@
       "copy": "Copy",
       "view": "View",
       "export": "Export",
+      "goAdminManage": "Open account management",
+      "requestDisable": "Request disable",
       "logout": "Log Out",
       "delete": "Delete"
     },
@@ -1170,7 +1193,9 @@
       },
       "refreshSecondVerify": {
         "title": "Require secondary verification for token refresh",
-        "desc": "When disabled, refreshing tokens from BIN no longer asks for your current password (disable only on trusted devices)."
+        "desc": "When disabled, refreshing tokens from BIN no longer asks for your current password (disable only on trusted devices).",
+        "adminDesc": "This switch is now managed centrally from Account Management.",
+        "userDesc": "Standard users can no longer disable this directly. Submit a request and let an administrator review it."
       },
       "safeMode": {
         "title": "Security Mode (Recommended)",
@@ -1204,6 +1229,10 @@
       "refreshSecondVerifyEnabled": "Secondary verification for token refresh enabled",
       "refreshSecondVerifyDisabled": "Secondary verification for token refresh disabled",
       "refreshSecondVerifySaveFailed": "Failed to save token refresh verification setting",
+      "refreshSecondVerifyRequestTitle": "Request to disable refresh token verification",
+      "refreshSecondVerifyRequestContent": "Account: {username}\nRequest: disable secondary verification for token refresh.\nRisk acknowledgment: I understand that disabling this increases the risk of BIN exposure if my token is stolen, and I accept that risk.\nPlease let an administrator review and handle this request.",
+      "refreshSecondVerifyRequestSubmitted": "Request submitted. Please wait for administrator review.",
+      "refreshSecondVerifyRequestFailed": "Failed to submit request. Please try again later.",
       "safeModeEnabled": "Security Mode enabled: tokens are no longer persisted and must be re-imported after refresh",
       "safeModeDisabled": "Security Mode disabled: local non-sensitive token metadata persistence is allowed",
       "safeModeSaveFailed": "Failed to save Security Mode setting",
@@ -1243,6 +1272,11 @@
     "dialogs": {
       "sensitiveConfirm": {
         "title": "Security Confirmation"
+      },
+      "disableRefreshSecondVerifyRequest": {
+        "title": "Request to disable refresh token verification",
+        "content": "If this is turned off, one layer of protection is removed when the backend reads saved BIN files. If your token is stolen, the risk becomes much higher. Confirm that you understand the risk and submit this request for admin review?",
+        "confirm": "I understand the risk, submit request"
       }
     },
     "deleteDialog": {
@@ -1250,6 +1284,9 @@
       "content": "This action will permanently delete your account and all associated data and cannot be undone. Do you want to continue?",
       "confirm": "Delete",
       "cancel": "Cancel"
+    },
+    "common": {
+      "unknownUser": "Unknown user"
     }
   },
   "tokenManager": {
@@ -3070,6 +3107,7 @@
       "home": "Home",
       "dashboard": "Dashboard",
       "features": "Game Features",
+      "security": "Security",
       "tokens": "Token Management",
       "changelog": "Changelog"
     },
@@ -3093,11 +3131,36 @@
       "liveSync": "Live Sync",
       "flowTitle": "Workflow"
     },
+    "mockup": {
+      "title": "Bring scattered status into one panel",
+      "subtitle": "Role status, task progress, and key reminders stay in the same view, so you do not need to keep switching pages.",
+      "badge": "Live Workspace",
+      "activityTitle": "Current Flow",
+      "items": {
+        "stepUp": {
+          "kicker": "STEP-UP",
+          "title": "Admin-sensitive actions require another confirmation",
+          "description": "High-risk operations such as create, disable, and delete must be confirmed again before they run."
+        },
+        "codes": {
+          "kicker": "ONE-TIME",
+          "title": "Invite and activation codes are shown only once",
+          "description": "They can be copied when created, and the list view falls back to masked content afterward."
+        },
+        "audit": {
+          "kicker": "AUDIT",
+          "title": "Key security actions keep a detailed audit trail",
+          "description": "Security setting changes, admin actions, and sensitive reads are all recorded."
+        }
+      }
+    },
     "sections": {
       "featuresTitle": "Core Feature Modules",
       "featuresSubtitle": "A complete daily operations toolkit, from execution to review, all in one flow."
     },
     "workflow": {
+      "sectionTitle": "The main flow from import to execution",
+      "sectionSubtitle": "The hero only shows the outcome. The actual operating flow moves to the next section so the page feels lighter.",
       "import": {
         "title": "Import and Bind",
         "description": "Import Token and BIN first, then bind the account identity and activation context."
@@ -3296,6 +3359,10 @@
       "title": "Notifications",
       "markAllRead": "Mark All Read",
       "markRead": "Mark Read",
+      "clearAll": "Clear History",
+      "clearAllTitle": "Clear Notification History",
+      "clearAllContent": "This will remove all in-app notifications for the current account and cannot be undone. Continue?",
+      "clearAllConfirm": "Clear",
       "empty": "No notifications"
     },
     "list": {
@@ -3323,7 +3390,8 @@
       "submitFailed": "Submission failed",
       "submitSuccess": "Feedback submitted successfully",
       "operationFailed": "Operation failed",
-      "notificationsMarkedAllRead": "All notifications have been marked as read"
+      "notificationsMarkedAllRead": "All notifications have been marked as read",
+      "notificationsCleared": "Notification history cleared"
     }
   },
   "adminInvitesPage": {

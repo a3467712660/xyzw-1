@@ -102,6 +102,16 @@
                   <span class="info-label">{{ t("adminUsers.fields.tokenBindLimit") }}</span>
                   <strong>{{ row.tokenBindLimit }}</strong>
                 </div>
+                <div class="info-block">
+                  <span class="info-label">{{ t("adminUsers.fields.refreshSecondVerify") }}</span>
+                  <strong>
+                    {{
+                      row.refreshSecondVerifyEnabled
+                        ? t("adminUsers.common.enabled")
+                        : t("adminUsers.common.disabled")
+                    }}
+                  </strong>
+                </div>
                 <div class="info-block info-block--wide">
                   <span class="info-label">{{ t("adminUsers.fields.createdAt") }}</span>
                   <strong>{{ formatDate(row.createdAt) }}</strong>
@@ -141,6 +151,18 @@
                   :value="accountTypeValueFor(row)"
                   @update:value="(value) => handleAccessScopeChange(row, value)"
                 ></NSelect>
+              </div>
+
+              <div class="mobile-user-card__switch">
+                <div>
+                  <span class="info-label">{{ t("adminUsers.fields.refreshSecondVerify") }}</span>
+                  <p class="switch-hint">{{ t("adminUsers.hints.refreshSecondVerifyRisk") }}</p>
+                </div>
+                <NSwitch
+                  :disabled="!!refreshSecondVerifyUpdating[row.id]"
+                  :value="row.refreshSecondVerifyEnabled"
+                  @update:value="(value) => handleRefreshSecondVerifyChange(row, value)"
+                ></NSwitch>
               </div>
 
               <div class="mobile-user-card__actions">
@@ -379,6 +401,7 @@ const tokenActivationModalVisible = ref(false);
 const tokenActivationLoading = ref(false);
 const tokenActivationTarget = ref(null);
 const tokenActivationItems = ref([]);
+const refreshSecondVerifyUpdating = ref({});
 const sensitiveConfirmToken = ref("");
 const sensitiveConfirmExpiresAt = ref(0);
 const sensitiveConfirmNowTs = ref(Date.now());
@@ -538,6 +561,11 @@ const roleCountFor = (row) =>
         normalizeCount(localRoleCounts.value[row.id]),
       );
 
+const tWithFallback = (key, fallback, params = undefined) => {
+  const resolved = t(key, params);
+  return resolved === key ? fallback : resolved;
+};
+
 const getCachedSensitiveToken = () => {
   if (
     sensitiveConfirmToken.value
@@ -554,7 +582,14 @@ const clearSensitiveConfirmCache = () => {
   sensitiveConfirmExpiresAt.value = 0;
 };
 
-const promptAdminConfirmCredential = ({ actionLabel = "高危操作" } = {}) =>
+const setRefreshSecondVerifyUpdating = (userId, value) => {
+  refreshSecondVerifyUpdating.value = {
+    ...refreshSecondVerifyUpdating.value,
+    [userId]: Boolean(value),
+  };
+};
+
+const promptAdminConfirmCredential = ({ actionLabel = tWithFallback("adminUsers.actions.highRiskAction", "高危操作") } = {}) =>
   new Promise((resolve) => {
     const mfaEnabled = Boolean(authStore.user?.mfaEnabled);
     const mode = ref(mfaEnabled ? "totp" : "password");
@@ -572,15 +607,19 @@ const promptAdminConfirmCredential = ({ actionLabel = "高危操作" } = {}) =>
     };
 
     dialog.warning({
-      title: t("adminUsers.dialogs.sensitiveConfirm.title"),
-      positiveText: t("adminUsers.dialogs.sensitiveConfirm.confirm"),
-      negativeText: t("adminUsers.actions.cancel"),
+      title: tWithFallback("adminUsers.dialogs.sensitiveConfirm.title", "高危操作二次确认"),
+      positiveText: tWithFallback("adminUsers.dialogs.sensitiveConfirm.confirm", "确认"),
+      negativeText: tWithFallback("adminUsers.actions.cancel", "取消"),
       content: () =>
         h("div", { style: "display:flex;flex-direction:column;gap:12px;" }, [
           h(
             "div",
             { style: "line-height:1.5;" },
-            t("adminUsers.messages.confirmPrompt", { action: actionLabel }),
+            tWithFallback(
+              "adminUsers.messages.confirmPrompt",
+              `执行“${actionLabel}”前，请输入当前管理员密码进行二次确认`,
+              { action: actionLabel },
+            ),
           ),
           ...(mfaEnabled
             ? [
@@ -595,13 +634,10 @@ const promptAdminConfirmCredential = ({ actionLabel = "高危操作" } = {}) =>
                   {
                     default: () => [
                       h(NRadioButton, { value: "totp" }, {
-                        default: () => t("adminUsers.messages.confirmMethodTotp"),
+                        default: () => tWithFallback("adminUsers.messages.confirmMethodTotp", "动态验证码（推荐）"),
                       }),
                       h(NRadioButton, { value: "recovery" }, {
-                        default: () => t("adminUsers.messages.confirmMethodRecovery"),
-                      }),
-                      h(NRadioButton, { value: "password" }, {
-                        default: () => t("adminUsers.messages.confirmMethodPassword"),
+                        default: () => tWithFallback("adminUsers.messages.confirmMethodRecovery", "恢复码"),
                       }),
                     ],
                   },
@@ -609,7 +645,7 @@ const promptAdminConfirmCredential = ({ actionLabel = "高危操作" } = {}) =>
                 h(
                   "div",
                   { style: "font-size:12px;opacity:0.75;" },
-                  t("adminUsers.messages.confirmMfaPreferredHint"),
+                  tWithFallback("adminUsers.messages.confirmMfaPreferredHint", "已开启 MFA：请使用动态验证码或恢复码完成确认。"),
                 ),
               ]
             : []),
@@ -617,7 +653,7 @@ const promptAdminConfirmCredential = ({ actionLabel = "高危操作" } = {}) =>
             ? h(NInput, {
                 "value": totpCode.value,
                 "maxlength": 6,
-                "placeholder": t("adminUsers.placeholders.confirmTotpCode"),
+                "placeholder": tWithFallback("adminUsers.placeholders.confirmTotpCode", "输入 6 位动态验证码"),
                 "autofocus": true,
                 "onUpdate:value": (value) => {
                   totpCode.value = String(value || "").replace(/\D/g, "");
@@ -628,7 +664,7 @@ const promptAdminConfirmCredential = ({ actionLabel = "高危操作" } = {}) =>
             ? h(NInput, {
                 "value": recoveryCode.value,
                 "maxlength": 64,
-                "placeholder": t("adminUsers.placeholders.confirmRecoveryCode"),
+                "placeholder": tWithFallback("adminUsers.placeholders.confirmRecoveryCode", "输入一次性恢复码"),
                 "autofocus": true,
                 "onUpdate:value": (value) => {
                   recoveryCode.value = String(value || "").trim();
@@ -640,7 +676,7 @@ const promptAdminConfirmCredential = ({ actionLabel = "高危操作" } = {}) =>
                 "type": "password",
                 "showPasswordOn": "click",
                 "value": password.value,
-                "placeholder": t("adminUsers.placeholders.confirmCurrentPassword"),
+                "placeholder": tWithFallback("adminUsers.placeholders.confirmCurrentPassword", "输入当前管理员密码"),
                 "autofocus": true,
                 "onUpdate:value": (value) => {
                   password.value = String(value || "");
@@ -655,7 +691,7 @@ const promptAdminConfirmCredential = ({ actionLabel = "高危操作" } = {}) =>
             ? { recoveryCode: String(recoveryCode.value || "").trim() }
             : { password: String(password.value || "").trim() };
         if (!credential.password && !credential.totpCode && !credential.recoveryCode) {
-          message.warning(t("adminUsers.messages.confirmFailed"));
+          message.warning(tWithFallback("adminUsers.messages.confirmFailed", "二次确认失败"));
           return false;
         }
         finish(credential);
@@ -706,22 +742,25 @@ const stopSensitiveConfirmTicker = () => {
   sensitiveConfirmTicker = null;
 };
 
-const ensureSensitiveActionConfirmed = async (actionLabel = "高危操作") => {
-  const cached = getCachedSensitiveToken();
+const ensureSensitiveActionConfirmed = async (
+  actionLabel = tWithFallback("adminUsers.actions.highRiskAction", "高危操作"),
+  options = {},
+) => {
+  const cached = options.forcePrompt ? "" : getCachedSensitiveToken();
   if (cached) {
     return cached;
   }
 
   const credential = await promptAdminConfirmCredential({ actionLabel });
   if (!credential) {
-    message.warning(t("adminUsers.messages.confirmCancelled"));
+    message.warning(tWithFallback("adminUsers.messages.confirmCancelled", "已取消二次确认"));
     return "";
   }
 
   try {
     const res = await api.admin.confirmSensitiveAction(credential);
     if (!res.success || !res.data?.token) {
-      message.error(res.message || t("adminUsers.messages.confirmFailed"));
+      message.error(res.message || tWithFallback("adminUsers.messages.confirmFailed", "二次确认失败"));
       return "";
     }
     const expiresTs = new Date(res.data.expiresAt || "").getTime();
@@ -729,11 +768,11 @@ const ensureSensitiveActionConfirmed = async (actionLabel = "高危操作") => {
     sensitiveConfirmExpiresAt.value = Number.isFinite(expiresTs)
       ? expiresTs
       : Date.now();
-    message.success(t("adminUsers.messages.confirmSuccess"));
+    message.success(tWithFallback("adminUsers.messages.confirmSuccess", "二次确认通过"));
     return sensitiveConfirmToken.value;
   } catch (error) {
     clearSensitiveConfirmCache();
-    message.error(error.message || t("adminUsers.messages.confirmFailed"));
+    message.error(error.message || tWithFallback("adminUsers.messages.confirmFailed", "二次确认失败"));
     return "";
   }
 };
@@ -778,6 +817,8 @@ const fetchUsers = async () => {
           normalizeCount(row.tokenBindLimit, row.token_bind_limit, 999),
         ),
       ),
+      refreshSecondVerifyEnabled:
+        row.refreshSecondVerifyEnabled !== false,
     }));
   } catch (error) {
     message.error(error.message || t("adminUsers.messages.loadFailed"));
@@ -795,7 +836,7 @@ const handleAccessScopeChange = async (row, value) => {
   row.accessScope = nextScope;
 
   try {
-    const confirmToken = await ensureSensitiveActionConfirmed("修改账号类型");
+    const confirmToken = await ensureSensitiveActionConfirmed(t("adminUsers.actions.updateAccountType"));
     if (!confirmToken) {
       row.accessScope = previous;
       return;
@@ -853,7 +894,7 @@ const handleAdminToggle = async (row, value) => {
   row.isAdmin = value;
 
   try {
-    const confirmToken = await ensureSensitiveActionConfirmed("修改管理员权限");
+    const confirmToken = await ensureSensitiveActionConfirmed(t("adminUsers.actions.updateAdmin"));
     if (!confirmToken) {
       row.isAdmin = previous;
       return;
@@ -897,7 +938,7 @@ const updateTokenBindLimit = async (row) => {
   }
 
   try {
-    const confirmToken = await ensureSensitiveActionConfirmed("修改账号Token上限");
+    const confirmToken = await ensureSensitiveActionConfirmed(t("adminUsers.actions.updateTokenBindLimit"));
     if (!confirmToken) {
       return;
     }
@@ -913,6 +954,47 @@ const updateTokenBindLimit = async (row) => {
       clearSensitiveConfirmCache();
     }
     message.error(error.message || t("adminUsers.messages.updateTokenBindLimitFailed"));
+  }
+};
+
+const handleRefreshSecondVerifyChange = async (row, value) => {
+  if (refreshSecondVerifyUpdating.value[row.id]) {
+    return;
+  }
+  const nextValue = value !== false;
+  const previous = row.refreshSecondVerifyEnabled !== false;
+  if (nextValue === previous) {
+    return;
+  }
+
+  try {
+    setRefreshSecondVerifyUpdating(row.id, true);
+    const confirmToken = await ensureSensitiveActionConfirmed(
+      nextValue
+        ? tWithFallback("adminUsers.actions.enableRefreshSecondVerify", "开启刷新二次验证")
+        : tWithFallback("adminUsers.actions.disableRefreshSecondVerify", "关闭刷新二次验证"),
+    );
+    if (!confirmToken) {
+      return;
+    }
+    const res = await api.admin.updateUserRefreshSecondVerify(row.id, nextValue, confirmToken);
+    if (!res.success) {
+      message.error(res.message || t("adminUsers.messages.updateRefreshSecondVerifyFailed"));
+      return;
+    }
+    row.refreshSecondVerifyEnabled = nextValue;
+    message.success(
+      nextValue
+        ? t("adminUsers.messages.updateRefreshSecondVerifyEnabled")
+        : t("adminUsers.messages.updateRefreshSecondVerifyDisabled"),
+    );
+  } catch (error) {
+    if (shouldResetConfirmCache(error)) {
+      clearSensitiveConfirmCache();
+    }
+    message.error(error.message || t("adminUsers.messages.updateRefreshSecondVerifyFailed"));
+  } finally {
+    setRefreshSecondVerifyUpdating(row.id, false);
   }
 };
 
@@ -957,7 +1039,7 @@ const submitPasswordReset = async () => {
 
   passwordSaving.value = true;
   try {
-    const confirmToken = await ensureSensitiveActionConfirmed("重置用户密码");
+    const confirmToken = await ensureSensitiveActionConfirmed(t("adminUsers.actions.resetPassword"));
     if (!confirmToken) {
       return;
     }
@@ -994,7 +1076,7 @@ const submitDeleteUser = async () => {
 
   deleteSaving.value = true;
   try {
-    const confirmToken = await ensureSensitiveActionConfirmed("删除账号");
+    const confirmToken = await ensureSensitiveActionConfirmed(t("adminUsers.actions.deleteUser"));
     if (!confirmToken) {
       return;
     }
@@ -1018,7 +1100,7 @@ const submitDeleteUser = async () => {
 
 const createResetCode = async (row) => {
   try {
-    const confirmToken = await ensureSensitiveActionConfirmed("生成短时验证码");
+    const confirmToken = await ensureSensitiveActionConfirmed(t("adminUsers.actions.createResetCode"));
     if (!confirmToken) {
       return;
     }
@@ -1220,6 +1302,17 @@ const columns = computed(() => [
     title: t("adminUsers.columns.tokenBindLimit"),
     key: "tokenBindLimit",
     width: 86,
+  },
+  {
+    title: t("adminUsers.columns.refreshSecondVerify"),
+    key: "refreshSecondVerifyEnabled",
+    width: 120,
+    render: (row) =>
+      h(NSwitch, {
+        disabled: !!refreshSecondVerifyUpdating.value[row.id],
+        value: row.refreshSecondVerifyEnabled !== false,
+        onUpdateValue: (value) => handleRefreshSecondVerifyChange(row, value),
+      }),
   },
   {
     title: t("adminUsers.columns.admin"),

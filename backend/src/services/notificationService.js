@@ -62,3 +62,10 @@ export const markNotificationRead = ({ id, userId, readAt = nowIso() }) => {
 export const markAllNotificationsRead = ({ userId, readAt = nowIso() }) => {
   notificationRepository.markAllRead({ userId, readAt });
 };
+
+export const deleteAllNotifications = ({ userId }) => {
+  if (!userId) {
+    return 0;
+  }
+  return notificationRepository.deleteAllByUser({ userId });
+};

@@ -1,13 +1,21 @@
 <template>
   <div class="forgot-page" :class="{ 'forgot-page--ready': isPageReady }">
     <div aria-hidden="true" class="forgot-bg">
-      <span class="bg-light bg-light-a"></span>
-      <span class="bg-light bg-light-b"></span>
+      <span class="bg-orb orb-a"></span>
+      <span class="bg-orb orb-b"></span>
+      <span class="bg-orb orb-c"></span>
+      <span class="grid-mask"></span>
     </div>
 
     <div class="forgot-shell">
       <aside class="forgot-aside reveal-up">
-        <p class="aside-kicker">{{ t("forgotPassword.kicker") }}</p>
+        <div class="aside-brand">
+          <img alt="XYZW" class="aside-logo" src="/icons/xiaoyugan.png">
+          <div>
+            <p class="aside-kicker">XYZW</p>
+            <span class="aside-brand__sub">{{ t("homePage.brandSubtitle") }}</span>
+          </div>
+        </div>
         <h1>{{ t("forgotPassword.title") }}</h1>
         <p class="aside-desc">{{ t("forgotPassword.subtitle") }}</p>
 
@@ -300,6 +308,7 @@ onMounted(() => {
   position: absolute;
   inset: 0;
   pointer-events: none;
+  overflow: hidden;
 }
 
 .sr-only {
@@ -314,34 +323,55 @@ onMounted(() => {
   border: 0;
 }
 
-.bg-light {
+.bg-orb {
   position: absolute;
-  border-radius: 50%;
-  filter: blur(60px);
+  border-radius: 999px;
+  filter: blur(72px);
 }
 
-.bg-light-a {
+.orb-a {
   width: 36vw;
   height: 36vw;
-  min-width: 240px;
-  min-height: 240px;
-  left: -9vw;
-  top: -6vh;
+  min-width: 260px;
+  min-height: 260px;
+  left: -10vw;
+  top: -10vh;
   background: radial-gradient(
     circle,
-    rgba(15, 107, 255, 0.38),
+    rgba(15, 107, 255, 0.24),
     transparent 72%
   );
 }
 
-.bg-light-b {
+.orb-b {
   width: 34vw;
   height: 34vw;
   min-width: 220px;
   min-height: 220px;
   right: -8vw;
   bottom: -10vh;
-  background: radial-gradient(circle, rgba(0, 163, 137, 0.34), transparent 72%);
+  background: radial-gradient(circle, rgba(0, 163, 137, 0.2), transparent 72%);
+}
+
+.orb-c {
+  width: 28vw;
+  height: 28vw;
+  min-width: 200px;
+  min-height: 200px;
+  right: 20vw;
+  top: 14vh;
+  background: radial-gradient(circle, rgba(14, 116, 144, 0.16), transparent 74%);
+}
+
+.grid-mask {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(rgba(15, 107, 255, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(15, 107, 255, 0.06) 1px, transparent 1px);
+  background-size: 44px 44px;
+  opacity: 0.26;
+  mask-image: radial-gradient(circle at center, black 30%, transparent 86%);
 }
 
 .forgot-shell {
@@ -370,8 +400,8 @@ onMounted(() => {
 .forgot-card {
   background: rgba(255, 255, 255, 0.82);
   border: 1px solid var(--border-light);
-  border-radius: 20px;
-  backdrop-filter: blur(14px);
+  border-radius: 24px;
+  backdrop-filter: blur(16px);
   box-shadow: var(--shadow-medium);
 }
 
@@ -384,11 +414,33 @@ onMounted(() => {
   padding: 28px;
 }
 
+.aside-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.aside-logo {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
+}
+
+.aside-brand__sub {
+  display: block;
+  margin-top: 2px;
+  color: var(--text-tertiary);
+  font-size: 13px;
+}
+
 .aside-kicker {
-  font-size: 12px;
-  letter-spacing: 0.13em;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
   color: var(--primary-color);
-  margin-bottom: 8px;
+  margin-bottom: 0;
 }
 
 .forgot-aside h1 {

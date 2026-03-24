@@ -54,14 +54,24 @@
       <n-card embedded class="notify-card">
         <div class="notify-card__head">
           <div class="notify-card__title">{{ t("feedbackCenter.notifications.title") }}</div>
-          <n-button
-            quaternary
-            size="small"
-            :disabled="!unreadNotifications.length"
-            @click="markAllNotificationsRead"
-          >
-            {{ t("feedbackCenter.notifications.markAllRead") }}
-          </n-button>
+          <div class="notify-card__actions">
+            <n-button
+              quaternary
+              size="small"
+              :disabled="!unreadNotifications.length"
+              @click="markAllNotificationsRead"
+            >
+              {{ t("feedbackCenter.notifications.markAllRead") }}
+            </n-button>
+            <n-button
+              quaternary
+              size="small"
+              :disabled="!notifications.length"
+              @click="clearAllNotifications"
+            >
+              {{ t("feedbackCenter.notifications.clearAll") }}
+            </n-button>
+          </div>
         </div>
         <div v-if="notifications.length" class="notify-list">
           <div
@@ -147,13 +157,14 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from "vue";
-import { useMessage } from "naive-ui/es";
+import { useDialog, useMessage } from "naive-ui/es";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import api from "@/api";
 import { useAuthStore } from "@/stores/auth";
 
 const message = useMessage();
+const dialog = useDialog();
 const { locale, t } = useI18n();
 const router = useRouter();
 const authStore = useAuthStore();
@@ -299,6 +310,28 @@ const markAllNotificationsRead = async () => {
   } catch (error) {
     message.error(error.message || t("feedbackCenter.messages.operationFailed"));
   }
+};
+
+const clearAllNotifications = () => {
+  dialog.warning({
+    title: t("feedbackCenter.notifications.clearAllTitle"),
+    content: t("feedbackCenter.notifications.clearAllContent"),
+    positiveText: t("feedbackCenter.notifications.clearAllConfirm"),
+    negativeText: t("common.cancel"),
+    onPositiveClick: async () => {
+      try {
+        const res = await api.notifications.clearAll();
+        if (!res.success) {
+          message.error(res.message || t("feedbackCenter.messages.operationFailed"));
+          return;
+        }
+        notifications.value = [];
+        message.success(res.message || t("feedbackCenter.messages.notificationsCleared"));
+      } catch (error) {
+        message.error(error.message || t("feedbackCenter.messages.operationFailed"));
+      }
+    },
+  });
 };
 
 watch(statusFilter, () => {

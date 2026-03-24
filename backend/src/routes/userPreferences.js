@@ -201,6 +201,12 @@ router.put("/user/preferences/:key", (req, res, next) => {
   }
 
   const ts = nowIso();
+  if (key === REFRESH_SECOND_VERIFY_PREF_KEY && req.body?.value === false) {
+    return res.status(403).json({
+      success: false,
+      message: "普通用户不能直接关闭刷新 Token 二次验证，请向管理员提交申请",
+    });
+  }
   const previousRow = userPreferenceRepository.findByUserAndKey({
     userId: req.auth.user.id,
     key,

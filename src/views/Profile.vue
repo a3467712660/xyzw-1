@@ -181,13 +181,37 @@
           <div class="security-item">
             <div class="security-info">
               <h3>{{ t("profile.security.refreshSecondVerify.title") }}</h3>
-              <p>{{ t("profile.security.refreshSecondVerify.desc") }}</p>
+              <p>
+                {{
+                  authStore.user?.isAdmin
+                    ? t("profile.security.refreshSecondVerify.adminDesc")
+                    : t("profile.security.refreshSecondVerify.userDesc")
+                }}
+              </p>
             </div>
-            <n-switch
-              :loading="isRefreshSecondVerifySaving"
-              :value="securityPreferences.refreshSecondVerifyEnabled"
-              @update:value="updateRefreshSecondVerifyPreference"
-            ></n-switch>
+            <template v-if="authStore.user?.isAdmin">
+              <n-button @click="goToAdminUsersForRefreshVerify">
+                {{ t("profile.actions.goAdminManage") }}
+              </n-button>
+            </template>
+            <template v-else>
+              <n-space align="center" :size="10">
+                <n-tag :type="securityPreferences.refreshSecondVerifyEnabled ? 'success' : 'warning'">
+                  {{
+                    securityPreferences.refreshSecondVerifyEnabled
+                      ? t("profile.messages.refreshSecondVerifyEnabled")
+                      : t("profile.messages.refreshSecondVerifyDisabled")
+                  }}
+                </n-tag>
+                <n-button
+                  :disabled="!securityPreferences.refreshSecondVerifyEnabled"
+                  :loading="isRefreshSecondVerifySaving"
+                  @click="submitDisableRefreshSecondVerifyRequest"
+                >
+                  {{ t("profile.actions.requestDisable") }}
+                </n-button>
+              </n-space>
+            </template>
           </div>
 
           <div class="security-item">
@@ -778,7 +802,11 @@ const changePassword = async () => {
     Object.keys(passwordForm).forEach((key) => {
       passwordForm[key] = "";
     });
-    await router.push("/");
+    if (typeof window !== "undefined") {
+      window.location.replace("/");
+      return;
+    }
+    await router.replace("/");
   } catch (error) {
     message.error(error.message || t("profile.messages.passwordChangeFailed"));
   } finally {
@@ -886,63 +914,42 @@ const updateRemoteBinDownloadPreference = async (value) => {
   }
 };
 
-const updateRefreshSecondVerifyPreference = async (value) => {
-  if (isRefreshSecondVerifySaving.value)
+const goToAdminUsersForRefreshVerify = () => {
+  router.push("/admin/admin-users");
+};
+
+const submitDisableRefreshSecondVerifyRequest = () => {
+  if (isRefreshSecondVerifySaving.value || !securityPreferences.refreshSecondVerifyEnabled) {
     return;
-
-  const targetValue = !!value;
-  const prevValue = securityPreferences.refreshSecondVerifyEnabled;
-  securityPreferences.refreshSecondVerifyEnabled = targetValue;
-
-  try {
-    let confirmToken = "";
-    if (targetValue) {
-      confirmToken = await ensureUserSensitiveConfirmTokenByDialog({
-        dialog,
-        message,
-        title: t("profile.dialogs.sensitiveConfirm.title"),
-        prompt: t("profile.messages.sensitiveConfirmPrompt"),
-        placeholder: t("profile.placeholders.currentPassword"),
-        positiveText: t("profile.actions.confirm"),
-        negativeText: t("profile.deleteDialog.cancel"),
-        emptyCredentialMessage: t("profile.validation.currentPasswordRequired"),
-        cancelledMessage: t("profile.messages.sensitiveConfirmCancelled"),
-        failedMessage: t("profile.messages.sensitiveConfirmFailed"),
-        successMessage: t("profile.messages.sensitiveConfirmSuccess"),
-        mfaEnabled: Boolean(authStore.user?.mfaEnabled),
-        preferMfa: true,
-        methodLabelTotp: t("profile.messages.sensitiveConfirmMethodTotp"),
-        methodLabelRecovery: t("profile.messages.sensitiveConfirmMethodRecovery"),
-        methodLabelPassword: t("profile.messages.sensitiveConfirmMethodPassword"),
-        totpPlaceholder: t("profile.messages.sensitiveConfirmTotpPlaceholder"),
-        recoveryPlaceholder: t("profile.messages.sensitiveConfirmRecoveryPlaceholder"),
-        mfaHint: t("profile.messages.sensitiveConfirmMfaHint"),
-      });
-      if (!confirmToken) {
-        securityPreferences.refreshSecondVerifyEnabled = prevValue;
-        return;
-      }
-    }
-
-    isRefreshSecondVerifySaving.value = true;
-    await api.user.setPreference(REFRESH_SECOND_VERIFY_PREF_KEY, targetValue, {
-      confirmToken,
-    });
-    localStorage.setItem(
-      REFRESH_SECOND_VERIFY_LOCAL_KEY,
-      targetValue ? "true" : "false",
-    );
-    message.success(
-      targetValue
-        ? t("profile.messages.refreshSecondVerifyEnabled")
-        : t("profile.messages.refreshSecondVerifyDisabled"),
-    );
-  } catch (error) {
-    securityPreferences.refreshSecondVerifyEnabled = prevValue;
-    message.error(error.message || t("profile.messages.refreshSecondVerifySaveFailed"));
-  } finally {
-    isRefreshSecondVerifySaving.value = false;
   }
+
+  dialog.warning({
+    title: t("profile.dialogs.disableRefreshSecondVerifyRequest.title"),
+    content: t("profile.dialogs.disableRefreshSecondVerifyRequest.content"),
+    positiveText: t("profile.dialogs.disableRefreshSecondVerifyRequest.confirm"),
+    negativeText: t("profile.deleteDialog.cancel"),
+    onPositiveClick: async () => {
+      try {
+        isRefreshSecondVerifySaving.value = true;
+        const res = await api.feedback.create({
+          type: "other",
+          title: t("profile.messages.refreshSecondVerifyRequestTitle"),
+          content: t("profile.messages.refreshSecondVerifyRequestContent", {
+            username: authStore.user?.username || t("profile.common.unknownUser"),
+          }),
+        });
+        if (!res?.success) {
+          message.error(res?.message || t("profile.messages.refreshSecondVerifyRequestFailed"));
+          return;
+        }
+        message.success(t("profile.messages.refreshSecondVerifyRequestSubmitted"));
+      } catch (error) {
+        message.error(error.message || t("profile.messages.refreshSecondVerifyRequestFailed"));
+      } finally {
+        isRefreshSecondVerifySaving.value = false;
+      }
+    },
+  });
 };
 
 const updateSafeModePreference = async (value) => {
@@ -1093,7 +1100,11 @@ const exportData = () => {
 const logoutAccount = async () => {
   await authStore.logout();
   message.success(t("profile.messages.logoutSuccess"));
-  router.push("/");
+  if (typeof window !== "undefined") {
+    window.location.replace("/");
+    return;
+  }
+  await router.replace("/");
 };
 
 const deleteAccount = () => {

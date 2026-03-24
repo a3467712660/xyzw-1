@@ -65,7 +65,7 @@ const assertBinPlaintextResponseHardeningHeaders = (response) => {
   assert.equal(response.headers.get("x-content-type-options"), "nosniff");
 };
 
-test("GET /bin-files/:tokenId/download requires remote download preference to be enabled", async (t) => {
+test("internal BIN read respects refresh-second-verify preference while remote download still requires explicit authorization", async (t) => {
   await initDatabase();
 
   const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -128,7 +128,12 @@ test("GET /bin-files/:tokenId/download requires remote download preference to be
     method: "GET",
     headers: authHeaders({ userId, username }),
   });
-  assert.equal(deniedByServerPreference.status, 403);
+  assert.equal(deniedByServerPreference.status, 200);
+  assertBinPlaintextResponseHardeningHeaders(deniedByServerPreference);
+  assert.equal(
+    Buffer.from(await deniedByServerPreference.arrayBuffer()).toString("utf8"),
+    "bin-data",
+  );
 
   const confirmResponse = await fetch(`${baseUrl}/api/v1/user/confirm-password`, {
     method: "POST",
@@ -257,6 +262,7 @@ test("GET /bin-files/:tokenId/download requires remote download preference to be
     { $userId: userId, $tokenId: tokenId },
   );
   assert.ok(confirmAudits.some((row) => row.result === "required"));
+  assert.ok(confirmAudits.some((row) => row.result === "bypassed"));
 });
 
 test("PUT /user/preferences/security.remote_bin_download_enabled requires user confirm token", async (t) => {

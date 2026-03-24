@@ -206,6 +206,14 @@ const userSensitiveActionRequiredWithAudit = (req, res, next) => {
 };
 
 const conditionalSensitiveBinRead = (req, res, next) => {
+  if (!isRefreshSecondVerifyEnabled(req.auth?.user?.id)) {
+    writeBinAudit(req, {
+      action: "bin_confirm_check",
+      result: "bypassed",
+      message: "账号已被管理员豁免刷新二次验证",
+    });
+    return next();
+  }
   return userSensitiveActionRequiredWithAudit(req, res, next);
 };
 

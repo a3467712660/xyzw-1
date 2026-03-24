@@ -1,9 +1,10 @@
 <template>
   <div class="login-page" :class="{ 'login-page--ready': isPageReady }">
     <div aria-hidden="true" class="login-bg">
-      <span class="bg-circle bg-circle-a"></span>
-      <span class="bg-circle bg-circle-b"></span>
-      <span class="bg-noise"></span>
+      <span class="bg-orb orb-a"></span>
+      <span class="bg-orb orb-b"></span>
+      <span class="bg-orb orb-c"></span>
+      <span class="grid-mask"></span>
     </div>
 
     <div class="login-shell">
@@ -712,6 +713,7 @@ onBeforeUnmount(() => {
   position: absolute;
   inset: 0;
   pointer-events: none;
+  overflow: hidden;
 }
 
 .sr-only {
@@ -726,45 +728,55 @@ onBeforeUnmount(() => {
   border: 0;
 }
 
-.bg-circle {
+.bg-orb {
   position: absolute;
-  border-radius: 50%;
-  filter: blur(56px);
+  border-radius: 999px;
+  filter: blur(72px);
 }
 
-.bg-circle-a {
+.orb-a {
   width: 36vw;
   height: 36vw;
-  min-width: 250px;
-  min-height: 250px;
-  top: -8vh;
-  left: -8vw;
+  min-width: 260px;
+  min-height: 260px;
+  top: -10vh;
+  left: -10vw;
   background: radial-gradient(
     circle,
-    rgba(15, 107, 255, 0.38),
+    rgba(15, 107, 255, 0.24),
     transparent 70%
   );
 }
 
-.bg-circle-b {
+.orb-b {
   width: 34vw;
   height: 34vw;
   min-width: 240px;
   min-height: 240px;
   right: -10vw;
   bottom: -12vh;
-  background: radial-gradient(circle, rgba(0, 163, 137, 0.34), transparent 72%);
+  background: radial-gradient(circle, rgba(0, 163, 137, 0.2), transparent 72%);
 }
 
-.bg-noise {
+.orb-c {
+  width: 28vw;
+  height: 28vw;
+  min-width: 200px;
+  min-height: 200px;
+  right: 20vw;
+  top: 10vh;
+  background: radial-gradient(circle, rgba(14, 116, 144, 0.16), transparent 74%);
+}
+
+.grid-mask {
   position: absolute;
   inset: 0;
-  background-image: radial-gradient(
-    rgba(15, 107, 255, 0.12) 0.6px,
-    transparent 0.6px
-  );
-  background-size: 3px 3px;
-  opacity: 0.2;
+  background:
+    linear-gradient(rgba(15, 107, 255, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(15, 107, 255, 0.06) 1px, transparent 1px);
+  background-size: 44px 44px;
+  opacity: 0.26;
+  mask-image: radial-gradient(circle at center, black 30%, transparent 86%);
 }
 
 .login-shell {
@@ -792,9 +804,9 @@ onBeforeUnmount(() => {
 .intro-panel,
 .login-card {
   border: 1px solid var(--border-light);
-  border-radius: 20px;
+  border-radius: 24px;
   background: rgba(255, 255, 255, 0.8);
-  backdrop-filter: blur(14px);
+  backdrop-filter: blur(16px);
   box-shadow: var(--shadow-medium);
 }
 
@@ -817,11 +829,13 @@ onBeforeUnmount(() => {
   width: 42px;
   height: 42px;
   border-radius: 12px;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
 }
 
 .intro-kicker {
-  font-size: 12px;
-  letter-spacing: 0.14em;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
   color: var(--primary-color);
   margin-bottom: 3px;
 }

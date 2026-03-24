@@ -66,6 +66,17 @@ export const notificationRepository = {
     );
   },
 
+  deleteAllByUser({ userId }) {
+    const result = run(
+      `DELETE FROM user_notifications
+       WHERE user_id = $userId`,
+      {
+        $userId: userId,
+      },
+    );
+    return Number(result?.changes || 0);
+  },
+
   deleteReadBefore(cutoffIso) {
     const result = run(
       `DELETE FROM user_notifications

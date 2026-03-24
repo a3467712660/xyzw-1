@@ -214,7 +214,9 @@
   "adminUsers": {
     "common": {
       "dash": "-",
-      "noEmail": "未设置邮箱"
+      "noEmail": "未设置邮箱",
+      "enabled": "开启",
+      "disabled": "关闭"
     },
     "title": "账号管理",
     "subtitle": "查看账号、调整管理员权限、重置密码、生成短时验证码与删除账号",
@@ -237,6 +239,7 @@
       "roleCount": "角色数",
       "inviteCount": "邀请码",
       "tokenBindLimit": "Token上限",
+      "refreshSecondVerify": "需要刷新二次验证",
       "createdAt": "创建时间",
       "lastLoginAt": "最后上线",
       "adminPermission": "管理员权限",
@@ -262,7 +265,8 @@
     },
     "hints": {
       "currentUserAdminLocked": "当前账号不可取消自身管理员权限",
-      "switchDirectly": "可直接切换"
+      "switchDirectly": "可直接切换",
+      "refreshSecondVerifyRisk": "关闭后表示该账号刷新时不再需要二次验证，Token 被盗风险会提高"
     },
     "placeholders": {
       "newPassword": "默认至少12位（启用两步验证后可为8位），避免常见弱口令",
@@ -274,9 +278,12 @@
       "searchUser": "搜索用户名或邮箱"
     },
     "actions": {
+      "highRiskAction": "高危操作",
       "refresh": "刷新",
       "createResetCode": "生成短时验证码",
       "resetPassword": "重置密码",
+      "updateAdmin": "修改管理员权限",
+      "updateAccountType": "修改账号类型",
       "deleteUser": "删除账号",
       "cancel": "取消",
       "confirmReset": "确认重置",
@@ -286,6 +293,9 @@
       "shortCode": "短时验证码",
       "updateTokenBindLimit": "设置Token上限",
       "viewTokenExpiry": "查看Token到期",
+      "updateRefreshSecondVerify": "调整是否需要刷新二次验证",
+      "enableRefreshSecondVerify": "开启刷新二次验证",
+      "disableRefreshSecondVerify": "关闭刷新二次验证",
       "more": "更多"
     },
     "modals": {
@@ -319,8 +329,8 @@
       "confirmSuccess": "二次确认通过（5 分钟内有效）",
       "confirmMethodTotp": "动态验证码（推荐）",
       "confirmMethodRecovery": "恢复码",
-      "confirmMethodPassword": "当前密码（兜底）",
-      "confirmMfaPreferredHint": "已开启 MFA：优先使用动态验证码或恢复码，密码可作为兜底。",
+      "confirmMethodPassword": "当前密码",
+      "confirmMfaPreferredHint": "已开启 MFA：请使用动态验证码或恢复码完成确认。",
       "confirmRemaining": "高权限剩余 {minutes} 分 {seconds} 秒",
       "loadFailed": "加载账号失败",
       "updateAdminFailed": "更新管理员权限失败",
@@ -328,6 +338,9 @@
       "tokenLimitPrompt": "请输入 {username} 的 Token 上限（1-999），当前：{current}",
       "updateTokenBindLimitFailed": "更新Token上限失败",
       "updateTokenBindLimitSuccess": "Token上限已更新",
+      "updateRefreshSecondVerifyEnabled": "已设为该账号刷新时需要二次验证",
+      "updateRefreshSecondVerifyDisabled": "已设为该账号刷新时不需要二次验证",
+      "updateRefreshSecondVerifyFailed": "更新“是否需要刷新二次验证”失败",
       "updateAccountTypeFailed": "更新账号类型失败",
       "updateAccountTypeSuccess": "账号类型已更新",
       "resetPasswordFailed": "重置密码失败",
@@ -347,6 +360,7 @@
       "inviteCount": "邀请码",
       "accountType": "账号类型",
       "tokenBindLimit": "Token上限",
+      "refreshSecondVerify": "需要刷新二次验证",
       "admin": "管理员",
       "createdAt": "创建时间",
       "lastLoginAt": "最后上线",
@@ -1070,6 +1084,13 @@
       "successLogin": "注册成功，请登录",
       "successTrial": "注册成功，请在到期前完成正式使用"
     },
+    "passwordStrength": {
+      "title": "当前密码强度",
+      "weak": "弱",
+      "medium": "中",
+      "strong": "强",
+      "veryStrong": "很强"
+    },
     "trialNotice": {
       "title": "临时账号提醒",
       "desc": "您使用的是临时邀请码，账号可用期为注册后 7 天。",
@@ -1148,6 +1169,8 @@
       "copy": "复制",
       "view": "查看",
       "export": "导出",
+      "goAdminManage": "前往账号管理",
+      "requestDisable": "申请关闭",
       "logout": "退出",
       "delete": "删除"
     },
@@ -1170,7 +1193,9 @@
       },
       "refreshSecondVerify": {
         "title": "刷新 Token 需要二次验证",
-        "desc": "关闭后，Token 刷新读取 BIN 时不再要求输入当前密码（建议仅在受信设备关闭）"
+        "desc": "关闭后，Token 刷新读取 BIN 时不再要求输入当前密码（建议仅在受信设备关闭）",
+        "adminDesc": "当前开关已改为由管理员在账号管理里统一调整。",
+        "userDesc": "普通用户不能直接关闭。若确有需要，可提交申请，由管理员评估后处理。"
       },
       "safeMode": {
         "title": "安全模式（推荐）",
@@ -1204,6 +1229,10 @@
       "refreshSecondVerifyEnabled": "已开启“刷新 Token 二次验证”",
       "refreshSecondVerifyDisabled": "已关闭“刷新 Token 二次验证”",
       "refreshSecondVerifySaveFailed": "保存“刷新 Token 二次验证”设置失败",
+      "refreshSecondVerifyRequestTitle": "申请关闭刷新 Token 二次验证",
+      "refreshSecondVerifyRequestContent": "账号：{username}\n申请事项：关闭“刷新 Token 二次验证”。\n风险确认：我已了解关闭后会提高 Token 被盗后被直接读取 BIN 的风险，并愿意自行承担相关风险。\n请管理员评估后处理。",
+      "refreshSecondVerifyRequestSubmitted": "申请已提交，请等待管理员处理",
+      "refreshSecondVerifyRequestFailed": "提交申请失败，请稍后重试",
       "safeModeEnabled": "安全模式已开启：Token 不再落盘，刷新后需重新导入",
       "safeModeDisabled": "安全模式已关闭：将允许本地持久化非敏感 Token 元数据",
       "safeModeSaveFailed": "保存安全模式设置失败",
@@ -1243,6 +1272,11 @@
     "dialogs": {
       "sensitiveConfirm": {
         "title": "安全确认"
+      },
+      "disableRefreshSecondVerifyRequest": {
+        "title": "申请关闭刷新 Token 二次验证",
+        "content": "关闭后，后端读取已保存 BIN 时会少一道保护。若你的 Token 被盗，风险会明显提高。确认已了解风险，并提交给管理员审批？",
+        "confirm": "我已了解风险，提交申请"
       }
     },
     "deleteDialog": {
@@ -1250,6 +1284,9 @@
       "content": "此操作将永久删除您的账户和所有数据，且无法恢复。确定要继续吗？",
       "confirm": "确定删除",
       "cancel": "取消"
+    },
+    "common": {
+      "unknownUser": "未知用户"
     }
   },
   "tokenManager": {
@@ -3070,6 +3107,7 @@
       "home": "首页",
       "dashboard": "控制台",
       "features": "游戏功能",
+      "security": "安全能力",
       "tokens": "Token管理",
       "changelog": "更新日志"
     },
@@ -3093,11 +3131,36 @@
       "liveSync": "实时同步",
       "flowTitle": "主流程"
     },
+    "mockup": {
+      "title": "把分散状态收进同一块面板",
+      "subtitle": "角色状态、任务进度和关键提醒放在同一视图里，不需要反复切页确认。",
+      "badge": "在线工作区",
+      "activityTitle": "当前流程",
+      "items": {
+        "stepUp": {
+          "kicker": "STEP-UP",
+          "title": "管理员敏感操作二次确认",
+          "description": "生成、禁用、删除这类高风险操作，都会先再确认一次。"
+        },
+        "codes": {
+          "kicker": "ONE-TIME",
+          "title": "邀请码和激活码只做一次性展示",
+          "description": "创建时可复制，之后列表里默认只显示脱敏内容。"
+        },
+        "audit": {
+          "kicker": "AUDIT",
+          "title": "关键安全动作会留下细粒度审计记录",
+          "description": "安全开关变更、管理操作和敏感读取都会进入审计链路。"
+        }
+      }
+    },
     "sections": {
       "featuresTitle": "核心功能模块",
       "featuresSubtitle": "为日常运营设计的完整工具链，从执行到复盘一站完成。"
     },
     "workflow": {
+      "sectionTitle": "从导入到执行的主流程",
+      "sectionSubtitle": "首屏只展示结果感，真正的执行链路放到下一屏，阅读会更轻松。",
       "import": {
         "title": "导入与绑定",
         "description": "先导入 Token 与 BIN，再绑定账号身份与激活信息。"
@@ -3296,6 +3359,10 @@
       "title": "站内通知",
       "markAllRead": "全部已读",
       "markRead": "标记已读",
+      "clearAll": "清空历史",
+      "clearAllTitle": "清空历史通知",
+      "clearAllContent": "这会清除当前账号的全部站内通知记录，且无法恢复。确定继续吗？",
+      "clearAllConfirm": "清空",
       "empty": "暂无通知"
     },
     "list": {
@@ -3323,7 +3390,8 @@
       "submitFailed": "提交失败",
       "submitSuccess": "反馈提交成功",
       "operationFailed": "操作失败",
-      "notificationsMarkedAllRead": "通知已全部标记为已读"
+      "notificationsMarkedAllRead": "通知已全部标记为已读",
+      "notificationsCleared": "历史通知已清除"
     }
   },
   "adminInvitesPage": {

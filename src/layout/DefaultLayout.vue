@@ -91,14 +91,24 @@
             <div class="notify-panel">
               <div class="notify-panel__head">
                 <strong>站内通知</strong>
-                <n-button
-                  quaternary
-                  size="tiny"
-                  :disabled="!unreadCount"
-                  @click="markAllNotificationsRead"
-                >
-                  全部已读
-                </n-button>
+                <div class="notify-panel__head-actions">
+                  <n-button
+                    quaternary
+                    size="tiny"
+                    :disabled="!unreadCount"
+                    @click="markAllNotificationsRead"
+                  >
+                    全部已读
+                  </n-button>
+                  <n-button
+                    quaternary
+                    size="tiny"
+                    :disabled="!notifications.length"
+                    @click="clearAllNotifications"
+                  >
+                    清空历史
+                  </n-button>
+                </div>
               </div>
               <div v-if="notifications.length" class="notify-panel__list">
                 <button
@@ -403,7 +413,11 @@ const handleUserAction = async (key) => {
     case "logout-account":
       await authStore.logout();
       message.success("已退出当前账号");
-      router.push("/");
+      if (typeof window !== "undefined") {
+        window.location.replace("/");
+      } else {
+        router.replace("/");
+      }
       break;
     case "clear-tokens":
       await tokenStore.clearAllTokens();
@@ -482,6 +496,28 @@ const markAllNotificationsRead = async () => {
   } catch (error) {
     message.error(error.message || "操作失败");
   }
+};
+
+const clearAllNotifications = async () => {
+  dialog.warning({
+    title: "清空历史通知",
+    content: "这会清除当前账号的全部站内通知记录，且无法恢复。确定继续吗？",
+    positiveText: "清空",
+    negativeText: "取消",
+    onPositiveClick: async () => {
+      try {
+        const res = await api.notifications.clearAll();
+        if (!res.success) {
+          message.error(res.message || "操作失败");
+          return;
+        }
+        notifications.value = [];
+        message.success(res.message || "历史通知已清除");
+      } catch (error) {
+        message.error(error.message || "操作失败");
+      }
+    },
+  });
 };
 
 const handleNotificationClick = async (item) => {
