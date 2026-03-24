@@ -29,6 +29,16 @@ if [[ -d dist ]] && find dist -type f | rg -n "(^|/)server/" >/dev/null 2>&1; th
   exit 1
 fi
 
+check_archive_for_sensitive_payload() {
+  local archive="$1"
+  if tar -tf "$archive" | rg -n \
+    "^backend/\\.env$|^backend/data/|^backend/node_modules/|^backend/test/|^backend/.*\\.sqlite(\\.bin)?$|^backend/.*backups/" \
+    >/dev/null 2>&1; then
+    echo "[guard] archive contains sensitive backend payloads: $archive"
+    exit 1
+  fi
+}
+
 if [[ $# -gt 0 ]]; then
   for archive in "$@"; do
     if [[ ! -f "$archive" ]]; then
@@ -40,11 +50,15 @@ if [[ $# -gt 0 ]]; then
       echo "[guard] archive contains legacy server artifacts: $archive"
       exit 1
     fi
+    check_archive_for_sensitive_payload "$archive"
   done
 else
   if [[ -f dist.tar.gz ]] && tar -tf dist.tar.gz | rg -n "^server/" >/dev/null 2>&1; then
     echo "[guard] dist.tar.gz contains legacy server artifacts."
     exit 1
+  fi
+  if [[ -f dist.tar.gz ]]; then
+    check_archive_for_sensitive_payload dist.tar.gz
   fi
 fi
 

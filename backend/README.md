@@ -26,6 +26,10 @@ cp backend/.env.example backend/.env
 关键变量：
 - `JWT_SECRET`：JWT 签名密钥（必填）
 - `AES_KEY`：字段加密密钥（必填）
+- `CSRF_SECRET`：CSRF 签名密钥（必填，必须显式设置，不能复用 `JWT_SECRET`）
+- `INVITE_CODE_PEPPER`：邀请码 HMAC pepper（必填，独立于其他 secret）
+- `ACTIVATION_CODE_PEPPER`：激活码 HMAC pepper（必填，独立于其他 secret）
+- `PASSWORD_RESET_CODE_PEPPER`：短时验证码 HMAC pepper（必填，独立于其他 secret）
 - `BACKEND_PORT`：服务端口（默认 `8787`）
 - `CORS_ORIGINS`：允许跨域来源白名单（逗号分隔）
 - `CSP_CONNECT_SRC`：前端 `Content-Security-Policy connect-src` 白名单（逗号分隔，避免使用 `https:`/`wss:`/`ws:` 这类全局放行）
@@ -64,10 +68,12 @@ cp backend/.env.example backend/.env
 启动校验：
 - `JWT_SECRET` 为空或占位值会直接拒绝启动
 - `AES_KEY` 为空或占位值会直接拒绝启动
+- `CSRF_SECRET`、`INVITE_CODE_PEPPER`、`ACTIVATION_CODE_PEPPER`、`PASSWORD_RESET_CODE_PEPPER` 必须显式设置
 - `NODE_ENV=production && ACCESS_TOKEN_EXPOSE_IN_BODY=true` 会直接拒绝启动
 - `NODE_ENV=production && BOOTSTRAP_ADMIN_PASSWORD` 存在会直接拒绝启动
 - `NODE_ENV=production && CORS_ORIGINS` 未显式设置会直接拒绝启动
 - `NODE_ENV=production && CORS_ORIGINS` 包含 `localhost/127.0.0.1/::1` 会直接拒绝启动
+- `NODE_ENV=production` 下 `JWT_SECRET` / `CSRF_SECRET` / 三个 pepper 不能复用同一个值
 - `NODE_ENV=production` 下若存在未启用 MFA 的管理员账号，会直接拒绝启动
 - `NODE_ENV=production` 下应用内 SQLite 明文备份默认关闭，除非显式设置 `APP_DB_BACKUP_ENABLED=true`
 - `DB_PATH` 不存在时会打印清晰提示（首次启动将初始化数据库文件）
@@ -106,6 +112,10 @@ ADMIN_PASSWORD='YourStrongPassword123!' \
 npm --prefix backend run init-admin
 ```
 
+要求：
+- `ADMIN_USERNAME`、`ADMIN_EMAIL`、`ADMIN_PASSWORD` 都必须显式提供
+- 不传用户名或邮箱时，初始化脚本会直接失败，不会使用任何默认身份
+
 ### 一次性初始化
 
 不要在服务主进程里保留 `BOOTSTRAP_ADMIN_*` 变量。
@@ -130,6 +140,45 @@ npm --prefix backend run init-admin-mfa
 - `BOOTSTRAP_ADMIN_*` 不再由 `backend/src/index.js` 消费
 - 生产环境如果仍设置 `BOOTSTRAP_ADMIN_*`，主进程会直接拒绝启动
 - 所有管理员接口现在都要求管理员账号已启用 MFA
+
+## 事故响应脚本
+
+当怀疑数据库、发布制品、备份或密钥发生泄露时，建议至少执行以下两步：
+
+```bash
+npm --prefix backend run incident:revoke-all-sessions
+npm --prefix backend run incident:invalidate-sensitive-codes
+```
+
+作用说明：
+- `incident:revoke-all-sessions`
+  - 对所有用户执行 `token_version + 1`
+  - 撤销所有仍未撤销的 refresh token
+- `incident:invalidate-sensitive-codes`
+  - 失效所有仍可用的邀请码
+  - 失效所有仍可用的激活码
+  - 失效所有仍可用的短时密码重置码
+
+这两条脚本不会替你轮换 `JWT_SECRET` / `AES_KEY` / `CSRF_SECRET` / 三个 pepper。密钥轮换仍需在部署平台完成，并在轮换后重启服务。
+
+推荐事故响应顺序：
+1. 立即执行：
+   `npm --prefix backend run incident:revoke-all-sessions`
+   `npm --prefix backend run incident:invalidate-sensitive-codes`
+2. 在部署平台轮换：
+   `JWT_SECRET`
+   `AES_KEY`
+   `CSRF_SECRET`
+   `INVITE_CODE_PEPPER`
+   `ACTIVATION_CODE_PEPPER`
+   `PASSWORD_RESET_CODE_PEPPER`
+   以上 secret/pepper 必须独立设置，不要复用同一个值
+3. 重启后端服务，让新密钥生效。
+4. 删除历史敏感制品与备份：
+   发布归档
+   `backend/data/backups/`
+   任何包含旧 `.env`、SQLite、`bin-storage` 的离线拷贝
+5. 如怀疑发布包外泄，视同 `bin-storage` 已暴露，按高风险数据处理。
 
 ## API 概览
 

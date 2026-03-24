@@ -97,10 +97,10 @@ const AES_PLACEHOLDERS = new Set([
 
 const rawJwtSecret = String(process.env.JWT_SECRET || "").trim();
 const rawAesKey = String(process.env.AES_KEY || "").trim();
-const rawCsrfSecret = String(process.env.CSRF_SECRET || rawJwtSecret).trim();
-const rawInviteCodePepper = String(process.env.INVITE_CODE_PEPPER || `${rawJwtSecret}:invite-code`).trim();
-const rawActivationCodePepper = String(process.env.ACTIVATION_CODE_PEPPER || `${rawJwtSecret}:activation-code`).trim();
-const rawPasswordResetCodePepper = String(process.env.PASSWORD_RESET_CODE_PEPPER || `${rawJwtSecret}:password-reset-code`).trim();
+const rawCsrfSecret = String(process.env.CSRF_SECRET || "").trim();
+const rawInviteCodePepper = String(process.env.INVITE_CODE_PEPPER || "").trim();
+const rawActivationCodePepper = String(process.env.ACTIVATION_CODE_PEPPER || "").trim();
+const rawPasswordResetCodePepper = String(process.env.PASSWORD_RESET_CODE_PEPPER || "").trim();
 const defaultCorsOrigins = ["http://localhost:3000", "https://xyzw.xq5007.fun"];
 const defaultCspConnectSrc = [
   "https://*.hortorgames.com",
@@ -289,20 +289,35 @@ if (isBlank(env.aesKey) || AES_PLACEHOLDERS.has(env.aesKey)) {
 
 if (isBlank(env.csrfSecret)) {
   throw new Error(
-    "CSRF_SECRET is required in backend/.env (defaults to JWT_SECRET if omitted).",
+    "CSRF_SECRET is required in backend/.env and must be set explicitly.",
   );
 }
 
-if (env.nodeEnv === "production" && isBlank(env.inviteCodePepper)) {
-  throw new Error("INVITE_CODE_PEPPER is required in production.");
+if (isBlank(env.inviteCodePepper)) {
+  throw new Error("INVITE_CODE_PEPPER is required in backend/.env and must be set explicitly.");
 }
 
-if (env.nodeEnv === "production" && isBlank(env.activationCodePepper)) {
-  throw new Error("ACTIVATION_CODE_PEPPER is required in production.");
+if (isBlank(env.activationCodePepper)) {
+  throw new Error("ACTIVATION_CODE_PEPPER is required in backend/.env and must be set explicitly.");
 }
 
-if (env.nodeEnv === "production" && isBlank(env.passwordResetCodePepper)) {
-  throw new Error("PASSWORD_RESET_CODE_PEPPER is required in production.");
+if (isBlank(env.passwordResetCodePepper)) {
+  throw new Error("PASSWORD_RESET_CODE_PEPPER is required in backend/.env and must be set explicitly.");
+}
+
+if (
+  env.nodeEnv === "production"
+  && new Set([
+    env.jwtSecret,
+    env.csrfSecret,
+    env.inviteCodePepper,
+    env.activationCodePepper,
+    env.passwordResetCodePepper,
+  ]).size !== 5
+) {
+  throw new Error(
+    "JWT_SECRET, CSRF_SECRET, INVITE_CODE_PEPPER, ACTIVATION_CODE_PEPPER, and PASSWORD_RESET_CODE_PEPPER must all be distinct in production.",
+  );
 }
 
 if (env.nodeEnv === "production" && !env.refreshCookieSecure) {

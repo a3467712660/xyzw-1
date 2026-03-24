@@ -4,9 +4,21 @@ import { nowIso, randomId } from "../db/sql.js";
 import { validatePasswordStrength } from "../lib/passwordPolicy.js";
 import { userRepository } from "../repositories/userRepository.js";
 
-const username = process.env.ADMIN_USERNAME || "318265998@qq.com";
+const username = String(process.env.ADMIN_USERNAME || "").trim();
 const password = process.env.ADMIN_PASSWORD;
-const email = process.env.ADMIN_EMAIL || "318265998@qq.com";
+const email = String(process.env.ADMIN_EMAIL || "").trim();
+
+if (!username) {
+  // eslint-disable-next-line no-console
+  console.error("ADMIN_USERNAME is required.");
+  process.exit(1);
+}
+
+if (!email) {
+  // eslint-disable-next-line no-console
+  console.error("ADMIN_EMAIL is required.");
+  process.exit(1);
+}
 
 if (!password) {
   // eslint-disable-next-line no-console

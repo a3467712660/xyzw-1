@@ -48,7 +48,11 @@ jobs:
           bash ./scripts/guard-legacy-server.sh
           tar -czf production-bundle.tar.gz \
             dist \
-            backend \
+            backend/src \
+            backend/package.json \
+            backend/package-lock.json \
+            backend/README.md \
+            backend/.env.example \
             docker \
             package.json \
             package-lock.json \
