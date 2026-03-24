@@ -60,6 +60,19 @@ const appendBackendErrorLog = (line) => {
 
 export function registerErrorHandler(app) {
   app.use((err, _req, res, _next) => {
+    const isJsonParseError = (
+      err instanceof SyntaxError
+      && err?.status === 400
+      && "body" in (err || {})
+    ) || err?.type === "entity.parse.failed";
+
+    if (isJsonParseError) {
+      return res.status(400).json({
+        success: false,
+        message: "请求体不是有效的 JSON",
+      });
+    }
+
     try {
       const line = `${new Date().toISOString()} ${err?.stack || err?.message || String(err)}\n`;
       appendBackendErrorLog(line);

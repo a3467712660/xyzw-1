@@ -403,7 +403,7 @@ const handleUserAction = async (key) => {
     case "logout-account":
       await authStore.logout();
       message.success("已退出当前账号");
-      router.push("/login");
+      router.push("/");
       break;
     case "clear-tokens":
       await tokenStore.clearAllTokens();

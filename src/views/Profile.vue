@@ -778,7 +778,7 @@ const changePassword = async () => {
     Object.keys(passwordForm).forEach((key) => {
       passwordForm[key] = "";
     });
-    await router.push("/login");
+    await router.push("/");
   } catch (error) {
     message.error(error.message || t("profile.messages.passwordChangeFailed"));
   } finally {
@@ -1093,7 +1093,7 @@ const exportData = () => {
 const logoutAccount = async () => {
   await authStore.logout();
   message.success(t("profile.messages.logoutSuccess"));
-  router.push("/login");
+  router.push("/");
 };
 
 const deleteAccount = () => {

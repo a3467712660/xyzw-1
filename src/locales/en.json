@@ -3090,11 +3090,26 @@
     },
     "panel": {
       "title": "Today's Overview",
-      "liveSync": "Live Sync"
+      "liveSync": "Live Sync",
+      "flowTitle": "Workflow"
     },
     "sections": {
       "featuresTitle": "Core Feature Modules",
       "featuresSubtitle": "A complete daily operations toolkit, from execution to review, all in one flow."
+    },
+    "workflow": {
+      "import": {
+        "title": "Import and Bind",
+        "description": "Import Token and BIN first, then bind the account identity and activation context."
+      },
+      "activate": {
+        "title": "Establish Secure Context",
+        "description": "Use step-up verification, session checks, and activation validation before allowing execution."
+      },
+      "execute": {
+        "title": "Open Tasks and Panels",
+        "description": "Game features, task control, and admin operations are only exposed after the required checks pass."
+      }
     },
     "cards": {
       "roleHub": {
@@ -3133,6 +3148,34 @@
       "managedRoles": "Managed Roles",
       "executedTasks": "Executed Tasks",
       "uptime": "Service Uptime"
+    },
+    "trust": {
+      "sessionIsolation": "Login Protection",
+      "mfaStepUp": "Confirm Important Actions",
+      "secretSplit": "Sensitive Data Separated"
+    },
+    "security": {
+      "kicker": "Security Notes",
+      "title": "Account protections already built into this version",
+      "subtitle": "These are not promises on paper. They are protections already active in the system, even during the current test phase.",
+      "items": {
+        "mfa": {
+          "title": "Important actions need another confirmation",
+          "description": "Actions related to account safety and key data do not run immediately. The system asks for another confirmation first."
+        },
+        "codes": {
+          "title": "Sensitive information is not left fully visible",
+          "description": "Pages try to show masked values by default, so full details are not sitting on screen for anyone to read at a glance. Viewing or operating on them may require another confirmation."
+        },
+        "runtime": {
+          "title": "Abnormal sign-ins are easier to block",
+          "description": "Sign-in, session refresh, and sensitive actions now go through more checks, which reduces the chance of an account continuing to be used in an abnormal state."
+        },
+        "csp": {
+          "title": "The web app is allowed to do less by default",
+          "description": "The browser is more tightly limited on which scripts can run and which addresses pages can connect to, especially on admin screens."
+        }
+      }
     },
     "footer": {
       "brand": "XYZW Game Management System",

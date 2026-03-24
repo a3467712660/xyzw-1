@@ -218,6 +218,13 @@ request.interceptors.request.use(
       config.headers.Authorization = `Bearer ${authStore.token}`;
     }
     const method = String(config.method || "get").toUpperCase();
+    if (config.data == null) {
+      config.data = undefined;
+      if (config.headers) {
+        delete config.headers["Content-Type"];
+        delete config.headers["content-type"];
+      }
+    }
     if (!CSRF_SAFE_METHODS.has(method)) {
       const csrfToken = CSRF_COOKIE_NAMES.map((name) => readCookie(name)).find(
         (value) => String(value || "").trim().length > 0,

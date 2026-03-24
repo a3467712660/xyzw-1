@@ -3090,11 +3090,26 @@
     },
     "panel": {
       "title": "今日概览",
-      "liveSync": "实时同步"
+      "liveSync": "实时同步",
+      "flowTitle": "主流程"
     },
     "sections": {
       "featuresTitle": "核心功能模块",
       "featuresSubtitle": "为日常运营设计的完整工具链，从执行到复盘一站完成。"
+    },
+    "workflow": {
+      "import": {
+        "title": "导入与绑定",
+        "description": "先导入 Token 与 BIN，再绑定账号身份与激活信息。"
+      },
+      "activate": {
+        "title": "建立安全上下文",
+        "description": "通过二次验证、会话校验和激活状态判断，确认当前账号可执行。"
+      },
+      "execute": {
+        "title": "进入任务与面板",
+        "description": "满足条件后再开放游戏功能、任务控制和后台管理操作。"
+      }
     },
     "cards": {
       "roleHub": {
@@ -3133,6 +3148,34 @@
       "managedRoles": "管理角色",
       "executedTasks": "执行任务",
       "uptime": "服务可用"
+    },
+    "trust": {
+      "sessionIsolation": "登录保护",
+      "mfaStepUp": "重要操作再确认",
+      "secretSplit": "敏感信息分开保存"
+    },
+    "security": {
+      "kicker": "安全说明",
+      "title": "这个版本已经做好的账号保护",
+      "subtitle": "下面这些不是口头约定，而是已经在系统里生效的保护措施。就算是测试阶段，也尽量先把高风险入口收紧。",
+      "items": {
+        "mfa": {
+          "title": "重要操作会再次确认",
+          "description": "涉及账号安全和关键数据的操作，不会点一下就直接执行，系统会要求再次确认。"
+        },
+        "codes": {
+          "title": "敏感信息不会长期明文展示",
+          "description": "列表和页面里会尽量只显示脱敏后的内容，避免别人一眼看到完整信息；需要查看或操作时，也会额外确认。"
+        },
+        "runtime": {
+          "title": "异常登录更容易被拦下",
+          "description": "登录、刷新会话和敏感操作前都会做更多校验，减少账号在异常状态下被继续使用的机会。"
+        },
+        "csp": {
+          "title": "前端页面限制得更严格",
+          "description": "网页能加载什么脚本、能连到哪些地址，都做了限制。管理页面的限制会更严格，避免被恶意页面带偏。"
+        }
+      }
     },
     "footer": {
       "brand": "XYZW 游戏管理系统",

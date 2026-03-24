@@ -1271,7 +1271,7 @@ const handleImportSuccess = async () => {
 const handleLogout = async () => {
   await authStore.logout();
   message.success(t("tokenImport.messages.loggedOut"));
-  router.push("/login");
+  router.push("/");
 };
 
 const goToAdminCenter = () => {

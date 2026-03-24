@@ -187,6 +187,19 @@
               <span class="hero-tag">{{ t("homePage.hero.tags.automation") }}</span>
               <span class="hero-tag">{{ t("homePage.hero.tags.monitoring") }}</span>
             </div>
+
+            <div class="hero-trust-strip">
+              <div
+                v-for="item in trustPoints"
+                :key="item.id"
+                class="trust-pill"
+              >
+                <n-icon>
+                  <component :is="item.icon"></component>
+                </n-icon>
+                <span>{{ item.label }}</span>
+              </div>
+            </div>
           </div>
 
           <div class="hero-panel reveal-up reveal-delay-2">
@@ -212,6 +225,45 @@
                 <div>
                   <h3>{{ card.title }}</h3>
                   <p>{{ card.description }}</p>
+                </div>
+              </article>
+            </div>
+
+            <div class="ops-timeline">
+              <div class="timeline-title">{{ t("homePage.panel.flowTitle") }}</div>
+              <div class="timeline-list">
+                <div
+                  v-for="item in workflowSteps"
+                  :key="item.id"
+                  class="timeline-item"
+                >
+                  <span class="timeline-step">{{ item.step }}</span>
+                  <div>
+                    <strong>{{ item.title }}</strong>
+                    <p>{{ item.description }}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="security-section">
+        <div class="container security-shell">
+          <div class="security-layout">
+            <div class="security-grid">
+              <article
+                v-for="item in securityCards"
+                :key="item.id"
+                class="security-card"
+              >
+                <div class="security-card__icon">
+                  <component :is="item.icon"></component>
+                </div>
+                <div class="security-card__copy">
+                  <h3>{{ item.title }}</h3>
+                  <p>{{ item.description }}</p>
                 </div>
               </article>
             </div>
@@ -278,10 +330,14 @@ import {
   Cube,
   DocumentText,
   Flash,
+  Key,
+  LockClosed,
   Menu,
   PersonCircle,
   Ribbon,
+  Server,
   Settings,
+  ShieldCheckmark,
   Speedometer,
 } from "@vicons/ionicons5";
 
@@ -351,6 +407,27 @@ const featureCards = computed(() => [
   },
 ]);
 
+const workflowSteps = computed(() => [
+  {
+    id: 1,
+    step: "01",
+    title: t("homePage.workflow.import.title"),
+    description: t("homePage.workflow.import.description"),
+  },
+  {
+    id: 2,
+    step: "02",
+    title: t("homePage.workflow.activate.title"),
+    description: t("homePage.workflow.activate.description"),
+  },
+  {
+    id: 3,
+    step: "03",
+    title: t("homePage.workflow.execute.title"),
+    description: t("homePage.workflow.execute.description"),
+  },
+]);
+
 const features = computed(() => [
   {
     id: 1,
@@ -375,6 +452,39 @@ const features = computed(() => [
     icon: markRaw(Settings),
     title: t("homePage.features.personalization.title"),
     description: t("homePage.features.personalization.description"),
+  },
+]);
+
+const trustPoints = computed(() => [
+  { id: 1, icon: markRaw(ShieldCheckmark), label: t("homePage.trust.sessionIsolation") },
+  { id: 2, icon: markRaw(LockClosed), label: t("homePage.trust.mfaStepUp") },
+  { id: 3, icon: markRaw(Key), label: t("homePage.trust.secretSplit") },
+]);
+
+const securityCards = computed(() => [
+  {
+    id: 1,
+    icon: markRaw(LockClosed),
+    title: t("homePage.security.items.mfa.title"),
+    description: t("homePage.security.items.mfa.description"),
+  },
+  {
+    id: 2,
+    icon: markRaw(Key),
+    title: t("homePage.security.items.codes.title"),
+    description: t("homePage.security.items.codes.description"),
+  },
+  {
+    id: 3,
+    icon: markRaw(Server),
+    title: t("homePage.security.items.runtime.title"),
+    description: t("homePage.security.items.runtime.description"),
+  },
+  {
+    id: 4,
+    icon: markRaw(ShieldCheckmark),
+    title: t("homePage.security.items.csp.title"),
+    description: t("homePage.security.items.csp.description"),
   },
 ]);
 
@@ -737,6 +847,30 @@ onUnmounted(() => {
   animation-delay: 0.4s;
 }
 
+.hero-trust-strip {
+  margin-top: 22px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.trust-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border-radius: 999px;
+  background: rgba(8, 24, 43, 0.84);
+  color: rgba(247, 251, 255, 0.92);
+  border: 1px solid rgba(112, 167, 255, 0.18);
+  box-shadow: 0 10px 24px rgba(7, 17, 34, 0.18);
+}
+
+.trust-pill :deep(svg) {
+  width: 15px;
+  height: 15px;
+}
+
 .hero-panel {
   padding: 22px;
   border-radius: 20px;
@@ -808,6 +942,7 @@ onUnmounted(() => {
 .quick-cards {
   display: grid;
   gap: 10px;
+  margin-bottom: 16px;
 }
 
 .quick-card {
@@ -870,6 +1005,140 @@ onUnmounted(() => {
 .quick-card p {
   font-size: 13px;
   color: var(--text-secondary);
+}
+
+.ops-timeline {
+  border-top: 1px solid rgba(15, 107, 255, 0.14);
+  padding-top: 16px;
+}
+
+.timeline-title {
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  margin-bottom: 12px;
+}
+
+.timeline-list {
+  display: grid;
+  gap: 12px;
+}
+
+.timeline-item {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+  align-items: start;
+}
+
+.timeline-step {
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  background: rgba(15, 107, 255, 0.1);
+  color: var(--primary-color);
+}
+
+.timeline-item strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.timeline-item p {
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.security-section {
+  padding: 10px 0 34px;
+}
+
+.section-header--left {
+  text-align: left;
+  max-width: 760px;
+}
+
+.section-kicker {
+  display: inline-flex;
+  align-items: center;
+  margin-bottom: 10px;
+  color: #0e7490;
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.security-shell {
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+.security-layout {
+  display: block;
+  margin-top: 0;
+}
+
+.security-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.security-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 14px;
+  padding: 22px;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid rgba(15, 23, 42, 0.07);
+  box-shadow:
+    0 10px 24px rgba(15, 23, 42, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(8px);
+}
+
+[data-theme="dark"] .security-card {
+  background: rgba(9, 22, 40, 0.78);
+  border-color: rgba(148, 163, 184, 0.12);
+  box-shadow:
+    0 12px 26px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.security-card__icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, #0f766e, #0f6bff);
+  color: #fff;
+}
+
+.security-card__icon :deep(svg) {
+  width: 21px;
+  height: 21px;
+}
+
+.security-card__copy h3 {
+  margin-bottom: 6px;
+  font-size: 16px;
+}
+
+.security-card__copy p {
+  color: var(--text-secondary);
+  line-height: 1.7;
+  font-size: 14px;
 }
 
 .features-section {
@@ -1103,6 +1372,10 @@ onUnmounted(() => {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .security-grid {
+    grid-template-columns: 1fr;
+  }
+
   .nav-actions {
     display: none;
   }
@@ -1123,6 +1396,10 @@ onUnmounted(() => {
 
   .hero-actions {
     flex-direction: column;
+  }
+
+  .security-shell {
+    padding: 0;
   }
 
   .hero-button,
