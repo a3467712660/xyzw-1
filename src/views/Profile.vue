@@ -157,8 +157,14 @@
               <h3>{{ t("profile.security.twoFactor.title") }}</h3>
               <p>{{ t("profile.security.twoFactor.desc") }}</p>
             </div>
-            <n-button @click="setupTwoFactor">
-              {{ isTwoFactorEnabled ? t("profile.actions.reset") : t("profile.actions.setup") }}
+            <n-button @click="handleTwoFactorAction">
+              {{
+                isTwoFactorEnabled && !authStore.user?.isAdmin
+                  ? t("profile.actions.requestReset")
+                  : isTwoFactorEnabled
+                    ? t("profile.actions.reset")
+                    : t("profile.actions.setup")
+              }}
             </n-button>
           </div>
 
@@ -1073,6 +1079,41 @@ const setupTwoFactor = () => {
   if (isTwoFactorEnabled.value) {
     message.info(t("profile.messages.twoFactorResetReady"));
   }
+};
+
+const submitMfaResetRequest = () => {
+  dialog.warning({
+    title: t("profile.dialogs.mfaResetRequest.title"),
+    content: t("profile.dialogs.mfaResetRequest.content"),
+    positiveText: t("profile.dialogs.mfaResetRequest.confirm"),
+    negativeText: t("profile.deleteDialog.cancel"),
+    onPositiveClick: async () => {
+      try {
+        const res = await api.feedback.create({
+          type: "other",
+          title: t("profile.messages.mfaResetRequestTitle"),
+          content: t("profile.messages.mfaResetRequestContent", {
+            username: authStore.user?.username || t("profile.common.unknownUser"),
+          }),
+        });
+        if (!res?.success) {
+          message.error(res?.message || t("profile.messages.mfaResetRequestFailed"));
+          return;
+        }
+        message.success(t("profile.messages.mfaResetRequestSubmitted"));
+      } catch (error) {
+        message.error(error.message || t("profile.messages.mfaResetRequestFailed"));
+      }
+    },
+  });
+};
+
+const handleTwoFactorAction = () => {
+  if (isTwoFactorEnabled.value && !authStore.user?.isAdmin) {
+    submitMfaResetRequest();
+    return;
+  }
+  setupTwoFactor();
 };
 
 const viewLoginHistory = async () => {

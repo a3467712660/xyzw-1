@@ -20,6 +20,7 @@ const ADMIN_ACTION_LABELS = {
   reset_user_password: "重置账号密码",
   revoke_user_sessions: "注销全部会话",
   create_password_reset_code: "生成短时验证码",
+  create_mfa_reset_link: "生成二次验证重置链接",
   delete_user: "删除账号",
   create_invite_codes: "生成邀请码",
   disable_invite_code: "禁用邀请码",

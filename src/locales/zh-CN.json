@@ -88,6 +88,15 @@
     "submit": "确认验证",
     "success": "验证成功，请返回桌面端继续。"
   },
+  "mfaReset": {
+    "title": "重置二次验证",
+    "desc": "这是管理员为你生成的一次性重置链接。确认后，当前账号的二次验证会被清空，你需要重新登录并重新绑定认证器。",
+    "confirmHint": "请确认这是你本人申请的重置操作，再继续。",
+    "confirm": "确认重置",
+    "success": "二次验证已重置，请重新登录后完成绑定。",
+    "invalid": "重置链接无效或已过期。",
+    "backLogin": "返回登录"
+  },
   "forgotPassword": {
     "kicker": "PASSWORD RECOVERY",
     "title": "通过短时验证码重置密码",
@@ -250,6 +259,7 @@
       "targetAccount": "目标账号",
       "confirmUsername": "确认账号名",
       "shortCode": "短时验证码",
+      "mfaResetLink": "二次验证重置链接",
       "expiresAt": "有效截止时间",
       "boundAt": "绑定时间",
       "tokenId": "TokenID",
@@ -281,6 +291,7 @@
       "highRiskAction": "高危操作",
       "refresh": "刷新",
       "createResetCode": "生成短时验证码",
+      "resetMfa": "重置二次验证",
       "resetPassword": "重置密码",
       "updateAdmin": "修改管理员权限",
       "updateAccountType": "修改账号类型",
@@ -290,6 +301,7 @@
       "confirmDelete": "确认删除",
       "close": "关闭",
       "copyResetCode": "复制验证码",
+      "copyMfaResetLink": "复制重置链接",
       "shortCode": "短时验证码",
       "updateTokenBindLimit": "设置Token上限",
       "viewTokenExpiry": "查看Token到期",
@@ -307,6 +319,9 @@
       },
       "resetCode": {
         "title": "短时验证码"
+      },
+      "mfaResetLink": {
+        "title": "二次验证重置链接"
       },
       "tokenActivation": {
         "title": "Token 到期情况"
@@ -349,9 +364,13 @@
       "deleteSuccess": "账号已删除",
       "createResetCodeFailed": "生成短时验证码失败",
       "createResetCodeSuccess": "短时验证码已生成",
+      "createMfaResetLinkFailed": "生成二次验证重置链接失败",
+      "createMfaResetLinkSuccess": "二次验证重置链接已生成",
       "loadTokenActivationsFailed": "加载Token到期情况失败",
       "noResetCodeToCopy": "暂无可复制的验证码",
       "resetCodeCopied": "验证码已复制",
+      "noMfaResetLink": "暂无可复制的重置链接",
+      "copyMfaResetLinkSuccess": "重置链接已复制",
       "copyFailed": "复制失败，请手动复制"
     },
     "columns": {
@@ -1164,6 +1183,7 @@
       "changePassword": "修改密码",
       "setup": "设置",
       "reset": "重新设置",
+      "requestReset": "申请重置",
       "confirm": "确认",
       "done": "完成",
       "copy": "复制",
@@ -1262,6 +1282,10 @@
       "twoFactorSetupFailed": "初始化两步验证失败",
       "twoFactorEnableFailed": "启用两步验证失败",
       "twoFactorEnabled": "两步验证已启用",
+      "mfaResetRequestTitle": "申请重置二次验证",
+      "mfaResetRequestContent": "账号：{username}\n申请事项：重置当前账号的二次验证。\n说明：我已无法继续使用当前认证器，希望管理员生成重置链接供我重新绑定。",
+      "mfaResetRequestSubmitted": "申请已提交，请等待管理员生成重置链接。",
+      "mfaResetRequestFailed": "提交重置申请失败，请稍后重试",
       "twoFactorRecoveryCodes": "请保存以下一次性恢复码（每个仅可使用一次）",
       "twoFactorCancelled": "已取消两步验证配置",
       "loginHistoryPending": "登录历史查看功能开发中...",
@@ -1277,6 +1301,11 @@
         "title": "申请关闭刷新 Token 二次验证",
         "content": "关闭后，后端读取已保存 BIN 时会少一道保护。若你的 Token 被盗，风险会明显提高。确认已了解风险，并提交给管理员审批？",
         "confirm": "我已了解风险，提交申请"
+      },
+      "mfaResetRequest": {
+        "title": "申请重置二次验证",
+        "content": "你将向管理员提交“重置二次验证”申请。管理员审核后，会生成专用重置链接供你重新绑定认证器。是否继续？",
+        "confirm": "提交申请"
       }
     },
     "deleteDialog": {

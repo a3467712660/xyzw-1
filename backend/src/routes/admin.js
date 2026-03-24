@@ -30,6 +30,10 @@ import {
   verifyTotpCode,
 } from "../services/mfaService.js";
 import {
+  issueMfaResetLinkToken,
+  MFA_RESET_LINK_TTL_SECONDS,
+} from "./auth.js";
+import {
   ACCESS_SCOPE_FULL,
   ACCESS_SCOPE_TASK_CONTROL_ONLY,
   normalizeAccessScope,
@@ -77,6 +81,7 @@ const resetUserPasswordBodySchema = z.object({
 const createPasswordResetCodeBodySchema = z.object({
   expiresInMinutes: z.coerce.number().int().min(1).max(RESET_CODE_MAX_MINUTES).optional(),
 }).strict();
+const createMfaResetLinkBodySchema = z.object({}).strict();
 const createInviteCodesBodySchema = z.object({
   count: z.coerce.number().int().min(1).max(20).optional().default(1),
   expiresAt: z.union([z.string().datetime({ offset: true }), z.null(), z.literal("")]).optional(),
@@ -156,6 +161,15 @@ const reqMeta = (req) => ({
   ip: String(req.ip || ""),
   userAgent: String(req.headers["user-agent"] || ""),
 });
+
+const resolvePublicAppOrigin = (req) => {
+  const originHeader = String(req.headers?.origin || "").trim();
+  if (originHeader) {
+    return originHeader.replace(/\/+$/, "");
+  }
+  const fallback = Array.isArray(env.corsOrigins) ? String(env.corsOrigins[0] || "").trim() : "";
+  return fallback.replace(/\/+$/, "");
+};
 
 const isDefaultAdminAccount = (userRow) => {
   const identities = new Set(env.protectedAdminIdentities || []);
@@ -679,6 +693,84 @@ router.post(
     },
   });
 },
+);
+
+router.post(
+  "/users/:id/mfa-reset-link",
+  adminWriteLimiter,
+  sensitiveActionRequired,
+  validateRequest({ params: userIdParamSchema, body: createMfaResetLinkBodySchema }),
+  (req, res) => {
+    const target = userRepository.findAdminUserBasic(req.params.id);
+    if (!target) {
+      return res.status(404).json({ success: false, message: "用户不存在" });
+    }
+    if (!target.mfaEnabled) {
+      return res.status(400).json({
+        success: false,
+        message: "该账号当前未开启二次验证，无需生成重置链接",
+      });
+    }
+
+    const token = issueMfaResetLinkToken(target, { requestedBy: req.auth.user.id });
+    const expiresInMinutes = Math.floor(MFA_RESET_LINK_TTL_SECONDS / 60);
+    const expiresAt = new Date(Date.now() + expiresInMinutes * 60 * 1000).toISOString();
+    const publicOrigin = target.isAdmin
+      ? (() => {
+          const originHeader = String(req.headers?.origin || "").trim();
+          if (originHeader) {
+            try {
+              const parsed = new URL(originHeader);
+              const protocol = String(parsed.protocol || "http:").toLowerCase();
+              const port = String(parsed.port || "").trim();
+              return `${protocol}//127.0.0.1${port ? `:${port}` : ""}`;
+            } catch {
+              return "http://127.0.0.1:3000";
+            }
+          }
+          return "http://127.0.0.1:3000";
+        })()
+      : resolvePublicAppOrigin(req);
+    const resetPath = `/mfa-reset?token=${encodeURIComponent(token)}`;
+    const resetUrl = publicOrigin ? `${publicOrigin}${resetPath}` : resetPath;
+
+    recordAdminAudit({
+      adminUserId: req.auth.user.id,
+      action: "create_mfa_reset_link",
+      targetType: "user",
+      targetId: target.id,
+      detail: {
+        targetUsername: target.username,
+        expiresAt,
+      },
+      ...reqMeta(req),
+    });
+
+    createUserNotification({
+      userId: target.id,
+      type: "security",
+      title: "管理员已为你生成二次验证重置链接",
+      content: "如需重新绑定认证器，请向管理员索取重置链接并在有效期内完成操作。",
+      payload: {
+        path: "/admin/feedback",
+        resetPath,
+        expiresAt,
+      },
+    });
+
+    return res.json({
+      success: true,
+      message: `已为 ${target.username} 生成二次验证重置链接`,
+      data: {
+        userId: target.id,
+        username: target.username,
+        resetUrl,
+        resetPath,
+        expiresAt,
+        expiresInMinutes,
+      },
+    });
+  },
 );
 
 router.delete(

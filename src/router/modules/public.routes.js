@@ -47,6 +47,15 @@ export const publicRoutes = [
     }),
   },
   {
+    path: "/mfa-reset",
+    name: "MfaReset",
+    component: () => import("@/views/MfaReset.vue"),
+    meta: withRouteMeta({
+      title: "重置二次验证",
+      layout: "auth",
+    }),
+  },
+  {
     path: "/game-roles",
     redirect: "/admin/dashboard",
     meta: withRouteMeta({

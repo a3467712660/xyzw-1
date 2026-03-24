@@ -360,6 +360,7 @@ const api = {
     setupMfa: (payload) => request.post("/auth/mfa/setup", payload),
     enableMfa: (payload) => request.post("/auth/mfa/enable", payload),
     disableMfa: (payload) => request.post("/auth/mfa/disable", payload),
+    resetMfaByLink: (payload) => request.post("/auth/mfa/reset-by-link", payload),
     register: (userInfo) => request.post("/auth/register", userInfo),
     resetPassword: (payload) => request.post("/auth/password-reset", payload),
     logout: () => request.post("/auth/logout", {}, { skipAuthHandling: true }),
@@ -592,6 +593,14 @@ const api = {
         {
           expiresInMinutes,
         },
+        {
+          headers: api.admin.adminConfirmHeaders(confirmToken),
+        },
+      ),
+    createUserMfaResetLink: (id, confirmToken) =>
+      request.post(
+        `/admin/users/${id}/mfa-reset-link`,
+        {},
         {
           headers: api.admin.adminConfirmHeaders(confirmToken),
         },

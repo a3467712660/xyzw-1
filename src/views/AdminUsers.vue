@@ -166,6 +166,9 @@
               </div>
 
               <div class="mobile-user-card__actions">
+                <NButton block tertiary :disabled="!row.mfaEnabled" @click="createMfaResetLink(row)">
+                  {{ t("adminUsers.actions.resetMfa") }}
+                </NButton>
                 <NButton block tertiary @click="createResetCode(row)">
                   {{ t("adminUsers.actions.createResetCode") }}
                 </NButton>
@@ -355,6 +358,39 @@
         </div>
       </template>
     </n-modal>
+
+    <n-modal
+      class="password-modal"
+      preset="card"
+      v-model:show="mfaResetLinkModalVisible"
+      :bordered="false"
+      :title="t('adminUsers.modals.mfaResetLink.title')"
+    >
+      <n-form>
+        <n-form-item :label="t('adminUsers.fields.account')">
+          <NInput disabled :value="mfaResetLinkInfo?.username || ''"></NInput>
+        </n-form-item>
+        <n-form-item :label="t('adminUsers.fields.mfaResetLink')">
+          <NInput disabled :value="mfaResetLinkInfo?.resetUrl || ''"></NInput>
+        </n-form-item>
+        <n-form-item :label="t('adminUsers.fields.expiresAt')">
+          <NInput
+            disabled
+            :value="formatDate(mfaResetLinkInfo?.expiresAt) || t('adminUsers.common.dash')"
+          ></NInput>
+        </n-form-item>
+      </n-form>
+      <template #action>
+        <div class="modal-actions">
+          <NButton @click="mfaResetLinkModalVisible = false">
+            {{ t("adminUsers.actions.close") }}
+          </NButton>
+          <NButton type="primary" @click="copyMfaResetLink">
+            {{ t("adminUsers.actions.copyMfaResetLink") }}
+          </NButton>
+        </div>
+      </template>
+    </n-modal>
   </div>
 </template>
 
@@ -397,6 +433,8 @@ const confirmPassword = ref("");
 const deleteConfirmText = ref("");
 const resetCodeModalVisible = ref(false);
 const resetCodeInfo = ref(null);
+const mfaResetLinkModalVisible = ref(false);
+const mfaResetLinkInfo = ref(null);
 const tokenActivationModalVisible = ref(false);
 const tokenActivationLoading = ref(false);
 const tokenActivationTarget = ref(null);
@@ -1133,6 +1171,42 @@ const copyResetCode = async () => {
     message.error(t("adminUsers.messages.copyFailed"));
   }
 };
+
+const createMfaResetLink = async (row) => {
+  try {
+    const confirmToken = await ensureSensitiveActionConfirmed(t("adminUsers.actions.resetMfa"));
+    if (!confirmToken) {
+      return;
+    }
+    const res = await api.admin.createUserMfaResetLink(row.id, confirmToken);
+    if (!res.success) {
+      message.error(res.message || t("adminUsers.messages.createMfaResetLinkFailed"));
+      return;
+    }
+    mfaResetLinkInfo.value = res.data || null;
+    mfaResetLinkModalVisible.value = true;
+    message.success(res.message || t("adminUsers.messages.createMfaResetLinkSuccess"));
+  } catch (error) {
+    if (shouldResetConfirmCache(error)) {
+      clearSensitiveConfirmCache();
+    }
+    message.error(error.message || t("adminUsers.messages.createMfaResetLinkFailed"));
+  }
+};
+
+const copyMfaResetLink = async () => {
+  const link = String(mfaResetLinkInfo.value?.resetUrl || "").trim();
+  if (!link) {
+    message.warning(t("adminUsers.messages.noMfaResetLink"));
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(link);
+    message.success(t("adminUsers.messages.copyMfaResetLinkSuccess"));
+  } catch {
+    message.error(t("adminUsers.messages.copyFailed"));
+  }
+};
 const activationStatusTag = (row) => {
   if (row.active) {
     return {
@@ -1230,6 +1304,10 @@ const handleActionSelect = (key, row) => {
     createResetCode(row);
     return;
   }
+  if (actionKey === "mfaReset") {
+    createMfaResetLink(row);
+    return;
+  }
   if (actionKey === "resetPassword") {
     openPasswordModal(row);
     return;
@@ -1245,6 +1323,11 @@ const handleActionSelect = (key, row) => {
 const getActionOptions = (row) => [
   { label: t("adminUsers.actions.updateTokenBindLimit"), key: "tokenLimit" },
   { label: t("adminUsers.actions.viewTokenExpiry"), key: "tokenActivation" },
+  {
+    label: t("adminUsers.actions.resetMfa"),
+    key: "mfaReset",
+    disabled: !row.mfaEnabled,
+  },
   { label: t("adminUsers.actions.shortCode"), key: "shortCode" },
   { label: t("adminUsers.actions.resetPassword"), key: "resetPassword" },
   {

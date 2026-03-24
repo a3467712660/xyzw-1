@@ -23,6 +23,7 @@ import { env } from "../config/env.js";
 import { parseCookies } from "../lib/cookies.js";
 import { clearCsrfCookies } from "../middleware/csrf.js";
 import { resolveCookieSecure } from "../lib/cookieSecurity.js";
+import { normalizeHttpOrigin } from "../lib/origin.js";
 import {
   ACCESS_SCOPE_FULL,
   ACCESS_SCOPE_TASK_CONTROL_ONLY,
@@ -94,6 +95,8 @@ const REFRESH_TOKEN_LONG_TTL_MS = env.refreshTokenLongTtlDays * 24 * 60 * 60 * 1
 const REFRESH_TOKEN_BYTES = 48;
 const MFA_CHALLENGE_TTL_SECONDS = 5 * 60;
 const MFA_CHALLENGE_PURPOSE = "auth-mfa-challenge";
+const MFA_RESET_LINK_TTL_SECONDS = 60 * 60;
+const MFA_RESET_LINK_PURPOSE = "auth-mfa-reset-link";
 const registerBodySchema = z.object({
   username: z.string().trim().min(1).max(64),
   email: z.union([z.string().trim().email(), z.literal(""), z.null()]).optional(),
@@ -139,9 +142,29 @@ const mfaDisableBodySchema = z.object({
   totpCode: z.string().trim().max(32).optional(),
   recoveryCode: z.string().trim().max(64).optional(),
 }).strict();
+const mfaResetLinkBodySchema = z.object({
+  token: z.string().trim().min(1).max(4096),
+}).strict();
 const MFA_QR_SESSION_TTL_MS = MFA_CHALLENGE_TTL_SECONDS * 1000;
 const MAX_MFA_QR_SESSION_COUNT = 500;
 const mfaQrSessionStore = new Map();
+
+const isLocalMfaResetRequest = (req) => {
+  const origin = normalizeHttpOrigin(String(req.get("origin") || "").trim());
+  const refererRaw = String(req.get("referer") || "").trim();
+  let referer = null;
+  try {
+    referer = refererRaw ? normalizeHttpOrigin(new URL(refererRaw).origin) : null;
+  } catch {
+    referer = null;
+  }
+  const host = String(req.hostname || "").trim().toLowerCase();
+  return (
+    host === "127.0.0.1"
+    || origin?.hostname === "127.0.0.1"
+    || referer?.hostname === "127.0.0.1"
+  );
+};
 
 const logPasswordResetMaskedReason = (identity, reason) => {
   // eslint-disable-next-line no-console
@@ -301,10 +324,31 @@ const issueMfaChallengeToken = (user, { rememberMe = false } = {}) =>
     MFA_CHALLENGE_TTL_SECONDS,
   );
 
+const issueMfaResetLinkToken = (user, { requestedBy = "" } = {}) =>
+  signJwt(
+    {
+      sub: user.id,
+      username: user.username,
+      ver: Number(user.tokenVersion ?? 0),
+      purpose: MFA_RESET_LINK_PURPOSE,
+      requestedBy: String(requestedBy || "").trim() || null,
+      mfaEnabled: Boolean(user.mfaEnabled),
+    },
+    MFA_RESET_LINK_TTL_SECONDS,
+  );
+
 const parseMfaChallengeToken = (challengeToken) => {
   const payload = verifyJwt(challengeToken);
   if (String(payload?.purpose || "") !== MFA_CHALLENGE_PURPOSE) {
     throw new Error("invalid_mfa_challenge");
+  }
+  return payload;
+};
+
+const parseMfaResetLinkToken = (token) => {
+  const payload = verifyJwt(token);
+  if (String(payload?.purpose || "") !== MFA_RESET_LINK_PURPOSE) {
+    throw new Error("invalid_mfa_reset_link");
   }
   return payload;
 };
@@ -963,6 +1007,85 @@ router.post(
     return res.json({ success: true, message: "双重验证已关闭" });
   },
 );
+
+router.post(
+  "/mfa/reset-by-link",
+  validateRequest({ body: mfaResetLinkBodySchema }),
+  (req, res) => {
+    let payload;
+    try {
+      payload = parseMfaResetLinkToken(String(req.body?.token || "").trim());
+    } catch {
+      return res.status(401).json({
+        success: false,
+        message: "重置链接无效或已过期",
+      });
+    }
+
+    const user = userRepository.findById(String(payload?.sub || ""));
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "账号不存在",
+      });
+    }
+
+    if (user.isAdmin && !isLocalMfaResetRequest(req)) {
+      return res.status(403).json({
+        success: false,
+        message: "管理员账号的二次验证重置仅允许在本地 127.0.0.1 环境执行",
+      });
+    }
+
+    if (Number(user.tokenVersion ?? 0) !== Number(payload?.ver ?? -1)) {
+      return res.status(401).json({
+        success: false,
+        message: "重置链接无效或已失效",
+      });
+    }
+
+    if (!user.mfaEnabled) {
+      return res.json({
+        success: true,
+        message: "当前账号的二次验证已处于未启用状态",
+      });
+    }
+
+    const ts = nowIso();
+    userRepository.disableMfa({
+      id: user.id,
+      updatedAt: ts,
+    });
+    userRepository.bumpTokenVersion({
+      id: user.id,
+      updatedAt: ts,
+    });
+    refreshTokenRepository.revokeAllByUserId({
+      userId: user.id,
+      revokedAt: ts,
+    });
+    recordSecurityEvent({
+      userId: user.id,
+      eventType: "mfa_reset_by_link",
+      detail: {
+        requestedBy: String(payload?.requestedBy || "").trim() || null,
+      },
+      ip: req.ip || null,
+      userAgent: req.headers["user-agent"] || null,
+      createdAt: ts,
+    });
+
+    return res.json({
+      success: true,
+      message: "二次验证已重置，请重新登录后完成绑定",
+    });
+  },
+);
+
+export {
+  issueMfaResetLinkToken,
+  MFA_RESET_LINK_TTL_SECONDS,
+};
 
 router.post("/logout", (req, res) => {
   const revokedAt = nowIso();
