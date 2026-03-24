@@ -1,10 +1,19 @@
 import { query, run } from "../db/client.js";
 import { normalizeAccessScope } from "../constants/accessScope.js";
+import { env } from "../config/env.js";
+import { codeSuffix, hmacHex, maskedCode } from "../lib/crypto.js";
+
+const redactStoredCode = (id) => `invite-redacted:${String(id || "").trim()}`;
+const inviteCodeHmac = (code) => hmacHex(env.inviteCodePepper, code);
+const inviteCodeMask = (code) => maskedCode(code, "INV");
 
 const normalizeInvite = (row) => {
   if (!row) return null;
   return {
     ...row,
+    code: String(row.codeMask || row.code || "").trim(),
+    codeMask: String(row.codeMask || row.code || "").trim(),
+    codeSuffix: String(row.codeSuffix || "").trim(),
     isActive: Number(row.isActive) === 1,
     isTemporary: Number(row.isTemporary) === 1,
     featureScope: normalizeAccessScope(row.featureScope),
@@ -17,7 +26,8 @@ export const inviteCodeRepository = {
     const rows = query(
       `SELECT
          id,
-         code,
+         code_mask as codeMask,
+         code_suffix as codeSuffix,
          created_by as createdBy,
          used_by as usedBy,
          used_at as usedAt,
@@ -28,15 +38,15 @@ export const inviteCodeRepository = {
          is_active as isActive,
          is_temporary as isTemporary
        FROM invite_codes
-       WHERE code = $code`,
-      { $code: String(code || "").trim().toUpperCase() },
+       WHERE code_hmac = $codeHmac`,
+      { $codeHmac: inviteCodeHmac(code) },
     );
     return normalizeInvite(rows[0]);
   },
 
   findById(id) {
     const rows = query(
-      `SELECT id, used_at as usedAt, is_active as isActive FROM invite_codes WHERE id = $id`,
+      `SELECT id, code_mask as codeMask, code_suffix as codeSuffix, used_at as usedAt, is_active as isActive FROM invite_codes WHERE id = $id`,
       { $id: id },
     );
     if (!rows[0]) return null;
@@ -47,7 +57,9 @@ export const inviteCodeRepository = {
   },
 
   existsByCode(code) {
-    const rows = query(`SELECT id FROM invite_codes WHERE code = $code`, { $code: code });
+    const rows = query(`SELECT id FROM invite_codes WHERE code_hmac = $codeHmac`, {
+      $codeHmac: inviteCodeHmac(code),
+    });
     return Boolean(rows[0]);
   },
 
@@ -80,12 +92,15 @@ export const inviteCodeRepository = {
   }) {
     run(
       `INSERT INTO invite_codes
-        (id, code, created_by, used_by, used_at, expires_at, is_temporary, feature_scope, bind_account_limit, is_active, created_at)
+        (id, code, code_hmac, code_suffix, code_mask, created_by, used_by, used_at, expires_at, is_temporary, feature_scope, bind_account_limit, is_active, created_at)
        VALUES
-        ($id, $code, $createdBy, NULL, NULL, $expiresAt, $isTemporary, $featureScope, $bindAccountLimit, 1, $createdAt)`,
+        ($id, $storedCode, $codeHmac, $codeSuffix, $codeMask, $createdBy, NULL, NULL, $expiresAt, $isTemporary, $featureScope, $bindAccountLimit, 1, $createdAt)`,
       {
         $id: id,
-        $code: code,
+        $storedCode: redactStoredCode(id),
+        $codeHmac: inviteCodeHmac(code),
+        $codeSuffix: codeSuffix(code),
+        $codeMask: inviteCodeMask(code),
         $createdBy: createdBy,
         $expiresAt: expiresAt,
         $isTemporary: isTemporary ? 1 : 0,
@@ -100,7 +115,8 @@ export const inviteCodeRepository = {
     const rows = query(
       `SELECT
         ic.id,
-        ic.code,
+        ic.code_mask as codeMask,
+        ic.code_suffix as codeSuffix,
         ic.created_at as createdAt,
         ic.expires_at as expiresAt,
         ic.is_temporary as isTemporary,
@@ -158,7 +174,8 @@ export const inviteCodeRepository = {
     return query(
       `SELECT
          id,
-         code,
+         code_mask as codeMask,
+         code_suffix as codeSuffix,
          created_at as createdAt,
          expires_at as expiresAt
        FROM invite_codes

@@ -45,8 +45,10 @@ cp backend/.env.example backend/.env
   - `DB_WRITE_SAFETY_INCLUDE_SQL`（默认 `false`，建议仅短期开启排障）
   - `DB_WRITE_SAFETY_PARAMS_TABLES`（默认空，逗号分隔白名单表名）
   - `DB_WRITE_SAFETY_PARAM_MAX_LEN`（默认 `120`）
+- 应用内 SQLite 备份：
+  - `APP_DB_BACKUP_ENABLED`（开发环境默认 `true`，生产环境默认 `false`）
+  - 生产建议保持关闭，改用基础设施层的加密快照/加密备份
 - `EMAIL_WEBHOOK_URL` / `EMAIL_WEBHOOK_TOKEN` / `EMAIL_FROM`：工单邮件通知
-- `BOOTSTRAP_ADMIN_USERNAME` / `BOOTSTRAP_ADMIN_EMAIL` / `BOOTSTRAP_ADMIN_PASSWORD`：启动时自动引导管理员
 - 日志清理策略（天数）：
   - `LOG_CLEANUP_TASK_CONTROL_DAYS`（默认 `30`）
   - `LOG_CLEANUP_TASK_RUNS_DAYS`（默认 `60`）
@@ -62,6 +64,12 @@ cp backend/.env.example backend/.env
 启动校验：
 - `JWT_SECRET` 为空或占位值会直接拒绝启动
 - `AES_KEY` 为空或占位值会直接拒绝启动
+- `NODE_ENV=production && ACCESS_TOKEN_EXPOSE_IN_BODY=true` 会直接拒绝启动
+- `NODE_ENV=production && BOOTSTRAP_ADMIN_PASSWORD` 存在会直接拒绝启动
+- `NODE_ENV=production && CORS_ORIGINS` 未显式设置会直接拒绝启动
+- `NODE_ENV=production && CORS_ORIGINS` 包含 `localhost/127.0.0.1/::1` 会直接拒绝启动
+- `NODE_ENV=production` 下若存在未启用 MFA 的管理员账号，会直接拒绝启动
+- `NODE_ENV=production` 下应用内 SQLite 明文备份默认关闭，除非显式设置 `APP_DB_BACKUP_ENABLED=true`
 - `DB_PATH` 不存在时会打印清晰提示（首次启动将初始化数据库文件）
 - `BIN_STORAGE_PATH` 不存在时会自动创建目录
 
@@ -98,9 +106,30 @@ ADMIN_PASSWORD='YourStrongPassword123!' \
 npm --prefix backend run init-admin
 ```
 
-### 启动时自动引导
+### 一次性初始化
 
-在启动命令前设置 `BOOTSTRAP_ADMIN_*` 变量即可。
+不要在服务主进程里保留 `BOOTSTRAP_ADMIN_*` 变量。
+管理员初始化改为一次性 init job / init script：
+
+```bash
+ADMIN_USERNAME=admin \
+ADMIN_EMAIL=admin@example.com \
+ADMIN_PASSWORD='YourStrongPassword123!' \
+npm --prefix backend run init-admin
+```
+
+管理员首次登录后，必须继续完成 MFA 初始化，才能访问 `/api/v1/admin`：
+
+```bash
+ADMIN_USERNAME=admin \
+ADMIN_EMAIL=admin@example.com \
+npm --prefix backend run init-admin-mfa
+```
+
+运行时约束：
+- `BOOTSTRAP_ADMIN_*` 不再由 `backend/src/index.js` 消费
+- 生产环境如果仍设置 `BOOTSTRAP_ADMIN_*`，主进程会直接拒绝启动
+- 所有管理员接口现在都要求管理员账号已启用 MFA
 
 ## API 概览
 

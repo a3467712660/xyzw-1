@@ -9,5 +9,8 @@ export const normalizeAccessScope = (scope) =>
 export const hasGameFeatureAccess = (user) =>
   normalizeAccessScope(user?.accessScope) === ACCESS_SCOPE_FULL;
 
+export const canAccessAdminCenter = (user) =>
+  Boolean(user?.isAdmin) && Boolean(user?.mfaEnabled);
+
 export const getDefaultAuthenticatedPath = (user) =>
   hasGameFeatureAccess(user) ? "/admin/dashboard" : "/admin/task-control";

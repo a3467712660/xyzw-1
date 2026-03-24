@@ -148,6 +148,9 @@ const shouldBindParams = (params) => {
 };
 
 export const backup = (reason = "manual") => {
+  if (!env.appDbBackupEnabled) {
+    return null;
+  }
   if (!fs.existsSync(env.dbPath)) {
     return null;
   }
@@ -160,6 +163,9 @@ export const backup = (reason = "manual") => {
 };
 
 export const scheduleDailyBackup = () => {
+  if (!env.appDbBackupEnabled) {
+    return null;
+  }
   if (backupTimer) {
     return;
   }

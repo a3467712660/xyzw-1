@@ -333,7 +333,7 @@
 
 <script setup>
 import { computed, h, onMounted, reactive, ref } from "vue";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { useDialog, useMessage } from "naive-ui/es";
 import { useI18n } from "vue-i18n";
 import { toDataURL as qrToDataURL } from "qrcode";
@@ -352,6 +352,7 @@ import { ensureUserSensitiveConfirmTokenByDialog } from "@/utils/userSensitiveCo
 import { useTheme } from "@/composables/useTheme";
 
 const router = useRouter();
+const route = useRoute();
 const message = useMessage();
 const dialog = useDialog();
 const authStore = useAuthStore();
@@ -1109,6 +1110,9 @@ const deleteAccount = () => {
 
 // 生命周期
 onMounted(async () => {
+  if (route.query?.adminMfaRequired === "1") {
+    message.info("请先在此完成 MFA 绑定，再访问管理中心");
+  }
   refreshPreferenceOptions();
   if (authStore.userInfo) {
     syncUserInfo(authStore.userInfo);

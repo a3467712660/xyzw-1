@@ -189,7 +189,7 @@ import {
   APP_SIDER_WIDTH,
 } from "@/constants/ui";
 import { isNowInLegionWarTime } from "@/utils/clubBattleUtils";
-import { hasGameFeatureAccess } from "@/utils/accessScope";
+import { canAccessAdminCenter, hasGameFeatureAccess } from "@/utils/accessScope";
 import {
   ChevronDown,
   CodeSlash,
@@ -222,6 +222,8 @@ const unreadCount = computed(
   () => notifications.value.filter((item) => !item.isRead).length,
 );
 const canAccessGameFeatures = computed(() => hasGameFeatureAccess(authStore.user));
+const canOpenAdminCenter = computed(() => canAccessAdminCenter(authStore.user));
+const canOpenWorkbenchFeatures = computed(() => tokenStore.hasUsableWorkbenchToken);
 const unreadBadgeValue = computed(() => (unreadCount.value > 99 ? "99+" : unreadCount.value));
 const isSiderCollapsed = ref(
   typeof window !== "undefined" && window.localStorage.getItem("ui:sider-collapsed") === "true",
@@ -255,9 +257,14 @@ const workspaceMenuOptions = computed(() => {
   const options = [
     { label: "控制台", key: "/admin/dashboard", icon: renderIcon(Home) },
     { label: "Token 管理", key: "/tokens", icon: renderIcon(PersonCircle) },
-    { label: "游戏功能", key: "/admin/game-features", icon: renderIcon(Cube) },
-    { label: "任务控制", key: "/admin/task-control", icon: renderIcon(Settings) },
   ];
+
+  if (canOpenWorkbenchFeatures.value) {
+    options.push(
+      { label: "游戏功能", key: "/admin/game-features", icon: renderIcon(Cube) },
+      { label: "任务控制", key: "/admin/task-control", icon: renderIcon(Settings) },
+    );
+  }
 
   if (canAccessGameFeatures.value && isNowInLegionWarTime()) {
     options.push({
@@ -305,7 +312,7 @@ const menuOptions = computed(() => {
     },
   ];
 
-  if (authStore.user?.isAdmin) {
+  if (canOpenAdminCenter.value) {
     options.push({
       type: "group",
       label: "开发工具",
@@ -314,7 +321,7 @@ const menuOptions = computed(() => {
     });
   }
 
-  if (authStore.user?.isAdmin) {
+  if (canOpenAdminCenter.value) {
     options.push({
       type: "group",
       label: "管理中心",
@@ -452,7 +459,7 @@ const handleNotificationClick = async (item) => {
     router.push(targetPath);
     return;
   }
-  if (authStore.user?.isAdmin) {
+  if (canOpenAdminCenter.value) {
     router.push("/admin/feedback-tickets");
   } else {
     router.push("/admin/feedback");

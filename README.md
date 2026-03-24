@@ -7,7 +7,7 @@ XYZW Web Helper 是一个面向《咸鱼之王》玩家的 Web 工具集，提�
 - 当前推荐开发模式：前端 `Vite`（`http://localhost:3000`）通过开发代理访问后端 `Express`（`http://localhost:8787`）。
 - 当前推荐生产模式：前端静态资源独立部署，`/api/v1` 与 `/ws` 由 `backend/`（Express）对外提供。
 - Worker 是否启用：默认不启用；Worker 已归档到 `deploy/legacy/worker.js`，不参与日常开发主流程。
-- `server/` 与 `backend/` 的关系：`backend/` 是当前正式后端主线；`server/` 是历史 Flask 兼容服务，仅在旧流程迁移或排障时按需启用。
+- `server/` 与 `backend/` 的关系：`backend/` 是唯一生产后端主线；`server/` 是历史 Flask 兼容代码，仅作本地迁移排障参考，不进入生产打包链。
 
 现在本地到底怎么跑：先启动 `backend`（8787），再启动 `vite`（3000），浏览器统一访问 `http://localhost:3000`，由 Vite 代理转发 `/api/v1` 和 `/ws` 到 Express。
 
@@ -31,14 +31,15 @@ XYZW Web Helper 是一个面向《咸鱼之王》玩家的 Web 工具集，提�
 
 ## Legacy Flask 风险提示（重要）
 
-- `server/` 是历史兼容服务，仅可用于短期排障/迁移验证，禁止生产部署。
+- `server/` 是历史兼容服务，仅可用于短期排障/迁移验证，禁止生产部署，生产制品也不得包含该目录。
 - 即使手动启用 `ENABLE_LEGACY_FLASK=1`，该服务仍有更高风险面（如历史 URL token 链路、上传接口、遗留协议兼容代码）。
+- 历史 URL token 路由默认返回 `410 Gone`；只有显式设置 `ENABLE_LEGACY_FILE_TOKEN_ROUTE=1` 才允许临时恢复。
 - 推荐使用一键安全启动（仅本机回环 + 上传上限 + 请求超时 + 严格 cookie）：
 
 ```bash
 cd server
 pip install -r requirements.txt
-bash ./start-safe.sh
+ENABLE_LEGACY_FLASK=1 bash ./start-safe.sh
 ```
 
 详细约束见：[server/README.md](server/README.md)
@@ -312,8 +313,8 @@ TASK_DAEMON_PASSWORD=your_password \
 
 ### 可选 Python 服务（历史兼容）
 
-`server/app.py` 是历史 Flask 服务（legacy），禁止生产部署。
-它不参与默认前后端联调流程，仅允许在短期迁移验证时临时启用，并且必须绑定回环地址：
+`server/app.py` 是历史 Flask 服务（legacy），已移出生产主链路。
+它不参与默认前后端联调流程，不应进入生产镜像、压缩包或网关 upstream；仅允许在短期迁移验证时临时启用，并且必须绑定回环地址：
 
 ```bash
 cd server
@@ -321,7 +322,13 @@ pip install -r requirements.txt
 ENABLE_LEGACY_FLASK=1 FLASK_RUN_HOST=127.0.0.1 FLASK_RUN_PORT=5000 python app.py
 ```
 
-仓库内置了 `npm run guard:legacy` 检查，用于在 CI/CD 阶段阻断 legacy 文件或启动入口混入产物。
+危险的历史 URL token 路由默认关闭；如确需临时迁移验证，必须额外显式设置：
+
+```bash
+ENABLE_LEGACY_FLASK=1 ENABLE_LEGACY_FILE_TOKEN_ROUTE=1 FLASK_RUN_HOST=127.0.0.1 FLASK_RUN_PORT=5000 python app.py
+```
+
+仓库内置了 `npm run guard:legacy` 与 GitHub Actions 产物检查，用于在 CI/CD 阶段阻断 legacy 文件或启动入口混入生产制品。
 
 ## 项目结构
 
@@ -339,7 +346,7 @@ ENABLE_LEGACY_FLASK=1 FLASK_RUN_HOST=127.0.0.1 FLASK_RUN_PORT=5000 python app.py
 │  ├─ src/services/        # 业务服务（任务、通知、WS 等）
 │  ├─ src/db/              # SQLite（better-sqlite3）封装与初始化
 │  └─ .env.example         # 后端环境变量模板
-├─ server/                 # 历史 Flask 兼容服务（非主链路）
+├─ server/                 # 历史 Flask 兼容服务（仅本地迁移排障参考，不进生产产物）
 ├─ source/                 # 历史源码样本/逆向参考，不参与构建
 ├─ test/                   # 历史脚本测试目录，不是自动化测试主入口
 ├─ scripts/                # 24x7 启动与守护脚本

@@ -1,6 +1,8 @@
 import { useAuthStore } from "@/stores/auth";
+import { useTokenStore } from "@/stores/tokenStore";
 import { isNowInLegionWarTime } from "@/utils/clubBattleUtils";
 import {
+  canAccessAdminCenter,
   getDefaultAuthenticatedPath,
   hasGameFeatureAccess,
 } from "@/utils/accessScope";
@@ -14,6 +16,7 @@ export const setupRouterGuards = (router) => {
 
   router.beforeEach(async (to) => {
     const authStore = useAuthStore();
+    const tokenStore = useTokenStore();
     await authStore.initializeAuth();
 
     const mergedMeta = mergeMatchedMeta(to.matched);
@@ -32,12 +35,22 @@ export const setupRouterGuards = (router) => {
       };
     }
 
-    if (mergedMeta.requiresAdmin && !authStore.user?.isAdmin) {
-      return getDefaultAuthenticatedPath(authStore.user);
+    if (mergedMeta.requiresAdmin && !canAccessAdminCenter(authStore.user)) {
+      return authStore.user?.isAdmin
+        ? { path: "/admin/profile", query: { adminMfaRequired: "1" } }
+        : getDefaultAuthenticatedPath(authStore.user);
     }
 
     if (mergedMeta.requiresGameAccess && !hasGameFeatureAccess(authStore.user)) {
       return "/admin/task-control";
+    }
+
+    if (
+      authStore.isAuthenticated
+      && (to.name === "GameFeatures" || to.name === "TaskControl")
+      && !tokenStore.hasUsableWorkbenchToken
+    ) {
+      return "/tokens";
     }
 
     if (

@@ -18,6 +18,27 @@ const fromBase64Url = (value) => {
 export const sha256Hex = (text) =>
   crypto.createHash("sha256").update(text).digest("hex");
 
+export const normalizeSecretCode = (value) =>
+  String(value || "").trim().toUpperCase();
+
+export const hmacHex = (secret, value) =>
+  crypto.createHmac("sha256", String(secret || ""))
+    .update(normalizeSecretCode(value))
+    .digest("hex");
+
+export const codeSuffix = (value, length = 4) => {
+  const normalized = normalizeSecretCode(value);
+  return normalized.slice(-Math.max(1, Number(length) || 4));
+};
+
+export const maskedCode = (value, fallbackPrefix = "CODE") => {
+  const normalized = normalizeSecretCode(value);
+  if (!normalized) return `${fallbackPrefix}-****`;
+  const [prefixRaw] = normalized.split("-", 1);
+  const prefix = String(prefixRaw || fallbackPrefix).trim() || fallbackPrefix;
+  return `${prefix}-****-${codeSuffix(normalized) || "****"}`;
+};
+
 const PASSWORD_HASH_VERSION = "scrypt-v1";
 const SCRYPT_N = 1 << 14;
 const SCRYPT_R = 8;

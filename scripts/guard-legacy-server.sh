@@ -12,6 +12,17 @@ if rg -n "(python\\s+server/app\\.py|flask\\s+run|gunicorn\\s+.*server\\.app|uws
   exit 1
 fi
 
+echo "[guard] checking docker build context excludes legacy server..."
+if ! rg -n "^server/$" .dockerignore >/dev/null 2>&1; then
+  echo "[guard] .dockerignore must exclude server/ from docker build context."
+  exit 1
+fi
+
+if rg -n "(COPY|ADD)\\s+.*server/" docker/dockerfile >/dev/null 2>&1; then
+  echo "[guard] docker/dockerfile must not copy legacy server artifacts."
+  exit 1
+fi
+
 echo "[guard] checking dist/ does not include legacy server files..."
 if [[ -d dist ]] && find dist -type f | rg -n "(^|/)server/" >/dev/null 2>&1; then
   echo "[guard] dist/ unexpectedly contains legacy server artifacts."

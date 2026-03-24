@@ -7,6 +7,7 @@ import {
 } from "@/constants/userPreferences";
 import { getBooleanPreference, setBooleanPreference } from "@/services/tokenImport/tokenImportPreferences";
 import { triggerBlobDownload } from "@/utils/download";
+import { maskToken } from "@/utils/securitySanitizer";
 import { loadBinBuffer, saveBinBuffer } from "@/utils/binStorage";
 import { g_utils } from "@/utils/bonProtocol";
 import { getServerList, transformToken } from "@/utils/token";
@@ -109,6 +110,24 @@ export function useTokenImportBinFiles({
       return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
   };
+
+  const maskBinFileName = (fileName) => {
+    const normalized = String(fileName || "").trim();
+    if (!normalized) {
+      return "-";
+    }
+    const matched = normalized.match(/^bin-(.*?)服-(\d{1,2})-(\d{1,20})-(.*?)(\.bin(?:\.enc)?)$/);
+    if (!matched) {
+      return maskToken(normalized, 6, 6) || "***";
+    }
+
+    const [, serverNum, roleIndex, roleId, roleName, ext] = matched;
+    const maskedRoleId = maskToken(roleId, 2, 2) || "***";
+    const maskedRoleName = maskToken(roleName, 1, 1) || "***";
+    return `bin-${serverNum}服-${roleIndex}-${maskedRoleId}-${maskedRoleName}${ext}`;
+  };
+
+  const maskBinTokenId = (tokenId) => maskToken(String(tokenId || "").trim(), 4, 4) || "***";
 
   const setBinActionLoading = (target, tokenId, value) => {
     target.value = {
@@ -693,6 +712,7 @@ export function useTokenImportBinFiles({
       ellipsis: {
         tooltip: true,
       },
+      render: (row) => maskBinTokenId(row.tokenId),
     },
     {
       title: t("tokenImport.binFiles.columns.fileName"),
@@ -700,6 +720,7 @@ export function useTokenImportBinFiles({
       ellipsis: {
         tooltip: true,
       },
+      render: (row) => maskBinFileName(row.fileName),
     },
     {
       title: t("tokenImport.binFiles.columns.size"),

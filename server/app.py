@@ -50,6 +50,9 @@ if not _is_truthy_env('ENABLE_LEGACY_FLASK'):
     )
 
 
+LEGACY_FILE_TOKEN_ROUTE_ENABLED = _is_truthy_env('ENABLE_LEGACY_FILE_TOKEN_ROUTE')
+
+
 def _parse_legacy_cors_origins():
     raw = os.environ.get('LEGACY_CORS_ORIGINS', '')
     origins = [item.strip() for item in raw.split(',') if item.strip()]
@@ -880,7 +883,7 @@ def list_files():
                 files.append({
                     "filename": filename,
                     "name": name_no_ext,
-                    "url": f"/{user_token}/{name_no_ext}/{encoded_key}"
+                    "url": f"/{user_token}/{name_no_ext}/{encoded_key}" if LEGACY_FILE_TOKEN_ROUTE_ENABLED else None
                 })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -938,6 +941,12 @@ def delete_file(filename):
 
 @app.route('/<string:token>/<string:bin_param>/<string:key>')
 def home(token, bin_param, key):
+    if not LEGACY_FILE_TOKEN_ROUTE_ENABLED:
+        return jsonify({
+            "error": "Legacy file token route is disabled.",
+            "message": "This historical URL-token route is no longer available by default.",
+        }), 410
+
     # 验证 token
     current_config = load_config()
     users = current_config.get('users', {})
@@ -1004,6 +1013,12 @@ if __name__ == '__main__':
         raise SystemExit(
             f"Refusing non-loopback bind host '{host}'. "
             "Use FLASK_RUN_HOST=127.0.0.1 or explicitly set ALLOW_LEGACY_FLASK_PUBLIC_BIND=1."
+        )
+
+    if not LEGACY_FILE_TOKEN_ROUTE_ENABLED:
+        print(
+            "[legacy] historical URL-token route disabled; "
+            "set ENABLE_LEGACY_FILE_TOKEN_ROUTE=1 only for temporary internal migration use."
         )
 
     app.run(host=host, port=port)

@@ -150,9 +150,6 @@
               </div>
 
               <div class="mobile-invite-card__actions">
-                <NButton block tertiary @click="copySingleCode(row.code)">
-                  {{ t("adminInvitesPage.actions.copyCode") }}
-                </NButton>
                 <NButton
                   v-if="row.isActive && !row.usedAt"
                   block
@@ -173,19 +170,52 @@
           ></n-empty>
         </n-spin>
       </div>
+
+      <n-modal
+        class="created-codes-modal"
+        preset="card"
+        :mask-closable="false"
+        :show="showCreatedCodesModal"
+        :title="t('adminInvitesPage.createdModal.title')"
+        @update:show="handleCreatedCodesModalUpdate"
+      >
+        <div class="created-codes-modal__body">
+          <p class="created-codes-modal__hint">
+            {{ t("adminInvitesPage.createdModal.hint") }}
+          </p>
+          <div class="created-codes-modal__list">
+            <code
+              v-for="code in createdCodesPlaintext"
+              :key="code"
+              class="created-codes-modal__item"
+            >{{ code }}</code>
+          </div>
+        </div>
+        <template #footer>
+          <div class="created-codes-modal__actions">
+            <NButton tertiary @click="copyCreatedCodes">
+              {{ t("adminInvitesPage.createdModal.copy") }}
+            </NButton>
+            <NButton type="primary" @click="closeCreatedCodesModal">
+              {{ t("adminInvitesPage.createdModal.close") }}
+            </NButton>
+          </div>
+        </template>
+      </n-modal>
     </div>
   </div>
 </template>
 
 <script setup>
 import { computed, h, onMounted, ref } from "vue";
-import { NButton, useMessage } from "naive-ui/es";
+import { NButton, NInput, useDialog, useMessage } from "naive-ui/es";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import api from "@/api";
 import { useAuthStore } from "@/stores/auth";
 
 const message = useMessage();
+const dialog = useDialog();
 const { locale, t } = useI18n();
 const router = useRouter();
 const authStore = useAuthStore();
@@ -196,6 +226,10 @@ const createCount = ref(1);
 const inviteType = ref("normal");
 const featureScope = ref("full");
 const bindTokenLimit = ref(1);
+const sensitiveConfirmToken = ref("");
+const sensitiveConfirmExpiresAt = ref(0);
+const showCreatedCodesModal = ref(false);
+const createdCodesPlaintext = ref([]);
 const inviteTypeOptions = [
   { label: t("adminInvitesPage.types.normal"), value: "normal" },
   { label: t("adminInvitesPage.types.temporary"), value: "temporary" },
@@ -346,13 +380,116 @@ const copyText = async (text) => {
   }
 };
 
-const copySingleCode = async (code) => {
-  const copied = await copyText(code);
-  if (copied) {
-    message.success(t("adminInvitesPage.messages.codeCopied"));
-    return;
+const getCachedSensitiveConfirmToken = () => {
+  if (
+    sensitiveConfirmToken.value
+    && Number.isFinite(sensitiveConfirmExpiresAt.value)
+    && sensitiveConfirmExpiresAt.value > Date.now() + 3000
+  ) {
+    return sensitiveConfirmToken.value;
   }
-  message.warning(t("adminInvitesPage.messages.copyFailed"));
+  return "";
+};
+
+const clearSensitiveConfirmToken = () => {
+  sensitiveConfirmToken.value = "";
+  sensitiveConfirmExpiresAt.value = 0;
+};
+
+const promptSensitiveCredential = ({ actionLabel = "高危操作" } = {}) =>
+  new Promise((resolve) => {
+    const mfaEnabled = Boolean(authStore.user?.mfaEnabled);
+    const password = ref("");
+    const totpCode = ref("");
+    let settled = false;
+
+    const finish = (value) => {
+      if (settled) return;
+      settled = true;
+      resolve(value || null);
+    };
+
+    dialog.warning({
+      title: t("adminInvitesPage.dialogs.sensitiveConfirm.title"),
+      positiveText: t("adminInvitesPage.dialogs.sensitiveConfirm.confirm"),
+      negativeText: t("adminInvitesPage.dialogs.sensitiveConfirm.cancel"),
+      content: () =>
+        h("div", { style: "display:flex;flex-direction:column;gap:12px;" }, [
+          h(
+            "div",
+            { style: "line-height:1.6;" },
+            mfaEnabled
+              ? t("adminInvitesPage.messages.confirmMfaPrompt", { action: actionLabel })
+              : t("adminInvitesPage.messages.confirmPrompt", { action: actionLabel }),
+          ),
+          h(NInput, {
+            type: mfaEnabled ? "text" : "password",
+            showPasswordOn: mfaEnabled ? undefined : "click",
+            value: mfaEnabled ? totpCode.value : password.value,
+            maxlength: mfaEnabled ? 6 : undefined,
+            placeholder: mfaEnabled
+              ? t("adminInvitesPage.messages.confirmTotpPrompt")
+              : t("adminInvitesPage.messages.confirmPasswordRequired"),
+            autofocus: true,
+            onUpdateValue: (value) => {
+              if (mfaEnabled) {
+                totpCode.value = String(value || "").replace(/\D/g, "");
+                return;
+              }
+              password.value = String(value || "");
+            },
+          }),
+        ]),
+      onPositiveClick: () => {
+        if (mfaEnabled) {
+          const normalized = String(totpCode.value || "").replace(/\D/g, "");
+          if (!normalized) {
+            message.warning(t("adminInvitesPage.messages.confirmTotpRequired"));
+            return false;
+          }
+          finish({ totpCode: normalized });
+          return true;
+        }
+        const normalized = String(password.value || "").trim();
+        if (!normalized) {
+          message.warning(t("adminInvitesPage.messages.confirmPasswordRequired"));
+          return false;
+        }
+        finish({ password: normalized });
+        return true;
+      },
+      onNegativeClick: () => finish(null),
+      onClose: () => finish(null),
+    });
+  });
+
+const ensureSensitiveActionConfirmed = async (actionLabel = "高危操作") => {
+  const cached = getCachedSensitiveConfirmToken();
+  if (cached) return cached;
+
+  const credential = await promptSensitiveCredential({ actionLabel });
+  if (!credential) {
+    message.warning(t("adminInvitesPage.messages.confirmCancelled"));
+    return "";
+  }
+
+  try {
+    const res = await api.admin.confirmSensitiveAction(credential);
+    if (!res?.success || !res?.data?.token) {
+      message.error(res?.message || t("adminInvitesPage.messages.confirmFailed"));
+      return "";
+    }
+    const expiresTs = new Date(res.data.expiresAt || "").getTime();
+    sensitiveConfirmToken.value = String(res.data.token || "");
+    sensitiveConfirmExpiresAt.value = Number.isFinite(expiresTs)
+      ? expiresTs
+      : Date.now() + 5 * 60 * 1000;
+    message.success(t("adminInvitesPage.messages.confirmPassed"));
+    return sensitiveConfirmToken.value;
+  } catch (error) {
+    message.error(error.message || t("adminInvitesPage.messages.confirmFailed"));
+    return "";
+  }
 };
 
 const fetchCodes = async () => {
@@ -373,7 +510,11 @@ const fetchCodes = async () => {
 
 const disableCode = async (row) => {
   try {
-    const res = await api.admin.disableInviteCode(row.id);
+    const confirmToken = await ensureSensitiveActionConfirmed(
+      t("adminInvitesPage.messages.disableAction"),
+    );
+    if (!confirmToken) return;
+    const res = await api.admin.disableInviteCode(row.id, confirmToken);
     if (!res.success) {
       message.error(res.message || t("adminInvitesPage.messages.disableFailed"));
       return;
@@ -381,6 +522,9 @@ const disableCode = async (row) => {
     message.success(t("adminInvitesPage.messages.disabled"));
     fetchCodes();
   } catch (error) {
+    if (Number(error?.status || 0) === 401 || Number(error?.status || 0) === 403) {
+      clearSensitiveConfirmToken();
+    }
     message.error(error.message || t("adminInvitesPage.messages.disableFailed"));
   }
 };
@@ -388,19 +532,28 @@ const disableCode = async (row) => {
 const createCodes = async () => {
   creating.value = true;
   try {
-    const res = await api.admin.createInviteCodes({
+    const confirmToken = await ensureSensitiveActionConfirmed(
+      t("adminInvitesPage.messages.createAction"),
+    );
+    if (!confirmToken) return;
+    const res = await api.admin.createInviteCodesWithConfirm({
       count: createCount.value,
       isTemporary: inviteType.value === "temporary",
       featureScope: featureScope.value,
       bindAccountLimit: Math.max(1, Math.min(999, Number(bindTokenLimit.value) || 1)),
-    });
+    }, confirmToken);
     if (!res.success) {
       message.error(res.message || t("adminInvitesPage.messages.createFailed"));
       return;
     }
 
-    const list = (res.data || []).map((item) => item.code).join("\n");
+    const createdCodes = (res.data || [])
+      .map((item) => String(item?.code || "").trim())
+      .filter(Boolean);
+    const list = createdCodes.join("\n");
     const copied = await copyText(list);
+    createdCodesPlaintext.value = createdCodes;
+    showCreatedCodesModal.value = createdCodes.length > 0;
 
     if (copied) {
       message.success(t("adminInvitesPage.messages.createdAndCopied", { count: res.data?.length || 0 }));
@@ -411,10 +564,39 @@ const createCodes = async () => {
 
     fetchCodes();
   } catch (error) {
+    if (Number(error?.status || 0) === 401 || Number(error?.status || 0) === 403) {
+      clearSensitiveConfirmToken();
+    }
     message.error(error.message || t("adminInvitesPage.messages.createFailed"));
   } finally {
     creating.value = false;
   }
+};
+
+const closeCreatedCodesModal = () => {
+  showCreatedCodesModal.value = false;
+  createdCodesPlaintext.value = [];
+};
+
+const handleCreatedCodesModalUpdate = (show) => {
+  if (show) {
+    showCreatedCodesModal.value = true;
+    return;
+  }
+  closeCreatedCodesModal();
+};
+
+const copyCreatedCodes = async () => {
+  if (!createdCodesPlaintext.value.length) {
+    message.warning(t("adminInvitesPage.messages.copyFailed"));
+    return;
+  }
+  const copied = await copyText(createdCodesPlaintext.value.join("\n"));
+  if (copied) {
+    message.success(t("adminInvitesPage.messages.codeCopied"));
+    return;
+  }
+  message.error(t("adminInvitesPage.messages.copyFailed"));
 };
 
 const columns = computed(() => [
@@ -422,19 +604,7 @@ const columns = computed(() => [
     title: t("adminInvitesPage.columns.code"),
     key: "code",
     minWidth: 220,
-    render: (row) =>
-      h("div", { class: "code-cell" }, [
-        h("strong", null, row.code),
-        h(
-          NButton,
-          {
-            size: "tiny",
-            tertiary: true,
-            onClick: () => copySingleCode(row.code),
-          },
-          { default: () => t("adminInvitesPage.actions.copy") },
-        ),
-      ]),
+    render: (row) => h("strong", { class: "name-cell", title: row.code }, row.code),
   },
   {
     title: t("adminInvitesPage.columns.type"),
@@ -554,6 +724,48 @@ onMounted(async () => {
   max-width: 1200px;
   margin: 0 auto;
   padding: 0 14px;
+}
+
+.created-codes-modal {
+  max-width: 640px;
+}
+
+.created-codes-modal__body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.created-codes-modal__hint {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.created-codes-modal__list {
+  display: grid;
+  gap: 10px;
+  max-height: 360px;
+  overflow: auto;
+  padding: 14px;
+  border: 1px solid var(--surface-glass-border);
+  border-radius: var(--border-radius-lg);
+  background: rgba(15, 23, 42, 0.04);
+}
+
+.created-codes-modal__item {
+  display: block;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.6;
+  word-break: break-all;
+}
+
+.created-codes-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
 }
 
 .page-header {

@@ -24,10 +24,6 @@ import { parseCookies } from "../lib/cookies.js";
 import { clearCsrfCookies } from "../middleware/csrf.js";
 import { resolveCookieSecure } from "../lib/cookieSecurity.js";
 import {
-  ensureTemporaryInviteCodes,
-  listPublicTemporaryInviteCodes,
-} from "../services/temporaryInviteService.js";
-import {
   ACCESS_SCOPE_FULL,
   ACCESS_SCOPE_TASK_CONTROL_ONLY,
   normalizeAccessScope,
@@ -136,9 +132,6 @@ const mfaDisableBodySchema = z.object({
   totpCode: z.string().trim().max(32).optional(),
   recoveryCode: z.string().trim().max(64).optional(),
 }).strict();
-const temporaryInvitesQuerySchema = z.object({
-  limit: z.coerce.number().int().min(1).max(50).optional().default(20),
-});
 const MFA_QR_SESSION_TTL_MS = MFA_CHALLENGE_TTL_SECONDS * 1000;
 const MAX_MFA_QR_SESSION_COUNT = 500;
 const mfaQrSessionStore = new Map();
@@ -478,23 +471,6 @@ const finalizeLogin = ({ req, res, user, rememberMe = false }) => {
     },
   });
 };
-
-router.get(
-  "/temporary-invites",
-  validateRequest({ query: temporaryInvitesQuerySchema }),
-  (_req, res) => {
-    const limit = Number(_req.query?.limit) || 20;
-    const data = listPublicTemporaryInviteCodes(limit);
-    return res.json({
-      success: true,
-      data,
-      meta: {
-        generated: 0,
-        nextGenerateAt: null,
-      },
-    });
-  },
-);
 
 router.post("/register", registerLimiter, validateRequest({ body: registerBodySchema }), async (req, res) => {
   const {

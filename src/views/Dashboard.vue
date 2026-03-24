@@ -30,7 +30,12 @@
       </div>
 
       <div class="app-page__actions">
-        <n-button size="large" type="primary" @click="router.push('/admin/game-features')">
+        <n-button
+          v-if="canOpenWorkbenchFeatures"
+          size="large"
+          type="primary"
+          @click="router.push('/admin/game-features')"
+        >
           {{ t("dashboard.actions.enterGameFeatures") }}
         </n-button>
         <n-button secondary size="large" type="primary" @click="handleManageTokens">
@@ -83,6 +88,7 @@ import { useMessage } from "naive-ui/es";
 import { useI18n } from "vue-i18n";
 import { useTokenStore } from "@/stores/tokenStore";
 import { useAuthStore } from "@/stores/auth";
+import { canAccessAdminCenter } from "@/utils/accessScope";
 import {
   Add,
   CalendarClear,
@@ -105,6 +111,7 @@ const currentDate = computed(() => {
     weekday: "long",
   });
 });
+const canOpenWorkbenchFeatures = computed(() => tokenStore.hasUsableWorkbenchToken);
 
 const connectedTokenCount = computed(() =>
   tokenStore.gameTokens.filter((token) => tokenStore.getWebSocketStatus(token.id) === "connected").length,
@@ -148,25 +155,11 @@ const summaryCards = computed(() => [
 const quickActions = computed(() => {
   const actions = [
     {
-      id: 1,
-      icon: Cube,
-      title: t("dashboard.quickActions.items.gameFeatures.title"),
-      description: t("dashboard.quickActions.items.gameFeatures.description"),
-      action: "game-features",
-    },
-    {
       id: 2,
       icon: Add,
       title: t("dashboard.quickActions.items.addToken.title"),
       description: t("dashboard.quickActions.items.addToken.description"),
       action: "add-token",
-    },
-    {
-      id: 3,
-      icon: CalendarClear,
-      title: "任务控制",
-      description: "批量执行任务、管理计划、查看运行状态。",
-      action: "task-control",
     },
     {
       id: 5,
@@ -177,8 +170,25 @@ const quickActions = computed(() => {
     },
   ];
 
-  if (authStore.user?.isAdmin) {
-    actions.splice(3, 0, {
+  if (canOpenWorkbenchFeatures.value) {
+    actions.unshift({
+      id: 1,
+      icon: Cube,
+      title: t("dashboard.quickActions.items.gameFeatures.title"),
+      description: t("dashboard.quickActions.items.gameFeatures.description"),
+      action: "game-features",
+    });
+    actions.splice(2, 0, {
+      id: 3,
+      icon: CalendarClear,
+      title: "任务控制",
+      description: "批量执行任务、管理计划、查看运行状态。",
+      action: "task-control",
+    });
+  }
+
+  if (canAccessAdminCenter(authStore.user)) {
+    actions.splice(canOpenWorkbenchFeatures.value ? 3 : 1, 0, {
       id: 4,
       icon: Cloud,
       title: t("dashboard.quickActions.items.websocketTest.title"),

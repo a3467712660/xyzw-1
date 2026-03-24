@@ -3292,8 +3292,10 @@
     "actions": {
       "generate": "生成邀请码",
       "copyCode": "复制邀请码",
+      "revealCode": "查看并复制",
       "disableCode": "禁用邀请码",
       "copy": "复制",
+      "reveal": "查看",
       "disable": "禁用"
     },
     "overview": {
@@ -3342,7 +3344,30 @@
       "createFailed": "生成邀请码失败",
       "createdAndCopied": "已生成 {count} 个邀请码（已复制）",
       "created": "已生成 {count} 个邀请码",
-      "autoCopyFailed": "自动复制失败，请手动复制列表"
+      "autoCopyFailed": "自动复制失败，请手动复制列表",
+      "confirmPrompt": "执行“{action}”前，请输入当前管理员密码完成二次验证",
+      "confirmMfaPrompt": "执行“{action}”前，请输入认证器当前显示的 6 位动态验证码完成二次验证。",
+      "confirmTotpPrompt": "请输入认证器当前显示的 6 位动态验证码",
+      "confirmCancelled": "已取消二次验证",
+      "confirmPasswordRequired": "请输入当前管理员密码",
+      "confirmTotpRequired": "请输入 6 位动态验证码",
+      "confirmFailed": "二次验证失败",
+      "confirmPassed": "二次验证通过（5分钟内有效）",
+      "createAction": "生成邀请码",
+      "disableAction": "禁用邀请码"
+    },
+    "createdModal": {
+      "title": "一次性邀请码",
+      "hint": "完整邀请码只会在创建当次显示一次，关闭后列表里只保留打码值。",
+      "copy": "复制",
+      "close": "我已保存"
+    },
+    "dialogs": {
+      "sensitiveConfirm": {
+        "title": "安全确认",
+        "confirm": "确认",
+        "cancel": "取消"
+      }
     },
     "columns": {
       "code": "邀请码",

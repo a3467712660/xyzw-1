@@ -101,6 +101,19 @@ export const useTokenStore = defineStore("tokens", () => {
   const wsConnections = ref<WebCtx>({}); // WebSocket连接状态
   const connectionLocks = ref<LockCtx>({}); // 连接操作锁，防止竞态条件
 
+  const isTokenActivationExpired = (token: Partial<TokenData> | null | undefined) => {
+    const raw = String(token?.activationExpiresAt || "").trim();
+    if (!raw) {
+      return false;
+    }
+    const expiresTs = new Date(raw).getTime();
+    return Number.isFinite(expiresTs) && expiresTs <= Date.now();
+  };
+
+  const hasUsableWorkbenchToken = computed(() =>
+    gameTokens.value.some((token) => !isTokenActivationExpired(token)),
+  );
+
   // 游戏数据存储
   const gameData = ref({
     roleInfo: null,
@@ -880,6 +893,7 @@ export const useTokenStore = defineStore("tokens", () => {
 
     // 计算属性
     hasTokens,
+    hasUsableWorkbenchToken,
     selectedToken,
     selectedTokenRoleInfo,
 
@@ -918,6 +932,7 @@ export const useTokenStore = defineStore("tokens", () => {
     upgradeTokenToPermanent,
     initTokenStore,
     markBinSourceState,
+    isTokenActivationExpired,
 
     // 游戏内发送消息方法
     sendMessageToLegion,

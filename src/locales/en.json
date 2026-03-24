@@ -3292,8 +3292,10 @@
     "actions": {
       "generate": "Generate Invite Codes",
       "copyCode": "Copy Invite Code",
+      "revealCode": "Reveal and Copy",
       "disableCode": "Disable Invite Code",
       "copy": "Copy",
+      "reveal": "Reveal",
       "disable": "Disable"
     },
     "overview": {
@@ -3342,7 +3344,30 @@
       "createFailed": "Failed to generate invite codes",
       "createdAndCopied": "Generated {count} invite code(s) and copied them",
       "created": "Generated {count} invite code(s)",
-      "autoCopyFailed": "Auto copy failed. Please copy the list manually"
+      "autoCopyFailed": "Auto copy failed. Please copy the list manually",
+      "confirmPrompt": "Before “{action}”, enter the current admin password for step-up verification",
+      "confirmMfaPrompt": "Before “{action}”, enter the current 6-digit code from your authenticator app for step-up verification.",
+      "confirmTotpPrompt": "Enter the current 6-digit code from your authenticator app",
+      "confirmCancelled": "Step-up verification cancelled",
+      "confirmPasswordRequired": "Please enter the current admin password",
+      "confirmTotpRequired": "Please enter a 6-digit TOTP code",
+      "confirmFailed": "Step-up verification failed",
+      "confirmPassed": "Step-up verification passed (valid for 5 minutes)",
+      "createAction": "generate invite codes",
+      "disableAction": "disable invite code"
+    },
+    "createdModal": {
+      "title": "One-Time Invite Codes",
+      "hint": "Full invite codes are shown only once right after creation. After closing, the list keeps only masked values.",
+      "copy": "Copy",
+      "close": "Saved"
+    },
+    "dialogs": {
+      "sensitiveConfirm": {
+        "title": "Security Confirmation",
+        "confirm": "Confirm",
+        "cancel": "Cancel"
+      }
     },
     "columns": {
       "code": "Invite Code",

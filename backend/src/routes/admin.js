@@ -175,30 +175,34 @@ router.post(
     let method = "";
     let reason = "";
 
-    if (mfaEnabled && (totpCode || recoveryCode)) {
-      const secret = decryptMfaSecret(currentUser?.mfaTotpSecretEnc || "");
-      if (totpCode) {
-        ok = Boolean(secret && verifyTotpCode({ secret, code: totpCode }));
-        if (ok) {
-          method = "totp";
-        } else {
-          reason = "mfa_totp_invalid";
-        }
-      } else if (recoveryCode) {
-        const recoveryResult = verifyAndConsumeRecoveryCode({
-          inputCode: recoveryCode,
-          recoveryCodeHashesJson: currentUser?.mfaRecoveryCodesHash || "[]",
-        });
-        ok = Boolean(recoveryResult?.ok);
-        if (ok) {
-          method = "recovery_code";
-          userRepository.updateMfaRecoveryCodesHash({
-            id: req.auth.user.id,
-            mfaRecoveryCodesHash: recoveryResult.nextRecoveryCodeHashesJson,
-            updatedAt: nowIso(),
+    if (mfaEnabled) {
+      if (!(totpCode || recoveryCode)) {
+        reason = "mfa_required";
+      } else {
+        const secret = decryptMfaSecret(currentUser?.mfaTotpSecretEnc || "");
+        if (totpCode) {
+          ok = Boolean(secret && verifyTotpCode({ secret, code: totpCode }));
+          if (ok) {
+            method = "totp";
+          } else {
+            reason = "mfa_totp_invalid";
+          }
+        } else if (recoveryCode) {
+          const recoveryResult = verifyAndConsumeRecoveryCode({
+            inputCode: recoveryCode,
+            recoveryCodeHashesJson: currentUser?.mfaRecoveryCodesHash || "[]",
           });
-        } else {
-          reason = "mfa_recovery_invalid";
+          ok = Boolean(recoveryResult?.ok);
+          if (ok) {
+            method = "recovery_code";
+            userRepository.updateMfaRecoveryCodesHash({
+              id: req.auth.user.id,
+              mfaRecoveryCodesHash: recoveryResult.nextRecoveryCodeHashesJson,
+              updatedAt: nowIso(),
+            });
+          } else {
+            reason = "mfa_recovery_invalid";
+          }
         }
       }
     } else if (password) {
@@ -209,7 +213,7 @@ router.post(
         reason = "password_mismatch";
       }
     } else {
-      reason = mfaEnabled ? "mfa_or_password_missing" : "password_missing";
+      reason = "password_missing";
     }
 
     if (!ok) {
@@ -645,6 +649,8 @@ router.get("/invite-codes", (req, res) => {
 
     return {
       ...row,
+      code: String(row.codeMask || row.code || "").trim(),
+      maskedCode: String(row.codeMask || row.code || "").trim(),
       isActive: autoDisabled ? false : row.isActive,
       autoDisableAt,
     };
@@ -654,8 +660,22 @@ router.get("/invite-codes", (req, res) => {
 });
 
 router.post(
+  "/invite-codes/:id/reveal",
+  adminWriteLimiter,
+  sensitiveActionRequired,
+  validateRequest({ params: userIdParamSchema }),
+  (_req, res) => {
+    return res.status(410).json({
+      success: false,
+      message: "邀请码明码仅在创建时返回，创建后不可再次查看",
+    });
+  },
+);
+
+router.post(
   "/invite-codes",
   adminWriteLimiter,
+  sensitiveActionRequired,
   validateRequest({ body: createInviteCodesBodySchema }),
   (req, res) => {
   const count = Number(req.body.count);
@@ -717,6 +737,7 @@ router.post(
 router.patch(
   "/invite-codes/:id/disable",
   adminWriteLimiter,
+  sensitiveActionRequired,
   validateRequest({ params: userIdParamSchema }),
   (req, res) => {
   const row = inviteCodeRepository.findById(req.params.id);
@@ -756,6 +777,8 @@ router.get("/activation-codes", (_req, res) => {
           : false;
       return {
         ...row,
+        code: String(row.codeMask || row.code || "").trim(),
+        maskedCode: String(row.codeMask || row.code || "").trim(),
         bindingId: binding?.id || null,
         bindingTokenId: binding?.tokenId || null,
         bindingSessId: String(binding?.accountIdentity || "").split("|")[0] || null,
@@ -771,6 +794,19 @@ router.get("/activation-codes", (_req, res) => {
     }),
   });
 });
+
+router.post(
+  "/activation-codes/:id/reveal",
+  adminWriteLimiter,
+  sensitiveActionRequired,
+  validateRequest({ params: userIdParamSchema }),
+  (_req, res) => {
+    return res.status(410).json({
+      success: false,
+      message: "激活码明码仅在创建时返回，创建后不可再次查看",
+    });
+  },
+);
 
 router.post(
   "/activation-codes/:id/unbind",
@@ -841,6 +877,7 @@ router.post(
 router.post(
   "/activation-codes",
   adminWriteLimiter,
+  sensitiveActionRequired,
   validateRequest({ body: createActivationCodesBodySchema }),
   (req, res) => {
     const count = Number(req.body?.count) || 1;
@@ -894,6 +931,7 @@ router.post(
 router.patch(
   "/activation-codes/:id/disable",
   adminWriteLimiter,
+  sensitiveActionRequired,
   validateRequest({ params: userIdParamSchema }),
   (req, res) => {
     const row = activationCodeRepository.findById(req.params.id);
@@ -919,6 +957,7 @@ router.patch(
 router.delete(
   "/activation-codes/:id",
   adminWriteLimiter,
+  sensitiveActionRequired,
   validateRequest({ params: userIdParamSchema }),
   (req, res) => {
     const row = activationCodeRepository.findById(req.params.id);

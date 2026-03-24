@@ -1,5 +1,6 @@
 import express, { Router } from "express";
 import { env } from "../config/env.js";
+import { isAllowedHttpOrigin, normalizeHttpOrigin } from "../lib/origin.js";
 import { authOptional } from "../middleware/auth.js";
 import { createRateLimiter } from "../middleware/rateLimit.js";
 
@@ -28,29 +29,17 @@ const hortorLoginLimiter = createRateLimiter({
   blockMs: 5 * 60 * 1000,
 });
 
-const parseOrigin = (value) => {
-  const raw = String(value || "").trim();
-  if (!raw) {
-    return "";
-  }
-  try {
-    return new URL(raw).origin;
-  } catch {
-    return "";
-  }
-};
-
 const allowedHortorRequestOrigins = new Set(
   (env.corsOrigins || [])
-    .map((item) => parseOrigin(item))
+    .map((item) => normalizeHttpOrigin(item)?.raw || "")
     .filter(Boolean),
 );
 
 const ensureAllowedHortorSource = (req, res, next) => {
-  const requestOrigin = parseOrigin(req.get("origin"));
-  const refererOrigin = parseOrigin(req.get("referer"));
-  const originAllowed = requestOrigin && allowedHortorRequestOrigins.has(requestOrigin);
-  const refererAllowed = refererOrigin && allowedHortorRequestOrigins.has(refererOrigin);
+  const requestOrigin = String(req.get("origin") || "").trim();
+  const refererOrigin = String(req.get("referer") || "").trim();
+  const originAllowed = requestOrigin && isAllowedHttpOrigin(requestOrigin, allowedHortorRequestOrigins);
+  const refererAllowed = refererOrigin && isAllowedHttpOrigin(refererOrigin, allowedHortorRequestOrigins);
   if (!originAllowed && !refererAllowed) {
     return res.status(403).json({
       success: false,

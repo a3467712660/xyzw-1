@@ -44,6 +44,13 @@ const parseCsv = (input) => String(input || "")
   .split(",")
   .map((item) => item.trim())
   .filter(Boolean);
+const parseProductionDefaultFalse = (input, developmentFallback = true) => {
+  const raw = String(input || "").trim();
+  if (!raw) {
+    return (process.env.NODE_ENV || "development") !== "production" && developmentFallback;
+  }
+  return parseBoolean(raw, false);
+};
 const parseOptionalCookieDomain = (input) => {
   const value = String(input || "").trim();
   return value.length > 0 ? value : undefined;
@@ -91,6 +98,9 @@ const AES_PLACEHOLDERS = new Set([
 const rawJwtSecret = String(process.env.JWT_SECRET || "").trim();
 const rawAesKey = String(process.env.AES_KEY || "").trim();
 const rawCsrfSecret = String(process.env.CSRF_SECRET || rawJwtSecret).trim();
+const rawInviteCodePepper = String(process.env.INVITE_CODE_PEPPER || `${rawJwtSecret}:invite-code`).trim();
+const rawActivationCodePepper = String(process.env.ACTIVATION_CODE_PEPPER || `${rawJwtSecret}:activation-code`).trim();
+const rawPasswordResetCodePepper = String(process.env.PASSWORD_RESET_CODE_PEPPER || `${rawJwtSecret}:password-reset-code`).trim();
 const defaultCorsOrigins = ["http://localhost:3000", "https://xyzw.xq5007.fun"];
 const defaultCspConnectSrc = [
   "https://*.hortorgames.com",
@@ -100,6 +110,7 @@ const corsOrigins = String(process.env.CORS_ORIGINS || "")
   .split(",")
   .map((item) => item.trim())
   .filter(Boolean);
+const corsOriginsExplicitlySet = corsOrigins.length > 0;
 const cspConnectSrc = String(process.env.CSP_CONNECT_SRC || "")
   .split(",")
   .map((item) => item.trim())
@@ -199,7 +210,11 @@ export const env = {
   jwtSecret: rawJwtSecret,
   aesKey: rawAesKey,
   csrfSecret: rawCsrfSecret,
+  inviteCodePepper: rawInviteCodePepper,
+  activationCodePepper: rawActivationCodePepper,
+  passwordResetCodePepper: rawPasswordResetCodePepper,
   corsOrigins: corsOrigins.length > 0 ? corsOrigins : defaultCorsOrigins,
+  corsOriginsExplicitlySet,
   protectedAdminIdentities,
   trustProxy: parseTrustProxy(process.env.TRUST_PROXY),
   logRequests: (process.env.LOG_REQUESTS || "true") === "true",
@@ -207,6 +222,7 @@ export const env = {
   dbWriteSafetyIncludeSql: parseBoolean(process.env.DB_WRITE_SAFETY_INCLUDE_SQL, false),
   dbWriteSafetyParamsTables,
   dbWriteSafetyParamMaxLen: parsePositiveIntInRange(process.env.DB_WRITE_SAFETY_PARAM_MAX_LEN, 120, 32, 4096),
+  appDbBackupEnabled: parseProductionDefaultFalse(process.env.APP_DB_BACKUP_ENABLED, true),
   dbPath,
   binStoragePath,
   backendErrorLogPath,
@@ -277,8 +293,39 @@ if (isBlank(env.csrfSecret)) {
   );
 }
 
+if (env.nodeEnv === "production" && isBlank(env.inviteCodePepper)) {
+  throw new Error("INVITE_CODE_PEPPER is required in production.");
+}
+
+if (env.nodeEnv === "production" && isBlank(env.activationCodePepper)) {
+  throw new Error("ACTIVATION_CODE_PEPPER is required in production.");
+}
+
+if (env.nodeEnv === "production" && isBlank(env.passwordResetCodePepper)) {
+  throw new Error("PASSWORD_RESET_CODE_PEPPER is required in production.");
+}
+
 if (env.nodeEnv === "production" && !env.refreshCookieSecure) {
   throw new Error("REFRESH_COOKIE_SECURE must be true in production.");
+}
+
+if (env.nodeEnv === "production" && env.accessTokenExposeInBody) {
+  throw new Error("ACCESS_TOKEN_EXPOSE_IN_BODY must be false in production.");
+}
+
+if (env.nodeEnv === "production" && String(process.env.BOOTSTRAP_ADMIN_PASSWORD || "").trim()) {
+  throw new Error("BOOTSTRAP_ADMIN_PASSWORD must not be present in production runtime. Use one-time init scripts instead.");
+}
+
+if (env.nodeEnv === "production" && !env.corsOriginsExplicitlySet) {
+  throw new Error("CORS_ORIGINS must be explicitly set in production.");
+}
+
+if (
+  env.nodeEnv === "production"
+  && env.corsOrigins.some((origin) => /localhost|127\.0\.0\.1|\[::1\]/i.test(String(origin || "")))
+) {
+  throw new Error("CORS_ORIGINS must not include localhost/loopback origins in production.");
 }
 
 if (env.nodeEnv === "production" && !env.accessCookieSecure) {

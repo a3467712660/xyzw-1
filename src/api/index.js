@@ -359,10 +359,6 @@ const api = {
     getUserInfo: () => request.get("/auth/user"),
     getMe: (config = {}) => request.get("/auth/me", config),
     ensureCsrf: () => request.get("/auth/csrf", { skipAuthHandling: true }),
-    listTemporaryInvites: (limit = 20) =>
-      request.get(`/auth/temporary-invites?limit=${limit}`, {
-        skipAuthHandling: true,
-      }),
     refreshToken: () =>
       request.post("/auth/refresh", {}, { skipAuthHandling: true }),
     logoutAll: () => request.post("/auth/logout-all"),
@@ -511,11 +507,21 @@ const api = {
   },
 
   admin: {
+    adminConfirmHeaders: (confirmToken = "") =>
+      confirmToken
+        ? { "X-Admin-Confirm-Token": confirmToken }
+        : {},
     listInviteCodes: () => request.get("/admin/invite-codes"),
     createInviteCodes: (payload) =>
       request.post("/admin/invite-codes", payload),
-    disableInviteCode: (id) =>
-      request.patch(`/admin/invite-codes/${id}/disable`),
+    createInviteCodesWithConfirm: (payload, confirmToken = "") =>
+      request.post("/admin/invite-codes", payload, {
+        headers: api.admin.adminConfirmHeaders(confirmToken),
+      }),
+    disableInviteCode: (id, confirmToken = "") =>
+      request.patch(`/admin/invite-codes/${id}/disable`, {}, {
+        headers: api.admin.adminConfirmHeaders(confirmToken),
+      }),
     listUsers: () => request.get("/admin/users"),
     listUserTokenActivations: (id) =>
       request.get(`/admin/users/${id}/token-activations`),
@@ -537,9 +543,7 @@ const api = {
         `/admin/users/${id}/admin`,
         { isAdmin },
         {
-          headers: confirmToken
-            ? { "X-Admin-Confirm-Token": confirmToken }
-            : {},
+          headers: api.admin.adminConfirmHeaders(confirmToken),
         },
       ),
     updateUserAccessScope: (id, accessScope, confirmToken) =>
@@ -547,9 +551,7 @@ const api = {
         `/admin/users/${id}/access-scope`,
         { accessScope },
         {
-          headers: confirmToken
-            ? { "X-Admin-Confirm-Token": confirmToken }
-            : {},
+          headers: api.admin.adminConfirmHeaders(confirmToken),
         },
       ),
     updateUserTokenBindLimit: (id, tokenBindLimit, confirmToken) =>
@@ -557,9 +559,7 @@ const api = {
         `/admin/users/${id}/token-bind-limit`,
         { tokenBindLimit },
         {
-          headers: confirmToken
-            ? { "X-Admin-Confirm-Token": confirmToken }
-            : {},
+          headers: api.admin.adminConfirmHeaders(confirmToken),
         },
       ),
     resetUserPassword: (id, password, confirmToken) =>
@@ -567,9 +567,7 @@ const api = {
         `/admin/users/${id}/password`,
         { password },
         {
-          headers: confirmToken
-            ? { "X-Admin-Confirm-Token": confirmToken }
-            : {},
+          headers: api.admin.adminConfirmHeaders(confirmToken),
         },
       ),
     createUserResetCode: (id, expiresInMinutes = 15, confirmToken) =>
@@ -579,14 +577,12 @@ const api = {
           expiresInMinutes,
         },
         {
-          headers: confirmToken
-            ? { "X-Admin-Confirm-Token": confirmToken }
-            : {},
+          headers: api.admin.adminConfirmHeaders(confirmToken),
         },
       ),
     deleteUser: (id, confirmToken) =>
       request.delete(`/admin/users/${id}`, {
-        headers: confirmToken ? { "X-Admin-Confirm-Token": confirmToken } : {},
+        headers: api.admin.adminConfirmHeaders(confirmToken),
       }),
     revokeSessions: (id) => request.post(`/admin/users/${id}/revoke-sessions`),
     listTaskControlLogs: (params = {}) => {
@@ -603,16 +599,16 @@ const api = {
     notifyChangelogToAll: (payload) =>
       request.post("/admin/changelog/notify-all", payload),
     listActivationCodes: () => request.get("/admin/activation-codes"),
-    createActivationCodes: (payload) =>
-      request.post("/admin/activation-codes", payload),
+    createActivationCodes: (payload, confirmToken = "") =>
+      request.post("/admin/activation-codes", payload, {
+        headers: api.admin.adminConfirmHeaders(confirmToken),
+      }),
     unbindActivationCode: (id, confirmToken = "") =>
       request.post(
         `/admin/activation-codes/${id}/unbind`,
         {},
         {
-          headers: confirmToken
-            ? { "X-Admin-Confirm-Token": confirmToken }
-            : {},
+          headers: api.admin.adminConfirmHeaders(confirmToken),
         },
       ),
     unbindAllActivationCodes: (confirmToken = "") =>
@@ -620,15 +616,17 @@ const api = {
         "/admin/activation-codes/unbind-all",
         {},
         {
-          headers: confirmToken
-            ? { "X-Admin-Confirm-Token": confirmToken }
-            : {},
+          headers: api.admin.adminConfirmHeaders(confirmToken),
         },
       ),
-    disableActivationCode: (id) =>
-      request.patch(`/admin/activation-codes/${id}/disable`),
-    deleteActivationCode: (id) =>
-      request.delete(`/admin/activation-codes/${id}`),
+    disableActivationCode: (id, confirmToken = "") =>
+      request.patch(`/admin/activation-codes/${id}/disable`, {}, {
+        headers: api.admin.adminConfirmHeaders(confirmToken),
+      }),
+    deleteActivationCode: (id, confirmToken = "") =>
+      request.delete(`/admin/activation-codes/${id}`, {
+        headers: api.admin.adminConfirmHeaders(confirmToken),
+      }),
   },
   tokenActivation: {
     bind: (payload) => {

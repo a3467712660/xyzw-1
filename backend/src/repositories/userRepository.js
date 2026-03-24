@@ -1,4 +1,10 @@
 import { query, run } from "../db/client.js";
+import { env } from "../config/env.js";
+import { codeSuffix, hmacHex, maskedCode } from "../lib/crypto.js";
+
+const passwordResetCodeHmac = (code) => hmacHex(env.passwordResetCodePepper, code);
+const passwordResetCodeMask = (code) => maskedCode(code, "RST");
+const redactStoredResetCode = (id) => `reset-redacted:${String(id || "").trim()}`;
 import { normalizeAccessScope } from "../constants/accessScope.js";
 
 const toBooleanAdmin = (row) => ({
@@ -323,7 +329,9 @@ export const userRepository = {
   },
 
   existsPasswordResetCode(code) {
-    const rows = query(`SELECT id FROM password_reset_codes WHERE code = $code`, { $code: code });
+    const rows = query(`SELECT id FROM password_reset_codes WHERE code_hmac = $codeHmac`, {
+      $codeHmac: passwordResetCodeHmac(code),
+    });
     return Boolean(rows[0]);
   },
 
@@ -337,13 +345,16 @@ export const userRepository = {
   }) {
     run(
       `INSERT INTO password_reset_codes
-        (id, user_id, code, created_by, expires_at, used_at, is_active, created_at)
+        (id, user_id, code, code_hmac, code_suffix, code_mask, created_by, expires_at, used_at, is_active, created_at)
        VALUES
-        ($id, $userId, $code, $createdBy, $expiresAt, NULL, 1, $createdAt)`,
+        ($id, $userId, $storedCode, $codeHmac, $codeSuffix, $codeMask, $createdBy, $expiresAt, NULL, 1, $createdAt)`,
       {
         $id: id,
         $userId: userId,
-        $code: code,
+        $storedCode: redactStoredResetCode(id),
+        $codeHmac: passwordResetCodeHmac(code),
+        $codeSuffix: codeSuffix(code),
+        $codeMask: passwordResetCodeMask(code),
         $createdBy: createdBy,
         $expiresAt: expiresAt,
         $createdAt: createdAt,
@@ -359,10 +370,10 @@ export const userRepository = {
         used_at as usedAt,
         is_active as isActive
       FROM password_reset_codes
-      WHERE user_id = $userId AND code = $code
+      WHERE user_id = $userId AND code_hmac = $codeHmac
       ORDER BY created_at DESC
       LIMIT 1`,
-      { $userId: userId, $code: code },
+      { $userId: userId, $codeHmac: passwordResetCodeHmac(code) },
     );
     return rows[0] || null;
   },
@@ -460,6 +471,16 @@ export const userRepository = {
       `SELECT id, username
        FROM users
        ORDER BY created_at DESC`,
+    );
+  },
+
+  listAdminUsersWithoutMfa() {
+    return query(
+      `SELECT id, username, email
+       FROM users
+       WHERE is_admin = 1
+         AND (mfa_enabled IS NULL OR mfa_enabled = 0)
+       ORDER BY created_at ASC`,
     );
   },
 

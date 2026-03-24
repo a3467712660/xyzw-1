@@ -57,6 +57,65 @@ const createSchema = () => {
   };
   const buildAccountSignature = ({ accountIdentity, accountSeed }) =>
     crypto.createHash("sha256").update(`${accountIdentity}|${accountSeed}`).digest("hex");
+  const normalizeSecretCode = (value) => String(value || "").trim().toUpperCase();
+  const hmacCode = (pepper, value) =>
+    crypto.createHmac("sha256", String(pepper || ""))
+      .update(normalizeSecretCode(value))
+      .digest("hex");
+  const codeSuffix = (value) => normalizeSecretCode(value).slice(-4);
+  const maskedCode = (value, prefixFallback) => {
+    const normalized = normalizeSecretCode(value);
+    if (!normalized) return `${prefixFallback}-****`;
+    const [prefixRaw] = normalized.split("-", 1);
+    const prefix = String(prefixRaw || prefixFallback).trim() || prefixFallback;
+    return `${prefix}-****-${codeSuffix(normalized) || "****"}`;
+  };
+  const backfillCodeSecrets = ({
+    tableName,
+    pepper,
+    prefixFallback,
+    codeColumn = "code",
+  }) => {
+    const selectSql = `
+      SELECT id, ${codeColumn} as legacyCode, code_hmac as codeHmac
+      FROM ${tableName}
+    `;
+    const rows = db.prepare(selectSql).all();
+    const updateStmt = db.prepare(`
+      UPDATE ${tableName}
+      SET code = $storedCode,
+          code_hmac = $codeHmac,
+          code_suffix = $codeSuffix,
+          code_mask = $codeMask
+      WHERE id = $id
+    `);
+
+    rows.forEach((row) => {
+      const legacyCode = String(row.legacyCode || "").trim();
+      const existingHmac = String(row.codeHmac || "").trim();
+      if (!legacyCode || legacyCode.includes("-redacted:")) {
+        return;
+      }
+      const computedHmac = hmacCode(pepper, legacyCode);
+      if (existingHmac === computedHmac) {
+        updateStmt.run({
+          id: row.id,
+          storedCode: `${prefixFallback.toLowerCase()}-redacted:${row.id}`,
+          codeHmac: computedHmac,
+          codeSuffix: codeSuffix(legacyCode),
+          codeMask: maskedCode(legacyCode, prefixFallback),
+        });
+        return;
+      }
+      updateStmt.run({
+        id: row.id,
+        storedCode: `${prefixFallback.toLowerCase()}-redacted:${row.id}`,
+        codeHmac: computedHmac,
+        codeSuffix: codeSuffix(legacyCode),
+        codeMask: maskedCode(legacyCode, prefixFallback),
+      });
+    });
+  };
 
   // better-sqlite3 的 exec 用于运行多条语句
   db.exec(`
@@ -132,6 +191,9 @@ const createSchema = () => {
     CREATE TABLE IF NOT EXISTS invite_codes (
       id TEXT PRIMARY KEY,
       code TEXT UNIQUE NOT NULL,
+      code_hmac TEXT UNIQUE,
+      code_suffix TEXT,
+      code_mask TEXT,
       created_by TEXT NOT NULL,
       used_by TEXT,
       used_at TEXT,
@@ -188,6 +250,9 @@ const createSchema = () => {
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
       code TEXT UNIQUE NOT NULL,
+      code_hmac TEXT UNIQUE,
+      code_suffix TEXT,
+      code_mask TEXT,
       created_by TEXT NOT NULL,
       expires_at TEXT NOT NULL,
       used_at TEXT,
@@ -305,6 +370,9 @@ const createSchema = () => {
     CREATE TABLE IF NOT EXISTS activation_codes (
       id TEXT PRIMARY KEY,
       code TEXT UNIQUE NOT NULL,
+      code_hmac TEXT UNIQUE,
+      code_suffix TEXT,
+      code_mask TEXT,
       created_by TEXT NOT NULL,
       duration_months INTEGER NOT NULL,
       used_by TEXT,
@@ -479,6 +547,51 @@ const createSchema = () => {
     // ignore: column already exists
   }
   try {
+    db.exec(`ALTER TABLE invite_codes ADD COLUMN code_hmac TEXT;`);
+  } catch {
+    // ignore: column already exists
+  }
+  try {
+    db.exec(`ALTER TABLE invite_codes ADD COLUMN code_suffix TEXT;`);
+  } catch {
+    // ignore: column already exists
+  }
+  try {
+    db.exec(`ALTER TABLE invite_codes ADD COLUMN code_mask TEXT;`);
+  } catch {
+    // ignore: column already exists
+  }
+  try {
+    db.exec(`ALTER TABLE password_reset_codes ADD COLUMN code_hmac TEXT;`);
+  } catch {
+    // ignore: column already exists
+  }
+  try {
+    db.exec(`ALTER TABLE password_reset_codes ADD COLUMN code_suffix TEXT;`);
+  } catch {
+    // ignore: column already exists
+  }
+  try {
+    db.exec(`ALTER TABLE password_reset_codes ADD COLUMN code_mask TEXT;`);
+  } catch {
+    // ignore: column already exists
+  }
+  try {
+    db.exec(`ALTER TABLE activation_codes ADD COLUMN code_hmac TEXT;`);
+  } catch {
+    // ignore: column already exists
+  }
+  try {
+    db.exec(`ALTER TABLE activation_codes ADD COLUMN code_suffix TEXT;`);
+  } catch {
+    // ignore: column already exists
+  }
+  try {
+    db.exec(`ALTER TABLE activation_codes ADD COLUMN code_mask TEXT;`);
+  } catch {
+    // ignore: column already exists
+  }
+  try {
     db.exec(`ALTER TABLE token_activation_bindings ADD COLUMN role_name TEXT;`);
   } catch {
     // ignore: column already exists
@@ -554,6 +667,37 @@ const createSchema = () => {
   } catch {
     // ignore: may fail on very old/inconsistent dbs
   }
+  try {
+    db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_invite_codes_code_hmac_unique ON invite_codes(code_hmac);`);
+  } catch {
+    // ignore
+  }
+  try {
+    db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_password_reset_codes_code_hmac_unique ON password_reset_codes(code_hmac);`);
+  } catch {
+    // ignore
+  }
+  try {
+    db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_activation_codes_code_hmac_unique ON activation_codes(code_hmac);`);
+  } catch {
+    // ignore
+  }
+
+  backfillCodeSecrets({
+    tableName: "invite_codes",
+    pepper: env.inviteCodePepper,
+    prefixFallback: "INV",
+  });
+  backfillCodeSecrets({
+    tableName: "password_reset_codes",
+    pepper: env.passwordResetCodePepper,
+    prefixFallback: "RST",
+  });
+  backfillCodeSecrets({
+    tableName: "activation_codes",
+    pepper: env.activationCodePepper,
+    prefixFallback: "ACT",
+  });
 
   const activationRows = db.prepare(
     `SELECT id, game_account_id, role_name, region, role_index, account_identity, account_seed

@@ -40,5 +40,21 @@ jobs:
           VITE_DEV_DEBUG_PROXY: "false"
         run: npm run security:build-mode
 
+      - name: Build production frontend
+        run: npm run build
+
+      - name: Verify production artifacts exclude legacy server
+        run: |
+          bash ./scripts/guard-legacy-server.sh
+          tar -czf production-bundle.tar.gz \
+            dist \
+            backend \
+            docker \
+            package.json \
+            package-lock.json \
+            .dockerignore \
+            scripts
+          bash ./scripts/guard-legacy-server.sh production-bundle.tar.gz
+
       - name: Run SCA gate
         run: npm run security:sca

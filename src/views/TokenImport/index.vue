@@ -43,7 +43,13 @@
             {{ t("tokenImport.actions.addToken") }}
           </NButton>
 
-          <NButton secondary size="large" type="primary" @click="goToDashboard">
+          <NButton
+            v-if="tokenStore.hasUsableWorkbenchToken"
+            secondary
+            size="large"
+            type="primary"
+            @click="goToDashboard"
+          >
             <template #icon>
               <NIcon>
                 <List></List>
@@ -53,7 +59,7 @@
           </NButton>
 
           <NButton
-            v-if="authStore.user?.isAdmin"
+            v-if="authStore.user?.isAdmin && authStore.user?.mfaEnabled"
             quaternary
             size="large"
             type="primary"
@@ -212,7 +218,11 @@
             </n-button-group>
           </n-space>
           <div class="header-actions">
-            <NButton type="success" @click="goToDashboard">
+            <NButton
+              v-if="tokenStore.hasUsableWorkbenchToken"
+              type="success"
+              @click="goToDashboard"
+            >
               <template #icon>
                 <NIcon>
                   <List></List>
@@ -1265,6 +1275,10 @@ const handleLogout = async () => {
 };
 
 const goToAdminCenter = () => {
+  if (!authStore.user?.isAdmin || !authStore.user?.mfaEnabled) {
+    router.push({ path: "/admin/profile", query: { adminMfaRequired: "1" } });
+    return;
+  }
   router.push("/admin/admin-users");
 };
 

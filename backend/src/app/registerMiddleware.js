@@ -2,6 +2,7 @@ import cors from "cors";
 import express from "express";
 import helmet from "helmet";
 import { env } from "../config/env.js";
+import { isAllowedHttpOrigin } from "../lib/origin.js";
 import { requestLogger } from "../middleware/requestLogger.js";
 import { csrfProtection } from "../middleware/csrf.js";
 
@@ -23,7 +24,7 @@ export function registerMiddleware(app) {
         origin: false,
       });
     }
-    if (corsOriginSet.has(requestOrigin)) {
+    if (isAllowedHttpOrigin(requestOrigin, corsOriginSet)) {
       return callback(null, {
         origin: requestOrigin,
         credentials: true,

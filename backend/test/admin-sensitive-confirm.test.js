@@ -61,6 +61,25 @@ const authHeaders = ({ userId, username }) => {
   };
 };
 
+const enableAdminMfa = ({ userId, username }) => {
+  const mfaSetup = createMfaSetupPayload({ username });
+  run(
+    `UPDATE users
+     SET mfa_enabled = 1,
+         mfa_totp_secret_enc = $secretEnc,
+         mfa_recovery_codes_hash = $recoveryHash,
+         updated_at = $updatedAt
+     WHERE id = $id`,
+    {
+      $id: userId,
+      $secretEnc: encryptMfaSecret(mfaSetup.secret),
+      $recoveryHash: JSON.stringify(mfaSetup.recoveryCodeHashes),
+      $updatedAt: nowIso(),
+    },
+  );
+  return mfaSetup;
+};
+
 test("admin high-risk actions require password confirmation token", async (t) => {
   await initDatabase();
 
@@ -79,6 +98,10 @@ test("admin high-risk actions require password confirmation token", async (t) =>
     id: `actcode_${suffix}`,
     code: `ACTTEST${suffix.replace(/[^a-zA-Z0-9]/g, "").slice(-12).toUpperCase()}`,
   };
+  const inviteCode = {
+    id: `invite_${suffix}`,
+    code: `INVTEST${suffix.replace(/[^a-zA-Z0-9]/g, "").slice(-12).toUpperCase()}`,
+  };
 
   run(`DELETE FROM users WHERE id IN ($adminId, $targetId)`, {
     $adminId: adminUser.id,
@@ -87,6 +110,7 @@ test("admin high-risk actions require password confirmation token", async (t) =>
 
   insertUser({ ...adminUser, isAdmin: true });
   insertUser({ ...targetUser, isAdmin: false });
+  const adminMfaSetup = enableAdminMfa({ userId: adminUser.id, username: adminUser.username });
   run(
     `INSERT INTO activation_codes (
       id, code, created_by, duration_months, used_by, used_at, bound_token_id, bound_game_account_id, is_deleted, is_active, created_at
@@ -100,6 +124,19 @@ test("admin high-risk actions require password confirmation token", async (t) =>
       $createdAt: nowIso(),
     },
   );
+  run(
+    `INSERT INTO invite_codes (
+      id, code, created_by, used_by, used_at, expires_at, is_temporary, feature_scope, bind_account_limit, is_active, created_at
+    ) VALUES (
+      $id, $code, $createdBy, NULL, NULL, NULL, 0, 'full', 1, 1, $createdAt
+    )`,
+    {
+      $id: inviteCode.id,
+      $code: inviteCode.code,
+      $createdBy: adminUser.id,
+      $createdAt: nowIso(),
+    },
+  );
 
   const server = await createAppServer();
   t.after(async () => {
@@ -109,6 +146,9 @@ test("admin high-risk actions require password confirmation token", async (t) =>
       $targetId: targetUser.id,
     });
     run(`DELETE FROM activation_codes WHERE id = $id`, { $id: activationCode.id });
+    run(`DELETE FROM activation_codes WHERE created_by = $createdBy`, { $createdBy: adminUser.id });
+    run(`DELETE FROM invite_codes WHERE id = $id`, { $id: inviteCode.id });
+    run(`DELETE FROM invite_codes WHERE created_by = $createdBy`, { $createdBy: adminUser.id });
   });
 
   const baseUrl = makeBaseUrl(server);
@@ -121,6 +161,51 @@ test("admin high-risk actions require password confirmation token", async (t) =>
   assert.equal(denied.status, 403);
   const deniedPayload = await denied.json();
   assert.equal(deniedPayload?.error?.code, "ADMIN_CONFIRM_REQUIRED");
+
+  const inviteList = await fetch(`${baseUrl}/api/v1/admin/invite-codes`, {
+    method: "GET",
+    headers: authHeaders({ userId: adminUser.id, username: adminUser.username }),
+  });
+  assert.equal(inviteList.status, 200);
+  const inviteListPayload = await inviteList.json();
+  const listedInvite = inviteListPayload?.data?.find((item) => item.id === inviteCode.id);
+  assert.ok(listedInvite, "expected invite code in list");
+  assert.notEqual(listedInvite.code, inviteCode.code);
+
+  const activationList = await fetch(`${baseUrl}/api/v1/admin/activation-codes`, {
+    method: "GET",
+    headers: authHeaders({ userId: adminUser.id, username: adminUser.username }),
+  });
+  assert.equal(activationList.status, 200);
+  const activationListPayload = await activationList.json();
+  const listedActivation = activationListPayload?.data?.find((item) => item.id === activationCode.id);
+  assert.ok(listedActivation, "expected activation code in list");
+  assert.notEqual(listedActivation.code, activationCode.code);
+
+  const revealInviteDenied = await fetch(`${baseUrl}/api/v1/admin/invite-codes/${inviteCode.id}/reveal`, {
+    method: "POST",
+    headers: authHeaders({ userId: adminUser.id, username: adminUser.username }),
+  });
+  assert.equal(revealInviteDenied.status, 403);
+  const revealInviteDeniedPayload = await revealInviteDenied.json();
+  assert.equal(revealInviteDeniedPayload?.error?.code, "ADMIN_CONFIRM_REQUIRED");
+
+  const createInviteDenied = await fetch(`${baseUrl}/api/v1/admin/invite-codes`, {
+    method: "POST",
+    headers: authHeaders({ userId: adminUser.id, username: adminUser.username }),
+    body: JSON.stringify({ count: 1, featureScope: "full", bindAccountLimit: 1, isTemporary: false }),
+  });
+  assert.equal(createInviteDenied.status, 403);
+  const createInviteDeniedPayload = await createInviteDenied.json();
+  assert.equal(createInviteDeniedPayload?.error?.code, "ADMIN_CONFIRM_REQUIRED");
+
+  const disableInviteDenied = await fetch(`${baseUrl}/api/v1/admin/invite-codes/${inviteCode.id}/disable`, {
+    method: "PATCH",
+    headers: authHeaders({ userId: adminUser.id, username: adminUser.username }),
+  });
+  assert.equal(disableInviteDenied.status, 403);
+  const disableInviteDeniedPayload = await disableInviteDenied.json();
+  assert.equal(disableInviteDeniedPayload?.error?.code, "ADMIN_CONFIRM_REQUIRED");
 
   const revokeDenied = await fetch(`${baseUrl}/api/v1/admin/users/${targetUser.id}/revoke-sessions`, {
     method: "POST",
@@ -146,6 +231,39 @@ test("admin high-risk actions require password confirmation token", async (t) =>
   const unbindDeniedPayload = await unbindDenied.json();
   assert.equal(unbindDeniedPayload?.error?.code, "ADMIN_CONFIRM_REQUIRED");
 
+  const revealActivationDenied = await fetch(`${baseUrl}/api/v1/admin/activation-codes/${activationCode.id}/reveal`, {
+    method: "POST",
+    headers: authHeaders({ userId: adminUser.id, username: adminUser.username }),
+  });
+  assert.equal(revealActivationDenied.status, 403);
+  const revealActivationDeniedPayload = await revealActivationDenied.json();
+  assert.equal(revealActivationDeniedPayload?.error?.code, "ADMIN_CONFIRM_REQUIRED");
+
+  const createActivationDenied = await fetch(`${baseUrl}/api/v1/admin/activation-codes`, {
+    method: "POST",
+    headers: authHeaders({ userId: adminUser.id, username: adminUser.username }),
+    body: JSON.stringify({ count: 1, durationMonths: 1 }),
+  });
+  assert.equal(createActivationDenied.status, 403);
+  const createActivationDeniedPayload = await createActivationDenied.json();
+  assert.equal(createActivationDeniedPayload?.error?.code, "ADMIN_CONFIRM_REQUIRED");
+
+  const disableActivationDenied = await fetch(`${baseUrl}/api/v1/admin/activation-codes/${activationCode.id}/disable`, {
+    method: "PATCH",
+    headers: authHeaders({ userId: adminUser.id, username: adminUser.username }),
+  });
+  assert.equal(disableActivationDenied.status, 403);
+  const disableActivationDeniedPayload = await disableActivationDenied.json();
+  assert.equal(disableActivationDeniedPayload?.error?.code, "ADMIN_CONFIRM_REQUIRED");
+
+  const deleteActivationDenied = await fetch(`${baseUrl}/api/v1/admin/activation-codes/${activationCode.id}`, {
+    method: "DELETE",
+    headers: authHeaders({ userId: adminUser.id, username: adminUser.username }),
+  });
+  assert.equal(deleteActivationDenied.status, 403);
+  const deleteActivationDeniedPayload = await deleteActivationDenied.json();
+  assert.equal(deleteActivationDeniedPayload?.error?.code, "ADMIN_CONFIRM_REQUIRED");
+
   const badConfirm = await fetch(`${baseUrl}/api/v1/admin/confirm-password`, {
     method: "POST",
     headers: authHeaders({ userId: adminUser.id, username: adminUser.username }),
@@ -156,7 +274,7 @@ test("admin high-risk actions require password confirmation token", async (t) =>
   const confirm = await fetch(`${baseUrl}/api/v1/admin/confirm-password`, {
     method: "POST",
     headers: authHeaders({ userId: adminUser.id, username: adminUser.username }),
-    body: JSON.stringify({ password: adminUser.password }),
+    body: JSON.stringify({ totpCode: generateTotpCode({ secret: adminMfaSetup.secret }) }),
   });
   assert.equal(confirm.status, 200);
   const confirmPayload = await confirm.json();
@@ -172,6 +290,33 @@ test("admin high-risk actions require password confirmation token", async (t) =>
     body: JSON.stringify({ isAdmin: true }),
   });
   assert.equal(allowed.status, 200);
+
+  const revealInviteAllowed = await fetch(`${baseUrl}/api/v1/admin/invite-codes/${inviteCode.id}/reveal`, {
+    method: "POST",
+    headers: {
+      ...authHeaders({ userId: adminUser.id, username: adminUser.username }),
+      "x-admin-confirm-token": confirmPayload.data.token,
+    },
+  });
+  assert.equal(revealInviteAllowed.status, 410);
+
+  const disableInviteAllowed = await fetch(`${baseUrl}/api/v1/admin/invite-codes/${inviteCode.id}/disable`, {
+    method: "PATCH",
+    headers: {
+      ...authHeaders({ userId: adminUser.id, username: adminUser.username }),
+      "x-admin-confirm-token": confirmPayload.data.token,
+    },
+  });
+  assert.equal(disableInviteAllowed.status, 200);
+
+  const revealActivationAllowed = await fetch(`${baseUrl}/api/v1/admin/activation-codes/${activationCode.id}/reveal`, {
+    method: "POST",
+    headers: {
+      ...authHeaders({ userId: adminUser.id, username: adminUser.username }),
+      "x-admin-confirm-token": confirmPayload.data.token,
+    },
+  });
+  assert.equal(revealActivationAllowed.status, 410);
 
   const revokeAllowed = await fetch(`${baseUrl}/api/v1/admin/users/${targetUser.id}/revoke-sessions`, {
     method: "POST",
@@ -200,11 +345,21 @@ test("admin high-risk actions require password confirmation token", async (t) =>
   });
   assert.equal(unbindAllowed.status, 200);
 
+  const createActivationAllowed = await fetch(`${baseUrl}/api/v1/admin/activation-codes`, {
+    method: "POST",
+    headers: {
+      ...authHeaders({ userId: adminUser.id, username: adminUser.username }),
+      "x-admin-confirm-token": confirmPayload.data.token,
+    },
+    body: JSON.stringify({ count: 1, durationMonths: 1 }),
+  });
+  assert.equal(createActivationAllowed.status, 200);
+
   const updatedRows = query(`SELECT is_admin as isAdmin FROM users WHERE id = $id`, { $id: targetUser.id });
   assert.equal(Number(updatedRows[0]?.isAdmin), 1);
 });
 
-test("admin confirmation prefers MFA and allows password fallback when MFA enabled", async (t) => {
+test("admin confirmation requires MFA when admin has MFA enabled", async (t) => {
   await initDatabase();
 
   const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -227,21 +382,7 @@ test("admin confirmation prefers MFA and allows password fallback when MFA enabl
   insertUser({ ...adminUser, isAdmin: true });
   insertUser({ ...targetUser, isAdmin: false });
 
-  const mfaSetup = createMfaSetupPayload({ username: adminUser.username });
-  run(
-    `UPDATE users
-     SET mfa_enabled = 1,
-         mfa_totp_secret_enc = $secretEnc,
-         mfa_recovery_codes_hash = $recoveryHash,
-         updated_at = $updatedAt
-     WHERE id = $id`,
-    {
-      $id: adminUser.id,
-      $secretEnc: encryptMfaSecret(mfaSetup.secret),
-      $recoveryHash: JSON.stringify(mfaSetup.recoveryCodeHashes),
-      $updatedAt: nowIso(),
-    },
-  );
+  const mfaSetup = enableAdminMfa({ userId: adminUser.id, username: adminUser.username });
 
   const server = await createAppServer();
   t.after(async () => {
@@ -294,7 +435,50 @@ test("admin confirmation prefers MFA and allows password fallback when MFA enabl
       password: adminUser.password,
     }),
   });
-  assert.equal(passwordFallbackConfirm.status, 200);
-  const passwordFallbackPayload = await passwordFallbackConfirm.json();
-  assert.ok(passwordFallbackPayload?.data?.token, "expected password fallback token");
+  assert.equal(passwordFallbackConfirm.status, 400);
+
+  const recoveryConfirm = await fetch(`${baseUrl}/api/v1/admin/confirm-password`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      recoveryCode: mfaSetup.recoveryCodes[0],
+    }),
+  });
+  assert.equal(recoveryConfirm.status, 200);
+  const recoveryConfirmPayload = await recoveryConfirm.json();
+  assert.ok(recoveryConfirmPayload?.data?.token, "expected recovery confirmation token");
+});
+
+test("admin routes require MFA-enabled admin account", async (t) => {
+  await initDatabase();
+
+  const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const adminUser = {
+    id: `user_admin_nomfa_${suffix}`,
+    username: `admin_nomfa_${suffix}`,
+    password: "Admin1234!Aa",
+  };
+
+  run(`DELETE FROM users WHERE id = $adminId`, {
+    $adminId: adminUser.id,
+  });
+
+  insertUser({ ...adminUser, isAdmin: true });
+
+  const server = await createAppServer();
+  t.after(async () => {
+    await new Promise((resolve) => server.close(resolve));
+    run(`DELETE FROM users WHERE id = $adminId`, {
+      $adminId: adminUser.id,
+    });
+  });
+
+  const baseUrl = makeBaseUrl(server);
+  const denied = await fetch(`${baseUrl}/api/v1/admin/invite-codes`, {
+    method: "GET",
+    headers: authHeaders({ userId: adminUser.id, username: adminUser.username }),
+  });
+  assert.equal(denied.status, 403);
+  const payload = await denied.json();
+  assert.equal(payload?.error?.code, "AUTH_ADMIN_MFA_REQUIRED");
 });

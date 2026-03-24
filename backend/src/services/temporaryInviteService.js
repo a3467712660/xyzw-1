@@ -95,16 +95,6 @@ export const ensureTemporaryInviteCodes = ({ reason = "manual" } = {}) => {
   };
 };
 
-export const listPublicTemporaryInviteCodes = (limit = 20) => {
-  if (!TEMP_INVITES_AUTO_GENERATION_ENABLED) {
-    return [];
-  }
-
-  const nowAt = nowIso();
-  inviteCodeRepository.markExpiredTemporaryInactive(nowAt);
-  return inviteCodeRepository.listPublicTemporaryActive({ limit, nowAt });
-};
-
 export const startTemporaryInviteAutoJob = () => {
   if (!TEMP_INVITES_AUTO_GENERATION_ENABLED) {
     return;

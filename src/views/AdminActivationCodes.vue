@@ -74,7 +74,6 @@
             </div>
           </div>
           <div class="mobile-actions">
-            <NButton tertiary size="small" @click="copyCode(row.code)">复制</NButton>
             <NButton
               v-if="canUnbind(row)"
               tertiary
@@ -101,19 +100,52 @@
           description="暂无激活码"
         ></n-empty>
       </div>
+
+      <n-modal
+        class="created-codes-modal"
+        preset="card"
+        title="一次性激活码"
+        :mask-closable="false"
+        :show="showCreatedCodesModal"
+        @update:show="handleCreatedCodesModalUpdate"
+      >
+        <div class="created-codes-modal__body">
+          <p class="created-codes-modal__hint">
+            完整激活码只会在创建当次显示一次，关闭后列表里只保留打码值。
+          </p>
+          <div class="created-codes-modal__list">
+            <code
+              v-for="code in createdCodesPlaintext"
+              :key="code"
+              class="created-codes-modal__item"
+            >{{ code }}</code>
+          </div>
+        </div>
+        <template #footer>
+          <div class="created-codes-modal__actions">
+            <NButton tertiary @click="copyCreatedCodes">
+              复制
+            </NButton>
+            <NButton type="primary" @click="closeCreatedCodesModal">
+              我已保存
+            </NButton>
+          </div>
+        </template>
+      </n-modal>
     </div>
   </div>
 </template>
 
 <script setup>
 import { computed, h, onBeforeUnmount, onMounted, ref } from "vue";
-import { NButton, NTag, useMessage } from "naive-ui/es";
+import { NButton, NInput, NTag, useDialog, useMessage } from "naive-ui/es";
 import { useRouter } from "vue-router";
 import api from "@/api";
 import { useAuthStore } from "@/stores/auth";
 
 const router = useRouter();
 const message = useMessage();
+const dialog = useDialog();
 const authStore = useAuthStore();
 
 const canAccess = computed(() => authStore.isAuthenticated && authStore.user?.isAdmin);
@@ -126,6 +158,8 @@ const isMobile = ref(false);
 const MOBILE_BREAKPOINT = 768;
 const sensitiveConfirmToken = ref("");
 const sensitiveConfirmExpiresAt = ref(0);
+const showCreatedCodesModal = ref(false);
+const createdCodesPlaintext = ref([]);
 
 const durationOptions = [
   { label: "1个月", value: 1 },
@@ -171,15 +205,6 @@ const formatBindingAccount = (row) => {
   ].join(" / ");
 };
 
-const copyCode = async (code) => {
-  try {
-    await navigator.clipboard.writeText(String(code || ""));
-    message.success("激活码已复制");
-  } catch {
-    message.error("复制失败");
-  }
-};
-
 const getCachedSensitiveConfirmToken = () => {
   if (
     sensitiveConfirmToken.value
@@ -196,24 +221,82 @@ const clearSensitiveConfirmToken = () => {
   sensitiveConfirmExpiresAt.value = 0;
 };
 
+const promptSensitiveCredential = ({ actionLabel = "高危操作" } = {}) =>
+  new Promise((resolve) => {
+    const mfaEnabled = Boolean(authStore.user?.mfaEnabled);
+    const password = ref("");
+    const totpCode = ref("");
+    let settled = false;
+
+    const finish = (value) => {
+      if (settled) return;
+      settled = true;
+      resolve(value || null);
+    };
+
+    dialog.warning({
+      title: "安全确认",
+      positiveText: "确认",
+      negativeText: "取消",
+      content: () =>
+        h("div", { style: "display:flex;flex-direction:column;gap:12px;" }, [
+          h(
+            "div",
+            { style: "line-height:1.6;" },
+            mfaEnabled
+              ? `执行“${actionLabel}”前，请输入认证器当前显示的 6 位动态验证码完成二次验证`
+              : `执行“${actionLabel}”前，请输入当前管理员密码完成二次验证`,
+          ),
+          h(NInput, {
+            type: mfaEnabled ? "text" : "password",
+            showPasswordOn: mfaEnabled ? undefined : "click",
+            value: mfaEnabled ? totpCode.value : password.value,
+            maxlength: mfaEnabled ? 6 : undefined,
+            placeholder: mfaEnabled ? "输入 6 位动态验证码" : "输入当前管理员密码",
+            autofocus: true,
+            onUpdateValue: (value) => {
+              if (mfaEnabled) {
+                totpCode.value = String(value || "").replace(/\D/g, "");
+                return;
+              }
+              password.value = String(value || "");
+            },
+          }),
+        ]),
+      onPositiveClick: () => {
+        if (mfaEnabled) {
+          const normalized = String(totpCode.value || "").replace(/\D/g, "");
+          if (!normalized) {
+            message.warning("请输入 6 位动态验证码");
+            return false;
+          }
+          finish({ totpCode: normalized });
+          return true;
+        }
+        const normalized = String(password.value || "").trim();
+        if (!normalized) {
+          message.warning("请输入当前管理员密码");
+          return false;
+        }
+        finish({ password: normalized });
+        return true;
+      },
+      onNegativeClick: () => finish(null),
+      onClose: () => finish(null),
+    });
+  });
+
 const ensureSensitiveActionConfirmed = async (actionLabel = "高危操作") => {
   const cached = getCachedSensitiveConfirmToken();
   if (cached) return cached;
 
-  const credential = window.prompt(
-    `执行“${actionLabel}”前，请输入当前管理员密码完成二次验证`,
-  );
-  if (credential == null) {
+  const credential = await promptSensitiveCredential({ actionLabel });
+  if (!credential) {
     message.warning("已取消二次验证");
     return "";
   }
-  const password = String(credential || "").trim();
-  if (!password) {
-    message.warning("请输入当前管理员密码");
-    return "";
-  }
   try {
-    const res = await api.admin.confirmSensitiveAction({ password });
+    const res = await api.admin.confirmSensitiveAction(credential);
     if (!res?.success || !res?.data?.token) {
       message.error(res?.message || "二次验证失败");
       return "";
@@ -233,7 +316,9 @@ const ensureSensitiveActionConfirmed = async (actionLabel = "高危操作") => {
 
 const disableCode = async (row) => {
   try {
-    const res = await api.admin.disableActivationCode(row.id);
+    const confirmToken = await ensureSensitiveActionConfirmed("禁用激活码");
+    if (!confirmToken) return;
+    const res = await api.admin.disableActivationCode(row.id, confirmToken);
     if (!res?.success) {
       message.error(res?.message || "禁用失败");
       return;
@@ -241,6 +326,9 @@ const disableCode = async (row) => {
     message.success(res.message || "已禁用");
     await loadCodes();
   } catch (error) {
+    if (Number(error?.status || 0) === 401 || Number(error?.status || 0) === 403) {
+      clearSensitiveConfirmToken();
+    }
     message.error(error.message || "禁用失败");
   }
 };
@@ -249,7 +337,9 @@ const deleteCode = async (row) => {
   const ok = window.confirm(`确认删除激活码 ${row.code} 吗？`);
   if (!ok) return;
   try {
-    const res = await api.admin.deleteActivationCode(row.id);
+    const confirmToken = await ensureSensitiveActionConfirmed("删除激活码");
+    if (!confirmToken) return;
+    const res = await api.admin.deleteActivationCode(row.id, confirmToken);
     if (!res?.success) {
       message.error(res?.message || "删除失败");
       return;
@@ -257,6 +347,9 @@ const deleteCode = async (row) => {
     message.success(res.message || "已删除");
     await loadCodes();
   } catch (error) {
+    if (Number(error?.status || 0) === 401 || Number(error?.status || 0) === 403) {
+      clearSensitiveConfirmToken();
+    }
     message.error(error.message || "删除失败");
   }
 };
@@ -358,15 +451,6 @@ const columns = computed(() => [
           {
             size: "small",
             tertiary: true,
-            onClick: () => copyCode(row.code),
-          },
-          { default: () => "复制" },
-        ),
-        h(
-          NButton,
-          {
-            size: "small",
-            tertiary: true,
             type: "error",
             onClick: () => deleteCode(row),
           },
@@ -433,21 +517,76 @@ const loadCodes = async () => {
 const createCodes = async () => {
   creating.value = true;
   try {
+    const confirmToken = await ensureSensitiveActionConfirmed("生成激活码");
+    if (!confirmToken) return;
     const res = await api.admin.createActivationCodes({
       count: Math.max(1, Math.min(100, Number(createCount.value) || 1)),
       durationMonths: Number(durationMonths.value) || 1,
-    });
+    }, confirmToken);
     if (!res?.success) {
       message.error(res?.message || "生成失败");
       return;
     }
+    createdCodesPlaintext.value = (res.data || [])
+      .map((item) => String(item?.code || "").trim())
+      .filter(Boolean);
+    showCreatedCodesModal.value = createdCodesPlaintext.value.length > 0;
     message.success(res.message || "生成成功");
     await loadCodes();
   } catch (error) {
+    if (Number(error?.status || 0) === 401 || Number(error?.status || 0) === 403) {
+      clearSensitiveConfirmToken();
+    }
     message.error(error.message || "生成失败");
   } finally {
     creating.value = false;
   }
+};
+
+const copyCreatedCodes = async () => {
+  const list = createdCodesPlaintext.value.join("\n");
+  if (!list) {
+    message.warning("暂无可复制的激活码");
+    return;
+  }
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(list);
+      message.success("激活码已复制");
+      return;
+    }
+  } catch {}
+
+  try {
+    const textarea = document.createElement("textarea");
+    textarea.value = list;
+    textarea.setAttribute("readonly", "readonly");
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    document.body.appendChild(textarea);
+    textarea.select();
+    const copied = document.execCommand("copy");
+    document.body.removeChild(textarea);
+    if (copied) {
+      message.success("激活码已复制");
+      return;
+    }
+  } catch {}
+
+  message.error("复制失败，请手动复制");
+};
+
+const closeCreatedCodesModal = () => {
+  showCreatedCodesModal.value = false;
+  createdCodesPlaintext.value = [];
+};
+
+const handleCreatedCodesModalUpdate = (show) => {
+  if (show) {
+    showCreatedCodesModal.value = true;
+    return;
+  }
+  closeCreatedCodesModal();
 };
 
 onMounted(() => {
@@ -472,6 +611,48 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+.created-codes-modal {
+  max-width: 640px;
+}
+
+.created-codes-modal__body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.created-codes-modal__hint {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.created-codes-modal__list {
+  display: grid;
+  gap: 10px;
+  max-height: 360px;
+  overflow: auto;
+  padding: 14px;
+  border: 1px solid var(--surface-glass-border);
+  border-radius: var(--border-radius-lg);
+  background: rgba(15, 23, 42, 0.04);
+}
+
+.created-codes-modal__item {
+  display: block;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.6;
+  word-break: break-all;
+}
+
+.created-codes-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
 }
 
 .page-header {

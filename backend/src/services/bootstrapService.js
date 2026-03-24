@@ -2,13 +2,14 @@ import { createPassword } from "../lib/crypto.js";
 import { nowIso, randomId } from "../db/sql.js";
 import { validatePasswordStrength } from "../lib/passwordPolicy.js";
 import { userRepository } from "../repositories/userRepository.js";
+import { env } from "../config/env.js";
 
-const getBootstrapAdminConfig = () => {
-  const password = process.env.BOOTSTRAP_ADMIN_PASSWORD;
+export const getBootstrapAdminEnvConfig = () => {
+  const password = String(process.env.BOOTSTRAP_ADMIN_PASSWORD || "").trim();
   const username =
-    process.env.BOOTSTRAP_ADMIN_USERNAME || process.env.BOOTSTRAP_ADMIN_EMAIL;
+    String(process.env.BOOTSTRAP_ADMIN_USERNAME || process.env.BOOTSTRAP_ADMIN_EMAIL || "").trim();
   const email =
-    process.env.BOOTSTRAP_ADMIN_EMAIL || process.env.BOOTSTRAP_ADMIN_USERNAME;
+    String(process.env.BOOTSTRAP_ADMIN_EMAIL || process.env.BOOTSTRAP_ADMIN_USERNAME || "").trim();
 
   if (!password) {
     return null;
@@ -35,8 +36,17 @@ const getBootstrapAdminConfig = () => {
   };
 };
 
+export const assertNoBootstrapAdminEnvInProduction = () => {
+  const bootstrapAdmin = getBootstrapAdminEnvConfig();
+  if (!bootstrapAdmin) return;
+  if (env.nodeEnv !== "production") return;
+  throw new Error(
+    "BOOTSTRAP_ADMIN_* environment variables are one-time init secrets and must not be present in production runtime. Use `npm --prefix backend run init-admin` instead.",
+  );
+};
+
 export const ensureBootstrapAdminFromEnv = () => {
-  const bootstrapAdmin = getBootstrapAdminConfig();
+  const bootstrapAdmin = getBootstrapAdminEnvConfig();
   if (!bootstrapAdmin) {
     return false;
   }

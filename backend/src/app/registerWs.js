@@ -1,49 +1,14 @@
 import { WebSocketServer } from "ws";
+import { buildLoopbackOriginAlias, normalizeHttpOrigin } from "../lib/origin.js";
 import { attachWsHub } from "../services/wsHub.js";
 
-const normalizeLoopbackOrigin = (originValue) => {
-  const raw = String(originValue || "").trim();
-  if (!raw) return null;
-
-  try {
-    const parsed = new URL(raw);
-    const { protocol, hostname, port } = parsed;
-    const normalizedProtocol = String(protocol || "").toLowerCase();
-    if (normalizedProtocol !== "http:" && normalizedProtocol !== "https:") {
-      return null;
-    }
-
-    const normalizedHostname = String(hostname || "").toLowerCase();
-    const normalizedPort = String(port || "");
-    return {
-      protocol: normalizedProtocol,
-      hostname: normalizedHostname,
-      port: normalizedPort,
-      raw: `${normalizedProtocol}//${normalizedHostname}${normalizedPort ? `:${normalizedPort}` : ""}`,
-    };
-  } catch {
-    return null;
-  }
-};
-
-const buildLoopbackAlias = (normalized) => {
-  if (!normalized) return null;
-  if (normalized.hostname === "localhost") {
-    return `${normalized.protocol}//127.0.0.1${normalized.port ? `:${normalized.port}` : ""}`;
-  }
-  if (normalized.hostname === "127.0.0.1") {
-    return `${normalized.protocol}//localhost${normalized.port ? `:${normalized.port}` : ""}`;
-  }
-  return null;
-};
-
 const isAllowedWsOrigin = (origin, corsOriginSet) => {
-  const normalized = normalizeLoopbackOrigin(origin);
+  const normalized = normalizeHttpOrigin(origin);
   if (!normalized) return false;
   if (corsOriginSet.has(normalized.raw)) return true;
 
   // Treat localhost and 127.0.0.1 as equivalent loopback origins for dev.
-  const alias = buildLoopbackAlias(normalized);
+  const alias = buildLoopbackOriginAlias(normalized);
   if (alias && corsOriginSet.has(alias)) return true;
 
   return false;

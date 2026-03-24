@@ -47,15 +47,6 @@ export const publicRoutes = [
     }),
   },
   {
-    path: "/temporary-invites",
-    name: "TemporaryInvites",
-    component: () => import("@/views/TemporaryInvites.vue"),
-    meta: withRouteMeta({
-      title: "临时邀请码",
-      layout: "auth",
-    }),
-  },
-  {
     path: "/game-roles",
     redirect: "/admin/dashboard",
     meta: withRouteMeta({
