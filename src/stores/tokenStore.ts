@@ -104,14 +104,27 @@ export const useTokenStore = defineStore("tokens", () => {
   const isTokenActivationExpired = (token: Partial<TokenData> | null | undefined) => {
     const raw = String(token?.activationExpiresAt || "").trim();
     if (!raw) {
-      return false;
+      return true;
     }
     const expiresTs = new Date(raw).getTime();
-    return Number.isFinite(expiresTs) && expiresTs <= Date.now();
+    if (!Number.isFinite(expiresTs)) {
+      return true;
+    }
+    return expiresTs <= Date.now();
+  };
+
+  const isTokenWorkbenchReady = (token: Partial<TokenData> | null | undefined) => {
+    const roleId = String(
+      token?.activationRoleId || token?.activationGameAccountId || "",
+    ).trim();
+    if (!roleId) {
+      return false;
+    }
+    return !isTokenActivationExpired(token);
   };
 
   const hasUsableWorkbenchToken = computed(() =>
-    gameTokens.value.some((token) => !isTokenActivationExpired(token)),
+    gameTokens.value.some((token) => isTokenWorkbenchReady(token)),
   );
 
   // 游戏数据存储
@@ -933,6 +946,7 @@ export const useTokenStore = defineStore("tokens", () => {
     initTokenStore,
     markBinSourceState,
     isTokenActivationExpired,
+    isTokenWorkbenchReady,
 
     // 游戏内发送消息方法
     sendMessageToLegion,

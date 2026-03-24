@@ -46,6 +46,12 @@
       "content": "This project is currently in testing. If any feature does not work as expected, please contact the administrator.",
       "confirm": "Understood"
     },
+    "mfaSuggestion": {
+      "title": "Enable Two-Factor Verification",
+      "content": "This account does not have two-factor verification enabled yet. To reduce account takeover risk, it is recommended to open Profile now and finish setup.",
+      "confirm": "Set Up Now",
+      "cancel": "Maybe Later"
+    },
     "messages": {
       "success": "Signed in successfully",
       "mfaCodePrompt": "Enter your 2FA code (6 digits) or a recovery code:",

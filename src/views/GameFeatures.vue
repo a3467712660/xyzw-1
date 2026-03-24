@@ -205,6 +205,11 @@ const toggleConnection = async () => {
 };
 
 onMounted(() => {
+  if (!tokenStore.hasUsableWorkbenchToken) {
+    message.warning("当前没有已激活且未过期的 Token，请先前往 Token 管理完成激活");
+    router.replace("/tokens");
+    return;
+  }
   if (tokenStore.selectedToken) {
     const status = tokenStore.getWebSocketStatus(tokenStore.selectedToken.id);
     if (status !== "connected") {

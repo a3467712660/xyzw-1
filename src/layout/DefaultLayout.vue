@@ -204,16 +204,21 @@ import {
   Receipt,
   Settings,
 } from "@vicons/ionicons5";
-import { NIcon, useMessage } from "naive-ui/es";
+import { NIcon, useDialog, useMessage } from "naive-ui/es";
 import { computed, h, onMounted, onUnmounted, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import { useRoute, useRouter } from "vue-router";
 
 const tokenStore = useTokenStore();
 const authStore = useAuthStore();
 const router = useRouter();
 const route = useRoute();
+const dialog = useDialog();
 const message = useMessage();
+const { t } = useI18n();
 const { isMobile } = useResponsive();
+const MFA_SUGGESTION_SESSION_KEY = "xyzw:post-login-mfa-suggestion";
+const hasShownMfaSuggestion = ref(false);
 
 const isMobileMenuOpen = ref(false);
 const notifications = ref([]);
@@ -408,6 +413,40 @@ const handleUserAction = async (key) => {
   }
 };
 
+const shouldShowMfaSuggestion = () => {
+  if (typeof window === "undefined") {
+    return false;
+  }
+  if (hasShownMfaSuggestion.value) {
+    return false;
+  }
+  if (!authStore.isAuthenticated || !authStore.user?.id) {
+    return false;
+  }
+  if (authStore.user?.mfaEnabled) {
+    window.sessionStorage.removeItem(MFA_SUGGESTION_SESSION_KEY);
+    return false;
+  }
+  return window.sessionStorage.getItem(MFA_SUGGESTION_SESSION_KEY) === "1";
+};
+
+const maybeShowMfaSuggestion = () => {
+  if (!shouldShowMfaSuggestion()) {
+    return;
+  }
+  hasShownMfaSuggestion.value = true;
+  window.sessionStorage.removeItem(MFA_SUGGESTION_SESSION_KEY);
+  dialog.warning({
+    title: t("login.mfaSuggestion.title"),
+    content: t("login.mfaSuggestion.content"),
+    positiveText: t("login.mfaSuggestion.confirm"),
+    negativeText: t("login.mfaSuggestion.cancel"),
+    onPositiveClick: () => {
+      router.push("/admin/profile");
+    },
+  });
+};
+
 const formatDate = (value) => (value ? new Date(value).toLocaleString("zh-CN") : "-");
 
 const fetchNotifications = async () => {
@@ -509,6 +548,13 @@ watch(
 );
 
 watch(
+  () => [authStore.user?.id, authStore.user?.mfaEnabled, route.fullPath],
+  () => {
+    maybeShowMfaSuggestion();
+  },
+);
+
+watch(
   () => isMobile.value,
   (mobile) => {
     if (mobile) {
@@ -520,6 +566,7 @@ watch(
 
 onMounted(() => {
   if (authStore.isAuthenticated) {
+    maybeShowMfaSuggestion();
     fetchNotifications();
     startNotificationPolling();
   }

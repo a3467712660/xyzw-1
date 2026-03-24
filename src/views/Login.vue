@@ -469,9 +469,17 @@ const announceFormError = async (messageText, focusFieldName = "") => {
   }
 };
 
+const markPostLoginMfaSuggestion = () => {
+  if (typeof window === "undefined") {
+    return;
+  }
+  window.sessionStorage.setItem("xyzw:post-login-mfa-suggestion", "1");
+};
+
 const finishLogin = () => {
   formErrorMessage.value = "";
   message.success(t("login.messages.success"));
+  markPostLoginMfaSuggestion();
   const rawRedirect = String(router.currentRoute.value.query.redirect || "");
   const defaultPath = getDefaultAuthenticatedPath(authStore.user);
   const redirect

@@ -14,10 +14,14 @@
 <script setup>
 import { onMounted, ref } from "vue";
 import { useMessage } from "naive-ui/es";
+import { useRouter } from "vue-router";
 import TaskControlList from "@/components/Task/TaskControlList.vue";
 import BatchDailyTasks from "@/views/BatchDailyTasks.vue";
+import { useTokenStore } from "@/stores/tokenStore";
 
+const router = useRouter();
 const message = useMessage();
+const tokenStore = useTokenStore();
 const batchRunnerRef = ref(null);
 const showHiddenRunner = ref(true);
 const isPreparingRunner = ref(false);
@@ -87,6 +91,11 @@ const runFeatureTask = async ({
 };
 
 onMounted(() => {
+  if (!tokenStore.hasUsableWorkbenchToken) {
+    message.warning("当前没有已激活且未过期的 Token，请先前往 Token 管理完成激活");
+    router.replace("/tokens");
+    return;
+  }
   showHiddenRunner.value = true;
 });
 </script>

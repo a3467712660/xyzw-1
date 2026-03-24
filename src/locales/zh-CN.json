@@ -46,6 +46,12 @@
       "content": "本项目目前处于测试阶段，若有功能无法正常使用，请联系管理员处理。",
       "confirm": "我知道了"
     },
+    "mfaSuggestion": {
+      "title": "建议开启二次验证",
+      "content": "当前账号尚未开启二次验证。为降低账号被盗用风险，建议现在前往个人设置完成绑定。",
+      "confirm": "立即开启",
+      "cancel": "稍后再说"
+    },
     "messages": {
       "success": "登录成功",
       "mfaCodePrompt": "请输入 2FA 验证码（6位）或恢复码：",
