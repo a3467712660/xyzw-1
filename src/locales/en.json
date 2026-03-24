@@ -1198,7 +1198,7 @@
       "passwordChangeFailed": "Failed to change password",
       "passwordChangeSuccess": "Password changed successfully. Please sign in again.",
       "preferencesSaved": "Preferences saved successfully",
-      "remoteBinEnabled": "Remote BIN download enabled",
+      "remoteBinEnabled": "Remote BIN download enabled (15 minutes)",
       "remoteBinDisabled": "Remote BIN download disabled",
       "remoteBinSaveFailed": "Failed to save remote BIN download setting",
       "refreshSecondVerifyEnabled": "Secondary verification for token refresh enabled",

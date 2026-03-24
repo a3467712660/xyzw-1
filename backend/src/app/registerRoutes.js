@@ -10,11 +10,33 @@ import feedbackRoutes from "../routes/feedbacks.js";
 import notificationRoutes from "../routes/notifications.js";
 import wechatProxyRoutes from "../routes/wechatProxy.js";
 import tokenActivationRoutes from "../routes/tokenActivations.js";
+import { publicBuildInfo } from "../lib/buildInfo.js";
 import { createUserRoutes } from "./userRoutes.js";
 
 export function registerRoutes(app) {
   app.get("/health", (_req, res) => {
-    res.json({ success: true, message: "ok", time: new Date().toISOString() });
+    res.json({
+      success: true,
+      message: "ok",
+      time: new Date().toISOString(),
+      build: publicBuildInfo,
+    });
+  });
+
+  app.get("/api/v1/health", (_req, res) => {
+    res.json({
+      success: true,
+      message: "ok",
+      time: new Date().toISOString(),
+      build: publicBuildInfo,
+    });
+  });
+
+  app.get("/api/v1/version", (_req, res) => {
+    res.json({
+      success: true,
+      data: publicBuildInfo,
+    });
   });
 
   app.use("/api/v1/auth", authRoutes);

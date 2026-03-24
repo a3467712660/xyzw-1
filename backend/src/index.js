@@ -2,11 +2,11 @@ import http from "http";
 import { env } from "./config/env.js";
 import { initDatabase } from "./db/database.js";
 import { assertNoBootstrapAdminEnvInProduction } from "./services/bootstrapService.js";
-import { startTemporaryInviteAutoJob } from "./services/temporaryInviteService.js";
 import { backup, scheduleDailyBackup } from "./db/client.js";
 import { createApp } from "./app/createApp.js";
 import { registerWs } from "./app/registerWs.js";
 import { startBackgroundJobs } from "./app/startBackgroundJobs.js";
+import { publicBuildInfo } from "./lib/buildInfo.js";
 import { userRepository } from "./repositories/userRepository.js";
 
 const assertProductionAdminMfaReady = () => {
@@ -38,7 +38,6 @@ const bootstrap = async () => {
     // eslint-disable-next-line no-console
     console.log("[db-backup] app-level SQLite backup disabled; use infrastructure-level encrypted backups in production.");
   }
-  startTemporaryInviteAutoJob();
 
   const { app, corsOriginSet } = createApp();
 
@@ -48,7 +47,9 @@ const bootstrap = async () => {
 
   server.listen(env.port, () => {
     // eslint-disable-next-line no-console
-    console.log(`Backend listening at http://localhost:${env.port}`);
+    console.log(
+      `Backend listening at http://localhost:${env.port} (build=${publicBuildInfo.gitSha} id=${publicBuildInfo.buildId} time=${publicBuildInfo.buildTime})`,
+    );
   });
 };
 

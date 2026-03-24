@@ -1198,7 +1198,7 @@
       "passwordChangeFailed": "密码修改失败",
       "passwordChangeSuccess": "密码修改成功，请重新登录",
       "preferencesSaved": "偏好设置保存成功",
-      "remoteBinEnabled": "已开启远程 BIN 下载",
+      "remoteBinEnabled": "已开启远程 BIN 下载（15分钟）",
       "remoteBinDisabled": "已关闭远程 BIN 下载",
       "remoteBinSaveFailed": "保存远程 BIN 下载设置失败",
       "refreshSecondVerifyEnabled": "已开启“刷新 Token 二次验证”",

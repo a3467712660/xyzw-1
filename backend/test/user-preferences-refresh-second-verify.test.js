@@ -7,6 +7,11 @@ import { run, query } from "../src/db/client.js";
 import { createPassword, signJwt } from "../src/lib/crypto.js";
 import userPreferencesRoutes from "../src/routes/userPreferences.js";
 import { createUserRoutes } from "../src/app/userRoutes.js";
+import {
+  createMfaSetupPayload,
+  encryptMfaSecret,
+  generateTotpCode,
+} from "../src/services/mfaService.js";
 
 const PREF_KEY = "security.token_refresh_second_verify_enabled";
 
@@ -51,6 +56,25 @@ const createUser = ({ id, username, password }) => {
   );
 };
 
+const enableUserMfa = ({ userId, username }) => {
+  const mfaSetup = createMfaSetupPayload({ username });
+  run(
+    `UPDATE users
+     SET mfa_enabled = 1,
+         mfa_totp_secret_enc = $secretEnc,
+         mfa_recovery_codes_hash = $recoveryHash,
+         updated_at = $updatedAt
+     WHERE id = $id`,
+    {
+      $id: userId,
+      $secretEnc: encryptMfaSecret(mfaSetup.secret),
+      $recoveryHash: JSON.stringify(mfaSetup.recoveryCodeHashes),
+      $updatedAt: nowIso(),
+    },
+  );
+  return mfaSetup;
+};
+
 const authHeaders = ({ userId, username }) => {
   const token = signJwt({ sub: userId, username, ver: 0 }, 60 * 10);
   return {
@@ -59,7 +83,7 @@ const authHeaders = ({ userId, username }) => {
   };
 };
 
-test("refresh second verify preference: disabling does not require confirm, enabling requires confirm", async (t) => {
+test("refresh second verify preference: both disabling and enabling require confirm", async (t) => {
   await initDatabase();
 
   const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -82,20 +106,12 @@ test("refresh second verify preference: disabling does not require confirm, enab
   const baseUrl = makeBaseUrl(server);
   const headers = authHeaders({ userId, username });
 
-  const disableRes = await fetch(`${baseUrl}/api/v1/user/preferences/${encodeURIComponent(PREF_KEY)}`, {
+  const disableDeniedRes = await fetch(`${baseUrl}/api/v1/user/preferences/${encodeURIComponent(PREF_KEY)}`, {
     method: "PUT",
     headers,
     body: JSON.stringify({ value: false }),
   });
-  assert.equal(disableRes.status, 200);
-
-  const [disabledRow] = query(
-    `SELECT value_json as valueJson
-     FROM user_preferences
-     WHERE user_id = $userId AND pref_key = $key`,
-    { $userId: userId, $key: PREF_KEY },
-  );
-  assert.equal(disabledRow?.valueJson, "false");
+  assert.equal(disableDeniedRes.status, 403);
 
   const enableDeniedRes = await fetch(`${baseUrl}/api/v1/user/preferences/${encodeURIComponent(PREF_KEY)}`, {
     method: "PUT",
@@ -114,6 +130,24 @@ test("refresh second verify preference: disabling does not require confirm, enab
   const confirmToken = String(confirmPayload?.data?.token || "");
   assert.ok(confirmToken, "expected user confirm token");
 
+  const disableRes = await fetch(`${baseUrl}/api/v1/user/preferences/${encodeURIComponent(PREF_KEY)}`, {
+    method: "PUT",
+    headers: {
+      ...headers,
+      "x-user-confirm-token": confirmToken,
+    },
+    body: JSON.stringify({ value: false }),
+  });
+  assert.equal(disableRes.status, 200);
+
+  const [disabledRow] = query(
+    `SELECT value_json as valueJson
+     FROM user_preferences
+     WHERE user_id = $userId AND pref_key = $key`,
+    { $userId: userId, $key: PREF_KEY },
+  );
+  assert.equal(disabledRow?.valueJson, "false");
+
   const enableRes = await fetch(`${baseUrl}/api/v1/user/preferences/${encodeURIComponent(PREF_KEY)}`, {
     method: "PUT",
     headers: {
@@ -131,4 +165,45 @@ test("refresh second verify preference: disabling does not require confirm, enab
     { $userId: userId, $key: PREF_KEY },
   );
   assert.equal(enabledRow?.valueJson, "true");
+});
+
+test("user sensitive confirm requires MFA when user has MFA enabled", async (t) => {
+  await initDatabase();
+
+  const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const userId = `pref_user_${suffix}`;
+  const username = `pref_user_${suffix}`;
+  const password = "PrefTest123!Aa";
+
+  run(`DELETE FROM user_preferences WHERE user_id = $userId`, { $userId: userId });
+  run(`DELETE FROM users WHERE id = $userId`, { $userId: userId });
+
+  createUser({ id: userId, username, password });
+  const mfaSetup = enableUserMfa({ userId, username });
+
+  const server = await createAppServer();
+  t.after(async () => {
+    await new Promise((resolve) => server.close(resolve));
+    run(`DELETE FROM user_preferences WHERE user_id = $userId`, { $userId: userId });
+    run(`DELETE FROM users WHERE id = $userId`, { $userId: userId });
+  });
+
+  const baseUrl = makeBaseUrl(server);
+  const headers = authHeaders({ userId, username });
+
+  const passwordOnlyRes = await fetch(`${baseUrl}/api/v1/user/confirm-password`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ password }),
+  });
+  assert.equal(passwordOnlyRes.status, 400);
+
+  const totpRes = await fetch(`${baseUrl}/api/v1/user/confirm-password`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ totpCode: generateTotpCode({ secret: mfaSetup.secret }) }),
+  });
+  assert.equal(totpRes.status, 200);
+  const totpPayload = await totpRes.json();
+  assert.ok(String(totpPayload?.data?.token || ""));
 });

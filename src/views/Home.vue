@@ -315,7 +315,8 @@
         </div>
       </div>
       <div class="container footer-bottom">
-        © 2026 XYZW. All rights reserved.
+        <span>© 2026 XYZW. All rights reserved.</span>
+        <span v-if="buildFingerprint" class="footer-build">{{ buildFingerprint }}</span>
       </div>
     </footer>
   </div>
@@ -349,6 +350,21 @@ const isMobileMenuOpen = ref(false);
 const nowTs = ref(Date.now());
 const isPageReady = ref(false);
 let countdownTimer = null;
+const buildFingerprint = computed(() => {
+  const appVersion = String(import.meta.env.VITE_APP_VERSION || "").trim();
+  const gitSha = String(import.meta.env.VITE_BUILD_GIT_SHA || "").trim();
+  const buildId = String(import.meta.env.VITE_BUILD_ID || "").trim();
+  const buildTime = String(import.meta.env.VITE_BUILD_TIME || "").trim();
+  const shortSha = gitSha ? gitSha.slice(0, 8) : "";
+  const buildTimeTs = buildTime ? new Date(buildTime).getTime() : Number.NaN;
+  const parts = [
+    appVersion ? `v${appVersion}` : "",
+    shortSha ? `sha ${shortSha}` : "",
+    buildId ? `build ${buildId}` : "",
+    Number.isFinite(buildTimeTs) ? new Date(buildTimeTs).toLocaleString(locale.value) : "",
+  ].filter(Boolean);
+  return parts.join(" · ");
+});
 
 const trialExpiresAtTs = computed(() => {
   const value = authStore.user?.trialExpiresAt;
@@ -1289,11 +1305,21 @@ onUnmounted(() => {
 }
 
 .footer-bottom {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px 20px;
   margin-top: 16px;
   padding-top: 12px;
   border-top: 1px solid rgba(255, 255, 255, 0.14);
   color: rgba(244, 247, 255, 0.64);
   font-size: 13px;
+}
+
+.footer-build {
+  color: rgba(244, 247, 255, 0.54);
+  font-variant-numeric: tabular-nums;
 }
 
 @keyframes orb-float-a {
@@ -1412,6 +1438,7 @@ onUnmounted(() => {
   }
 
   .footer-content,
+  .footer-bottom,
   .footer-links {
     flex-direction: column;
     align-items: flex-start;

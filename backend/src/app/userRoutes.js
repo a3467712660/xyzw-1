@@ -74,7 +74,34 @@ export function createUserRoutes() {
       let method = "";
       let reason = "";
 
-      if (password) {
+      if (canUseMfa) {
+        if (!(totpCode || recoveryCode)) {
+          reason = "mfa_required";
+        } else {
+          const secret = decryptMfaSecret(currentUser?.mfaTotpSecretEnc || "");
+          if (totpCode) {
+            ok = Boolean(secret && verifyTotpCode({ secret, code: totpCode }));
+            method = ok ? "totp" : "";
+            reason = ok ? "" : "mfa_totp_invalid";
+          } else if (recoveryCode) {
+            const recoveryResult = verifyAndConsumeRecoveryCode({
+              inputCode: recoveryCode,
+              recoveryCodeHashesJson: currentUser?.mfaRecoveryCodesHash || "[]",
+            });
+            ok = Boolean(recoveryResult?.ok);
+            if (ok) {
+              method = "recovery_code";
+              userRepository.updateMfaRecoveryCodesHash({
+                id: req.auth.user.id,
+                mfaRecoveryCodesHash: recoveryResult.nextRecoveryCodeHashesJson,
+                updatedAt: nowIso(),
+              });
+            } else {
+              reason = "mfa_recovery_invalid";
+            }
+          }
+        }
+      } else if (password) {
         ok = Boolean(userPassword && verifyPassword(password, userPassword.passwordSalt, userPassword.passwordHash));
         if (ok) {
           method = "password";
@@ -83,32 +110,7 @@ export function createUserRoutes() {
         }
       }
 
-      if (!ok && canUseMfa && (totpCode || recoveryCode)) {
-        const secret = decryptMfaSecret(currentUser?.mfaTotpSecretEnc || "");
-        if (totpCode) {
-          ok = Boolean(secret && verifyTotpCode({ secret, code: totpCode }));
-          method = ok ? "totp" : "";
-          reason = ok ? "" : "mfa_totp_invalid";
-        } else if (recoveryCode) {
-          const recoveryResult = verifyAndConsumeRecoveryCode({
-            inputCode: recoveryCode,
-            recoveryCodeHashesJson: currentUser?.mfaRecoveryCodesHash || "[]",
-          });
-          ok = Boolean(recoveryResult?.ok);
-          if (ok) {
-            method = "recovery_code";
-            userRepository.updateMfaRecoveryCodesHash({
-              id: req.auth.user.id,
-              mfaRecoveryCodesHash: recoveryResult.nextRecoveryCodeHashesJson,
-              updatedAt: nowIso(),
-            });
-          } else {
-            reason = "mfa_recovery_invalid";
-          }
-        }
-      }
-
-      if (!ok && !password && !totpCode && !recoveryCode) {
+      if (!ok && !canUseMfa && !password && !totpCode && !recoveryCode) {
         reason = "credential_missing";
       }
 

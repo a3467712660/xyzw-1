@@ -23,18 +23,55 @@ const renderBootstrapError = (error) => {
     return;
   }
   const message = String(error?.message || "应用初始化失败，请刷新后重试");
-  root.innerHTML = `
-    <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:#f7f9fc;color:#101828;font-family:'Avenir Next','PingFang SC','Microsoft YaHei',sans-serif;">
-      <div style="max-width:520px;width:100%;background:rgba(255,255,255,0.96);border:1px solid #e4e7ec;border-radius:18px;padding:28px;box-shadow:0 16px 40px rgba(16,24,40,0.12);">
-        <h1 style="margin:0 0 12px;font-size:22px;">应用启动失败</h1>
-        <p style="margin:0 0 18px;line-height:1.7;color:#344054;">${message}</p>
-        <button id="bootstrap-retry-btn" style="height:40px;padding:0 18px;border:none;border-radius:10px;background:#3f77ad;color:#fff;cursor:pointer;">刷新页面</button>
-      </div>
-    </div>
-  `;
-  document.getElementById("bootstrap-retry-btn")?.addEventListener("click", () => {
+  root.replaceChildren();
+
+  const shell = document.createElement("div");
+  shell.style.minHeight = "100vh";
+  shell.style.display = "flex";
+  shell.style.alignItems = "center";
+  shell.style.justifyContent = "center";
+  shell.style.padding = "24px";
+  shell.style.background = "#f7f9fc";
+  shell.style.color = "#101828";
+  shell.style.fontFamily = "'Avenir Next','PingFang SC','Microsoft YaHei',sans-serif";
+
+  const card = document.createElement("div");
+  card.style.maxWidth = "520px";
+  card.style.width = "100%";
+  card.style.background = "rgba(255,255,255,0.96)";
+  card.style.border = "1px solid #e4e7ec";
+  card.style.borderRadius = "18px";
+  card.style.padding = "28px";
+  card.style.boxShadow = "0 16px 40px rgba(16,24,40,0.12)";
+
+  const title = document.createElement("h1");
+  title.style.margin = "0 0 12px";
+  title.style.fontSize = "22px";
+  title.textContent = "应用启动失败";
+
+  const description = document.createElement("p");
+  description.style.margin = "0 0 18px";
+  description.style.lineHeight = "1.7";
+  description.style.color = "#344054";
+  description.textContent = message;
+
+  const retryButton = document.createElement("button");
+  retryButton.type = "button";
+  retryButton.style.height = "40px";
+  retryButton.style.padding = "0 18px";
+  retryButton.style.border = "none";
+  retryButton.style.borderRadius = "10px";
+  retryButton.style.background = "#3f77ad";
+  retryButton.style.color = "#fff";
+  retryButton.style.cursor = "pointer";
+  retryButton.textContent = "刷新页面";
+  retryButton.addEventListener("click", () => {
     window.location.reload();
   });
+
+  card.append(title, description, retryButton);
+  shell.append(card);
+  root.append(shell);
 };
 
 const applyMotionPreference = () => {

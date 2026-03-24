@@ -309,6 +309,57 @@ test("PUT /user/preferences/security.remote_bin_download_enabled requires user c
     body: JSON.stringify({ value: true }),
   });
   assert.equal(allowed.status, 200);
+  const allowedPayload = await allowed.json();
+  assert.equal(allowedPayload?.data?.value, true);
+  assert.ok(allowedPayload?.data?.expiresAt, "expected lease expiry");
+
+  const [storedRow] = query(
+    `SELECT value_json as valueJson
+     FROM user_preferences
+     WHERE user_id = $userId AND pref_key = 'security.remote_bin_download_enabled'`,
+    { $userId: userId },
+  );
+  const storedValue = JSON.parse(String(storedRow?.valueJson || "null"));
+  assert.equal(storedValue?.enabled, true);
+  assert.ok(storedValue?.expiresAt, "expected stored lease expiry");
+});
+
+test("GET /user/preferences/security.remote_bin_download_enabled returns false after lease expiry", async (t) => {
+  await initDatabase();
+
+  const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const userId = `pref_user_${suffix}`;
+  const username = `pref_user_${suffix}`;
+  const password = "PrefTest123!Aa";
+  createUser({ id: userId, username, password });
+
+  const expiredAt = new Date(Date.now() - 60 * 1000).toISOString();
+  run(
+    `INSERT INTO user_preferences (user_id, pref_key, value_json, created_at, updated_at)
+     VALUES ($userId, 'security.remote_bin_download_enabled', $valueJson, $createdAt, $updatedAt)`,
+    {
+      $userId: userId,
+      $valueJson: JSON.stringify({ enabled: true, expiresAt: expiredAt }),
+      $createdAt: nowIso(),
+      $updatedAt: nowIso(),
+    },
+  );
+
+  const server = await createAppServer();
+  t.after(async () => {
+    await new Promise((resolve) => server.close(resolve));
+    run(`DELETE FROM user_preferences WHERE user_id = $userId`, { $userId: userId });
+    run(`DELETE FROM users WHERE id = $userId`, { $userId: userId });
+  });
+
+  const baseUrl = makeBaseUrl(server);
+  const res = await fetch(`${baseUrl}/api/v1/user/preferences/security.remote_bin_download_enabled`, {
+    headers: authHeaders({ userId, username }),
+  });
+  assert.equal(res.status, 200);
+  const payload = await res.json();
+  assert.equal(payload?.data?.value, false);
+  assert.equal(payload?.data?.expiresAt, expiredAt);
 });
 
 test("PUT /bin-files/:tokenId rejects malformed bin payload and does not persist file", async (t) => {

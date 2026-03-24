@@ -24,7 +24,7 @@ const promptPasswordByDialog = ({
     const password = ref("");
     const totpCode = ref("");
     const recoveryCode = ref("");
-    const method = ref(mfaEnabled && preferMfa ? "totp" : "password");
+    const method = ref(mfaEnabled ? "totp" : "password");
     let settled = false;
 
     const finish = (value) => {
@@ -56,7 +56,6 @@ const promptPasswordByDialog = ({
                     default: () => [
                       h(NRadioButton, { value: "totp" }, { default: () => methodLabelTotp }),
                       h(NRadioButton, { value: "recovery" }, { default: () => methodLabelRecovery }),
-                      h(NRadioButton, { value: "password" }, { default: () => methodLabelPassword }),
                     ],
                   },
                 ),
@@ -87,7 +86,7 @@ const promptPasswordByDialog = ({
                 },
               })
             : null,
-          method.value === "password"
+          !mfaEnabled && method.value === "password"
             ? h(NInput, {
                 "type": "password",
                 "showPasswordOn": "click",

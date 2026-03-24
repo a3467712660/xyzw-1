@@ -71,7 +71,16 @@ const isRemoteBinDownloadEnabled = (userId) => {
   }
 
   try {
-    return JSON.parse(row.valueJson) === true;
+    const parsed = JSON.parse(row.valueJson);
+    if (parsed === true) {
+      return true;
+    }
+    if (!parsed || typeof parsed !== "object") {
+      return false;
+    }
+    const expiresAt = String(parsed.expiresAt || "").trim();
+    const expiresTs = new Date(expiresAt).getTime();
+    return Number.isFinite(expiresTs) && expiresTs > Date.now();
   } catch {
     return false;
   }
@@ -197,14 +206,6 @@ const userSensitiveActionRequiredWithAudit = (req, res, next) => {
 };
 
 const conditionalSensitiveBinRead = (req, res, next) => {
-  if (!isRefreshSecondVerifyEnabled(req.auth?.user?.id)) {
-    writeBinAudit(req, {
-      action: "bin_confirm_check",
-      result: "skipped",
-      message: "已关闭刷新 Token 二次验证，放行 BIN 读取",
-    });
-    return next();
-  }
   return userSensitiveActionRequiredWithAudit(req, res, next);
 };
 

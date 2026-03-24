@@ -40,6 +40,13 @@ import {
 import { recordSecurityEvent } from "../services/securityEventService.js";
 
 const router = Router();
+router.get("/temporary-invites", (_req, res) => {
+  return res.status(410).json({
+    success: false,
+    message: "公开临时邀请码接口已下线",
+  });
+});
+
 const registerLimiter = createRateLimiter({
   scope: "auth_register",
   windowMs: 10 * 60 * 1000,
