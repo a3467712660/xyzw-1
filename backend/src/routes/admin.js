@@ -163,14 +163,8 @@ const reqMeta = (req) => ({
   userAgent: String(req.headers["user-agent"] || ""),
 });
 
-const resolvePublicAppOrigin = (req) => {
-  const originHeader = String(req.headers?.origin || "").trim();
-  if (originHeader) {
-    return originHeader.replace(/\/+$/, "");
-  }
-  const fallback = Array.isArray(env.corsOrigins) ? String(env.corsOrigins[0] || "").trim() : "";
-  return fallback.replace(/\/+$/, "");
-};
+const resolvePublicAppOrigin = () => env.publicAppOrigin;
+const resolveAdminAppOrigin = () => env.adminAppOrigin || env.publicAppOrigin;
 
 const isDefaultAdminAccount = (userRow) => {
   const identities = new Set(env.protectedAdminIdentities || []);
@@ -716,24 +710,9 @@ router.post(
     const token = issueMfaResetLinkToken(target, { requestedBy: req.auth.user.id });
     const expiresInMinutes = Math.floor(MFA_RESET_LINK_TTL_SECONDS / 60);
     const expiresAt = new Date(Date.now() + expiresInMinutes * 60 * 1000).toISOString();
-    const publicOrigin = target.isAdmin
-      ? (() => {
-          const originHeader = String(req.headers?.origin || "").trim();
-          if (originHeader) {
-            try {
-              const parsed = new URL(originHeader);
-              const protocol = String(parsed.protocol || "http:").toLowerCase();
-              const port = String(parsed.port || "").trim();
-              return `${protocol}//127.0.0.1${port ? `:${port}` : ""}`;
-            } catch {
-              return "http://127.0.0.1:3000";
-            }
-          }
-          return "http://127.0.0.1:3000";
-        })()
-      : resolvePublicAppOrigin(req);
+    const appOrigin = target.isAdmin ? resolveAdminAppOrigin() : resolvePublicAppOrigin();
     const resetPath = `/mfa-reset?token=${encodeURIComponent(token)}`;
-    const resetUrl = publicOrigin ? `${publicOrigin}${resetPath}` : resetPath;
+    const resetUrl = appOrigin ? `${appOrigin}${resetPath}` : resetPath;
 
     recordAdminAudit({
       adminUserId: req.auth.user.id,

@@ -9,6 +9,11 @@ import authRoutes from "../src/routes/auth.js";
 import adminRoutes from "../src/routes/admin.js";
 import userPreferencesRoutes from "../src/routes/userPreferences.js";
 import { createUserRoutes } from "../src/app/userRoutes.js";
+import {
+  createMfaSetupPayload,
+  encryptMfaSecret,
+  generateTotpCode,
+} from "../src/services/mfaService.js";
 
 const makeBaseUrl = (server) => {
   const address = server.address();
@@ -54,6 +59,25 @@ const createUser = ({ id, username, password, isAdmin = false }) => {
   );
 };
 
+const enableAdminMfa = ({ userId, username }) => {
+  const mfaSetup = createMfaSetupPayload({ username });
+  run(
+    `UPDATE users
+     SET mfa_enabled = 1,
+         mfa_totp_secret_enc = $secretEnc,
+         mfa_recovery_codes_hash = $recoveryHash,
+         updated_at = $updatedAt
+     WHERE id = $id`,
+    {
+      $id: userId,
+      $secretEnc: encryptMfaSecret(mfaSetup.secret),
+      $recoveryHash: JSON.stringify(mfaSetup.recoveryCodeHashes),
+      $updatedAt: nowIso(),
+    },
+  );
+  return mfaSetup;
+};
+
 const authHeaders = ({ userId, username }) => {
   const token = signJwt({ sub: userId, username, ver: 0 }, 60 * 10);
   return {
@@ -89,6 +113,7 @@ test("security events API exposes user and admin audit history", async (t) => {
 
   createUser({ ...adminUser, isAdmin: true });
   createUser({ ...normalUser, isAdmin: false });
+  const adminMfaSetup = enableAdminMfa({ userId: adminUser.id, username: adminUser.username });
 
   const server = await createAppServer();
   t.after(async () => {
@@ -147,7 +172,7 @@ test("security events API exposes user and admin audit history", async (t) => {
   const adminConfirm = await fetch(`${baseUrl}/api/v1/admin/confirm-password`, {
     method: "POST",
     headers: authHeaders({ userId: adminUser.id, username: adminUser.username }),
-    body: JSON.stringify({ password: adminUser.password }),
+    body: JSON.stringify({ totpCode: generateTotpCode({ secret: adminMfaSetup.secret }) }),
   });
   assert.equal(adminConfirm.status, 200);
   const adminConfirmPayload = await adminConfirm.json();

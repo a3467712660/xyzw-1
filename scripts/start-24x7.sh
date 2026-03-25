@@ -4,9 +4,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 APP_NAME_BACKEND="xyzw-backend"
-APP_NAME_FRONTEND="xyzw-frontend"
 APP_NAME_TASK_DAEMON="xyzw-task-daemon"
-FRONTEND_PORT="${FRONTEND_PORT:-3000}"
 ENABLE_TASK_DAEMON="${ENABLE_TASK_DAEMON:-0}"
 
 normalize_account_env_key() {
@@ -55,34 +53,44 @@ require_cmd() {
 
 ensure_pm2() {
   if ! command -v pm2 >/dev/null 2>&1; then
-    echo "[setup] pm2 not found, installing globally..."
-    npm install -g pm2
+    echo "[error] Missing command: pm2"
+    echo "[hint] 生产机请预先安装并托管 pm2/systemd，不在启动脚本里临时全局安装。"
+    exit 1
   fi
 }
 
-install_deps() {
-  cd "$ROOT_DIR"
-
-  if [[ ! -d node_modules ]]; then
-    echo "[setup] Installing frontend dependencies..."
-    npm install
+require_prebuilt_runtime() {
+  if [[ ! -d "$ROOT_DIR/node_modules" ]]; then
+    echo "[error] 缺少前端依赖目录: $ROOT_DIR/node_modules"
+    echo "[hint] 请在构建机或制品准备阶段执行 npm ci，而不是在生产机临时安装。"
+    exit 1
   fi
 
-  if [[ ! -d backend/node_modules ]]; then
-    echo "[setup] Installing backend dependencies..."
-    npm --prefix backend install
+  if [[ ! -d "$ROOT_DIR/backend/node_modules" ]]; then
+    echo "[error] 缺少后端依赖目录: $ROOT_DIR/backend/node_modules"
+    echo "[hint] 请在构建机或制品准备阶段执行 npm --prefix backend ci。"
+    exit 1
   fi
+
+  if [[ ! -d "$ROOT_DIR/dist" ]]; then
+    echo "[error] 缺少前端构建产物目录: $ROOT_DIR/dist"
+    echo "[hint] 请先在构建机执行 npm run build，并由 Nginx/Caddy/静态文件服务托管 dist。"
+    exit 1
+  fi
+}
+
+stop_legacy_frontend_preview() {
+  pm2 delete "xyzw-frontend" >/dev/null 2>&1 || true
 }
 
 start_all() {
   require_cmd npm
   ensure_pm2
-  install_deps
+  require_prebuilt_runtime
 
   cd "$ROOT_DIR"
 
-  echo "[build] Building frontend..."
-  npm run build
+  stop_legacy_frontend_preview
 
   echo "[start] Starting backend with PM2..."
   pm2 start "npm run backend:start" \
@@ -91,12 +99,8 @@ start_all() {
     --time \
     --update-env || pm2 restart "$APP_NAME_BACKEND" --update-env
 
-  echo "[start] Starting frontend preview with PM2..."
-  pm2 start "npm run preview -- --host 0.0.0.0 --port $FRONTEND_PORT" \
-    --name "$APP_NAME_FRONTEND" \
-    --cwd "$ROOT_DIR" \
-    --time \
-    --update-env || pm2 restart "$APP_NAME_FRONTEND" --update-env
+  echo "[info] 前端静态资源不再由 vite preview 托管。"
+  echo "[info] 请使用 Nginx/Caddy/静态文件服务托管: $ROOT_DIR/dist"
 
   if [[ "$ENABLE_TASK_DAEMON" == "1" ]]; then
     validate_task_daemon_env
@@ -114,8 +118,8 @@ start_all() {
   pm2 save
 
   echo "[done] Services are up."
-  echo "  Frontend: http://127.0.0.1:$FRONTEND_PORT"
   echo "  Backend:  http://127.0.0.1:8787"
+  echo "  Frontend: 由 Nginx/Caddy/静态文件服务托管 dist（非 PM2 / 非 vite preview）"
   if [[ "$ENABLE_TASK_DAEMON" == "1" ]]; then
     echo "  Daemon:   enabled (headless task-control runner)"
   else
@@ -128,7 +132,7 @@ start_all() {
 stop_all() {
   ensure_pm2
   pm2 delete "$APP_NAME_TASK_DAEMON" >/dev/null 2>&1 || true
-  pm2 delete "$APP_NAME_FRONTEND" >/dev/null 2>&1 || true
+  stop_legacy_frontend_preview
   pm2 delete "$APP_NAME_BACKEND" >/dev/null 2>&1 || true
   pm2 save >/dev/null 2>&1 || true
   echo "[done] Services stopped."
@@ -144,13 +148,7 @@ restart_all() {
     return
   fi
 
-  if pm2 describe "$APP_NAME_FRONTEND" >/dev/null 2>&1; then
-    pm2 restart "$APP_NAME_FRONTEND" --update-env
-  else
-    echo "[info] $APP_NAME_FRONTEND not found, starting..."
-    start_all
-    return
-  fi
+  stop_legacy_frontend_preview
 
   if [[ "$ENABLE_TASK_DAEMON" == "1" ]]; then
     validate_task_daemon_env
@@ -177,7 +175,7 @@ status_all() {
 
 logs_all() {
   ensure_pm2
-  pm2 logs "$APP_NAME_BACKEND" "$APP_NAME_FRONTEND" "$APP_NAME_TASK_DAEMON"
+  pm2 logs "$APP_NAME_BACKEND" "$APP_NAME_TASK_DAEMON"
 }
 
 enable_boot() {
@@ -191,16 +189,16 @@ usage() {
 Usage: ./scripts/start-24x7.sh <command>
 
 Commands:
-  start      Build and start backend/frontend with PM2
+  start      Start backend/task-daemon with PM2 using prebuilt artifacts
   stop       Stop and remove PM2 processes
   restart    Restart PM2 processes
   status     Show PM2 process status
-  logs       Tail PM2 logs (backend + frontend)
+  logs       Tail PM2 logs (backend + daemon)
   enable-boot  Configure PM2 startup on system boot
 
 Env:
-  FRONTEND_PORT=3000   Frontend preview port (default: 3000)
   ENABLE_TASK_DAEMON=1 Enable headless task-control runner
+  NODE_ENV=production  Recommended default for this script
   TASK_DAEMON_USERNAME=xxx Single-account username
   TASK_DAEMON_PASSWORD=xxx Single-account password
   TASK_DAEMON_ACCOUNTS=acc1,acc2 Multi-account IDs (optional)
@@ -210,6 +208,11 @@ Env:
   TASK_DAEMON_PERSIST_SESSION=false Persist browser session to disk (default: false)
   TASK_DAEMON_USER_DATA_DIR=.runtime/task-daemon-profile User data dir when persistence is enabled
   TASK_DAEMON_DISABLE_SANDBOX=false Allow --no-sandbox only in non-prod localhost mode
+
+Notes:
+  - 本脚本不负责 npm install / npm ci / npm run build。
+  - 本脚本不负责前端静态托管，也不会启动 vite preview。
+  - 生产机应只接收已构建好的 dist 和已准备好的 backend 运行时。
 USAGE
 }
 

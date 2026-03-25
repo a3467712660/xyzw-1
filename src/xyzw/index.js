@@ -35146,85 +35146,17 @@ window.__require = (function e(t, n, r) {
               (t.prototype.init = function () {
                 e.prototype.init.call(this);
                 var t = {
-                    localhost: {
-                      url: "http://localhost:10101",
-                      name: "\u672c\u5730\u670d\u52a1\u5668",
-                    },
-                    lxg: {
-                      url: "http://10.1.5.250:10101",
-                      name: "\u672c\u5730\u670d\u52a1\u5668",
-                    },
-                    local: {
-                      url: "http://10.1.7.242:10101",
-                      name: "\u8001\u738b\u670d\u52a1\u5668",
-                    },
-                    wj: {
-                      url: "http://10.2.1.46:10101",
-                      name: "wj\u670d\u52a1\u5668",
-                    },
-                    xl: {
-                      url: "http://10.1.3.248:10101",
-                      name: "xl\u670d\u52a1\u5668",
-                    },
-                    zyz: {
-                      url: "http://10.1.6.238:10101",
-                      name: "zyz\u670d\u52a1\u5668",
-                    },
-                    wyx: {
-                      url: "http://10.2.0.108:10101",
-                      name: "wyx\u670d\u52a1\u5668",
-                    },
-                    ljp: {
-                      url: "http://10.8.2.10:10101",
-                      name: "jp\u670d\u52a1\u5668",
-                    },
-                    hyw: {
-                      url: "http://10.1.4.168:10101",
-                      name: "yw\u670d\u52a1\u5668",
-                    },
-                    test4: {
-                      url: "https://xxz-xyzw-k8s-test.hortorgames.com",
-                      name: "test4",
-                    },
-                    test3: {
-                      url: "https://xxz-xyzw-test-03.hortorgames.com",
-                      name: "\u6d4b\u8bd5\u670d3",
-                    },
-                    test2: {
-                      url: "https://xxz-ddsg-next-test.hortorgames.com",
-                      name: "\u6d4b\u8bd5\u670d2",
-                    },
-                    test: {
-                      url: "https://xxz-ddsg-test.hortorgames.com",
-                      name: "\u6d4b\u8bd5\u670d\u52a1\u5668",
-                    },
-                    dev: {
-                      url: "https://xxz-xyzw-dev.hortorgames.com",
-                      name: "dev\u52a1\u5668",
-                    },
-                    audit: {
-                      url: "https://xxz-ddsg-audit.hortorgames.com",
-                      name: "\u5ba1\u6838\u670d\u52a1\u5668",
-                    },
                     prod: {
                       url: "https://xxz-xyzw.hortorgames.com",
                       name: "\u6b63\u5f0f\u670d\u52a1\u5668",
-                    },
-                    asia_test: {
-                      url: "https://asia-xyzw-test.hortorgames.com",
-                      name: "\u4e9a\u670d\u6d4b\u8bd5",
-                    },
-                    asia_audit: {
-                      url: "https://asia-xyzw-audit.hortorgames.com",
-                      name: "\u4e9a\u670d\u5ba1\u6838",
                     },
                     asia_prod: {
                       url: "https://asia-xyzw.hortorgames.com",
                       name: "\u4e9a\u670d\u6b63\u5f0f",
                     },
                   },
-                  n = r.GlobalVarManager.instance.get("svr", "test");
-                SERVER = t[n] ? t[n].url : "http://" + n + ":10101";
+                  n = r.GlobalVarManager.instance.get("svr", "prod");
+                SERVER = t[n] ? t[n].url : t.prod.url;
               }),
               t
             );
@@ -77127,85 +77059,17 @@ window.__require = (function e(t, n, r) {
               (t.prototype.init = function () {
                 e.prototype.init.call(this);
                 var t = {
-                    localhost: {
-                      url: "http://localhost:10101",
-                      name: "\u672c\u5730\u670d\u52a1\u5668",
-                    },
-                    lxg: {
-                      url: "http://10.1.5.250:10101",
-                      name: "\u672c\u5730\u670d\u52a1\u5668",
-                    },
-                    local: {
-                      url: "http://10.1.7.242:10101",
-                      name: "\u8001\u738b\u670d\u52a1\u5668",
-                    },
-                    wj: {
-                      url: "http://10.2.1.46:10101",
-                      name: "wj\u670d\u52a1\u5668",
-                    },
-                    xl: {
-                      url: "http://10.1.3.248:10101",
-                      name: "xl\u670d\u52a1\u5668",
-                    },
-                    zyz: {
-                      url: "http://10.1.6.238:10101",
-                      name: "zyz\u670d\u52a1\u5668",
-                    },
-                    wyx: {
-                      url: "http://10.2.0.108:10101",
-                      name: "wyx\u670d\u52a1\u5668",
-                    },
-                    ljp: {
-                      url: "http://10.8.2.10:10101",
-                      name: "jp\u670d\u52a1\u5668",
-                    },
-                    hyw: {
-                      url: "http://10.1.4.168:10101",
-                      name: "yw\u670d\u52a1\u5668",
-                    },
-                    test4: {
-                      url: "https://xxz-xyzw-k8s-test.hortorgames.com",
-                      name: "test4",
-                    },
-                    test3: {
-                      url: "https://xxz-xyzw-test-03.hortorgames.com",
-                      name: "\u6d4b\u8bd5\u670d3",
-                    },
-                    test2: {
-                      url: "https://xxz-ddsg-next-test.hortorgames.com",
-                      name: "\u6d4b\u8bd5\u670d2",
-                    },
-                    test: {
-                      url: "https://xxz-ddsg-test.hortorgames.com",
-                      name: "\u6d4b\u8bd5\u670d\u52a1\u5668",
-                    },
-                    dev: {
-                      url: "https://xxz-xyzw-dev.hortorgames.com",
-                      name: "dev\u52a1\u5668",
-                    },
-                    audit: {
-                      url: "https://xxz-ddsg-audit.hortorgames.com",
-                      name: "\u5ba1\u6838\u670d\u52a1\u5668",
-                    },
                     prod: {
                       url: "https://xxz-xyzw.hortorgames.com",
                       name: "\u6b63\u5f0f\u670d\u52a1\u5668",
-                    },
-                    asia_test: {
-                      url: "https://asia-xyzw-test.hortorgames.com",
-                      name: "\u4e9a\u670d\u6d4b\u8bd5",
-                    },
-                    asia_audit: {
-                      url: "https://asia-xyzw-audit.hortorgames.com",
-                      name: "\u4e9a\u670d\u5ba1\u6838",
                     },
                     asia_prod: {
                       url: "https://asia-xyzw.hortorgames.com",
                       name: "\u4e9a\u670d\u6b63\u5f0f",
                     },
                   },
-                  n = r.GlobalVarManager.instance.get("svr", "test");
-                SERVER = t[n] ? t[n].url : "http://" + n + ":10101";
+                  n = r.GlobalVarManager.instance.get("svr", "prod");
+                SERVER = t[n] ? t[n].url : t.prod.url;
               }),
               t
             );

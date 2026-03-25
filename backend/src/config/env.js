@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import dotenv from "dotenv";
+import { normalizeHttpOrigin } from "../lib/origin.js";
 
 const currentFile = fileURLToPath(import.meta.url);
 const currentDir = path.dirname(currentFile);
@@ -54,6 +55,12 @@ const parseProductionDefaultFalse = (input, developmentFallback = true) => {
 const parseOptionalCookieDomain = (input) => {
   const value = String(input || "").trim();
   return value.length > 0 ? value : undefined;
+};
+const parseOptionalOrigin = (input) => {
+  const raw = String(input || "").trim();
+  if (!raw) return "";
+  const normalized = normalizeHttpOrigin(raw);
+  return normalized ? normalized.origin.replace(/\/+$/, "") : "";
 };
 
 const parsePositiveIntInRange = (input, fallback, min, max) => {
@@ -216,6 +223,8 @@ export const env = {
   corsOrigins: corsOrigins.length > 0 ? corsOrigins : defaultCorsOrigins,
   corsOriginsExplicitlySet,
   protectedAdminIdentities,
+  publicAppOrigin: parseOptionalOrigin(process.env.PUBLIC_APP_ORIGIN),
+  adminAppOrigin: parseOptionalOrigin(process.env.ADMIN_APP_ORIGIN),
   trustProxy: parseTrustProxy(process.env.TRUST_PROXY),
   logRequests: (process.env.LOG_REQUESTS || "true") === "true",
   dbWriteSafetyLogEnabled: parseBoolean(process.env.DB_WRITE_SAFETY_LOG_ENABLED, true),
@@ -334,6 +343,14 @@ if (env.nodeEnv === "production" && String(process.env.BOOTSTRAP_ADMIN_PASSWORD 
 
 if (env.nodeEnv === "production" && !env.corsOriginsExplicitlySet) {
   throw new Error("CORS_ORIGINS must be explicitly set in production.");
+}
+
+if (env.nodeEnv === "production" && !env.publicAppOrigin) {
+  throw new Error("PUBLIC_APP_ORIGIN must be explicitly set in production.");
+}
+
+if (env.nodeEnv === "production" && !env.adminAppOrigin) {
+  throw new Error("ADMIN_APP_ORIGIN must be explicitly set in production.");
 }
 
 if (

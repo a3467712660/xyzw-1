@@ -6,7 +6,7 @@ import { backup, scheduleDailyBackup } from "./db/client.js";
 import { createApp } from "./app/createApp.js";
 import { registerWs } from "./app/registerWs.js";
 import { startBackgroundJobs } from "./app/startBackgroundJobs.js";
-import { publicBuildInfo } from "./lib/buildInfo.js";
+import { assertProductionBuildInfoReady, publicBuildInfo } from "./lib/buildInfo.js";
 import { userRepository } from "./repositories/userRepository.js";
 
 const assertProductionAdminMfaReady = () => {
@@ -24,6 +24,7 @@ const assertProductionAdminMfaReady = () => {
 
 const bootstrap = async () => {
   assertNoBootstrapAdminEnvInProduction();
+  assertProductionBuildInfoReady(env.nodeEnv);
   await initDatabase();
   assertProductionAdminMfaReady();
   if (env.appDbBackupEnabled) {

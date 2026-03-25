@@ -92,7 +92,7 @@ const priceCards = computed(() => [
     title: t("pricingPage.cards.inviteNormal.title"),
     description: t("pricingPage.cards.inviteNormal.description"),
     price: t("pricingPage.cards.inviteNormal.price"),
-    unit: t("pricingPage.cards.unit"),
+    unit: t("pricingPage.cards.inviteNormal.unit"),
   },
   {
     id: "invite-full",
@@ -100,7 +100,7 @@ const priceCards = computed(() => [
     title: t("pricingPage.cards.inviteFull.title"),
     description: t("pricingPage.cards.inviteFull.description"),
     price: t("pricingPage.cards.inviteFull.price"),
-    unit: t("pricingPage.cards.unit"),
+    unit: t("pricingPage.cards.inviteFull.unit"),
   },
   {
     id: "activation-normal",
@@ -125,6 +125,14 @@ const priceCards = computed(() => [
     description: t("pricingPage.cards.tokenLimit.description"),
     price: t("pricingPage.cards.tokenLimit.price"),
     unit: t("pricingPage.cards.tokenLimit.unit"),
+  },
+  {
+    id: "token-limit-full",
+    badge: t("pricingPage.cards.tokenLimitFull.badge"),
+    title: t("pricingPage.cards.tokenLimitFull.title"),
+    description: t("pricingPage.cards.tokenLimitFull.description"),
+    price: t("pricingPage.cards.tokenLimitFull.price"),
+    unit: t("pricingPage.cards.tokenLimitFull.unit"),
   },
 ]);
 </script>

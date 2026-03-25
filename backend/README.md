@@ -50,7 +50,9 @@ cp backend/.env.example backend/.env
   - `DB_WRITE_SAFETY_PARAMS_TABLES`（默认空，逗号分隔白名单表名）
   - `DB_WRITE_SAFETY_PARAM_MAX_LEN`（默认 `120`）
 - 应用内 SQLite 备份：
-  - `APP_DB_BACKUP_ENABLED`（开发环境默认 `true`，生产环境默认 `false`）
+  - `APP_DB_BACKUP_ENABLED`（示例配置默认 `false`；生产环境仅在显式接受应用内明文备份风险时再 opt-in）
+  - `PUBLIC_APP_ORIGIN`（生产环境必填：公开站点地址，用于用户侧链接）
+  - `ADMIN_APP_ORIGIN`（生产环境必填：管理站点地址，用于管理员重置链接）
   - 生产建议保持关闭，改用基础设施层的加密快照/加密备份
 - `EMAIL_WEBHOOK_URL` / `EMAIL_WEBHOOK_TOKEN` / `EMAIL_FROM`：工单邮件通知
 - 日志清理策略（天数）：
@@ -75,7 +77,9 @@ cp backend/.env.example backend/.env
 - `NODE_ENV=production && CORS_ORIGINS` 包含 `localhost/127.0.0.1/::1` 会直接拒绝启动
 - `NODE_ENV=production` 下 `JWT_SECRET` / `CSRF_SECRET` / 三个 pepper 不能复用同一个值
 - `NODE_ENV=production` 下若存在未启用 MFA 的管理员账号，会直接拒绝启动
-- `NODE_ENV=production` 下应用内 SQLite 明文备份默认关闭，除非显式设置 `APP_DB_BACKUP_ENABLED=true`
+- `NODE_ENV=production` 下应用内 SQLite 明文备份默认关闭；示例配置也保持 `APP_DB_BACKUP_ENABLED=false`
+- 更推荐把备份交给基础设施层的加密快照或加密备份，而不是由应用自己复制明文库文件
+- `NODE_ENV=production` 下必须显式提供 `PUBLIC_APP_ORIGIN` 与 `ADMIN_APP_ORIGIN`，不再从请求 `Origin` 推导链接地址
 - `DB_PATH` 不存在时会打印清晰提示（首次启动将初始化数据库文件）
 - `BIN_STORAGE_PATH` 不存在时会自动创建目录
 

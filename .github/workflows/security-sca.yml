@@ -34,6 +34,9 @@ jobs:
       - name: Install backend deps (locked)
         run: npm --prefix backend ci
 
+      - name: Run test suite
+        run: npm test
+
       - name: Guard release build mode
         env:
           BUILD_MODE: production

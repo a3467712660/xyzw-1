@@ -3290,13 +3290,15 @@
         "badge": "Bundle",
         "title": "Invite Code + Normal Activation",
         "description": "For users who need registration plus the normal version.",
-        "price": "10 yuan"
+        "price": "10 yuan",
+        "unit": "per bundle"
       },
       "inviteFull": {
         "badge": "Bundle",
         "title": "Invite Code + Full Activation",
         "description": "For users who want registration plus the full version.",
-        "price": "52 yuan"
+        "price": "32 yuan",
+        "unit": "per bundle"
       },
       "activationNormal": {
         "badge": "Activation Only",
@@ -3308,13 +3310,20 @@
         "badge": "Activation Only",
         "title": "Full Activation Code",
         "description": "For existing accounts that need the full version.",
-        "price": "50 yuan"
+        "price": "30 yuan"
       },
       "tokenLimit": {
         "badge": "Add-on",
-        "title": "Add 1 More Token Slot",
-        "description": "Adds one more Token quota to the current account.",
+        "title": "Add 1 More Token Slot (Normal Version Only)",
+        "description": "Adds one more Token quota to the current account. This add-on is currently only available for the normal version.",
         "price": "2 yuan",
+        "unit": "each"
+      },
+      "tokenLimitFull": {
+        "badge": "Add-on",
+        "title": "Add 1 More Token Slot (Full Version)",
+        "description": "Adds one more Token quota to the current account for the full version.",
+        "price": "10 yuan",
         "unit": "each"
       }
     },

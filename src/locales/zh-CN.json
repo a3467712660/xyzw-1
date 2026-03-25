@@ -3290,13 +3290,15 @@
         "badge": "组合方案",
         "title": "邀请码 + 激活码普通版本",
         "description": "适合先完成注册，再开通普通版本使用。",
-        "price": "10元"
+        "price": "10元",
+        "unit": "每份"
       },
       "inviteFull": {
         "badge": "组合方案",
         "title": "邀请码 + 激活码全功能版本",
         "description": "适合注册后直接开通全功能版本使用。",
-        "price": "52元"
+        "price": "32元",
+        "unit": "每份"
       },
       "activationNormal": {
         "badge": "单独激活",
@@ -3308,13 +3310,20 @@
         "badge": "单独激活",
         "title": "激活码全功能版本",
         "description": "已有账号时，可直接补全功能版本激活。",
-        "price": "50元"
+        "price": "30元"
       },
       "tokenLimit": {
         "badge": "扩展项",
-        "title": "增加 Token 数量",
-        "description": "在当前账号基础上，每增加 1 个 Token 名额。",
+        "title": "增加 Token 数量（只提供普通版本）",
+        "description": "在当前账号基础上，每增加 1 个 Token 名额，目前只提供普通版本扩展。",
         "price": "2元",
+        "unit": "每个"
+      },
+      "tokenLimitFull": {
+        "badge": "扩展项",
+        "title": "增加 Token 数量（全功能版本）",
+        "description": "在当前账号基础上，每增加 1 个 Token 名额，适用于全功能版本。",
+        "price": "10元",
         "unit": "每个"
       }
     },
