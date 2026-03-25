@@ -4,7 +4,10 @@ import fs from "node:fs";
 import path from "node:path";
 
 const configPath = path.resolve(process.cwd(), "staticwebapp.config.json");
-const nginxConfigPath = path.resolve(process.cwd(), "docker", "nginx.conf");
+const nginxConfigPaths = [
+  path.resolve(process.cwd(), "docker", "nginx.conf"),
+  path.resolve(process.cwd(), "deploy", "nginx", "xyzw-xq5007.conf"),
+];
 
 const requiredAdminRoutes = new Set([
   "/admin/admin-users*",
@@ -104,70 +107,76 @@ for (const routePath of requiredAdminRoutes) {
   }
 }
 
-let rawNginx;
-try {
-  rawNginx = fs.readFileSync(nginxConfigPath, "utf8");
-} catch (error) {
-  console.error(`[security:csp] failed to read ${nginxConfigPath}: ${error.message}`);
-  process.exit(1);
-}
-
-const extractNginxCsp = (variableName) => {
+const extractNginxCsp = (rawNginx, variableName) => {
   const escapedVariable = variableName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const regex = new RegExp(`set\\s+\\$${escapedVariable}\\s+"([^"]+)"`, "m");
   const match = rawNginx.match(regex);
   return match?.[1] || "";
 };
 
-const nginxHasHeader = (name, value) => {
+const nginxHasHeader = (rawNginx, name, value) => {
   const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const escapedValue = value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return new RegExp(`add_header\\s+${escapedName}\\s+"${escapedValue}"\\s+always;`, "m").test(rawNginx);
 };
 
-const globalNginxCsp = extractNginxCsp("xyzw_csp");
-if (!globalNginxCsp) {
-  addError("docker/nginx.conf: missing global $xyzw_csp policy");
-} else {
-  const directives = parseDirectives(globalNginxCsp);
-  const scriptSrc = directives.get("script-src") || [];
-  const connectSrc = directives.get("connect-src") || [];
-  const objectSrc = directives.get("object-src") || [];
-  const frameAncestors = directives.get("frame-ancestors") || [];
+for (const nginxConfigPath of nginxConfigPaths) {
+  let rawNginx;
+  try {
+    rawNginx = fs.readFileSync(nginxConfigPath, "utf8");
+  } catch (error) {
+    console.error(`[security:csp] failed to read ${nginxConfigPath}: ${error.message}`);
+    process.exit(1);
+  }
 
-  if (hasToken(scriptSrc, "'unsafe-inline'") || hasToken(scriptSrc, "'unsafe-eval'")) {
-    addError("docker/nginx.conf: global script-src must not include 'unsafe-inline' or 'unsafe-eval'");
-  }
-  if (!isExplicitConnectSrc(connectSrc)) {
-    addError("docker/nginx.conf: global connect-src must use explicit allowlist entries (no protocol wildcards or *)");
-  }
-  if (!hasToken(objectSrc, "'none'")) {
-    addError("docker/nginx.conf: global object-src must include 'none'");
-  }
-  if (!hasToken(frameAncestors, "'none'")) {
-    addError("docker/nginx.conf: global frame-ancestors must include 'none'");
-  }
-}
+  const label = path.relative(process.cwd(), nginxConfigPath);
+  const globalNginxCsp = extractNginxCsp(rawNginx, "xyzw_csp");
+  if (!globalNginxCsp) {
+    addError(`${label}: missing global $xyzw_csp policy`);
+  } else {
+    const directives = parseDirectives(globalNginxCsp);
+    const scriptSrc = directives.get("script-src") || [];
+    const connectSrc = directives.get("connect-src") || [];
+    const objectSrc = directives.get("object-src") || [];
+    const frameAncestors = directives.get("frame-ancestors") || [];
 
-const adminNginxCsp = [...rawNginx.matchAll(/set\s+\$xyzw_csp\s+"([^"]+)"/g)].map((match) => match[1])[1] || "";
-if (!adminNginxCsp) {
-  addError("docker/nginx.conf: missing stricter admin $xyzw_csp policy");
-} else {
-  const directives = parseDirectives(adminNginxCsp);
-  const connectSrc = directives.get("connect-src") || [];
-  if (connectSrc.length !== 1 || connectSrc[0] !== "'self'") {
-    addError("docker/nginx.conf: admin connect-src must be exactly \"'self'\"");
+    if (hasToken(scriptSrc, "'unsafe-inline'") || hasToken(scriptSrc, "'unsafe-eval'")) {
+      addError(`${label}: global script-src must not include 'unsafe-inline' or 'unsafe-eval'`);
+    }
+    if (!isExplicitConnectSrc(connectSrc)) {
+      addError(`${label}: global connect-src must use explicit allowlist entries (no protocol wildcards or *)`);
+    }
+    if (!hasToken(objectSrc, "'none'")) {
+      addError(`${label}: global object-src must include 'none'`);
+    }
+    if (!hasToken(frameAncestors, "'none'")) {
+      addError(`${label}: global frame-ancestors must include 'none'`);
+    }
   }
-}
 
-if (!nginxHasHeader("X-Frame-Options", "DENY")) {
-  addError("docker/nginx.conf: missing X-Frame-Options DENY");
-}
-if (!nginxHasHeader("Referrer-Policy", "strict-origin-when-cross-origin")) {
-  addError("docker/nginx.conf: missing Referrer-Policy strict-origin-when-cross-origin");
-}
-if (!/add_header\s+Content-Security-Policy\s+\$xyzw_csp\s+always;/m.test(rawNginx)) {
-  addError("docker/nginx.conf: missing Content-Security-Policy response header");
+  const adminNginxCsp = [...rawNginx.matchAll(/set\s+\$xyzw_csp\s+"([^"]+)"/g)].map((match) => match[1])[1] || "";
+  if (!adminNginxCsp) {
+    addError(`${label}: missing stricter admin $xyzw_csp policy`);
+  } else {
+    const directives = parseDirectives(adminNginxCsp);
+    const connectSrc = directives.get("connect-src") || [];
+    if (connectSrc.length !== 1 || connectSrc[0] !== "'self'") {
+      addError(`${label}: admin connect-src must be exactly "'self'"`);
+    }
+  }
+
+  if (!nginxHasHeader(rawNginx, "X-Frame-Options", "DENY")) {
+    addError(`${label}: missing X-Frame-Options DENY`);
+  }
+  if (!nginxHasHeader(rawNginx, "Referrer-Policy", "strict-origin-when-cross-origin")) {
+    addError(`${label}: missing Referrer-Policy strict-origin-when-cross-origin`);
+  }
+  if (!nginxHasHeader(rawNginx, "Strict-Transport-Security", "max-age=31536000; includeSubDomains")) {
+    addError(`${label}: missing Strict-Transport-Security max-age=31536000; includeSubDomains`);
+  }
+  if (!/add_header\s+Content-Security-Policy\s+\$xyzw_csp\s+always;/m.test(rawNginx)) {
+    addError(`${label}: missing Content-Security-Policy response header`);
+  }
 }
 
 if (errorMessages.length > 0) {

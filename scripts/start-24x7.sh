@@ -93,11 +93,15 @@ start_all() {
   stop_legacy_frontend_preview
 
   echo "[start] Starting backend with PM2..."
-  pm2 start "npm run backend:start" \
-    --name "$APP_NAME_BACKEND" \
-    --cwd "$ROOT_DIR" \
-    --time \
-    --update-env || pm2 restart "$APP_NAME_BACKEND" --update-env
+  if pm2 describe "$APP_NAME_BACKEND" >/dev/null 2>&1; then
+    pm2 restart "$APP_NAME_BACKEND" --update-env
+  else
+    pm2 start "npm run backend:start" \
+      --name "$APP_NAME_BACKEND" \
+      --cwd "$ROOT_DIR" \
+      --time \
+      --update-env
+  fi
 
   echo "[info] 前端静态资源不再由 vite preview 托管。"
   echo "[info] 请使用 Nginx/Caddy/静态文件服务托管: $ROOT_DIR/dist"
@@ -105,11 +109,15 @@ start_all() {
   if [[ "$ENABLE_TASK_DAEMON" == "1" ]]; then
     validate_task_daemon_env
     echo "[start] Starting task daemon with PM2..."
-    pm2 start "npm run task:daemon" \
-      --name "$APP_NAME_TASK_DAEMON" \
-      --cwd "$ROOT_DIR" \
-      --time \
-      --update-env || pm2 restart "$APP_NAME_TASK_DAEMON" --update-env
+    if pm2 describe "$APP_NAME_TASK_DAEMON" >/dev/null 2>&1; then
+      pm2 restart "$APP_NAME_TASK_DAEMON" --update-env
+    else
+      pm2 start "npm run task:daemon" \
+        --name "$APP_NAME_TASK_DAEMON" \
+        --cwd "$ROOT_DIR" \
+        --time \
+        --update-env
+    fi
   else
     pm2 delete "$APP_NAME_TASK_DAEMON" >/dev/null 2>&1 || true
   fi

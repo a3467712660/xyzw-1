@@ -239,6 +239,25 @@ const XYZW_RUNTIME_ALLOWED_HOSTS = [
 ];
 let xyzwRuntimeLoadPromise: Promise<void> | null = null;
 
+const getRuntimeRandomId = (prefix: string) => {
+  const storageKey = `xyzw:${prefix}:id`;
+  const existing = globalThis.localStorage?.getItem(storageKey);
+  if (existing) {
+    return existing;
+  }
+
+  const randomPart = typeof globalThis.crypto?.randomUUID === "function"
+    ? globalThis.crypto.randomUUID()
+    : `${Date.now().toString(16)}-${Math.random().toString(16).slice(2, 10)}`;
+
+  const value = `${prefix.toUpperCase()}-${randomPart}`;
+  globalThis.localStorage?.setItem(storageKey, value);
+  return value;
+};
+
+const distinctId = getRuntimeRandomId("did");
+const deviceUniqueId = getRuntimeRandomId("did");
+
 const isLoopbackHost = (host: string) =>
   host === "localhost"
   || host === "::1"
@@ -738,7 +757,7 @@ const getEncryptedData = async (code) => {
     channel: "android",
     appFrom: "com.tencent.mm",
     noLogin: "2",
-    distinctId: "DID-a38175b7-14ce-4b36-aa89-3e092ea03ea6",
+    distinctId,
     state: "hortor",
     packageName: "com.hortor.games.xyzw",
     tp: "app-we",
@@ -764,7 +783,7 @@ const getEncryptedData = async (code) => {
       }&version=android-4.2.1-cn-release`
       + `&cryptVersion=1.1.0`
       + `&gameTp=app&system=android`
-      + `&deviceUniqueId=DID-0e782e88-2f3b-4f5b-9020-47f5e5a5a026`
+      + `&deviceUniqueId=${encodeURIComponent(deviceUniqueId)}`
       + `&packageName=com.hortorgames.xyzw`;
 
   const res = await new Promise((resolve, reject) => {

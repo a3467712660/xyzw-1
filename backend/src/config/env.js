@@ -60,7 +60,7 @@ const parseOptionalOrigin = (input) => {
   const raw = String(input || "").trim();
   if (!raw) return "";
   const normalized = normalizeHttpOrigin(raw);
-  return normalized ? normalized.origin.replace(/\/+$/, "") : "";
+  return normalized ? String(normalized.raw || "").replace(/\/+$/, "") : "";
 };
 
 const parsePositiveIntInRange = (input, fallback, min, max) => {

@@ -70,12 +70,19 @@ jobs:
 
       - name: Route matrix smoke check
         env:
+          NODE_ENV: production
           JWT_SECRET: ci-jwt-secret-20260324
           AES_KEY: ci-aes-secret-20260324
           CSRF_SECRET: ci-csrf-secret-20260324
           INVITE_CODE_PEPPER: ci-invite-pepper-20260324
           ACTIVATION_CODE_PEPPER: ci-activation-pepper-20260324
           PASSWORD_RESET_CODE_PEPPER: ci-password-reset-pepper-20260324
+          PUBLIC_APP_ORIGIN: https://ci.xyzw.invalid
+          ADMIN_APP_ORIGIN: https://ci.xyzw.invalid
+          CORS_ORIGINS: https://ci.xyzw.invalid
+          ACCESS_COOKIE_SECURE: "true"
+          REFRESH_COOKIE_SECURE: "true"
+          CSRF_COOKIE_SECURE: "true"
           DB_PATH: ./backend/data/ci-route-matrix.sqlite.bin
           BIN_STORAGE_PATH: ./backend/data/ci-route-matrix-bin
           BACKEND_PORT: 8877
@@ -102,13 +109,19 @@ jobs:
           fi
           node -e 'const fs=require("fs"); const health=JSON.parse(fs.readFileSync("/tmp/route-health.json","utf8")); const version=JSON.parse(fs.readFileSync("/tmp/route-version.json","utf8")); if (!health.build?.gitSha) throw new Error("missing build gitSha on /api/v1/health"); if (!version.data?.gitSha) throw new Error("missing build gitSha on /api/v1/version");'
 
-      - name: Live header smoke check for deployed nginx config
+      - name: Live header smoke check for actual deployed nginx config
         run: |
+          sed \
+            -e "s|listen 3000;|listen 80;|g" \
+            -e "s|listen \\[::\\]:3000;|listen [::]:80;|g" \
+            -e "s|root /Users/qian/Downloads/xyzw-web-qian-acon-ui-refactor/dist;|root /app/web;|g" \
+            -e "s|server_name xyzw.xq5007.fun;|server_name _;|g" \
+            deploy/nginx/xyzw-xq5007.conf > /tmp/xyzw-nginx.conf
           docker run -d --rm \
             --name xyzw-csp-smoke \
             -p 8088:80 \
             -v "$PWD/dist:/app/web:ro" \
-            -v "$PWD/docker/nginx.conf:/etc/nginx/conf.d/default.conf:ro" \
+            -v "/tmp/xyzw-nginx.conf:/etc/nginx/conf.d/default.conf:ro" \
             nginx:1.27-alpine
           trap 'docker rm -f xyzw-csp-smoke >/dev/null 2>&1 || true' EXIT
           for i in $(seq 1 20); do
@@ -121,6 +134,7 @@ jobs:
           grep -i '^content-security-policy:' /tmp/nginx-home.headers >/dev/null
           grep -i '^x-frame-options: DENY' /tmp/nginx-home.headers >/dev/null
           grep -i '^referrer-policy: strict-origin-when-cross-origin' /tmp/nginx-home.headers >/dev/null
+          grep -i '^strict-transport-security: max-age=31536000; includeSubDomains' /tmp/nginx-home.headers >/dev/null
           grep -i '^content-security-policy:' /tmp/nginx-admin.headers | grep -F "connect-src 'self'" >/dev/null
 
       - name: Run SCA gate

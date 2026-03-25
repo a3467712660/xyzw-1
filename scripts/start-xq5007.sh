@@ -7,6 +7,7 @@ SOURCE_NGINX_CONF="$ROOT_DIR/deploy/nginx/xyzw-xq5007.conf"
 TARGET_NGINX_CONF="/opt/homebrew/etc/nginx/servers/xyzw-xq5007.conf"
 NGINX_BIN="/opt/homebrew/bin/nginx"
 NGINX_PID_FILE="/opt/homebrew/var/run/nginx.pid"
+DIST_ROOT="$ROOT_DIR/dist"
 
 require_file() {
   local file="$1"
@@ -24,6 +25,27 @@ ensure_nginx_installed() {
   fi
 }
 
+resolve_build_metadata() {
+  local git_sha=""
+  if command -v git >/dev/null 2>&1; then
+    git_sha="$(git -C "$ROOT_DIR" rev-parse HEAD 2>/dev/null || true)"
+  fi
+
+  export NODE_ENV="${NODE_ENV:-production}"
+  export BUILD_GIT_SHA="${BUILD_GIT_SHA:-$git_sha}"
+  export BUILD_ID="${BUILD_ID:-deploy-$(date '+%Y%m%d%H%M%S')}"
+  export BUILD_TIME="${BUILD_TIME:-$(date -u '+%Y-%m-%dT%H:%M:%SZ')}"
+
+  if [[ -z "$BUILD_GIT_SHA" ]]; then
+    echo "[error] 无法解析 BUILD_GIT_SHA，请确认当前目录是 git 仓库，或手工导出 BUILD_GIT_SHA。"
+    exit 1
+  fi
+
+  echo "[build] BUILD_GIT_SHA=$BUILD_GIT_SHA"
+  echo "[build] BUILD_ID=$BUILD_ID"
+  echo "[build] BUILD_TIME=$BUILD_TIME"
+}
+
 ensure_nginx_conf_dir() {
   local conf_dir
   conf_dir="$(dirname "$TARGET_NGINX_CONF")"
@@ -36,13 +58,20 @@ ensure_nginx_conf_dir() {
 sync_nginx_conf() {
   require_file "$SOURCE_NGINX_CONF"
   ensure_nginx_conf_dir
+  require_file "$DIST_ROOT/index.html"
 
-  if [[ ! -f "$TARGET_NGINX_CONF" ]] || ! cmp -s "$SOURCE_NGINX_CONF" "$TARGET_NGINX_CONF"; then
-    cp "$SOURCE_NGINX_CONF" "$TARGET_NGINX_CONF"
+  local rendered_conf
+  rendered_conf="$(mktemp)"
+  sed "s|__APP_DIST_ROOT__|$DIST_ROOT|g" "$SOURCE_NGINX_CONF" > "$rendered_conf"
+
+  if [[ ! -f "$TARGET_NGINX_CONF" ]] || ! cmp -s "$rendered_conf" "$TARGET_NGINX_CONF"; then
+    cp "$rendered_conf" "$TARGET_NGINX_CONF"
     echo "[ok] 已同步 nginx 配置到: $TARGET_NGINX_CONF"
   else
     echo "[skip] nginx 配置无变化"
   fi
+
+  rm -f "$rendered_conf"
 }
 
 nginx_test() {
@@ -112,6 +141,7 @@ USAGE
 
 main() {
   ensure_nginx_installed
+  resolve_build_metadata
 
   case "${1:-}" in
     start)
