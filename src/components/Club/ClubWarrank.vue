@@ -1453,8 +1453,9 @@ onMounted(() => {
 
 .result-header {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
   margin-bottom: 15px;
   padding-bottom: 10px;
   border-bottom: 1px solid var(--border-light);
@@ -1468,16 +1469,19 @@ onMounted(() => {
 }
 
 .result-summary {
-  display: flex;
-  gap: 15px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, max-content));
+  gap: 10px 18px;
   font-size: var(--font-size-sm);
-  flex-wrap: wrap;
+  width: 100%;
 }
 
 .summary-item {
   display: flex;
   align-items: center;
   gap: 4px;
+  min-width: 0;
+  white-space: nowrap;
 }
 
 .summary-label {

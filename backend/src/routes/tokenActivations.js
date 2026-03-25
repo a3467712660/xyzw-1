@@ -7,6 +7,7 @@ import { nowIso, randomId } from "../db/sql.js";
 import { transaction } from "../db/client.js";
 import { activationCodeRepository } from "../repositories/activationCodeRepository.js";
 import { tokenActivationRepository } from "../repositories/tokenActivationRepository.js";
+import { userRepository } from "../repositories/userRepository.js";
 
 const router = Router();
 
@@ -300,6 +301,12 @@ router.post(
           createdAt: nowAt,
         });
       }
+
+      userRepository.updateAccessScope({
+        id: userId,
+        accessScope: codeRow.featureScope,
+        updatedAt: nowAt,
+      });
 
       activationCodeRepository.consumeById({
         id: codeRow.id,

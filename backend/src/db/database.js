@@ -374,6 +374,7 @@ const createSchema = () => {
       code_suffix TEXT,
       code_mask TEXT,
       created_by TEXT NOT NULL,
+      feature_scope TEXT NOT NULL DEFAULT 'full',
       duration_months INTEGER NOT NULL,
       used_by TEXT,
       used_at TEXT,
@@ -588,6 +589,11 @@ const createSchema = () => {
   }
   try {
     db.exec(`ALTER TABLE activation_codes ADD COLUMN code_mask TEXT;`);
+  } catch {
+    // ignore: column already exists
+  }
+  try {
+    db.exec(`ALTER TABLE activation_codes ADD COLUMN feature_scope TEXT NOT NULL DEFAULT 'full';`);
   } catch {
     // ignore: column already exists
   }

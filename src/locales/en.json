@@ -3137,6 +3137,7 @@
       "dashboard": "Dashboard",
       "features": "Game Features",
       "security": "Security",
+      "pricing": "Pricing",
       "tokens": "Token Management",
       "changelog": "Changelog"
     },
@@ -3273,6 +3274,67 @@
       "brand": "XYZW Game Management System",
       "privacy": "Privacy Policy",
       "terms": "Terms of Service"
+    }
+  },
+  "pricingPage": {
+    "eyebrow": "Pricing",
+    "title": "Choose the version you need",
+    "subtitle": "This page lists the current purchase options and the difference between the normal and full versions.",
+    "actions": {
+      "backHome": "Back to Home",
+      "registerNow": "Register with Invite Code"
+    },
+    "cards": {
+      "unit": "per month",
+      "inviteNormal": {
+        "badge": "Bundle",
+        "title": "Invite Code + Normal Activation",
+        "description": "For users who need registration plus the normal version.",
+        "price": "10 yuan"
+      },
+      "inviteFull": {
+        "badge": "Bundle",
+        "title": "Invite Code + Full Activation",
+        "description": "For users who want registration plus the full version.",
+        "price": "52 yuan"
+      },
+      "activationNormal": {
+        "badge": "Activation Only",
+        "title": "Normal Activation Code",
+        "description": "For existing accounts that only need the normal version.",
+        "price": "8 yuan"
+      },
+      "activationFull": {
+        "badge": "Activation Only",
+        "title": "Full Activation Code",
+        "description": "For existing accounts that need the full version.",
+        "price": "50 yuan"
+      },
+      "tokenLimit": {
+        "badge": "Add-on",
+        "title": "Add 1 More Token Slot",
+        "description": "Adds one more Token quota to the current account.",
+        "price": "2 yuan",
+        "unit": "each"
+      }
+    },
+    "compare": {
+      "title": "What is the difference between normal and full",
+      "subtitle": "In simple terms, the normal version is for basic use, while the full version opens more feature areas.",
+      "normal": {
+        "title": "Normal Version",
+        "description": "Good for basic use and task control, without the full game feature access."
+      },
+      "full": {
+        "title": "Full Version",
+        "description": "Includes the full game features and battle report features, suitable for accounts that need the complete control console."
+      }
+    },
+    "contact": {
+      "label": "How to Buy",
+      "title": "Please contact the admin on WeChat",
+      "description": "If you already know which option you want, contact the admin on WeChat and mention the version and duration you need.",
+      "wechat": "Please contact the admin on WeChat"
     }
   },
   "gameRolesPage": {

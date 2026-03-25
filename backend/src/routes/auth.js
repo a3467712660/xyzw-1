@@ -571,7 +571,6 @@ router.post("/register", registerLimiter, validateRequest({ body: registerBodySc
   const userId = randomId("user");
   const passwordMeta = createPassword(password);
   const isTemporaryInvite = invite.isTemporary;
-  const accessScope = normalizeAccessScope(invite.featureScope);
   const tokenBindLimit = Math.max(1, Math.min(999, Number(invite.bindAccountLimit) || 999));
   const trialExpiresAt = isTemporaryInvite
     ? new Date(Date.now() + TEMP_ACCOUNT_DAYS * 24 * 60 * 60 * 1000).toISOString()
@@ -586,7 +585,7 @@ router.post("/register", registerLimiter, validateRequest({ body: registerBodySc
       passwordHash: passwordMeta.hash,
       trialExpiresAt,
       accountDisplayId: createAccountDisplayId(),
-      accessScope,
+      accessScope: ACCESS_SCOPE_TASK_CONTROL_ONLY,
       tokenBindLimit,
       isAdmin: false,
       createdAt: ts,

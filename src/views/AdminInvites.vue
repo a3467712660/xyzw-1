@@ -20,14 +20,6 @@
               :options="inviteTypeOptions"
             ></n-select>
           </div>
-          <div class="invite-creator__field">
-            <span class="invite-creator__label">{{ t("adminInvitesPage.creator.featureScope") }}</span>
-            <n-select
-              v-model:value="featureScope"
-              :consistent-menu-width="false"
-              :options="featureScopeOptions"
-            ></n-select>
-          </div>
           <NButton
             class="invite-creator__button"
             type="primary"
@@ -132,10 +124,6 @@
                   <strong>{{ getInviteKindLabel(row) }}</strong>
                 </div>
                 <div class="info-block">
-                  <span class="info-label">{{ t("adminInvitesPage.creator.featureScope") }}</span>
-                  <strong>{{ getInviteScopeLabel(row) }}</strong>
-                </div>
-                <div class="info-block">
                   <span class="info-label">{{ t("adminInvitesPage.fields.bindTokenLimit") }}</span>
                   <strong>{{ getBindTokenLimitLabel(row) }}</strong>
                 </div>
@@ -224,7 +212,6 @@ const loading = ref(false);
 const creating = ref(false);
 const createCount = ref(1);
 const inviteType = ref("normal");
-const featureScope = ref("full");
 const bindTokenLimit = ref(1);
 const sensitiveConfirmToken = ref("");
 const sensitiveConfirmExpiresAt = ref(0);
@@ -233,10 +220,6 @@ const createdCodesPlaintext = ref([]);
 const inviteTypeOptions = [
   { label: t("adminInvitesPage.types.normal"), value: "normal" },
   { label: t("adminInvitesPage.types.temporary"), value: "temporary" },
-];
-const featureScopeOptions = [
-  { label: t("adminInvitesPage.featureScopes.full"), value: "full" },
-  { label: t("adminInvitesPage.featureScopes.taskControlOnly"), value: "task_control_only" },
 ];
 const codes = ref([]);
 const canAccess = computed(
@@ -279,12 +262,7 @@ const formatAutoDisableDate = (row) =>
 
 const getInviteKindLabel = (row) =>
   row.isTemporary ? t("adminInvitesPage.types.shortTemporary") : t("adminInvitesPage.types.shortNormal");
-const getInviteScopeLabel = (row) =>
-  row.featureScope === "task_control_only"
-    ? t("adminInvitesPage.featureScopes.shortTaskControlOnly")
-    : t("adminInvitesPage.featureScopes.shortFull");
-const getInviteTypeLabel = (row) =>
-  `${getInviteKindLabel(row)} · ${getInviteScopeLabel(row)}`;
+const getInviteTypeLabel = (row) => getInviteKindLabel(row);
 const getBindTokenLimitLabel = (row) =>
   `${Math.max(1, Number(row.bindAccountLimit) || 1)}`;
 
@@ -539,7 +517,6 @@ const createCodes = async () => {
     const res = await api.admin.createInviteCodesWithConfirm({
       count: createCount.value,
       isTemporary: inviteType.value === "temporary",
-      featureScope: featureScope.value,
       bindAccountLimit: Math.max(1, Math.min(999, Number(bindTokenLimit.value) || 1)),
     }, confirmToken);
     if (!res.success) {
@@ -609,12 +586,10 @@ const columns = computed(() => [
   {
     title: t("adminInvitesPage.columns.type"),
     key: "isTemporary",
-    width: 220,
-    render: (row) =>
-      h("div", { class: "type-cell" }, [
-        h("div", { class: "type-cell__main" }, getInviteKindLabel(row)),
-        h("div", { class: "type-cell__sub" }, getInviteScopeLabel(row)),
-      ]),
+    width: 180,
+    render: (row) => h("div", { class: "type-cell" }, [
+      h("div", { class: "type-cell__main" }, getInviteTypeLabel(row)),
+    ]),
   },
   {
     title: t("adminInvitesPage.columns.bindTokenLimit"),

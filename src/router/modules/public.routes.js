@@ -72,6 +72,15 @@ export const publicRoutes = [
     }),
   },
   {
+    path: "/pricing",
+    name: "PricingMenu",
+    component: () => import("@/views/PricingMenu.vue"),
+    meta: withRouteMeta({
+      title: "价格菜单",
+      layout: "public",
+    }),
+  },
+  {
     path: "/:pathMatch(.*)*",
     name: "NotFound",
     component: () => import("@/views/NotFound.vue"),

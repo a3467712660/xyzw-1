@@ -91,6 +91,7 @@ const createInviteCodesBodySchema = z.object({
 }).strict();
 const createActivationCodesBodySchema = z.object({
   count: z.coerce.number().int().min(1).max(100).optional().default(1),
+  featureScope: z.enum([ACCESS_SCOPE_FULL, ACCESS_SCOPE_TASK_CONTROL_ONLY]).optional().default(ACCESS_SCOPE_FULL),
   durationMonths: z.coerce.number().int().refine((value) => [1, 3, 6, 12].includes(value), {
     message: "durationMonths must be one of 1/3/6/12",
   }),
@@ -950,6 +951,7 @@ router.get("/activation-codes", (_req, res) => {
         ...row,
         code: String(row.codeMask || row.code || "").trim(),
         maskedCode: String(row.codeMask || row.code || "").trim(),
+        featureScope: normalizeAccessScope(row.featureScope),
         bindingId: binding?.id || null,
         bindingTokenId: binding?.tokenId || null,
         bindingSessId: String(binding?.accountIdentity || "").split("|")[0] || null,
@@ -1052,6 +1054,7 @@ router.post(
   validateRequest({ body: createActivationCodesBodySchema }),
   (req, res) => {
     const count = Number(req.body?.count) || 1;
+    const featureScope = normalizeAccessScope(req.body?.featureScope);
     const durationMonths = Number(req.body?.durationMonths) || 1;
     if (![1, 3, 6, 12].includes(durationMonths)) {
       return res.status(400).json({ success: false, message: "激活时长仅支持 1/3/6/12 个月" });
@@ -1069,12 +1072,14 @@ router.post(
         id,
         code,
         createdBy: req.auth.user.id,
+        featureScope,
         durationMonths,
         createdAt,
       });
       created.push({
         id,
         code,
+        featureScope,
         durationMonths,
         createdAt,
       });
@@ -1086,6 +1091,7 @@ router.post(
       targetType: "activation_code",
       detail: {
         count: created.length,
+        featureScope,
         durationMonths,
       },
       ...reqMeta(req),

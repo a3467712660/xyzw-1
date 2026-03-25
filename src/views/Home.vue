@@ -27,6 +27,9 @@
 
         <div class="nav-actions">
           <template v-if="!authStore.isAuthenticated">
+            <n-button quaternary type="primary" @click="router.push('/pricing')">
+              {{ t("homePage.nav.pricing") }}
+            </n-button>
             <n-button ghost type="primary" @click="router.push('/login')">
               {{ t("homePage.actions.login") }}
             </n-button>
@@ -62,6 +65,14 @@
             <n-icon><LockClosed></LockClosed></n-icon>
             <span>{{ t("homePage.nav.security") }}</span>
           </button>
+          <router-link
+            class="drawer-item"
+            to="/pricing"
+            @click="isMobileMenuOpen = false"
+          >
+            <n-icon><Pricetag></Pricetag></n-icon>
+            <span>{{ t("homePage.nav.pricing") }}</span>
+          </router-link>
           <router-link
             class="drawer-item"
             to="/changelog"
@@ -400,6 +411,7 @@ import {
   LockClosed,
   Menu,
   PersonCircle,
+  Pricetag,
   Ribbon,
   Server,
   Settings,

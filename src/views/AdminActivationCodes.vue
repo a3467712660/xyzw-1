@@ -23,6 +23,13 @@
               :options="durationOptions"
             ></n-select>
           </div>
+          <div class="activation-creator__field">
+            <span class="activation-creator__label">版本类型</span>
+            <n-select
+              v-model:value="featureScope"
+              :options="featureScopeOptions"
+            ></n-select>
+          </div>
           <NButton class="activation-creator__button" type="primary" :loading="creating" @click="createCodes">
             生成激活码
           </NButton>
@@ -60,6 +67,10 @@
             <NTag size="small" :type="statusTag(row).type">{{ statusTag(row).text }}</NTag>
           </div>
           <div class="mobile-meta-grid">
+            <div class="meta-row">
+              <span class="meta-label">版本类型</span>
+              <span>{{ getFeatureScopeLabel(row.featureScope) }}</span>
+            </div>
             <div class="meta-row">
               <span class="meta-label">时长</span>
               <span>{{ Math.max(1, Number(row.durationMonths) || 1) }}个月</span>
@@ -153,6 +164,7 @@ const loading = ref(false);
 const creating = ref(false);
 const createCount = ref(1);
 const durationMonths = ref(1);
+const featureScope = ref("full");
 const codes = ref([]);
 const isMobile = ref(false);
 const MOBILE_BREAKPOINT = 768;
@@ -167,6 +179,13 @@ const durationOptions = [
   { label: "半年", value: 6 },
   { label: "一年", value: 12 },
 ];
+const featureScopeOptions = [
+  { label: "全功能", value: "full" },
+  { label: "普通版本", value: "task_control_only" },
+];
+
+const getFeatureScopeLabel = (value) =>
+  String(value || "").trim() === "task_control_only" ? "普通版本" : "全功能";
 
 const formatTime = (value) => {
   if (!value) return "-";
@@ -417,7 +436,7 @@ const columns = computed(() => [
         h(
           "span",
           { class: "table-subtext-cell" },
-          `${Math.max(1, Number(row.durationMonths) || 1)}个月`,
+          `${getFeatureScopeLabel(row.featureScope)} · ${Math.max(1, Number(row.durationMonths) || 1)}个月`,
         ),
       ]);
     },
@@ -521,6 +540,7 @@ const createCodes = async () => {
     if (!confirmToken) return;
     const res = await api.admin.createActivationCodes({
       count: Math.max(1, Math.min(100, Number(createCount.value) || 1)),
+      featureScope: featureScope.value,
       durationMonths: Number(durationMonths.value) || 1,
     }, confirmToken);
     if (!res?.success) {

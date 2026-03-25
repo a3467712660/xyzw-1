@@ -3137,6 +3137,7 @@
       "dashboard": "控制台",
       "features": "游戏功能",
       "security": "安全能力",
+      "pricing": "价格菜单",
       "tokens": "Token管理",
       "changelog": "更新日志"
     },
@@ -3273,6 +3274,67 @@
       "brand": "XYZW 游戏管理系统",
       "privacy": "隐私政策",
       "terms": "服务条款"
+    }
+  },
+  "pricingPage": {
+    "eyebrow": "价格菜单",
+    "title": "按你需要的版本来选",
+    "subtitle": "这里列的是当前可购买的组合价格和版本区别。需要购买时，直接联系管理员微信即可。",
+    "actions": {
+      "backHome": "返回首页",
+      "registerNow": "使用邀请码注册"
+    },
+    "cards": {
+      "unit": "每月",
+      "inviteNormal": {
+        "badge": "组合方案",
+        "title": "邀请码 + 激活码普通版本",
+        "description": "适合先完成注册，再开通普通版本使用。",
+        "price": "10元"
+      },
+      "inviteFull": {
+        "badge": "组合方案",
+        "title": "邀请码 + 激活码全功能版本",
+        "description": "适合注册后直接开通全功能版本使用。",
+        "price": "52元"
+      },
+      "activationNormal": {
+        "badge": "单独激活",
+        "title": "激活码普通版本",
+        "description": "已有账号时，可直接补普通版本激活。",
+        "price": "8元"
+      },
+      "activationFull": {
+        "badge": "单独激活",
+        "title": "激活码全功能版本",
+        "description": "已有账号时，可直接补全功能版本激活。",
+        "price": "50元"
+      },
+      "tokenLimit": {
+        "badge": "扩展项",
+        "title": "增加 Token 数量",
+        "description": "在当前账号基础上，每增加 1 个 Token 名额。",
+        "price": "2元",
+        "unit": "每个"
+      }
+    },
+    "compare": {
+      "title": "普通版和全功能版有什么区别",
+      "subtitle": "简单理解：普通版更适合基础使用，全功能版可以进入更多功能区。",
+      "normal": {
+        "title": "普通版本",
+        "description": "适合先完成基础使用和任务控制，不包含完整游戏功能入口。"
+      },
+      "full": {
+        "title": "全功能版本",
+        "description": "有全功能的游戏功能和战报功能，适合需要完整操作台的账号。"
+      }
+    },
+    "contact": {
+      "label": "购买方式",
+      "title": "前往购买请联系管理员微信",
+      "description": "如果你已经确定要买哪一种，直接联系管理员微信即可。联系时把你想购买的版本和时长一起说明，会更快。",
+      "wechat": "请联系管理员微信"
     }
   },
   "gameRolesPage": {

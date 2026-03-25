@@ -66,7 +66,7 @@
     </div>
 
     <n-grid item-responsive responsive="screen" :x-gap="16" :y-gap="16">
-      <n-grid-item span="24 l:18">
+      <n-grid-item span="24">
         <section class="app-section-card game-features-panel">
           <div class="section-head">
             <div>
@@ -77,7 +77,7 @@
         </section>
       </n-grid-item>
 
-      <n-grid-item span="24 l:6">
+      <n-grid-item span="24">
         <section class="app-section-card connection-card">
           <div class="section-head">
             <div>
@@ -274,6 +274,10 @@ watch(
 .connection-card,
 .tips-card {
   padding: clamp(18px, 2vw, 24px);
+}
+
+.game-features-panel {
+  padding: clamp(12px, 1.4vw, 18px);
 }
 
 .section-head {
