@@ -55,6 +55,15 @@ ensure_nginx_conf_dir() {
   fi
 }
 
+build_frontend() {
+  echo "[build] 开始构建前端 dist..."
+  (
+    cd "$ROOT_DIR"
+    npm run build
+  )
+  echo "[ok] 前端 dist 构建完成"
+}
+
 sync_nginx_conf() {
   require_file "$SOURCE_NGINX_CONF"
   ensure_nginx_conf_dir
@@ -128,13 +137,13 @@ usage() {
 Usage: ./scripts/start-xq5007.sh <command>
 
 Commands:
-  start     同步 nginx 配置、校验配置、启动后端、启动/重载 nginx
+  start     构建前端、同步 nginx 配置、校验配置、启动后端、启动/重载 nginx
   reload    仅同步 nginx 配置并重载 nginx
   status    查看 nginx 和 backend 状态
 
 Notes:
   - 运行前请确认 backend/.env 已正确配置 production 所需变量。
-  - 运行前请确认 dist 已构建完成。
+  - start 会自动执行 npm run build 生成最新 dist。
   - 内网穿透请只暴露本机 3000 端口，不要直接暴露 8787。
 USAGE
 }
@@ -145,6 +154,7 @@ main() {
 
   case "${1:-}" in
     start)
+      build_frontend
       sync_nginx_conf
       nginx_test
       start_backend
