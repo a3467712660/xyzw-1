@@ -156,7 +156,6 @@ const initName = (fileName: string) => {
     return;
   fileName = fileName.trim();
   const binRes = fileName.match(/^bin-(.*?)服-([0-2])-(\d{6,12})-(.*)\.bin$/);
-  console.log(binRes);
   if (binRes) {
     importForm.name = `${binRes[1]}_${binRes[2]}_${binRes[4]}`;
     return {
@@ -176,12 +175,10 @@ const initName = (fileName: string) => {
 
 const uploadBin = (binFile: File) => {
   tQueue.add(async () => {
-    console.log("上传文件数据:", binFile);
     const roleMeta = initName(binFile.name) as any;
     const reader = new FileReader();
     reader.onload = async (e) => {
       const userToken = e.target?.result as ArrayBuffer;
-      // console.log('转换Token:', userToken);
       const tokenId = getTokenId(userToken);
       const roleToken = await transformToken(userToken);
       const roleName = roleMeta.roleName || binFile.name.split(".")?.[0] || "";

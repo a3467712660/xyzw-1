@@ -244,7 +244,6 @@ const initName = (fileName: string) => {
     return;
   fileName = fileName.trim();
   const binRes = fileName.match(/^bin-(.*?)服-([0-2])-(\d{6,12})-(.*)\.bin$/);
-  console.log(binRes);
   if (binRes) {
     importForm.name = `${binRes[1]}_${binRes[2]}_${binRes[4]}`;
     return {
@@ -354,7 +353,6 @@ const addSelectedRole = async (roleInfo: any) => {
 
 const uploadBin = (binFile: File) => {
   tQueue.add(async () => {
-    console.log("上传文件数据:", binFile);
     const reader = new FileReader();
     reader.onload = async (e) => {
       const userToken = e.target?.result as ArrayBuffer;
@@ -372,7 +370,6 @@ const uploadBin = (binFile: File) => {
         } else {
           serverListData.value = [];
         }
-        console.log("Server List:", parsedList);
         message.success(t("tokenImportBin.messages.serverListLoaded"));
       } catch (err) {
         console.error("Failed to get server list", err);
@@ -385,11 +382,9 @@ const uploadBin = (binFile: File) => {
         const binMsg = g_utils.parse(userToken);
         let binData = binMsg.getData();
         if (!binData && (binMsg as any)._raw) {
-          console.log("Bin文件 getData() 为空，尝试使用 _raw");
           binData = { ...(binMsg as any)._raw };
         }
 
-        console.log("Bin文件解析:", binData);
         binDecodedResult.value = JSON.stringify(binData, null, 2);
         originalBinData.value = binData;
       } catch (err: any) {
