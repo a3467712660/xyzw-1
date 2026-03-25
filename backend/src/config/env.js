@@ -63,6 +63,31 @@ const parseOptionalOrigin = (input) => {
   return normalized ? String(normalized.raw || "").replace(/\/+$/, "") : "";
 };
 
+const isLoopbackHostname = (hostname) => {
+  const normalized = String(hostname || "").trim().toLowerCase();
+  return normalized === "localhost"
+    || normalized === "127.0.0.1"
+    || normalized === "::1"
+    || normalized === "[::1]";
+};
+
+const validateProductionAppOrigin = (value, label) => {
+  let url;
+  try {
+    url = new URL(String(value || ""));
+  } catch {
+    throw new Error(`${label} must be a valid absolute HTTPS origin in production.`);
+  }
+
+  if (url.protocol !== "https:") {
+    throw new Error(`${label} must use HTTPS in production.`);
+  }
+
+  if (isLoopbackHostname(url.hostname)) {
+    throw new Error(`${label} must not use localhost/loopback hosts in production.`);
+  }
+};
+
 const parsePositiveIntInRange = (input, fallback, min, max) => {
   const value = Number(input);
   if (!Number.isInteger(value)) return fallback;
@@ -351,6 +376,11 @@ if (env.nodeEnv === "production" && !env.publicAppOrigin) {
 
 if (env.nodeEnv === "production" && !env.adminAppOrigin) {
   throw new Error("ADMIN_APP_ORIGIN must be explicitly set in production.");
+}
+
+if (env.nodeEnv === "production") {
+  validateProductionAppOrigin(env.publicAppOrigin, "PUBLIC_APP_ORIGIN");
+  validateProductionAppOrigin(env.adminAppOrigin, "ADMIN_APP_ORIGIN");
 }
 
 if (

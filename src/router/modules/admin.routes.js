@@ -1,5 +1,4 @@
 import { withRouteMeta } from "../meta";
-import { adminTestChildRoutes } from "./test.routes";
 
 const adminChildren = [
   {
@@ -167,7 +166,6 @@ const adminChildren = [
       layout: "default",
     }),
   },
-  ...adminTestChildRoutes,
 ];
 
 export const adminRoutes = [

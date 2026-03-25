@@ -114,7 +114,7 @@ jobs:
           sed \
             -e "s|listen 3000;|listen 80;|g" \
             -e "s|listen \\[::\\]:3000;|listen [::]:80;|g" \
-            -e "s|root /Users/qian/Downloads/xyzw-web-qian-acon-ui-refactor/dist;|root /app/web;|g" \
+            -e "s|__APP_DIST_ROOT__|/app/web|g" \
             -e "s|server_name xyzw.xq5007.fun;|server_name _;|g" \
             deploy/nginx/xyzw-xq5007.conf > /tmp/xyzw-nginx.conf
           docker run -d --rm \

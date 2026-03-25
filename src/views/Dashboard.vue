@@ -87,12 +87,9 @@ import { useRouter } from "vue-router";
 import { useMessage } from "naive-ui/es";
 import { useI18n } from "vue-i18n";
 import { useTokenStore } from "@/stores/tokenStore";
-import { useAuthStore } from "@/stores/auth";
-import { canAccessAdminCenter } from "@/utils/accessScope";
 import {
   Add,
   CalendarClear,
-  Cloud,
   Cube,
   Settings,
 } from "@vicons/ionicons5";
@@ -100,7 +97,6 @@ import {
 const router = useRouter();
 const message = useMessage();
 const tokenStore = useTokenStore();
-const authStore = useAuthStore();
 const { locale, t } = useI18n();
 
 const currentDate = computed(() => {
@@ -187,16 +183,6 @@ const quickActions = computed(() => {
     });
   }
 
-  if (canAccessAdminCenter(authStore.user)) {
-    actions.splice(canOpenWorkbenchFeatures.value ? 3 : 1, 0, {
-      id: 4,
-      icon: Cloud,
-      title: t("dashboard.quickActions.items.websocketTest.title"),
-      description: t("dashboard.quickActions.items.websocketTest.description"),
-      action: "websocket-test",
-    });
-  }
-
   return actions;
 });
 
@@ -219,9 +205,6 @@ const handleQuickAction = (action) => {
       break;
     case "task-control":
       router.push("/admin/task-control");
-      break;
-    case "websocket-test":
-      router.push("/websocket-test");
       break;
     case "open-settings":
       router.push("/admin/profile");

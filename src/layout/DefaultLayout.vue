@@ -202,7 +202,6 @@ import { isNowInLegionWarTime } from "@/utils/clubBattleUtils";
 import { canAccessAdminCenter, hasGameFeatureAccess } from "@/utils/accessScope";
 import {
   ChevronDown,
-  CodeSlash,
   Cube,
   Home,
   LockOpen,
@@ -297,11 +296,6 @@ const supportMenuOptions = [
   { label: "功能反馈", key: "/admin/feedback", icon: renderIcon(Megaphone) },
 ];
 
-const devMenuOptions = [
-  { label: "消息测试", key: "/admin/message-test", icon: renderIcon(CodeSlash) },
-  { label: "WebSocket 测试", key: "/websocket-test", icon: renderIcon(CodeSlash) },
-];
-
 const adminMenuOptions = [
   { label: "账号管理", key: "/admin/admin-users", icon: renderIcon(People) },
   { label: "邀请码管理", key: "/admin/admin-invites", icon: renderIcon(People) },
@@ -326,15 +320,6 @@ const menuOptions = computed(() => {
       children: supportMenuOptions,
     },
   ];
-
-  if (canOpenAdminCenter.value) {
-    options.push({
-      type: "group",
-      label: "开发工具",
-      key: "dev-group",
-      children: devMenuOptions,
-    });
-  }
 
   if (canOpenAdminCenter.value) {
     options.push({

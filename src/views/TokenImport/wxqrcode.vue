@@ -765,15 +765,7 @@ const getEncryptedData = async (code) => {
   };
 
   const rawJson = JSON.stringify(payload);
-  console.log("原始登录 JSON:", rawJson);
-
-  // 调用encodePayload加密
   const encoded = encodePayload(rawJson);
-
-  try {
-    console.log("加密后的登录 JSON:", encoded);
-    console.log("解密:", decodePayload(encoded));
-  } catch (err) {}
 
   const loginUrl
     = `${WECHAT_PROXY_BASE}/hortor-login`
@@ -811,8 +803,6 @@ const getEncryptedData = async (code) => {
   if (!combUser) {
     throw new Error(t("tokenImportWxQrcode.errors.invalidLoginResponse"));
   }
-  console.log("combUser:", combUser);
-
   // 这里简化处理，实际应该调用游戏加密模块生成bin
   // 由于是前端环境，我们模拟生成一个token
   const dm = (window as any).__require?.("13");
@@ -846,11 +836,8 @@ const encodePayload = (text) => {
   const shuffleTimes = 6;
   const step = 3;
 
-  console.log("原始文本长度:", text.length);
   const mid = codeBase64(text, cipherTable, shuffleTimes, step, xorShift);
-  console.log("codeBase64:", `${mid?.substring(0, 100)}...`);
   const final = encodeBase64(mid);
-  console.log("编码结果长度:", final?.length);
   return final;
 };
 
@@ -943,10 +930,7 @@ const dealWithString = (src, key, shift) => {
 const saveAccount = async (arrBuf: ArrayBuffer, nickname = "") => {
   const name = accountName.value?.trim();
 
-  console.log("name:", name);
-
   const bin = new Uint8Array(arrBuf);
-  // console.log("bin:", bin);
   currentBinData.value = bin.buffer;
 
   try {
@@ -960,7 +944,6 @@ const saveAccount = async (arrBuf: ArrayBuffer, nickname = "") => {
     } else {
       serverListData.value = [];
     }
-    console.log("Server List:", parsedList);
     message.success(t("tokenImportWxQrcode.messages.serverListLoaded"));
   } catch (err) {
     console.error("Failed to get server list", err);
@@ -972,11 +955,9 @@ const saveAccount = async (arrBuf: ArrayBuffer, nickname = "") => {
     const binMsg = g_utils.parse(bin.buffer);
     let binData = binMsg.getData();
     if (!binData && (binMsg as any)._raw) {
-      console.log("Bin文件 getData() 为空，尝试使用 _raw");
       binData = { ...(binMsg as any)._raw };
     }
 
-    console.log("Bin文件解析:", binData);
     binDecodedResult.value = JSON.stringify(binData, null, 2);
     originalBinData.value = binData;
   } catch (err: any) {
