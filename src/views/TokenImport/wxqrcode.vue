@@ -197,6 +197,12 @@ import { triggerBlobDownload } from "@/utils/download";
 // 定义事件
 const emit = defineEmits(["cancel", "ok"]);
 
+const debugLog = (...args: unknown[]) => {
+  if (import.meta.env.DEV) {
+    console.error(...args);
+  }
+};
+
 const tokenStore = useTokenStore();
 
 const message = useMessage();
@@ -465,7 +471,7 @@ const handleDownload = (roleInfo: any) => {
     downloadBinFile(fileName, newBinBuffer);
     message.success(t("tokenImportWxQrcode.messages.downloadStarted", { fileName }));
   } catch (e: any) {
-    console.error("下载失败", e);
+    debugLog("下载失败", e instanceof Error ? e.message : e);
     message.error(t("tokenImportWxQrcode.messages.downloadFailed", { error: e.message }));
   }
 };
@@ -524,7 +530,7 @@ const addSelectedRole = async (roleInfo: any) => {
 
     message.success(t("tokenImportWxQrcode.messages.roleAdded", { name: finalName }));
   } catch (e: any) {
-    console.error("添加角色失败", e);
+    debugLog("添加角色失败", e instanceof Error ? e.message : e);
     message.error(t("tokenImportWxQrcode.messages.addRoleFailed", { error: e.message }));
   }
 };
@@ -550,7 +556,7 @@ const generateQRCode = async () => {
     }
   } catch (error) {
     updateStatus(t("tokenImportWxQrcode.messages.qrcodeFailedWithReason", { error: error.message }), "error");
-    console.error("获取二维码失败:", error);
+    debugLog("获取二维码失败:", error instanceof Error ? error.message : error);
   } finally {
     isProcessing.value = false;
   }
@@ -609,7 +615,7 @@ const tryGetWeixinQR = async () => {
     startScanMonitoring();
     return true;
   } catch (err) {
-    console.error("二维码解析失败:", err);
+    debugLog("二维码解析失败:", err instanceof Error ? err.message : err);
     updateStatus(t("tokenImportWxQrcode.messages.qrcodeFailedWithReason", { error: err.message }), "error");
     return false;
   }
@@ -709,7 +715,7 @@ const checkScanStatus = async () => {
       updateStatus(t("tokenImportWxQrcode.status.scanRemaining", { remain }), "info");
     }
   } catch (err) {
-    console.error("扫码状态检查失败:", err);
+    debugLog("扫码状态检查失败:", err instanceof Error ? err.message : err);
   }
 };
 
@@ -738,7 +744,7 @@ const handleScanSuccess = async (code: string, nickname = "") => {
     }
   } catch (err: any) {
     updateStatus(t("tokenImportWxQrcode.messages.processFailed", { error: err.message }), "error");
-    console.error("扫码处理失败:", err);
+    debugLog("扫码处理失败:", err instanceof Error ? err.message : err);
   } finally {
     isProcessing.value = false;
   }
@@ -946,7 +952,10 @@ const saveAccount = async (arrBuf: ArrayBuffer, nickname = "") => {
     }
     message.success(t("tokenImportWxQrcode.messages.serverListLoaded"));
   } catch (err) {
-    console.error("Failed to get server list", err);
+    debugLog(
+      "Failed to get server list",
+      err instanceof Error ? err.message : err,
+    );
     message.warning(t("tokenImportWxQrcode.messages.serverListLoadFailed"));
     serverListData.value = [];
   }
@@ -961,7 +970,7 @@ const saveAccount = async (arrBuf: ArrayBuffer, nickname = "") => {
     binDecodedResult.value = JSON.stringify(binData, null, 2);
     originalBinData.value = binData;
   } catch (err: any) {
-    console.error("Bin文件解析失败", err);
+    debugLog("Bin文件解析失败", err instanceof Error ? err.message : err);
     binDecodedResult.value = t("tokenImportWxQrcode.messages.parseFailed", {
       error: err.message || err,
     });
@@ -1020,7 +1029,7 @@ const resetQRCode = () => {
 // 生命周期
 onMounted(() => {
   ensureXyzwRuntimeLoaded().catch((error) => {
-    console.error("加载 XYZW 运行时失败:", error);
+    debugLog("加载 XYZW 运行时失败:", error instanceof Error ? error.message : error);
   });
 });
 
