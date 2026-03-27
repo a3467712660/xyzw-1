@@ -649,7 +649,10 @@ export const useLocalTokenStore = defineStore("localToken", () => {
 
       const legacySnapshot = readLegacyWebStorageSnapshot();
       const dbTokens = (await dbGetAllGameTokens()) || {};
-      const shouldPersistLegacyMetadata = Object.keys(dbTokens).length === 0;
+      const missingLegacyRoleIds = Object.keys(
+        legacySnapshot.restoredGameTokens || {},
+      ).filter((roleId) => !dbTokens[roleId]);
+      const shouldPersistLegacyMetadata = missingLegacyRoleIds.length > 0;
 
       userToken.value = legacySnapshot.restoredUserToken || null;
       gameTokens.value = mergeLegacyTokensIntoMemory(
@@ -660,6 +663,7 @@ export const useLocalTokenStore = defineStore("localToken", () => {
       const migrationResult = await migrateFromLocalStorageIfNeeded({
         snapshot: legacySnapshot,
         persistMetadata: shouldPersistLegacyMetadata,
+        persistRoleIds: missingLegacyRoleIds,
       });
 
       if (migrationResult.warnings.length > 0) {

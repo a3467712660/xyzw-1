@@ -371,6 +371,13 @@ export async function clearLegacyWebStorageIfNeeded() {
 export async function migrateFromLocalStorageIfNeeded(options = {}) {
   const snapshot = options.snapshot || readLegacyWebStorageSnapshot();
   const persistMetadata = options.persistMetadata !== false;
+  const persistRoleIds = Array.isArray(options.persistRoleIds)
+    ? new Set(
+        options.persistRoleIds
+          .map((roleId) => String(roleId || "").trim())
+          .filter(Boolean),
+      )
+    : null;
   const result = {
     foundLegacyData: Boolean(snapshot?.foundLegacyData),
     migratedMetadataCount: 0,
@@ -391,6 +398,9 @@ export async function migrateFromLocalStorageIfNeeded(options = {}) {
     for (const [roleId, tokenData] of Object.entries(
       result.restoredGameTokens,
     )) {
+      if (persistRoleIds && !persistRoleIds.has(roleId)) {
+        continue;
+      }
       await putGameToken(roleId, tokenData);
       result.migratedMetadataCount += 1;
     }
