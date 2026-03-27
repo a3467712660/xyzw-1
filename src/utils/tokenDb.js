@@ -11,6 +11,12 @@ const SENSITIVE_TOKEN_KEYS = new Set([
   "gameToken",
   "userToken",
 ]);
+const LEGACY_STORAGE_KEYS = ["userToken", "gameTokens", "selectedRoleInfo"];
+
+const isPlainObject = (value) =>
+  value !== null && typeof value === "object" && !Array.isArray(value);
+
+const getNowIso = () => new Date().toISOString();
 
 const sanitizeGameTokenForPersistence = (tokenData = {}) => {
   if (!tokenData || typeof tokenData !== "object") return {};
@@ -170,16 +176,226 @@ const clearLegacyWebStorage = () => {
   }
 };
 
+const readStorageValue = (storage, key, warnings, sourceName) => {
+  try {
+    return String(storage?.getItem?.(key) || "");
+  } catch (error) {
+    warnings.push(
+      `[${sourceName}] failed to read ${key}: ${error?.message || String(error)}`,
+    );
+    return "";
+  }
+};
+
+const normalizeLegacyTimestamp = (value) => {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const ts = new Date(raw).getTime();
+  if (!Number.isFinite(ts)) return "";
+  return new Date(ts).toISOString();
+};
+
+const normalizeLegacyGameToken = (rawRoleId, tokenData) => {
+  if (!isPlainObject(tokenData)) {
+    return null;
+  }
+
+  const roleId = String(
+    tokenData.roleId || tokenData.id || rawRoleId || "",
+  ).trim();
+  if (!roleId) {
+    return null;
+  }
+
+  const createdAt = normalizeLegacyTimestamp(tokenData.createdAt);
+  const lastUsed = normalizeLegacyTimestamp(tokenData.lastUsed);
+  const nowIso = getNowIso();
+
+  return {
+    ...tokenData,
+    roleId,
+    id: String(tokenData.id || roleId).trim() || roleId,
+    createdAt: createdAt || lastUsed || nowIso,
+    lastUsed: lastUsed || createdAt || nowIso,
+  };
+};
+
+const parseLegacyGameTokens = (rawValue, sourceName, warnings) => {
+  const value = String(rawValue || "").trim();
+  if (!value) {
+    return {
+      foundData: false,
+      hasParseFailure: false,
+      tokens: {},
+    };
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(value);
+  } catch (error) {
+    warnings.push(
+      `[${sourceName}] failed to parse gameTokens JSON: ${error?.message || String(error)}`,
+    );
+    return {
+      foundData: true,
+      hasParseFailure: true,
+      tokens: {},
+    };
+  }
+
+  const entries = Array.isArray(parsed)
+    ? parsed.map((item, index) => [item?.roleId || item?.id || index, item])
+    : isPlainObject(parsed)
+      ? Object.entries(parsed)
+      : null;
+
+  if (!entries) {
+    warnings.push(
+      `[${sourceName}] gameTokens must be an array or object to migrate safely`,
+    );
+    return {
+      foundData: true,
+      hasParseFailure: true,
+      tokens: {},
+    };
+  }
+
+  const tokens = {};
+  entries.forEach(([rawRoleId, tokenData], index) => {
+    const normalized = normalizeLegacyGameToken(rawRoleId, tokenData);
+    if (!normalized) {
+      warnings.push(
+        `[${sourceName}] skipped legacy gameTokens entry at index/key "${String(index)}" because roleId is missing or payload is invalid`,
+      );
+      return;
+    }
+    tokens[normalized.roleId] = normalized;
+  });
+
+  return {
+    foundData: true,
+    hasParseFailure: false,
+    tokens,
+  };
+};
+
+const readLegacyStorageArea = (storage, sourceName) => {
+  const warnings = [];
+  const snapshot = LEGACY_STORAGE_KEYS.reduce((acc, key) => {
+    acc[key] = readStorageValue(storage, key, warnings, sourceName);
+    return acc;
+  }, {});
+  const parsedGameTokens = parseLegacyGameTokens(
+    snapshot.gameTokens,
+    sourceName,
+    warnings,
+  );
+
+  return {
+    sourceName,
+    userToken: String(snapshot.userToken || "").trim(),
+    selectedRoleInfo: String(snapshot.selectedRoleInfo || "").trim(),
+    rawGameTokens: String(snapshot.gameTokens || ""),
+    gameTokens: parsedGameTokens.tokens,
+    foundGameTokens: parsedGameTokens.foundData,
+    hasParseFailure: parsedGameTokens.hasParseFailure,
+    warnings,
+  };
+};
+
+export const readLegacyWebStorageSnapshot = () => {
+  const localArea = readLegacyStorageArea(
+    globalThis.localStorage,
+    "localStorage",
+  );
+  const sessionArea = readLegacyStorageArea(
+    globalThis.sessionStorage,
+    "sessionStorage",
+  );
+
+  const mergedGameTokens = {
+    ...localArea.gameTokens,
+    ...sessionArea.gameTokens,
+  };
+  const warnings = [...localArea.warnings, ...sessionArea.warnings];
+  const foundLegacyData = Boolean(
+    localArea.userToken ||
+    sessionArea.userToken ||
+    localArea.selectedRoleInfo ||
+    sessionArea.selectedRoleInfo ||
+    localArea.foundGameTokens ||
+    sessionArea.foundGameTokens,
+  );
+
+  return {
+    foundLegacyData,
+    hasParseFailure: localArea.hasParseFailure || sessionArea.hasParseFailure,
+    restoredUserToken: sessionArea.userToken || localArea.userToken || "",
+    selectedRoleInfo:
+      sessionArea.selectedRoleInfo || localArea.selectedRoleInfo || "",
+    restoredGameTokens: mergedGameTokens,
+    warnings,
+  };
+};
+
 export async function clearLegacyWebStorageIfNeeded() {
   try {
     clearLegacyWebStorage();
-    return { cleanedLocalStorage: true };
+    return { cleanedLocalStorage: true, warnings: [] };
   } catch (e) {
     console.warn("Legacy web storage cleanup skipped:", e);
-    return { cleanedLocalStorage: false, error: e?.message };
+    return {
+      cleanedLocalStorage: false,
+      error: e?.message,
+      warnings: [`legacy cleanup failed: ${e?.message || String(e)}`],
+    };
   }
 }
 
-export async function migrateFromLocalStorageIfNeeded() {
-  return clearLegacyWebStorageIfNeeded();
+export async function migrateFromLocalStorageIfNeeded(options = {}) {
+  const snapshot = options.snapshot || readLegacyWebStorageSnapshot();
+  const persistMetadata = options.persistMetadata !== false;
+  const result = {
+    foundLegacyData: Boolean(snapshot?.foundLegacyData),
+    migratedMetadataCount: 0,
+    restoredInMemoryCount: Object.keys(snapshot?.restoredGameTokens || {})
+      .length,
+    restoredUserTokenInMemory: Boolean(snapshot?.restoredUserToken),
+    cleanedLegacyStorage: false,
+    warnings: [...(snapshot?.warnings || [])],
+    restoredGameTokens: snapshot?.restoredGameTokens || {},
+    restoredUserToken: snapshot?.restoredUserToken || "",
+  };
+
+  if (!result.foundLegacyData) {
+    return result;
+  }
+
+  if (persistMetadata) {
+    for (const [roleId, tokenData] of Object.entries(
+      result.restoredGameTokens,
+    )) {
+      await putGameToken(roleId, tokenData);
+      result.migratedMetadataCount += 1;
+    }
+  }
+
+  if (snapshot?.hasParseFailure) {
+    result.warnings.push(
+      "legacy storage was not cleaned because at least one gameTokens payload could not be parsed safely",
+    );
+    return result;
+  }
+
+  const cleanupResult = await clearLegacyWebStorageIfNeeded();
+  result.cleanedLegacyStorage = Boolean(cleanupResult.cleanedLocalStorage);
+  if (cleanupResult.error) {
+    result.warnings.push(cleanupResult.error);
+  }
+  if (Array.isArray(cleanupResult.warnings)) {
+    result.warnings.push(...cleanupResult.warnings);
+  }
+
+  return result;
 }

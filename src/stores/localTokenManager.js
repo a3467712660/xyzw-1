@@ -7,6 +7,8 @@ import {
   deleteGameToken as dbDeleteGameToken,
   getAllGameTokens as dbGetAllGameTokens,
   putGameToken as dbPutGameToken,
+  migrateFromLocalStorageIfNeeded,
+  readLegacyWebStorageSnapshot,
 } from "@/utils/tokenDb";
 import { safeModeEnabled } from "@/services/token/tokenStorage";
 import {
@@ -134,6 +136,40 @@ const normalizeImportPayload = (tokenData) => {
     userToken: safeUserToken,
     gameTokens: safeGameTokens,
   };
+};
+
+const mergeLegacyTokensIntoMemory = (dbTokens = {}, legacyTokens = {}) => {
+  const mergedTokens = { ...(dbTokens || {}) };
+
+  Object.entries(legacyTokens || {}).forEach(([roleId, legacyToken]) => {
+    const currentToken = mergedTokens[roleId] || {};
+    const createdAt =
+      currentToken.createdAt ||
+      legacyToken.createdAt ||
+      new Date().toISOString();
+    const lastUsed = currentToken.lastUsed || legacyToken.lastUsed || createdAt;
+
+    mergedTokens[roleId] = {
+      ...legacyToken,
+      ...currentToken,
+      roleId,
+      id: currentToken.id || legacyToken.id || roleId,
+      token: legacyToken.token ?? currentToken.token,
+      actualToken: legacyToken.actualToken ?? currentToken.actualToken,
+      gameToken: legacyToken.gameToken ?? currentToken.gameToken,
+      userToken: legacyToken.userToken ?? currentToken.userToken,
+      createdAt,
+      lastUsed,
+    };
+  });
+
+  return mergedTokens;
+};
+
+const logLegacyMigrationWarnings = (warnings = []) => {
+  warnings
+    .filter(Boolean)
+    .forEach((warning) => console.warn("Legacy token migration:", warning));
 };
 
 /**
@@ -602,21 +638,44 @@ export const useLocalTokenStore = defineStore("localToken", () => {
   // 初始化
   const initTokenManager = async () => {
     try {
-      await clearLegacyWebStorageIfNeeded();
-
       if (!shouldPersistTokens()) {
         await dbClearGameTokens();
         await dbClearUserToken();
+        await clearLegacyWebStorageIfNeeded();
         userToken.value = null;
         gameTokens.value = {};
         return;
       }
 
-      // 从 IndexedDB 恢复
-      const dbTokens = await dbGetAllGameTokens();
+      const legacySnapshot = readLegacyWebStorageSnapshot();
+      const dbTokens = (await dbGetAllGameTokens()) || {};
+      const shouldPersistLegacyMetadata = Object.keys(dbTokens).length === 0;
 
-      userToken.value = null;
-      gameTokens.value = dbTokens || {};
+      userToken.value = legacySnapshot.restoredUserToken || null;
+      gameTokens.value = mergeLegacyTokensIntoMemory(
+        dbTokens,
+        legacySnapshot.restoredGameTokens,
+      );
+
+      const migrationResult = await migrateFromLocalStorageIfNeeded({
+        snapshot: legacySnapshot,
+        persistMetadata: shouldPersistLegacyMetadata,
+      });
+
+      if (migrationResult.warnings.length > 0) {
+        logLegacyMigrationWarnings(migrationResult.warnings);
+      }
+
+      if (
+        shouldPersistLegacyMetadata &&
+        migrationResult.migratedMetadataCount > 0
+      ) {
+        const migratedDbTokens = (await dbGetAllGameTokens()) || {};
+        gameTokens.value = mergeLegacyTokensIntoMemory(
+          migratedDbTokens,
+          migrationResult.restoredGameTokens,
+        );
+      }
 
       // 清理过期token（会同步更新 DB）
       cleanExpiredTokens();

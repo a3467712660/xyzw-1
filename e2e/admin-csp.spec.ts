@@ -44,6 +44,7 @@ const stubAuthenticatedAdminApis = async (page) => {
 
 test("admin page has no CSP console errors", async ({ page }) => {
   const cspErrors: string[] = [];
+  const pageErrors: string[] = [];
   page.on("console", (msg) => {
     const text = msg.text();
     if (
@@ -53,6 +54,9 @@ test("admin page has no CSP console errors", async ({ page }) => {
     ) {
       cspErrors.push(text);
     }
+  });
+  page.on("pageerror", (error) => {
+    pageErrors.push(error.message || String(error));
   });
 
   await stubAuthenticatedAdminApis(page);
@@ -66,4 +70,5 @@ test("admin page has no CSP console errors", async ({ page }) => {
   await expect(page).toHaveURL(/\/admin\/admin-users$/);
   await expect(page.locator("h1")).toContainText("账号管理");
   expect(cspErrors).toEqual([]);
+  expect(pageErrors).toEqual([]);
 });
