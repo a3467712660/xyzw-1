@@ -244,13 +244,28 @@ const parseLegacyGameTokens = (rawValue, sourceName, warnings) => {
     };
   }
 
-  const entries = Array.isArray(parsed)
-    ? parsed.map((item, index) => [item?.roleId || item?.id || index, item])
-    : isPlainObject(parsed)
-      ? Object.entries(parsed)
-      : null;
+  if (Array.isArray(parsed)) {
+    const tokens = {};
 
-  if (!entries) {
+    parsed.forEach((item, index) => {
+      const normalized = normalizeLegacyGameToken("", item);
+      if (!normalized) {
+        warnings.push(
+          `[${sourceName}] skipped legacy gameTokens array item at index "${String(index)}" because roleId/id is missing or payload is invalid`,
+        );
+        return;
+      }
+      tokens[normalized.roleId] = normalized;
+    });
+
+    return {
+      foundData: true,
+      hasParseFailure: false,
+      tokens,
+    };
+  }
+
+  if (!isPlainObject(parsed)) {
     warnings.push(
       `[${sourceName}] gameTokens must be an array or object to migrate safely`,
     );
@@ -262,7 +277,7 @@ const parseLegacyGameTokens = (rawValue, sourceName, warnings) => {
   }
 
   const tokens = {};
-  entries.forEach(([rawRoleId, tokenData], index) => {
+  Object.entries(parsed).forEach(([rawRoleId, tokenData], index) => {
     const normalized = normalizeLegacyGameToken(rawRoleId, tokenData);
     if (!normalized) {
       warnings.push(
