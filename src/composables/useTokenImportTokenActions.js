@@ -1,5 +1,9 @@
 import { fetchTokenPayloadFromUrl } from "@/services/tokenImport/tokenRemoteSource";
 import { loadBinBuffer } from "@/utils/binStorage";
+import {
+  confirmAndCopyFullToken,
+  copyMaskedToken,
+} from "@/utils/sensitiveCopy";
 import { transformToken } from "@/utils/token";
 import { Copy, Create, Refresh, SyncCircle, TrashBin } from "@vicons/ionicons5";
 import { NIcon } from "naive-ui/es";
@@ -30,8 +34,20 @@ export function useTokenImportTokenActions({
   });
 
   const editRules = {
-    name: [{ required: true, message: t("tokenImport.validation.nameRequired"), trigger: "blur" }],
-    token: [{ required: true, message: t("tokenImport.validation.tokenRequired"), trigger: "blur" }],
+    name: [
+      {
+        required: true,
+        message: t("tokenImport.validation.nameRequired"),
+        trigger: "blur",
+      },
+    ],
+    token: [
+      {
+        required: true,
+        message: t("tokenImport.validation.tokenRequired"),
+        trigger: "blur",
+      },
+    ],
   };
 
   const refreshToken = async (token, options = {}) => {
@@ -43,41 +59,48 @@ export function useTokenImportTokenActions({
           trustedOnly: true,
         });
         const parsed = tokenStore.parseBase64Token(data.token);
-        const nextToken = parsed?.success && parsed?.data?.actualToken
-          ? parsed.data.actualToken
-          : data.token;
+        const nextToken =
+          parsed?.success && parsed?.data?.actualToken
+            ? parsed.data.actualToken
+            : data.token;
         const nextRoleId = parsed?.success
           ? String(
-              parsed?.data?.activationRoleId
-              || parsed?.data?.activationGameAccountId
-              || parsed?.data?.roleId
-              || "",
+              parsed?.data?.activationRoleId ||
+                parsed?.data?.activationGameAccountId ||
+                parsed?.data?.roleId ||
+                "",
             ).trim()
           : "";
         const nextSessId = parsed?.success
           ? String(
-              parsed?.data?.activationSessId
-              || parsed?.data?.sessId
-              || "",
+              parsed?.data?.activationSessId || parsed?.data?.sessId || "",
             ).trim()
           : "";
 
         tokenStore.updateToken(token.id, {
           token: nextToken,
           sessId: nextSessId || token.sessId || "",
-          activationSessId: nextSessId || token.activationSessId || token.sessId || "",
+          activationSessId:
+            nextSessId || token.activationSessId || token.sessId || "",
           roleId: nextRoleId || token.roleId || "",
-          activationRoleId: nextRoleId || token.activationRoleId || token.activationGameAccountId || "",
+          activationRoleId:
+            nextRoleId ||
+            token.activationRoleId ||
+            token.activationGameAccountId ||
+            "",
           activationGameAccountId:
-            nextRoleId || token.activationGameAccountId || token.activationRoleId || "",
+            nextRoleId ||
+            token.activationGameAccountId ||
+            token.activationRoleId ||
+            "",
           server: data.server || token.server,
           lastRefreshed: Date.now(),
         });
 
         message.success(t("tokenImport.messages.tokenRefreshSuccess"));
       } else if (
-        token.importMethod === "wxQrcode"
-        || token.importMethod === "bin"
+        token.importMethod === "wxQrcode" ||
+        token.importMethod === "bin"
       ) {
         let userToken = await loadBinBuffer(token.id, [token.name]);
         let relinkResult = null;
@@ -90,27 +113,33 @@ export function useTokenImportTokenActions({
           const parsed = tokenStore.parseBase64Token(newToken);
           const nextRoleId = parsed?.success
             ? String(
-                parsed?.data?.activationRoleId
-                || parsed?.data?.activationGameAccountId
-                || parsed?.data?.roleId
-                || "",
+                parsed?.data?.activationRoleId ||
+                  parsed?.data?.activationGameAccountId ||
+                  parsed?.data?.roleId ||
+                  "",
               ).trim()
             : "";
           const nextSessId = parsed?.success
             ? String(
-                parsed?.data?.activationSessId
-                || parsed?.data?.sessId
-                || "",
+                parsed?.data?.activationSessId || parsed?.data?.sessId || "",
               ).trim()
             : "";
           tokenStore.updateToken(token.id, {
             token: newToken,
             sessId: nextSessId || token.sessId || "",
-            activationSessId: nextSessId || token.activationSessId || token.sessId || "",
+            activationSessId:
+              nextSessId || token.activationSessId || token.sessId || "",
             roleId: nextRoleId || token.roleId || "",
-            activationRoleId: nextRoleId || token.activationRoleId || token.activationGameAccountId || "",
+            activationRoleId:
+              nextRoleId ||
+              token.activationRoleId ||
+              token.activationGameAccountId ||
+              "",
             activationGameAccountId:
-              nextRoleId || token.activationGameAccountId || token.activationRoleId || "",
+              nextRoleId ||
+              token.activationGameAccountId ||
+              token.activationRoleId ||
+              "",
             lastRefreshed: Date.now(),
             binSourceState: "available",
             binSourceMissingAt: null,
@@ -144,11 +173,9 @@ export function useTokenImportTokenActions({
             }
 
             setTimeout(() => {
-              tokenStore.createWebSocketConnection(
-                token.id,
-                token.token,
-                token.wsUrl,
-              ).catch(() => {});
+              tokenStore
+                .createWebSocketConnection(token.id, token.token, token.wsUrl)
+                .catch(() => {});
               message.info(t("tokenImport.messages.reconnecting"));
             }, 500);
           },
@@ -159,16 +186,16 @@ export function useTokenImportTokenActions({
       if (tokenStore.getWebSocketStatus(token.id) === "connected") {
         tokenStore.closeWebSocketConnection(token.id);
         setTimeout(() => {
-          tokenStore.createWebSocketConnection(
-            token.id,
-            token.token,
-            token.wsUrl,
-          ).catch(() => {});
+          tokenStore
+            .createWebSocketConnection(token.id, token.token, token.wsUrl)
+            .catch(() => {});
         }, 500);
       }
     } catch (error) {
       console.error("刷新Token失败:", error);
-      message.error(error.message || t("tokenImport.messages.tokenRefreshFailed"));
+      message.error(
+        error.message || t("tokenImport.messages.tokenRefreshFailed"),
+      );
     } finally {
       refreshingTokens.value.delete(token.id);
     }
@@ -197,7 +224,8 @@ export function useTokenImportTokenActions({
     });
   };
 
-  const getConnectionStatus = (tokenId) => tokenStore.getWebSocketStatus(tokenId);
+  const getConnectionStatus = (tokenId) =>
+    tokenStore.getWebSocketStatus(tokenId);
 
   const getConnectionStatusText = (tokenId) => {
     const status = getConnectionStatus(tokenId);
@@ -230,8 +258,7 @@ export function useTokenImportTokenActions({
     getConnectionStatus(tokenId) === "connected" ? "green" : "red";
 
   const saveCurrentRemark = () => {
-    if (!editingRemark.value)
-      return;
+    if (!editingRemark.value) return;
 
     const editingTokenId = editingRemark.value;
     const remark = tempRemarks.value[editingTokenId] || "";
@@ -259,31 +286,37 @@ export function useTokenImportTokenActions({
     const connectionStatus = getConnectionStatus(token.id);
 
     if (
-      isAlreadySelected
-      && connectionStatus === "connected"
-      && !forceReconnect
+      isAlreadySelected &&
+      connectionStatus === "connected" &&
+      !forceReconnect
     ) {
       tokenStore.closeWebSocketConnection(token.id);
-      message.success(t("tokenImport.messages.disconnectedToken", { name: token.name }));
+      message.success(
+        t("tokenImport.messages.disconnectedToken", { name: token.name }),
+      );
       return;
     }
 
     if (
-      !isAlreadySelected
-      && connectionStatus === "connected"
-      && !forceReconnect
+      !isAlreadySelected &&
+      connectionStatus === "connected" &&
+      !forceReconnect
     ) {
       tokenStore.closeWebSocketConnection(token.id);
-      message.success(t("tokenImport.messages.disconnectedToken", { name: token.name }));
+      message.success(
+        t("tokenImport.messages.disconnectedToken", { name: token.name }),
+      );
       return;
     }
 
     if (
-      isAlreadySelected
-      && connectionStatus === "connecting"
-      && !forceReconnect
+      isAlreadySelected &&
+      connectionStatus === "connecting" &&
+      !forceReconnect
     ) {
-      message.info(t("tokenImport.messages.tokenConnecting", { name: token.name }));
+      message.info(
+        t("tokenImport.messages.tokenConnecting", { name: token.name }),
+      );
       return;
     }
 
@@ -291,14 +324,22 @@ export function useTokenImportTokenActions({
 
     if (result) {
       if (forceReconnect) {
-        message.success(t("tokenImport.messages.forceReconnect", { name: token.name }));
+        message.success(
+          t("tokenImport.messages.forceReconnect", { name: token.name }),
+        );
       } else if (isAlreadySelected) {
-        message.success(t("tokenImport.messages.reselectedReconnect", { name: token.name }));
+        message.success(
+          t("tokenImport.messages.reselectedReconnect", { name: token.name }),
+        );
       } else {
-        message.success(t("tokenImport.messages.selectedToken", { name: token.name }));
+        message.success(
+          t("tokenImport.messages.selectedToken", { name: token.name }),
+        );
       }
     } else {
-      message.error(t("tokenImport.messages.selectTokenFailed", { name: token.name }));
+      message.error(
+        t("tokenImport.messages.selectTokenFailed", { name: token.name }),
+      );
     }
   };
 
@@ -311,7 +352,12 @@ export function useTokenImportTokenActions({
       },
       {
         label: t("tokenImport.menu.copyToken"),
-        key: "copy",
+        key: "copy-masked",
+        icon: () => h(NIcon, null, { default: () => h(Copy) }),
+      },
+      {
+        label: t("tokenImport.menu.copyFullToken"),
+        key: "copy-full",
         icon: () => h(NIcon, null, { default: () => h(Copy) }),
       },
     ];
@@ -361,8 +407,7 @@ export function useTokenImportTokenActions({
   };
 
   const saveEdit = async () => {
-    if (!editFormRef.value || !editingToken.value)
-      return;
+    if (!editFormRef.value || !editingToken.value) return;
 
     try {
       await editFormRef.value.validate();
@@ -383,13 +428,29 @@ export function useTokenImportTokenActions({
     }
   };
 
-  const copyToken = async (token) => {
-    try {
-      await navigator.clipboard.writeText(token.token);
-      message.success(t("tokenImport.messages.tokenCopied"));
-    } catch {
-      message.error(t("tokenImport.messages.copyFailed"));
-    }
+  const copyTokenMasked = async (token) => {
+    await copyMaskedToken({
+      token: token.token,
+      message,
+      successMessage: t("tokenImport.messages.tokenCopiedMasked"),
+      failureMessage: t("tokenImport.messages.clipboardCopyFailed"),
+    });
+  };
+
+  const copyTokenFull = (token) => {
+    confirmAndCopyFullToken({
+      token: token.token,
+      dialog,
+      message,
+      title: t("tokenImport.dialogs.copyFullToken.title"),
+      content: t("tokenImport.dialogs.copyFullToken.content"),
+      placeholder: t("tokenImport.dialogs.copyFullToken.placeholder"),
+      positiveText: t("tokenImport.common.confirm"),
+      negativeText: t("tokenImport.common.cancel"),
+      successMessage: t("tokenImport.messages.tokenCopiedFull"),
+      failureMessage: t("tokenImport.messages.clipboardCopyFailed"),
+      missingConfirmMessage: t("tokenImport.messages.copyFullConfirmMissing"),
+    });
   };
 
   const startEditRemark = (token) => {
@@ -426,8 +487,11 @@ export function useTokenImportTokenActions({
       case "edit":
         editToken(token);
         break;
-      case "copy":
-        copyToken(token);
+      case "copy-masked":
+        copyTokenMasked(token);
+        break;
+      case "copy-full":
+        copyTokenFull(token);
         break;
       case "refresh":
       case "refresh-url":

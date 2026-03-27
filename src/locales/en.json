@@ -923,16 +923,43 @@
       "clubStore": "Club Store Purchase Settings"
     },
     "tasks": {
-      "daily": { "title": "Daily Tasks", "subtitle": "Automatically complete daily tasks" },
-      "hangup": { "title": "Claim Hangup", "subtitle": "Automatically claim hangup rewards" },
-      "bottle": { "title": "Reset Bottles", "subtitle": "Automatically reset salt bottles" },
-      "tower": { "title": "Climb Tower", "subtitle": "Automatically climb the tower" },
-      "sendCar": { "title": "Smart Dispatch", "subtitle": "Refresh and dispatch automatically based on conditions" },
-      "claimCar": { "title": "Claim Cars", "subtitle": "Automatically collect dispatch rewards" },
+      "daily": {
+        "title": "Daily Tasks",
+        "subtitle": "Automatically complete daily tasks"
+      },
+      "hangup": {
+        "title": "Claim Hangup",
+        "subtitle": "Automatically claim hangup rewards"
+      },
+      "bottle": {
+        "title": "Reset Bottles",
+        "subtitle": "Automatically reset salt bottles"
+      },
+      "tower": {
+        "title": "Climb Tower",
+        "subtitle": "Automatically climb the tower"
+      },
+      "sendCar": {
+        "title": "Smart Dispatch",
+        "subtitle": "Refresh and dispatch automatically based on conditions"
+      },
+      "claimCar": {
+        "title": "Claim Cars",
+        "subtitle": "Automatically collect dispatch rewards"
+      },
       "study": { "title": "Quiz", "subtitle": "Automatically run quiz tasks" },
-      "legacy": { "title": "Claim Legacy Scrolls", "subtitle": "Automatically claim legacy scroll fragments" },
-      "arena": { "title": "Arena Battle", "subtitle": "Automatically run 3 arena battles" },
-      "clubStore": { "title": "Club Store Purchase", "subtitle": "Automatically buy items from the club store" }
+      "legacy": {
+        "title": "Claim Legacy Scrolls",
+        "subtitle": "Automatically claim legacy scroll fragments"
+      },
+      "arena": {
+        "title": "Arena Battle",
+        "subtitle": "Automatically run 3 arena battles"
+      },
+      "clubStore": {
+        "title": "Club Store Purchase",
+        "subtitle": "Automatically buy items from the club store"
+      }
     },
     "scheduleOptions": {
       "daily0100": "Every day 01:00",
@@ -1510,6 +1537,8 @@
       "addToken": "Add Token",
       "bulkActions": "Bulk Actions",
       "refresh": "Refresh",
+      "copyMaskedToken": "Copy Masked Token",
+      "copyFullToken": "Copy Full Token",
       "reacquire": "Reacquire",
       "upgradePermanent": "Upgrade to Permanent",
       "enterConsole": "Enter Console",
@@ -1605,7 +1634,8 @@
     },
     "menu": {
       "edit": "Edit",
-      "copyToken": "Copy Token",
+      "copyToken": "Copy Masked Token",
+      "copyFullToken": "Copy Full Token",
       "refreshFromUrl": "Refresh from URL",
       "reacquire": "Reacquire",
       "activateToken": "Activate/Renew",
@@ -1650,6 +1680,11 @@
         "content": "Delete token \"{name}\"? This action cannot be undone.",
         "confirm": "Delete"
       },
+      "copyFullToken": {
+        "title": "Copy Full Token",
+        "content": "The full token will be written to your clipboard and may be read by other apps. Type COPY to continue.",
+        "placeholder": "Type COPY to confirm"
+      },
       "sensitiveConfirm": {
         "title": "Secondary Verification"
       }
@@ -1670,6 +1705,10 @@
       "tokenRefreshFailed": "Failed to refresh token",
       "tokenInfoUpdated": "Token info updated",
       "tokenCopied": "Token copied to clipboard",
+      "tokenCopiedMasked": "Masked token copied to clipboard",
+      "tokenCopiedFull": "Full token copied to clipboard",
+      "copyFullConfirmMissing": "Please type COPY before copying the full token",
+      "clipboardCopyFailed": "Copy failed. Please try again.",
       "copyFailed": "Copy failed",
       "remarkSaved": "Remark saved",
       "tokenDeleted": "Token deleted",
@@ -1995,7 +2034,7 @@
       "requestTimeout": "Request timed out",
       "httpStatus": "HTTP status: {status}",
       "qrcodeUrlMissing": "QR code image URL not found",
-      "runtimeHostNotAllowed": "Host {host} is not allowed to load high-risk runtime scripts. Move this page to an isolated subdomain and set VITE_XYZW_RUNTIME_ALLOWED_HOSTS",
+      "runtimeHostNotAllowed": "Host {host} is not allowed to load high-risk runtime scripts. Configure VITE_XYZW_RUNTIME_ALLOWED_HOSTS for this deployment.",
       "loginFailed": "Login failed",
       "loginTimeout": "Login timed out",
       "loginFailedWithReason": "Login failed: {error}",

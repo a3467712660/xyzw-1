@@ -1,12 +1,12 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
 import {
+  clearLegacyWebStorageIfNeeded,
   clearGameTokens as dbClearGameTokens,
   clearUserToken as dbClearUserToken,
   deleteGameToken as dbDeleteGameToken,
   getAllGameTokens as dbGetAllGameTokens,
   putGameToken as dbPutGameToken,
-  migrateFromLocalStorageIfNeeded,
 } from "@/utils/tokenDb";
 import { safeModeEnabled } from "@/services/token/tokenStorage";
 import {
@@ -61,22 +61,18 @@ const isPlainObject = (value) =>
   value && typeof value === "object" && !Array.isArray(value);
 
 const normalizeImportValue = (value) => {
-  if (value === null)
-    return null;
+  if (value === null) return null;
   if (typeof value === "string")
     return value.slice(0, MAX_IMPORT_STRING_LENGTH);
-  if (typeof value === "number" || typeof value === "boolean")
-    return value;
+  if (typeof value === "number" || typeof value === "boolean") return value;
   return undefined;
 };
 
 const stripSensitiveFields = (tokenData = {}) => {
-  if (!isPlainObject(tokenData))
-    return {};
+  if (!isPlainObject(tokenData)) return {};
   const sanitized = {};
   Object.entries(tokenData).forEach(([key, value]) => {
-    if (SENSITIVE_EXPORT_KEYS.has(String(key)))
-      return;
+    if (SENSITIVE_EXPORT_KEYS.has(String(key))) return;
     sanitized[key] = value;
   });
   return sanitized;
@@ -101,8 +97,7 @@ const sanitizeImportedGameTokens = (gameTokens) => {
 
     const normalizedToken = { roleId: safeRoleId };
     ALLOWED_IMPORT_TOKEN_KEYS.forEach((key) => {
-      if (!(key in tokenData))
-        return;
+      if (!(key in tokenData)) return;
       const normalized = normalizeImportValue(tokenData[key]);
       if (normalized !== undefined) {
         normalizedToken[key] = normalized;
@@ -131,7 +126,8 @@ const normalizeImportPayload = (tokenData) => {
 
   const rawPayload = isPlainObject(root.payload) ? root.payload : root;
   const userTokenValue = normalizeImportValue(rawPayload.userToken);
-  const safeUserToken = typeof userTokenValue === "string" ? userTokenValue : null;
+  const safeUserToken =
+    typeof userTokenValue === "string" ? userTokenValue : null;
   const safeGameTokens = sanitizeImportedGameTokens(rawPayload.gameTokens);
 
   return {
@@ -159,8 +155,7 @@ export const useLocalTokenStore = defineStore("localToken", () => {
   const shouldPersistTokens = () => !safeModeEnabled.value;
 
   const persistGameToken = (roleId, tokenData) => {
-    if (!shouldPersistTokens())
-      return;
+    if (!shouldPersistTokens()) return;
     dbPutGameToken(roleId, tokenData).catch((e) =>
       console.warn("保存游戏Token失败:", sanitizeErrorForDisplay(e)),
     );
@@ -317,7 +312,8 @@ export const useLocalTokenStore = defineStore("localToken", () => {
         );
         if (wsConnections.value[roleId]) {
           wsConnections.value[roleId].status = "error";
-          wsConnections.value[roleId].lastError = sanitizeErrorForDisplay(error);
+          wsConnections.value[roleId].lastError =
+            sanitizeErrorForDisplay(error);
         }
       };
 
@@ -338,13 +334,13 @@ export const useLocalTokenStore = defineStore("localToken", () => {
 
       // 构建WebSocket URL
       const baseWsUrl = "wss://xxz-xyzw.hortorgames.com/agent";
-      const wsUrl
-        = customWsUrl
-          || WsAgent.buildUrl(baseWsUrl, {
-            p: actualToken,
-            e: "x",
-            lang: "chinese",
-          });
+      const wsUrl =
+        customWsUrl ||
+        WsAgent.buildUrl(baseWsUrl, {
+          p: actualToken,
+          e: "x",
+          lang: "chinese",
+        });
       const maskedWsUrl = sanitizeWsUrl(wsUrl);
 
       // 保存连接信息
@@ -411,8 +407,8 @@ export const useLocalTokenStore = defineStore("localToken", () => {
         connection.agent.close();
       } else if (
         // 如果是旧的WebSocket实例
-        connection.connection
-        && typeof connection.connection.close === "function"
+        connection.connection &&
+        typeof connection.connection.close === "function"
       ) {
         connection.connection.close();
       }
@@ -525,14 +521,15 @@ export const useLocalTokenStore = defineStore("localToken", () => {
   // 批量导入/导出功能
   const exportTokens = (options = {}) => {
     const mode = options.mode === "full" ? "full" : "metadata";
-    const exportGameTokens = mode === "full"
-      ? gameTokens.value
-      : Object.fromEntries(
-          Object.entries(gameTokens.value || {}).map(([roleId, data]) => [
-            roleId,
-            stripSensitiveFields(data),
-          ]),
-        );
+    const exportGameTokens =
+      mode === "full"
+        ? gameTokens.value
+        : Object.fromEntries(
+            Object.entries(gameTokens.value || {}).map(([roleId, data]) => [
+              roleId,
+              stripSensitiveFields(data),
+            ]),
+          );
     return {
       version: 1,
       format: "xyzw-token-export",
@@ -605,8 +602,7 @@ export const useLocalTokenStore = defineStore("localToken", () => {
   // 初始化
   const initTokenManager = async () => {
     try {
-      // 一次性迁移旧 localStorage 数据（如有）
-      await migrateFromLocalStorageIfNeeded();
+      await clearLegacyWebStorageIfNeeded();
 
       if (!shouldPersistTokens()) {
         await dbClearGameTokens();
@@ -625,7 +621,10 @@ export const useLocalTokenStore = defineStore("localToken", () => {
       // 清理过期token（会同步更新 DB）
       cleanExpiredTokens();
     } catch (e) {
-      console.warn("初始化Token管理器失败，回退为空:", sanitizeErrorForDisplay(e));
+      console.warn(
+        "初始化Token管理器失败，回退为空:",
+        sanitizeErrorForDisplay(e),
+      );
       userToken.value = null;
       gameTokens.value = {};
     }

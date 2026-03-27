@@ -28,6 +28,8 @@
     "security:lockfiles": "node ./scripts/security/check-lockfiles.mjs",
     "security:build-mode": "node ./scripts/security/check-build-mode.mjs",
     "security:csp": "node ./scripts/security/check-csp.mjs",
+    "e2e:install": "playwright install --with-deps chromium",
+    "e2e:security": "playwright test",
     "security:licenses": "node ./scripts/security/check-prod-licenses.mjs",
     "security:audit": "npm audit --omit=dev --audit-level=high && npm --prefix backend audit --omit=dev --audit-level=high",
     "security:sca": "npm run security:lockfiles && npm run security:build-mode && npm run security:csp && npm run security:licenses && npm run security:audit",

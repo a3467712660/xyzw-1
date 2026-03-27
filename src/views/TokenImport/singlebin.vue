@@ -6,7 +6,10 @@
     :model="importForm"
     :show-label="true"
   >
-    <NFormItem :label="t('tokenImportSingleBin.fields.name')" :show-label="true">
+    <NFormItem
+      :label="t('tokenImportSingleBin.fields.name')"
+      :show-label="true"
+    >
       <NInput
         clearable
         v-model:value="importForm.name"
@@ -14,7 +17,10 @@
       ></NInput>
     </NFormItem>
 
-    <NFormItem :label="t('tokenImportSingleBin.fields.binFile')" :show-label="true">
+    <NFormItem
+      :label="t('tokenImportSingleBin.fields.binFile')"
+      :show-label="true"
+    >
       <a-upload
         clearable
         draggable
@@ -31,18 +37,43 @@
     </NFormItem>
     <a-list>
       <a-list-item v-for="(role, index) in roleList" :key="index">
-        <div>
-          <strong>{{ t("tokenImportSingleBin.roleLabels.name") }}</strong> {{ role.name || t("tokenImportSingleBin.roleFallbacks.unnamed") }}<br>
+        <div class="queued-role-item">
+          <strong>{{ t("tokenImportSingleBin.roleLabels.name") }}</strong>
+          {{ role.name || t("tokenImportSingleBin.roleFallbacks.unnamed")
+          }}<br>
           <strong>{{ t("tokenImportSingleBin.roleLabels.token") }}</strong>
-          <span style="word-break: break-all">{{ role.token }}</span><br>
-          <strong>{{ t("tokenImportSingleBin.roleLabels.server") }}</strong> {{ role.server || t("tokenImportSingleBin.roleFallbacks.unspecified") }}
+          <span class="word-break-all">{{ maskedRoleToken(role.token) }}</span
+          ><br>
+          <strong>{{ t("tokenImportSingleBin.roleLabels.server") }}</strong>
+          {{
+            role.server || t("tokenImportSingleBin.roleFallbacks.unspecified")
+          }}
+          <div class="queued-role-actions">
+            <NButton
+              secondary
+              size="tiny"
+              @click="copyMaskedRoleToken(role.token)"
+            >
+              {{ t("tokenImport.actions.copyMaskedToken") }}
+            </NButton>
+            <NButton
+              tertiary
+              size="tiny"
+              @click="copyFullRoleToken(role.token)"
+            >
+              {{ t("tokenImport.actions.copyFullToken") }}
+            </NButton>
+          </div>
         </div>
       </a-list-item>
     </a-list>
 
     <!-- 角色详情 -->
     <NCollapse>
-      <NCollapseItem name="optional" :title="t('tokenImportSingleBin.optional.title')">
+      <NCollapseItem
+        name="optional"
+        :title="t('tokenImportSingleBin.optional.title')"
+      >
         <div class="optional-fields">
           <NFormItem :label="t('tokenImportSingleBin.fields.server')">
             <NInput
@@ -53,18 +84,17 @@
         </div>
 
         <NCollapse class="mt-8">
-          <NCollapseItem name="advancedWs" :title="t('tokenImport.wsSecurity.advancedSettings')">
+          <NCollapseItem
+            name="advancedWs"
+            :title="t('tokenImport.wsSecurity.advancedSettings')"
+          >
             <NFormItem :label="t('tokenImportSingleBin.fields.wsUrl')">
               <NInput
                 v-model:value="importForm.wsUrl"
                 :placeholder="t('tokenImportSingleBin.placeholders.wsUrl')"
               ></NInput>
             </NFormItem>
-            <NAlert
-              v-if="wsRisk.shouldWarn"
-              type="error"
-              :show-icon="true"
-            >
+            <NAlert v-if="wsRisk.shouldWarn" type="error" :show-icon="true">
               {{ t("tokenImport.wsSecurity.riskWarning") }}
             </NAlert>
           </NCollapseItem>
@@ -111,12 +141,18 @@ import {
   NFormItem,
   NIcon,
   NInput,
+  useDialog,
   useMessage,
 } from "naive-ui/es";
 
 import PQueue from "p-queue";
 import { getTokenId, transformToken } from "@/utils/token";
 import { saveBinBuffer } from "@/utils/binStorage";
+import { maskToken } from "@/utils/securitySanitizer";
+import {
+  confirmAndCopyFullToken,
+  copyMaskedToken,
+} from "@/utils/sensitiveCopy";
 
 const $emit = defineEmits(["cancel", "ok"]);
 
@@ -127,6 +163,7 @@ const cancel = () => {
 
 const tokenStore = useTokenStore();
 const message = useMessage();
+const dialog = useDialog();
 const { t } = useI18n();
 const isImporting = ref(false);
 const importForm = reactive({
@@ -148,12 +185,37 @@ const roleList = ref<
     importMethod: string;
   }>
 >([]);
+const maskedRoleToken = (token: string) => maskToken(token, 4, 4) || "***";
+
+const copyMaskedRoleToken = async (token: string) => {
+  await copyMaskedToken({
+    token,
+    message,
+    successMessage: t("tokenImport.messages.tokenCopiedMasked"),
+    failureMessage: t("tokenImport.messages.clipboardCopyFailed"),
+  });
+};
+
+const copyFullRoleToken = (token: string) => {
+  confirmAndCopyFullToken({
+    token,
+    dialog,
+    message,
+    title: t("tokenImport.dialogs.copyFullToken.title"),
+    content: t("tokenImport.dialogs.copyFullToken.content"),
+    placeholder: t("tokenImport.dialogs.copyFullToken.placeholder"),
+    positiveText: t("tokenImport.common.confirm"),
+    negativeText: t("tokenImport.common.cancel"),
+    successMessage: t("tokenImport.messages.tokenCopiedFull"),
+    failureMessage: t("tokenImport.messages.clipboardCopyFailed"),
+    missingConfirmMessage: t("tokenImport.messages.copyFullConfirmMissing"),
+  });
+};
 
 const tQueue = new PQueue({ concurrency: 1, interval: 1000 });
 
 const initName = (fileName: string) => {
-  if (!fileName)
-    return;
+  if (!fileName) return;
   fileName = fileName.trim();
   const binRes = fileName.match(/^bin-(.*?)服-([0-2])-(\d{6,12})-(.*)\.bin$/);
   if (binRes) {
@@ -193,7 +255,11 @@ const uploadBin = (binFile: File) => {
       // 检查待上传的角色是否已在tokenStore中存在
       const existingToken = tokenStore.gameTokens.find((t) => t.id === tokenId);
       if (existingToken) {
-        message.warning(t("tokenImportSingleBin.messages.roleExistsWillUpdate", { name: roleName }));
+        message.warning(
+          t("tokenImportSingleBin.messages.roleExistsWillUpdate", {
+            name: roleName,
+          }),
+        );
       }
       message.success(t("tokenImportSingleBin.messages.tokenReadSuccess"));
       roleList.value.push({
@@ -261,6 +327,18 @@ const handleImport = async () => {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.queued-role-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.queued-role-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .dropzone-content {

@@ -2,10 +2,13 @@ import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
 import path from "path";
 import { fileURLToPath } from "url";
+import { parseHostPatterns } from "./src/utils/hostAllowlist.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const parseBoolEnv = (value, fallback = false) => {
-  const normalized = String(value || "").trim().toLowerCase();
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase();
   if (!normalized) return fallback;
   if (["1", "true", "yes", "on"].includes(normalized)) return true;
   if (["0", "false", "no", "off"].includes(normalized)) return false;
@@ -153,9 +156,18 @@ export default defineConfig(async ({ command, mode }) => {
     vueI18nPlugin,
   ].filter(Boolean);
   const isDebugMode = mode === "debug";
-  const exposeHost = parseBoolEnv(process.env.VITE_DEV_EXPOSE_HOST, isDebugMode);
-  const enableDebugProxy = parseBoolEnv(process.env.VITE_DEV_DEBUG_PROXY, isDebugMode);
+  const exposeHost = parseBoolEnv(
+    process.env.VITE_DEV_EXPOSE_HOST,
+    isDebugMode,
+  );
+  const enableDebugProxy = parseBoolEnv(
+    process.env.VITE_DEV_DEBUG_PROXY,
+    isDebugMode,
+  );
   const autoOpenBrowser = parseBoolEnv(process.env.VITE_DEV_OPEN, isDebugMode);
+  const configuredDevAllowedHosts = parseHostPatterns(
+    process.env.VITE_DEV_ALLOWED_HOSTS,
+  );
   if (command === "build" && (isDebugMode || enableDebugProxy)) {
     throw new Error(
       "Refusing to build with debug mode or debug proxy enabled. Use production mode with VITE_DEV_DEBUG_PROXY=false.",
@@ -164,10 +176,8 @@ export default defineConfig(async ({ command, mode }) => {
   const devHost = exposeHost
     ? String(process.env.VITE_DEV_HOST || "0.0.0.0").trim() || "0.0.0.0"
     : "127.0.0.1";
-  const devAllowedHosts = exposeHost ? ["cn.xq5007.fun", "xyzw.xq5007.fun"] : [];
-  const previewAllowedHosts = Array.from(
-    new Set(["xyzw.xq5007.fun", ...devAllowedHosts]),
-  );
+  const devAllowedHosts = exposeHost ? configuredDevAllowedHosts : [];
+  const previewAllowedHosts = configuredDevAllowedHosts;
   const devProxy = enableDebugProxy
     ? {
         ...coreDevProxy,
@@ -201,8 +211,8 @@ export default defineConfig(async ({ command, mode }) => {
                 return "vendor-i18n";
               }
               if (
-                id.includes("/@arco-design/web-vue/es/date-picker/")
-                || id.includes("/@arco-design/web-vue/es/time-picker/")
+                id.includes("/@arco-design/web-vue/es/date-picker/") ||
+                id.includes("/@arco-design/web-vue/es/time-picker/")
               ) {
                 return "vendor-arco-date";
               }
@@ -231,9 +241,9 @@ export default defineConfig(async ({ command, mode }) => {
                 return "vendor-lodash";
               }
               if (
-                id.includes("/date-fns/")
-                || id.includes("/date-fns-tz/")
-                || id.includes("/dayjs/")
+                id.includes("/date-fns/") ||
+                id.includes("/date-fns-tz/") ||
+                id.includes("/dayjs/")
               ) {
                 return "vendor-date";
               }
@@ -260,44 +270,44 @@ export default defineConfig(async ({ command, mode }) => {
             }
 
             if (
-              id.includes("/src/utils/batch/daily.js")
-              || id.includes("/src/utils/batch/tasksBottle.js")
-              || id.includes("/src/utils/batch/tasksHangUp.js")
-              || id.includes("/src/utils/batch/tasksItem.js")
+              id.includes("/src/utils/batch/daily.js") ||
+              id.includes("/src/utils/batch/tasksBottle.js") ||
+              id.includes("/src/utils/batch/tasksHangUp.js") ||
+              id.includes("/src/utils/batch/tasksItem.js")
             ) {
               return "task-control-daily";
             }
 
             if (
-              id.includes("/src/utils/batch/combat.js")
-              || id.includes("/src/utils/batch/tasksArena.js")
-              || id.includes("/src/utils/batch/tasksDungeon.js")
-              || id.includes("/src/utils/batch/tasksTower.js")
+              id.includes("/src/utils/batch/combat.js") ||
+              id.includes("/src/utils/batch/tasksArena.js") ||
+              id.includes("/src/utils/batch/tasksDungeon.js") ||
+              id.includes("/src/utils/batch/tasksTower.js")
             ) {
               return "task-control-combat";
             }
 
             if (
-              id.includes("/src/utils/batch/resource.js")
-              || id.includes("/src/utils/batch/tasksCar.js")
-              || id.includes("/src/utils/batch/tasksLegacy.js")
-              || id.includes("/src/utils/batch/tasksStore.js")
+              id.includes("/src/utils/batch/resource.js") ||
+              id.includes("/src/utils/batch/tasksCar.js") ||
+              id.includes("/src/utils/batch/tasksLegacy.js") ||
+              id.includes("/src/utils/batch/tasksStore.js")
             ) {
               return "task-control-resource";
             }
 
             if (
-              id.includes("/src/views/BatchDailyTasks.vue")
-              || id.includes("/src/composables/useBatch")
-              || id.includes("/src/composables/useScheduledTask")
-              || id.includes("/src/composables/useTokenGroupManager")
-              || id.includes("/src/composables/useTaskTemplateManager")
-              || id.includes("/src/composables/useTokenTaskSettings")
-              || id.includes("/src/composables/useWarGuessManager")
-              || id.includes("/src/composables/useLegacyGiftManager")
-              || id.includes("/src/composables/createBatchTaskDeps")
-              || id.includes("/src/utils/batch/")
-              || id.includes("/src/utils/dailyTaskRunner")
+              id.includes("/src/views/BatchDailyTasks.vue") ||
+              id.includes("/src/composables/useBatch") ||
+              id.includes("/src/composables/useScheduledTask") ||
+              id.includes("/src/composables/useTokenGroupManager") ||
+              id.includes("/src/composables/useTaskTemplateManager") ||
+              id.includes("/src/composables/useTokenTaskSettings") ||
+              id.includes("/src/composables/useWarGuessManager") ||
+              id.includes("/src/composables/useLegacyGiftManager") ||
+              id.includes("/src/composables/createBatchTaskDeps") ||
+              id.includes("/src/utils/batch/") ||
+              id.includes("/src/utils/dailyTaskRunner")
             ) {
               return "task-control-runner";
             }

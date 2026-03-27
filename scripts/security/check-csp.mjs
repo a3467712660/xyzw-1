@@ -32,11 +32,30 @@ const parseDirectives = (rawCsp) => {
 
 const hasToken = (arr, token) => Array.isArray(arr) && arr.includes(token);
 const isExplicitConnectSrc = (connectSrc) =>
-  !connectSrc.includes("https:")
-  && !connectSrc.includes("http:")
-  && !connectSrc.includes("wss:")
-  && !connectSrc.includes("ws:")
-  && !connectSrc.includes("*");
+  !connectSrc.includes("https:") &&
+  !connectSrc.includes("http:") &&
+  !connectSrc.includes("wss:") &&
+  !connectSrc.includes("ws:") &&
+  !connectSrc.includes("*");
+const assertSelfOnlyScriptSrc = (scriptSrc, label) => {
+  if (!hasToken(scriptSrc, "'self'")) {
+    addError(`${label}: script-src must include "'self'"`);
+  }
+  if (
+    hasToken(scriptSrc, "'unsafe-inline'") ||
+    hasToken(scriptSrc, "'unsafe-eval'")
+  ) {
+    addError(
+      `${label}: script-src must not include 'unsafe-inline' or 'unsafe-eval'`,
+    );
+  }
+  const extraSources = scriptSrc.filter((token) => token !== "'self'");
+  if (extraSources.length > 0) {
+    addError(
+      `${label}: script-src must not allow extra sources (${extraSources.join(", ")})`,
+    );
+  }
+};
 
 const errorMessages = [];
 const addError = (message) => errorMessages.push(`[security:csp] ${message}`);
@@ -45,7 +64,9 @@ let raw;
 try {
   raw = fs.readFileSync(configPath, "utf8");
 } catch (error) {
-  console.error(`[security:csp] failed to read ${configPath}: ${error.message}`);
+  console.error(
+    `[security:csp] failed to read ${configPath}: ${error.message}`,
+  );
   process.exit(1);
 }
 
@@ -53,7 +74,9 @@ let config;
 try {
   config = JSON.parse(raw);
 } catch (error) {
-  console.error(`[security:csp] invalid JSON in staticwebapp.config.json: ${error.message}`);
+  console.error(
+    `[security:csp] invalid JSON in staticwebapp.config.json: ${error.message}`,
+  );
   process.exit(1);
 }
 
@@ -67,11 +90,11 @@ if (!globalCsp) {
   const objectSrc = directives.get("object-src") || [];
   const frameAncestors = directives.get("frame-ancestors") || [];
 
-  if (hasToken(scriptSrc, "'unsafe-inline'") || hasToken(scriptSrc, "'unsafe-eval'")) {
-    addError("global script-src must not include 'unsafe-inline' or 'unsafe-eval'");
-  }
+  assertSelfOnlyScriptSrc(scriptSrc, "global");
   if (!isExplicitConnectSrc(connectSrc)) {
-    addError("global connect-src must use explicit allowlist entries (no protocol wildcards or *)");
+    addError(
+      "global connect-src must use explicit allowlist entries (no protocol wildcards or *)",
+    );
   }
   if (!hasToken(objectSrc, "'none'")) {
     addError("global object-src must include 'none'");
@@ -93,15 +116,19 @@ for (const route of routes) {
   }
 
   const directives = parseDirectives(routeCsp);
+  const scriptSrc = directives.get("script-src") || [];
   const connectSrc = directives.get("connect-src") || [];
 
+  assertSelfOnlyScriptSrc(scriptSrc, routePath);
   if (connectSrc.length !== 1 || connectSrc[0] !== "'self'") {
     addError(`${routePath}: connect-src must be exactly "'self'"`);
   }
 }
 
 for (const routePath of requiredAdminRoutes) {
-  const exists = routes.some((route) => String(route?.route || "") === routePath);
+  const exists = routes.some(
+    (route) => String(route?.route || "") === routePath,
+  );
   if (!exists) {
     addError(`missing required admin CSP route: ${routePath}`);
   }
@@ -117,7 +144,10 @@ const extractNginxCsp = (rawNginx, variableName) => {
 const nginxHasHeader = (rawNginx, name, value) => {
   const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const escapedValue = value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`add_header\\s+${escapedName}\\s+"${escapedValue}"\\s+always;`, "m").test(rawNginx);
+  return new RegExp(
+    `add_header\\s+${escapedName}\\s+"${escapedValue}"\\s+always;`,
+    "m",
+  ).test(rawNginx);
 };
 
 for (const nginxConfigPath of nginxConfigPaths) {
@@ -125,7 +155,9 @@ for (const nginxConfigPath of nginxConfigPaths) {
   try {
     rawNginx = fs.readFileSync(nginxConfigPath, "utf8");
   } catch (error) {
-    console.error(`[security:csp] failed to read ${nginxConfigPath}: ${error.message}`);
+    console.error(
+      `[security:csp] failed to read ${nginxConfigPath}: ${error.message}`,
+    );
     process.exit(1);
   }
 
@@ -140,11 +172,11 @@ for (const nginxConfigPath of nginxConfigPaths) {
     const objectSrc = directives.get("object-src") || [];
     const frameAncestors = directives.get("frame-ancestors") || [];
 
-    if (hasToken(scriptSrc, "'unsafe-inline'") || hasToken(scriptSrc, "'unsafe-eval'")) {
-      addError(`${label}: global script-src must not include 'unsafe-inline' or 'unsafe-eval'`);
-    }
+    assertSelfOnlyScriptSrc(scriptSrc, `${label}: global`);
     if (!isExplicitConnectSrc(connectSrc)) {
-      addError(`${label}: global connect-src must use explicit allowlist entries (no protocol wildcards or *)`);
+      addError(
+        `${label}: global connect-src must use explicit allowlist entries (no protocol wildcards or *)`,
+      );
     }
     if (!hasToken(objectSrc, "'none'")) {
       addError(`${label}: global object-src must include 'none'`);
@@ -154,12 +186,17 @@ for (const nginxConfigPath of nginxConfigPaths) {
     }
   }
 
-  const adminNginxCsp = [...rawNginx.matchAll(/set\s+\$xyzw_csp\s+"([^"]+)"/g)].map((match) => match[1])[1] || "";
+  const adminNginxCsp =
+    [...rawNginx.matchAll(/set\s+\$xyzw_csp\s+"([^"]+)"/g)].map(
+      (match) => match[1],
+    )[1] || "";
   if (!adminNginxCsp) {
     addError(`${label}: missing stricter admin $xyzw_csp policy`);
   } else {
     const directives = parseDirectives(adminNginxCsp);
+    const scriptSrc = directives.get("script-src") || [];
     const connectSrc = directives.get("connect-src") || [];
+    assertSelfOnlyScriptSrc(scriptSrc, `${label}: admin`);
     if (connectSrc.length !== 1 || connectSrc[0] !== "'self'") {
       addError(`${label}: admin connect-src must be exactly "'self'"`);
     }
@@ -168,13 +205,33 @@ for (const nginxConfigPath of nginxConfigPaths) {
   if (!nginxHasHeader(rawNginx, "X-Frame-Options", "DENY")) {
     addError(`${label}: missing X-Frame-Options DENY`);
   }
-  if (!nginxHasHeader(rawNginx, "Referrer-Policy", "strict-origin-when-cross-origin")) {
-    addError(`${label}: missing Referrer-Policy strict-origin-when-cross-origin`);
+  if (
+    !nginxHasHeader(
+      rawNginx,
+      "Referrer-Policy",
+      "strict-origin-when-cross-origin",
+    )
+  ) {
+    addError(
+      `${label}: missing Referrer-Policy strict-origin-when-cross-origin`,
+    );
   }
-  if (!nginxHasHeader(rawNginx, "Strict-Transport-Security", "max-age=31536000; includeSubDomains")) {
-    addError(`${label}: missing Strict-Transport-Security max-age=31536000; includeSubDomains`);
+  if (
+    !nginxHasHeader(
+      rawNginx,
+      "Strict-Transport-Security",
+      "max-age=31536000; includeSubDomains",
+    )
+  ) {
+    addError(
+      `${label}: missing Strict-Transport-Security max-age=31536000; includeSubDomains`,
+    );
   }
-  if (!/add_header\s+Content-Security-Policy\s+\$xyzw_csp\s+always;/m.test(rawNginx)) {
+  if (
+    !/add_header\s+Content-Security-Policy\s+\$xyzw_csp\s+always;/.test(
+      rawNginx,
+    )
+  ) {
     addError(`${label}: missing Content-Security-Policy response header`);
   }
 }

@@ -44,7 +44,6 @@ import {
   gameTokens,
   getEffectiveUserId,
   hasTokens,
-  selectedRoleInfo,
   selectedToken,
   selectedTokenId,
   tokenGroups,
@@ -62,7 +61,6 @@ import router from "@/router";
 export {
   gameTokens,
   hasTokens,
-  selectedRoleInfo,
   selectedToken,
   selectedTokenId,
   tokenGroups,
@@ -101,7 +99,9 @@ export const useTokenStore = defineStore("tokens", () => {
   const wsConnections = ref<WebCtx>({}); // WebSocket连接状态
   const connectionLocks = ref<LockCtx>({}); // 连接操作锁，防止竞态条件
 
-  const isTokenActivationExpired = (token: Partial<TokenData> | null | undefined) => {
+  const isTokenActivationExpired = (
+    token: Partial<TokenData> | null | undefined,
+  ) => {
     const raw = String(token?.activationExpiresAt || "").trim();
     if (!raw) {
       return true;
@@ -113,7 +113,9 @@ export const useTokenStore = defineStore("tokens", () => {
     return expiresTs <= Date.now();
   };
 
-  const isTokenWorkbenchReady = (token: Partial<TokenData> | null | undefined) => {
+  const isTokenWorkbenchReady = (
+    token: Partial<TokenData> | null | undefined,
+  ) => {
     const roleId = String(
       token?.activationRoleId || token?.activationGameAccountId || "",
     ).trim();
@@ -167,10 +169,12 @@ export const useTokenStore = defineStore("tokens", () => {
 
   // Token管理
   const addToken = (tokenData: TokenData) => {
-    const id = tokenData.id || `token_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const id =
+      tokenData.id ||
+      `token_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const ownerId = getEffectiveUserId() || tokenData.ownerId;
-    const isBinBacked
-      = tokenData.importMethod === "bin" || tokenData.importMethod === "wxQrcode";
+    const isBinBacked =
+      tokenData.importMethod === "bin" || tokenData.importMethod === "wxQrcode";
     const newToken = {
       id,
       ownerId,
@@ -193,20 +197,15 @@ export const useTokenStore = defineStore("tokens", () => {
       avatar: tokenData.avatar || "", // 用户头像
       activationSessId: tokenData.activationSessId || tokenData.sessId || "",
       activationRoleId:
-        tokenData.activationRoleId
-        || tokenData.activationGameAccountId
-        || "",
+        tokenData.activationRoleId || tokenData.activationGameAccountId || "",
       activationGameAccountId:
-        tokenData.activationGameAccountId
-        || tokenData.activationRoleId
-        || "",
+        tokenData.activationGameAccountId || tokenData.activationRoleId || "",
       activationRoleName: tokenData.activationRoleName || tokenData.name || "",
       activationRegion: tokenData.activationRegion || tokenData.server || "",
       activationExpiresAt: tokenData.activationExpiresAt || null,
       activationBoundAt: tokenData.activationBoundAt || null,
       binSourceState:
-        tokenData.binSourceState
-        || (isBinBacked ? "available" : undefined),
+        tokenData.binSourceState || (isBinBacked ? "available" : undefined),
       binSourceMissingAt: tokenData.binSourceMissingAt || null,
     };
 
@@ -238,7 +237,8 @@ export const useTokenStore = defineStore("tokens", () => {
     const res = await api.tokenActivation.listMine();
     const bindings = Array.isArray(res?.data) ? res.data : [];
     const matched = bindings.find(
-      (item) => String(item?.tokenId || "").trim() === String(tokenId || "").trim(),
+      (item) =>
+        String(item?.tokenId || "").trim() === String(tokenId || "").trim(),
     );
     if (!matched) {
       return null;
@@ -320,12 +320,12 @@ export const useTokenStore = defineStore("tokens", () => {
       return token;
     }
     // 智能连接判断
-    const shouldCreateConnection
-      = forceReconnect // 强制重连
-        || !isAlreadySelected // 首次选择此token
-        || !existingConnection // 没有现有连接
-        || existingConnection.status === "disconnected" // 连接已断开
-        || existingConnection.status === "error"; // 连接出错
+    const shouldCreateConnection =
+      forceReconnect || // 强制重连
+      !isAlreadySelected || // 首次选择此token
+      !existingConnection || // 没有现有连接
+      existingConnection.status === "disconnected" || // 连接已断开
+      existingConnection.status === "error"; // 连接出错
 
     if (shouldCreateConnection) {
       if (isAlreadySelected && !forceReconnect) {
@@ -337,9 +337,13 @@ export const useTokenStore = defineStore("tokens", () => {
       }
 
       // 创建WebSocket连接
-      createWebSocketConnection(tokenId, token.token, token.wsUrl).catch((error) => {
-        wsLogger.warn(`Token 连接被阻止 [${tokenId}]: ${error?.message || "unknown"}`);
-      });
+      createWebSocketConnection(tokenId, token.token, token.wsUrl).catch(
+        (error) => {
+          wsLogger.warn(
+            `Token 连接被阻止 [${tokenId}]: ${error?.message || "unknown"}`,
+          );
+        },
+      );
     } else {
       if (isConnected) {
         wsLogger.debug(`Token已连接，跳过连接创建: ${tokenId}`);
@@ -357,7 +361,10 @@ export const useTokenStore = defineStore("tokens", () => {
   const tokenRefreshAttempts = ref<Record<string, number>>({});
 
   // 尝试自动刷新Token
-  const attemptTokenRefresh = async (tokenId: string, forceReconnect = false) => {
+  const attemptTokenRefresh = async (
+    tokenId: string,
+    forceReconnect = false,
+  ) => {
     return attemptTokenRefreshById({
       tokenId,
       forceReconnect,
@@ -437,7 +444,10 @@ export const useTokenStore = defineStore("tokens", () => {
     const token = gameTokens.value.find((item) => item.id === tokenId);
     if (token) {
       const roleId = String(
-        token.activationRoleId || token.activationGameAccountId || token.roleId || "",
+        token.activationRoleId ||
+          token.activationGameAccountId ||
+          token.roleId ||
+          "",
       ).trim();
       if (!roleId) {
         throw new Error("该Token尚未激活，请先绑定角色RoleID并输入激活码");
@@ -451,24 +461,28 @@ export const useTokenStore = defineStore("tokens", () => {
       const currentActivation = {
         sessId: String(token.activationSessId || token.sessId || "").trim(),
         roleId,
-        roleName: String(
-          token.activationRoleName || token.name || "",
-        ).trim() || "未命名角色",
-        region: String(
-          token.activationRegion || token.server || "",
-        ).trim() || "未知大区",
+        roleName:
+          String(token.activationRoleName || token.name || "").trim() ||
+          "未命名角色",
+        region:
+          String(token.activationRegion || token.server || "").trim() ||
+          "未知大区",
         roleIndex: String(token.roleIndex ?? "").trim(),
       };
       let statusRes;
 
       try {
-        statusRes = await api.tokenActivation.getStatus(tokenId, currentActivation.roleId, {
-          sessId: currentActivation.sessId,
-          roleName: currentActivation.roleName,
-          region: currentActivation.region,
-          server: currentActivation.region,
-          roleIndex: currentActivation.roleIndex,
-        });
+        statusRes = await api.tokenActivation.getStatus(
+          tokenId,
+          currentActivation.roleId,
+          {
+            sessId: currentActivation.sessId,
+            roleName: currentActivation.roleName,
+            region: currentActivation.region,
+            server: currentActivation.region,
+            roleIndex: currentActivation.roleIndex,
+          },
+        );
       } catch (error: any) {
         const message = String(error?.message || "").trim();
         if (!message.includes("未绑定当前账号标识")) {
@@ -480,13 +494,17 @@ export const useTokenStore = defineStore("tokens", () => {
           throw error;
         }
 
-        statusRes = await api.tokenActivation.getStatus(tokenId, binding.roleId, {
-          sessId: binding.sessId,
-          roleName: binding.roleName || currentActivation.roleName,
-          region: binding.region || currentActivation.region,
-          server: binding.region || currentActivation.region,
-          roleIndex: binding.roleIndex || currentActivation.roleIndex,
-        });
+        statusRes = await api.tokenActivation.getStatus(
+          tokenId,
+          binding.roleId,
+          {
+            sessId: binding.sessId,
+            roleName: binding.roleName || currentActivation.roleName,
+            region: binding.region || currentActivation.region,
+            server: binding.region || currentActivation.region,
+            roleIndex: binding.roleIndex || currentActivation.roleIndex,
+          },
+        );
 
         updateToken(tokenId, {
           activationSessId: binding.sessId || currentActivation.sessId,
@@ -494,7 +512,8 @@ export const useTokenStore = defineStore("tokens", () => {
           activationGameAccountId: binding.roleId,
           activationRoleName: binding.roleName || currentActivation.roleName,
           activationRegion: binding.region || currentActivation.region,
-          activationExpiresAt: binding.expiresAt || token.activationExpiresAt || null,
+          activationExpiresAt:
+            binding.expiresAt || token.activationExpiresAt || null,
           activationBoundAt: binding.boundAt || token.activationBoundAt || null,
         });
       }
@@ -519,8 +538,10 @@ export const useTokenStore = defineStore("tokens", () => {
         activationRegion: String(
           statusRes?.data?.region || currentActivation.region,
         ).trim(),
-        activationExpiresAt: statusRes?.data?.expiresAt || token.activationExpiresAt || null,
-        activationBoundAt: statusRes?.data?.boundAt || token.activationBoundAt || null,
+        activationExpiresAt:
+          statusRes?.data?.expiresAt || token.activationExpiresAt || null,
+        activationBoundAt:
+          statusRes?.data?.boundAt || token.activationBoundAt || null,
       });
     }
 
@@ -677,18 +698,18 @@ export const useTokenStore = defineStore("tokens", () => {
       logger: gameLogger,
     });
     const resolvedName = String(
-      roleInfo?.role?.name
-      || roleInfo?.name
-      || roleInfo?.roleInfo?.name
-      || roleInfo?.role_info?.name
-      || "",
+      roleInfo?.role?.name ||
+        roleInfo?.name ||
+        roleInfo?.roleInfo?.name ||
+        roleInfo?.role_info?.name ||
+        "",
     ).trim();
     const resolvedServer = String(
-      roleInfo?.role?.serverName
-      || roleInfo?.serverName
-      || roleInfo?.role?.server
-      || roleInfo?.server
-      || "",
+      roleInfo?.role?.serverName ||
+        roleInfo?.serverName ||
+        roleInfo?.role?.server ||
+        roleInfo?.server ||
+        "",
     ).trim();
     if (resolvedName || resolvedServer) {
       updateToken(tokenId, {
@@ -715,11 +736,7 @@ export const useTokenStore = defineStore("tokens", () => {
 
   // 发送领取日常任务奖励
   const sendClaimDailyReward = (tokenId: string, rewardId = 0) => {
-    return sendClaimDailyRewardById(
-      tokenId,
-      rewardId,
-      sendMessageWithPromise,
-    );
+    return sendClaimDailyRewardById(tokenId, rewardId, sendMessageWithPromise);
   };
 
   // 发送获取队伍信息
@@ -773,8 +790,8 @@ export const useTokenStore = defineStore("tokens", () => {
   const validateConnectionUniqueness = (tokenId: string) => {
     const connections = Object.values(wsConnections.value).filter(
       (conn) =>
-        conn.tokenId === tokenId
-        && (conn.status === "connecting" || conn.status === "connected"),
+        conn.tokenId === tokenId &&
+        (conn.status === "connecting" || conn.status === "connected"),
     );
 
     if (connections.length > 1) {
@@ -831,23 +848,6 @@ export const useTokenStore = defineStore("tokens", () => {
         group.ownerId ? group : { ...group, ownerId: userId },
       );
     }
-
-    // // 恢复数据
-    // const savedTokens = localStorage.getItem('gameTokens')
-    // const savedSelectedId = localStorage.getItem('selectedTokenId')
-
-    // if (savedTokens) {
-    //   try {
-    //     gameTokens.value = JSON.parse(savedTokens)
-    //   } catch (error) {
-    //     tokenLogger.error('解析Token数据失败:', error.message)
-    //     gameTokens.value = []
-    //   }
-    // }
-
-    // if (savedSelectedId) {
-    //   selectedTokenId.value = savedSelectedId
-    // }
 
     // 清理过期token
     cleanExpiredTokens();
@@ -968,8 +968,8 @@ export const useTokenStore = defineStore("tokens", () => {
       console.log("解析结果:", sanitizeForLog(parseResult));
       if (parseResult.success) {
         const maskedToken = String(parseResult.data.actualToken || "");
-        const safePreview
-          = maskedToken.length > 8
+        const safePreview =
+          maskedToken.length > 8
             ? `${maskedToken.slice(0, 4)}***${maskedToken.slice(-4)}`
             : "***";
         console.log("实际Token(掩码):", safePreview);

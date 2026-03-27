@@ -45,6 +45,7 @@ ENABLE_LEGACY_FLASK=1 bash ./start-safe.sh
 详细约束见：[server/README.md](server/README.md)
 
 当前仓库是 **前后端一体项目**：
+
 - 前端：Vue 3 + Vite（默认 `http://localhost:3000`）
 - 后端：Express + WebSocket + SQLite (`better-sqlite3`)（默认 `http://localhost:8787`）
 
@@ -61,11 +62,13 @@ ENABLE_LEGACY_FLASK=1 bash ./start-safe.sh
   - BIN 文件服务与用户隔离存储
 
 后端的详细接口、环境变量与启动说明见：
+
 - [backend/README.md](backend/README.md)
 
 ## 功能概览
 
 ### 用户侧
+
 - 登录 / 注册 / 忘记密码
 - Token 导入（手动、URL、BIN、批量）
 - 角色管理（新增、编辑、删除、详情）
@@ -75,6 +78,7 @@ ENABLE_LEGACY_FLASK=1 bash ./start-safe.sh
 - 个人资料与偏好设置
 
 ### 管理员侧
+
 - 用户列表与管理员权限调整
 - 用户密码重置 / 重置码生成
 - 邀请码管理
@@ -86,6 +90,7 @@ ENABLE_LEGACY_FLASK=1 bash ./start-safe.sh
   - 当前口径：该页面默认仅展示带 `[backend]` 标记的服务端调度日志，不再混入前端手动执行日志。
 
 ### 系统能力
+
 - `/ws` WebSocket 推送（如任务完成事件）
 - BIN 文件存储与清理
 - 任务控制日志自动清理
@@ -121,6 +126,7 @@ cp backend/.env.example backend/.env
 ```
 
 至少需要修改以下字段（否则后端会拒绝启动）：
+
 - `JWT_SECRET`
 - `AES_KEY`
 
@@ -130,7 +136,7 @@ cp backend/.env.example backend/.env
 BACKEND_PORT=8787
 JWT_SECRET=replace-with-your-own-long-random-secret
 AES_KEY=replace-with-your-own-long-random-secret
-CORS_ORIGINS=http://localhost:3000,https://xyzw.xq5007.fun
+CORS_ORIGINS=http://localhost:3000,https://your-single-domain.example
 LOG_REQUESTS=true
 DB_PATH=/absolute/path/to/backend/data/xyzw.sqlite.bin
 BIN_STORAGE_PATH=/absolute/path/to/backend/data/bin-storage
@@ -140,6 +146,7 @@ BACKEND_ERROR_LOG_MAX_FILES=5
 ```
 
 启动校验行为：
+
 - `JWT_SECRET` 为空或占位值：后端直接报错退出
 - `AES_KEY` 为空或占位值：后端直接报错退出
 - `DB_PATH` 不存在：启动时打印明确提示（首次启动会初始化数据库文件）
@@ -177,19 +184,28 @@ npm run dev
 ```
 
 启动后默认地址：
+
 - 前端：`http://localhost:3000`
 - 后端健康检查：`http://localhost:8787/health`
 - WebSocket：`ws://localhost:8787/ws`
 
 开发安全默认值（前端）：
+
 - `npm run dev` 默认仅监听 `127.0.0.1`，默认不自动打开浏览器。
 - 第三方调试代理（如 `/api/weixin*`、`/api/hortor`）默认关闭，仅在 `debug` 模式或显式环境变量开启时启用。
 - 如需自定义，可使用环境变量：
   - `VITE_DEV_EXPOSE_HOST=true|false`
   - `VITE_DEV_HOST=0.0.0.0`
+  - `VITE_DEV_ALLOWED_HOSTS=preview.example.com,.preview.example.com`（仅为 dev/preview 增加额外允许 host，不再内置生产域名）
   - `VITE_DEV_DEBUG_PROXY=true|false`
   - `VITE_DEV_OPEN=true|false`
-  - `VITE_XYZW_RUNTIME_ALLOWED_HOSTS=app.example.com,.app.example.com`（限制 `/tokens` 页高风险运行时仅在指定域加载；本地回环地址默认允许）
+  - `VITE_XYZW_RUNTIME_ALLOWED_HOSTS=your-single-domain.example`（控制 `/tokens` 页高风险 runtime 允许加载的 host；未配置时默认仅允许 localhost/127.0.0.1/::1）
+  - `VITE_TRUSTED_IMPORT_API_HOSTS=your-single-domain.example`（控制受信任 URL 导入 API host；同源始终允许，未配置时默认仅允许 localhost/127.0.0.1/::1）
+
+单域部署推荐：
+
+- 当前阶段保持单域，不需要拆 `PUBLIC_APP_ORIGIN` / `ADMIN_APP_ORIGIN`。
+- 线上只需要把当前单域 host 同时配置到 `VITE_XYZW_RUNTIME_ALLOWED_HOSTS` 与 `VITE_TRUSTED_IMPORT_API_HOSTS`。
 
 ## 常用命令
 
@@ -270,16 +286,19 @@ TASK_DAEMON_PASSWORD=your_password \
 ```
 
 守护脚本安全默认值（建议保持）：
+
 - `TASK_DAEMON_PERSIST_SESSION=false`（默认）：使用非持久化浏览器上下文，不落盘 Cookie/LocalStorage。
 - 仅当确有需要时开启 `TASK_DAEMON_PERSIST_SESSION=true`；此时 `TASK_DAEMON_USER_DATA_DIR` 必须是 owner-only 权限目录（Linux/macOS 建议 `chmod 700`）。
 - `TASK_DAEMON_DISABLE_SANDBOX=true` 仅允许在非生产且 `BASE_URL` 指向 `localhost/127.0.0.1` 时启用，生产环境会直接拒绝启动。
 
 多账号模式请使用：
+
 - `TASK_DAEMON_ACCOUNTS=acc1,acc2`
 - `TASK_DAEMON_<ID>_USERNAME`
 - `TASK_DAEMON_<ID>_PASSWORD`
 
 后端原生调度（Beta）：
+
 - 后端启动后会自动扫描 `任务控制` 配置并按 Cron 触发，无需前台打开网页。
 - 当前支持：`日常任务`、`领取挂机`、`重置罐子`、`爬咸将塔`、`答题`、`领取功法残卷`、`竞技场战斗`、`俱乐部商店购买`、`收车`、`智能发车`。
 - 其余任务会写入“暂不支持后端执行”的日志，不会静默失败。

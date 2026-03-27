@@ -1,4 +1,4 @@
-const TRUSTED_HOSTS = new Set(["xyzw.xq5007.fun"]);
+import { isHostAllowed } from "@/utils/hostAllowlist";
 
 const toAbsoluteUrl = (rawUrl) => {
   const value = String(rawUrl || "").trim();
@@ -20,10 +20,11 @@ export const isTrustedTokenImportUrl = (rawUrl) => {
   }
 
   const isSameOrigin = parsed.origin === window.location.origin;
-  const isLocalhost
-    = parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1";
-  const isTrustedHost = TRUSTED_HOSTS.has(parsed.hostname);
-  return isSameOrigin || isLocalhost || isTrustedHost;
+  const isTrustedHost = isHostAllowed(
+    parsed.hostname,
+    import.meta.env.VITE_TRUSTED_IMPORT_API_HOSTS,
+  );
+  return isSameOrigin || isTrustedHost;
 };
 
 const buildRequestOptions = (url) => {
@@ -49,8 +50,7 @@ const buildRequestOptions = (url) => {
 };
 
 const normalizeScalar = (value) => {
-  if (typeof value === "string")
-    return value.trim();
+  if (typeof value === "string") return value.trim();
   if (typeof value === "number" || typeof value === "boolean")
     return String(value).trim();
   return "";
@@ -58,20 +58,17 @@ const normalizeScalar = (value) => {
 
 const isMaskedToken = (token) => {
   const value = String(token || "").trim();
-  if (!value)
-    return false;
-  if (value.includes("***"))
-    return true;
+  if (!value) return false;
+  if (value.includes("***")) return true;
   return /^[\w-]{2,12}\*{3,}[\w-]{2,12}$/.test(value);
 };
 
 const buildTokenFromRolePayload = (payload) => {
-  if (!payload || typeof payload !== "object")
-    return "";
+  if (!payload || typeof payload !== "object") return "";
   const roleToken = normalizeScalar(payload.roleToken || payload.role_token);
-  if (!roleToken)
-    return "";
-  const hasRuntimeIds = payload.sessId !== undefined || payload.connId !== undefined;
+  if (!roleToken) return "";
+  const hasRuntimeIds =
+    payload.sessId !== undefined || payload.connId !== undefined;
   if (!hasRuntimeIds) {
     return roleToken;
   }
@@ -84,8 +81,7 @@ const buildTokenFromRolePayload = (payload) => {
 };
 
 const extractTokenFromObject = (obj) => {
-  if (!obj || typeof obj !== "object")
-    return "";
+  if (!obj || typeof obj !== "object") return "";
 
   const directCandidates = [
     obj.token,
@@ -118,14 +114,22 @@ const extractTokenFromObject = (obj) => {
   }
 
   if (Array.isArray(obj.tokenParts) && obj.tokenParts.length > 0) {
-    const merged = obj.tokenParts.map((part) => normalizeScalar(part)).join("").trim();
+    const merged = obj.tokenParts
+      .map((part) => normalizeScalar(part))
+      .join("")
+      .trim();
     if (merged) {
       return merged;
     }
   }
 
   const segmentedEntries = Object.entries(obj)
-    .filter(([key, value]) => /^token([_-]?part)?[_-]?\d+$/i.test(key) && value !== undefined && value !== null)
+    .filter(
+      ([key, value]) =>
+        /^token([_-]?part)?[_-]?\d+$/i.test(key) &&
+        value !== undefined &&
+        value !== null,
+    )
     .sort((a, b) => {
       const aNum = Number(String(a[0]).match(/(\d+)$/)?.[1] || 0);
       const bNum = Number(String(b[0]).match(/(\d+)$/)?.[1] || 0);
@@ -175,10 +179,7 @@ const normalizeTokenResponse = (payload) => {
 };
 
 export const fetchTokenPayloadFromUrl = async (rawUrl, options = {}) => {
-  const {
-    trustedOnly = false,
-    useProxy = false,
-  } = options;
+  const { trustedOnly = false, useProxy = false } = options;
 
   const parsed = toAbsoluteUrl(rawUrl);
   if (!parsed) {
@@ -192,7 +193,11 @@ export const fetchTokenPayloadFromUrl = async (rawUrl, options = {}) => {
   let requestUrl = parsed.toString();
   let requestOptions = buildRequestOptions(parsed);
 
-  if (useProxy && typeof window !== "undefined" && parsed.origin !== window.location.origin) {
+  if (
+    useProxy &&
+    typeof window !== "undefined" &&
+    parsed.origin !== window.location.origin
+  ) {
     if (!isTrustedTokenImportUrl(parsed.toString())) {
       throw new Error("代理模式仅允许同源、localhost 或受信任域名");
     }

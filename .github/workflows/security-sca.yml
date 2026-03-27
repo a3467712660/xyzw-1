@@ -49,7 +49,12 @@ jobs:
           VITE_BUILD_GIT_SHA: ${{ github.sha }}
           VITE_BUILD_ID: ${{ github.run_id }}
           VITE_BUILD_TIME: ${{ github.event.head_commit.timestamp || github.run_id }}
+          VITE_XYZW_RUNTIME_ALLOWED_HOSTS: localhost
+          VITE_TRUSTED_IMPORT_API_HOSTS: localhost
         run: npm run build
+
+      - name: Install Playwright browser
+        run: npm run e2e:install
 
       - name: Verify production artifacts exclude legacy server
         run: |
@@ -109,7 +114,7 @@ jobs:
           fi
           node -e 'const fs=require("fs"); const health=JSON.parse(fs.readFileSync("/tmp/route-health.json","utf8")); const version=JSON.parse(fs.readFileSync("/tmp/route-version.json","utf8")); if (!health.build?.gitSha) throw new Error("missing build gitSha on /api/v1/health"); if (!version.data?.gitSha) throw new Error("missing build gitSha on /api/v1/version");'
 
-      - name: Live header smoke check for actual deployed nginx config
+      - name: Live header smoke check and browser security E2E
         run: |
           sed \
             -e "s|listen 3000;|listen 80;|g" \
@@ -136,6 +141,9 @@ jobs:
           grep -i '^referrer-policy: strict-origin-when-cross-origin' /tmp/nginx-home.headers >/dev/null
           grep -i '^strict-transport-security: max-age=31536000; includeSubDomains' /tmp/nginx-home.headers >/dev/null
           grep -i '^content-security-policy:' /tmp/nginx-admin.headers | grep -F "connect-src 'self'" >/dev/null
+          E2E_BASE_URL=http://localhost:8088 \
+          E2E_DISALLOWED_BASE_URL=http://127.0.0.1:8088 \
+          npm run e2e:security
 
       - name: Run SCA gate
         run: npm run security:sca

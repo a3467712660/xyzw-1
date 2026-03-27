@@ -932,7 +932,10 @@
       "study": { "title": "答题", "subtitle": "自动执行答题任务" },
       "legacy": { "title": "领取功法残卷", "subtitle": "自动领取功法残卷" },
       "arena": { "title": "竞技场战斗", "subtitle": "自动竞技场战斗3次" },
-      "clubStore": { "title": "俱乐部商店购买", "subtitle": "自动购买俱乐部商店物品" }
+      "clubStore": {
+        "title": "俱乐部商店购买",
+        "subtitle": "自动购买俱乐部商店物品"
+      }
     },
     "scheduleOptions": {
       "daily0100": "每天 01:00",
@@ -1510,6 +1513,8 @@
       "addToken": "添加Token",
       "bulkActions": "批量操作",
       "refresh": "刷新",
+      "copyMaskedToken": "复制脱敏Token",
+      "copyFullToken": "复制完整Token",
       "reacquire": "重新获取",
       "upgradePermanent": "升级为长期有效",
       "enterConsole": "进入控制台",
@@ -1605,7 +1610,8 @@
     },
     "menu": {
       "edit": "编辑",
-      "copyToken": "复制Token",
+      "copyToken": "复制脱敏Token",
+      "copyFullToken": "复制完整Token",
       "refreshFromUrl": "从URL刷新",
       "reacquire": "重新获取",
       "activateToken": "激活/续期",
@@ -1650,6 +1656,11 @@
         "content": "确定要删除Token \"{name}\" 吗？此操作无法恢复。",
         "confirm": "确定删除"
       },
+      "copyFullToken": {
+        "title": "复制完整Token",
+        "content": "完整Token将写入剪贴板，可能被其他应用读取。请输入 COPY 继续。",
+        "placeholder": "请输入 COPY 以确认"
+      },
       "sensitiveConfirm": {
         "title": "二次验证"
       }
@@ -1670,6 +1681,10 @@
       "tokenRefreshFailed": "Token刷新失败",
       "tokenInfoUpdated": "Token信息已更新",
       "tokenCopied": "Token已复制到剪贴板",
+      "tokenCopiedMasked": "已复制脱敏Token到剪贴板",
+      "tokenCopiedFull": "完整Token已复制到剪贴板",
+      "copyFullConfirmMissing": "请输入 COPY 后再复制完整Token",
+      "clipboardCopyFailed": "复制失败，请重试",
       "copyFailed": "复制失败",
       "remarkSaved": "备注已保存",
       "tokenDeleted": "Token已删除",
@@ -1995,7 +2010,7 @@
       "requestTimeout": "请求超时",
       "httpStatus": "HTTP 状态码：{status}",
       "qrcodeUrlMissing": "未找到二维码图片地址",
-      "runtimeHostNotAllowed": "当前域名 {host} 未被允许加载高风险运行时脚本，请迁移到隔离子域并配置 VITE_XYZW_RUNTIME_ALLOWED_HOSTS",
+      "runtimeHostNotAllowed": "当前域名 {host} 未被允许加载高风险运行时脚本，请在当前部署环境配置 VITE_XYZW_RUNTIME_ALLOWED_HOSTS",
       "loginFailed": "登录失败",
       "loginTimeout": "登录超时",
       "loginFailedWithReason": "登录失败：{error}",

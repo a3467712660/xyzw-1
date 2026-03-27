@@ -38,7 +38,9 @@
         <h4>{{ t("tokenManager.userToken.title") }}</h4>
         <div v-if="localTokenStore.userToken" class="token-item">
           <div class="token-info">
-            <span class="token-label">{{ t("tokenManager.labels.token") }}</span>
+            <span class="token-label">{{
+              t("tokenManager.labels.token")
+            }}</span>
             <span class="token-value">{{
               maskToken(localTokenStore.userToken)
             }}</span>
@@ -104,29 +106,41 @@
 
             <div class="token-details">
               <div class="detail-item">
-                <span class="detail-label">{{ t("tokenManager.labels.token") }}</span>
+                <span class="detail-label">{{
+                  t("tokenManager.labels.token")
+                }}</span>
                 <span class="detail-value">{{
                   maskToken(tokenData.token)
                 }}</span>
               </div>
               <div class="detail-item">
-                <span class="detail-label">{{ t("tokenManager.labels.wsUrl") }}</span>
-                <span class="detail-value">{{ maskedWsUrl(tokenData.wsUrl) }}</span>
+                <span class="detail-label">{{
+                  t("tokenManager.labels.wsUrl")
+                }}</span>
+                <span class="detail-value">{{
+                  maskedWsUrl(tokenData.wsUrl)
+                }}</span>
               </div>
               <div class="detail-item">
-                <span class="detail-label">{{ t("tokenManager.labels.createdAt") }}</span>
+                <span class="detail-label">{{
+                  t("tokenManager.labels.createdAt")
+                }}</span>
                 <span class="detail-value">{{
                   formatTime(tokenData.createdAt)
                 }}</span>
               </div>
               <div class="detail-item">
-                <span class="detail-label">{{ t("tokenManager.labels.lastUsed") }}</span>
+                <span class="detail-label">{{
+                  t("tokenManager.labels.lastUsed")
+                }}</span>
                 <span class="detail-value">{{
                   formatTime(tokenData.lastUsed)
                 }}</span>
               </div>
               <div class="detail-item">
-                <span class="detail-label">{{ t("tokenManager.labels.connectionStatus") }}</span>
+                <span class="detail-label">{{
+                  t("tokenManager.labels.connectionStatus")
+                }}</span>
                 <n-tag
                   size="small"
                   :type="getWSStatusType(getWSStatus(roleId))"
@@ -173,6 +187,10 @@ import {
   sanitizeWsUrl,
 } from "@/utils/securitySanitizer";
 import {
+  confirmAndCopyFullToken as confirmAndCopySensitiveToken,
+  copyMaskedToken,
+} from "@/utils/sensitiveCopy";
+import {
   CloudUpload,
   CopyOutline,
   Create,
@@ -189,7 +207,6 @@ const localTokenStore = useLocalTokenStore();
 const gameRolesStore = useGameRolesStore();
 const MAX_IMPORT_FILE_SIZE = 1024 * 1024;
 const EXPORT_CONFIRM_KEYWORD = "EXPORT";
-const FULL_COPY_CONFIRM_KEYWORD = "COPY";
 const ENCRYPTED_FORMAT = "xyzw-token-export-encrypted";
 const ENCRYPTION_ITERATIONS = 250000;
 const textEncoder = new TextEncoder();
@@ -283,10 +300,10 @@ const getTokenMenuOptions = (tokenData) => {
 
 const isEncryptedExportPayload = (payload) => {
   return Boolean(
-    payload
-    && typeof payload === "object"
-    && payload.format === ENCRYPTED_FORMAT
-    && payload.ciphertext,
+    payload &&
+    typeof payload === "object" &&
+    payload.format === ENCRYPTED_FORMAT &&
+    payload.ciphertext,
   );
 };
 
@@ -370,7 +387,9 @@ const decryptImportPayload = async (passphrase, encryptedPayload) => {
   const salt = base64ToUint8Array(encryptedPayload?.kdf?.salt || "");
   const iv = base64ToUint8Array(encryptedPayload?.cipher?.iv || "");
   const ciphertext = base64ToUint8Array(encryptedPayload?.ciphertext || "");
-  const iterations = Number(encryptedPayload?.kdf?.iterations || ENCRYPTION_ITERATIONS);
+  const iterations = Number(
+    encryptedPayload?.kdf?.iterations || ENCRYPTION_ITERATIONS,
+  );
   if (!salt.length || !iv.length || !ciphertext.length) {
     throw new Error(t("tokenManager.messages.decryptFormatInvalid"));
   }
@@ -415,8 +434,7 @@ const requestPassphraseByDialog = ({
     const passphrase = ref("");
     let settled = false;
     const finish = (value) => {
-      if (settled)
-        return;
+      if (settled) return;
       settled = true;
       resolve(String(value || ""));
     };
@@ -540,9 +558,12 @@ const regenerateToken = (roleId) => {
     onPositiveClick: async () => {
       try {
         // 显示加载状态
-        const loadingMsg = message.loading(t("tokenManager.messages.regeneratingToken"), {
-          duration: 0,
-        });
+        const loadingMsg = message.loading(
+          t("tokenManager.messages.regeneratingToken"),
+          {
+            duration: 0,
+          },
+        );
 
         const data = await fetchTokenPayloadFromUrl(oldTokenData.sourceUrl);
 
@@ -571,8 +592,8 @@ const regenerateToken = (roleId) => {
       } catch (error) {
         console.error("重新获取Token失败:", sanitizeErrorForDisplay(error));
         message.error(
-          sanitizeErrorForDisplay(error)
-          || t("tokenManager.messages.tokenRegenerateFailed"),
+          sanitizeErrorForDisplay(error) ||
+            t("tokenManager.messages.tokenRegenerateFailed"),
         );
       }
     },
@@ -597,64 +618,28 @@ const editToken = (roleId, tokenData) => {
   message.info(t("tokenManager.messages.editPending"));
 };
 
-// 复制Token到剪贴板
-const copyTextToClipboard = async (text) => {
-  try {
-    await navigator.clipboard.writeText(text);
-    return true;
-  } catch (error) {
-    console.warn("Clipboard API 复制失败，使用降级方案");
-    const textArea = document.createElement("textarea");
-    textArea.value = text;
-    document.body.appendChild(textArea);
-    textArea.select();
-    const copied = document.execCommand("copy");
-    document.body.removeChild(textArea);
-    return copied;
-  }
-};
-
 const copyTokenMasked = async (token) => {
-  const masked = maskToken(token, 4, 4) || "***";
-  const copied = await copyTextToClipboard(masked);
-  if (copied) {
-    message.success(t("tokenManager.messages.tokenCopiedMasked"));
-    return;
-  }
-  message.error(t("tokenManager.messages.clipboardCopyFailed"));
+  await copyMaskedToken({
+    token,
+    message,
+    successMessage: t("tokenManager.messages.tokenCopiedMasked"),
+    failureMessage: t("tokenManager.messages.clipboardCopyFailed"),
+  });
 };
 
 const confirmAndCopyFullToken = (token) => {
-  const confirmKeyword = ref("");
-
-  dialog.warning({
+  confirmAndCopySensitiveToken({
+    token,
+    dialog,
+    message,
     title: t("tokenManager.dialogs.copyFullToken.title"),
+    content: t("tokenManager.dialogs.copyFullToken.content"),
+    placeholder: t("tokenManager.dialogs.copyFullToken.placeholder"),
     positiveText: t("tokenManager.common.confirm"),
     negativeText: t("tokenManager.common.cancel"),
-    content: () =>
-      h("div", { style: "display:flex;flex-direction:column;gap:10px;" }, [
-        h("div", { style: "line-height:1.5;color:#d03050;" }, t("tokenManager.dialogs.copyFullToken.content")),
-        h(NInput, {
-          "value": confirmKeyword.value,
-          "placeholder": t("tokenManager.dialogs.copyFullToken.placeholder"),
-          "onUpdate:value": (value) => {
-            confirmKeyword.value = String(value || "");
-          },
-        }),
-      ]),
-    onPositiveClick: async () => {
-      if (String(confirmKeyword.value || "").trim() !== FULL_COPY_CONFIRM_KEYWORD) {
-        message.warning(t("tokenManager.messages.copyFullConfirmMissing"));
-        return false;
-      }
-      const copied = await copyTextToClipboard(String(token || ""));
-      if (copied) {
-        message.success(t("tokenManager.messages.tokenCopiedFull"));
-      } else {
-        message.error(t("tokenManager.messages.clipboardCopyFailed"));
-      }
-      return true;
-    },
+    successMessage: t("tokenManager.messages.tokenCopiedFull"),
+    failureMessage: t("tokenManager.messages.clipboardCopyFailed"),
+    missingConfirmMessage: t("tokenManager.messages.copyFullConfirmMissing"),
   });
 };
 
@@ -674,9 +659,12 @@ const refreshTokenFromUrl = async (roleId, tokenData) => {
     negativeText: t("tokenManager.common.cancel"),
     onPositiveClick: async () => {
       try {
-        const loadingMsg = message.loading(t("tokenManager.messages.fetchingFromUrl"), {
-          duration: 0,
-        });
+        const loadingMsg = message.loading(
+          t("tokenManager.messages.fetchingFromUrl"),
+          {
+            duration: 0,
+          },
+        );
 
         const data = await fetchTokenPayloadFromUrl(tokenData.sourceUrl, {
           useProxy: true,
@@ -715,7 +703,11 @@ const exportTokens = () => {
     negativeText: t("tokenManager.common.cancel"),
     content: () =>
       h("div", { style: "display:flex;flex-direction:column;gap:12px;" }, [
-        h("div", { style: "line-height:1.5;" }, t("tokenManager.exportWizard.description")),
+        h(
+          "div",
+          { style: "line-height:1.5;" },
+          t("tokenManager.exportWizard.description"),
+        ),
         h(
           NRadioGroup,
           {
@@ -733,17 +725,26 @@ const exportTokens = () => {
                   h(
                     NRadio,
                     { value: "metadata" },
-                    { default: () => t("tokenManager.exportWizard.modes.metadata") },
+                    {
+                      default: () =>
+                        t("tokenManager.exportWizard.modes.metadata"),
+                    },
                   ),
                   h(
                     NRadio,
                     { value: "encrypted" },
-                    { default: () => t("tokenManager.exportWizard.modes.encrypted") },
+                    {
+                      default: () =>
+                        t("tokenManager.exportWizard.modes.encrypted"),
+                    },
                   ),
                   h(
                     NRadio,
                     { value: "plaintext" },
-                    { default: () => t("tokenManager.exportWizard.modes.plaintext") },
+                    {
+                      default: () =>
+                        t("tokenManager.exportWizard.modes.plaintext"),
+                    },
                   ),
                 ],
               ),
@@ -793,8 +794,13 @@ const exportTokens = () => {
     onPositiveClick: async () => {
       if (selectedMode.value === "plaintext") {
         const keyword = String(exportKeyword.value || "").trim();
-        if (!plaintextRiskAccepted.value || keyword !== EXPORT_CONFIRM_KEYWORD) {
-          message.warning(t("tokenManager.messages.exportPlaintextConfirmMissing"));
+        if (
+          !plaintextRiskAccepted.value ||
+          keyword !== EXPORT_CONFIRM_KEYWORD
+        ) {
+          message.warning(
+            t("tokenManager.messages.exportPlaintextConfirmMissing"),
+          );
           return false;
         }
       }
@@ -817,9 +823,12 @@ const exportTokens = () => {
             String(encryptPassphrase.value || "").trim(),
             rawPayload,
           );
-          const dataBlob = new Blob([JSON.stringify(encryptedPayload, null, 2)], {
-            type: "application/json",
-          });
+          const dataBlob = new Blob(
+            [JSON.stringify(encryptedPayload, null, 2)],
+            {
+              type: "application/json",
+            },
+          );
           triggerBlobDownload({
             blob: dataBlob,
             fileName: `tokens_backup_${new Date().toISOString().split("T")[0]}.json.enc`,

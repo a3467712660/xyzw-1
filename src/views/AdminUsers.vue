@@ -7,7 +7,11 @@
           <p>{{ t("adminUsers.subtitle") }}</p>
         </div>
         <div class="page-header__actions">
-          <NTag v-if="sensitiveConfirmRemainingText" size="small" type="warning">
+          <NTag
+            v-if="sensitiveConfirmRemainingText"
+            size="small"
+            type="warning"
+          >
             {{ sensitiveConfirmRemainingText }}
           </NTag>
           <NInput
@@ -28,15 +32,21 @@
 
       <div class="page-overview">
         <div class="overview-card">
-          <span class="overview-label">{{ t("adminUsers.overview.totalUsers") }}</span>
+          <span class="overview-label">{{
+            t("adminUsers.overview.totalUsers")
+          }}</span>
           <strong class="overview-value">{{ users.length }}</strong>
         </div>
         <div class="overview-card">
-          <span class="overview-label">{{ t("adminUsers.overview.adminCount") }}</span>
+          <span class="overview-label">{{
+            t("adminUsers.overview.adminCount")
+          }}</span>
           <strong class="overview-value">{{ adminCount }}</strong>
         </div>
         <div class="overview-card">
-          <span class="overview-label">{{ t("adminUsers.overview.localRoleCache") }}</span>
+          <span class="overview-label">{{
+            t("adminUsers.overview.localRoleCache")
+          }}</span>
           <strong class="overview-value">{{ currentLocalRoleCount }}</strong>
         </div>
       </div>
@@ -45,9 +55,15 @@
         <div class="desktop-table-head">
           <div class="desktop-table-meta">
             <span class="desktop-table-count">
-              {{ t("adminUsers.fields.tableFilteredCount", { count: filteredUsers.length }) }}
+              {{
+                t("adminUsers.fields.tableFilteredCount", {
+                  count: filteredUsers.length,
+                })
+              }}
             </span>
-            <span class="desktop-table-hint">{{ t("adminUsers.fields.tableHint") }}</span>
+            <span class="desktop-table-hint">{{
+              t("adminUsers.fields.tableHint")
+            }}</span>
           </div>
         </div>
         <n-data-table
@@ -91,19 +107,27 @@
 
               <div class="mobile-user-card__stats">
                 <div class="info-block">
-                  <span class="info-label">{{ t("adminUsers.fields.roleCount") }}</span>
+                  <span class="info-label">{{
+                    t("adminUsers.fields.roleCount")
+                  }}</span>
                   <strong>{{ roleCountFor(row) }}</strong>
                 </div>
                 <div class="info-block">
-                  <span class="info-label">{{ t("adminUsers.fields.inviteCount") }}</span>
+                  <span class="info-label">{{
+                    t("adminUsers.fields.inviteCount")
+                  }}</span>
                   <strong>{{ row.inviteCount }}</strong>
                 </div>
                 <div class="info-block">
-                  <span class="info-label">{{ t("adminUsers.fields.tokenBindLimit") }}</span>
+                  <span class="info-label">{{
+                    t("adminUsers.fields.tokenBindLimit")
+                  }}</span>
                   <strong>{{ row.tokenBindLimit }}</strong>
                 </div>
                 <div class="info-block">
-                  <span class="info-label">{{ t("adminUsers.fields.refreshSecondVerify") }}</span>
+                  <span class="info-label">{{
+                    t("adminUsers.fields.refreshSecondVerify")
+                  }}</span>
                   <strong>
                     {{
                       row.refreshSecondVerifyEnabled
@@ -113,18 +137,24 @@
                   </strong>
                 </div>
                 <div class="info-block info-block--wide">
-                  <span class="info-label">{{ t("adminUsers.fields.createdAt") }}</span>
+                  <span class="info-label">{{
+                    t("adminUsers.fields.createdAt")
+                  }}</span>
                   <strong>{{ formatDate(row.createdAt) }}</strong>
                 </div>
                 <div class="info-block info-block--wide">
-                  <span class="info-label">{{ t("adminUsers.fields.lastLoginAt") }}</span>
+                  <span class="info-label">{{
+                    t("adminUsers.fields.lastLoginAt")
+                  }}</span>
                   <strong>{{ formatDateWithRelative(row.lastLoginAt) }}</strong>
                 </div>
               </div>
 
               <div class="mobile-user-card__switch">
                 <div>
-                  <span class="info-label">{{ t("adminUsers.fields.adminPermission") }}</span>
+                  <span class="info-label">{{
+                    t("adminUsers.fields.adminPermission")
+                  }}</span>
                   <p class="switch-hint">
                     {{
                       row.isCurrentUser
@@ -142,8 +172,12 @@
 
               <div class="mobile-user-card__scope">
                 <div>
-                  <span class="info-label">{{ t("adminUsers.fields.accountType") }}</span>
-                  <p class="switch-hint">{{ t("adminUsers.hints.switchDirectly") }}</p>
+                  <span class="info-label">{{
+                    t("adminUsers.fields.accountType")
+                  }}</span>
+                  <p class="switch-hint">
+                    {{ t("adminUsers.hints.switchDirectly") }}
+                  </p>
                 </div>
                 <NSelect
                   :consistent-menu-width="false"
@@ -155,18 +189,29 @@
 
               <div class="mobile-user-card__switch">
                 <div>
-                  <span class="info-label">{{ t("adminUsers.fields.refreshSecondVerify") }}</span>
-                  <p class="switch-hint">{{ t("adminUsers.hints.refreshSecondVerifyRisk") }}</p>
+                  <span class="info-label">{{
+                    t("adminUsers.fields.refreshSecondVerify")
+                  }}</span>
+                  <p class="switch-hint">
+                    {{ t("adminUsers.hints.refreshSecondVerifyRisk") }}
+                  </p>
                 </div>
                 <NSwitch
                   :disabled="!!refreshSecondVerifyUpdating[row.id]"
                   :value="row.refreshSecondVerifyEnabled"
-                  @update:value="(value) => handleRefreshSecondVerifyChange(row, value)"
+                  @update:value="
+                    (value) => handleRefreshSecondVerifyChange(row, value)
+                  "
                 ></NSwitch>
               </div>
 
               <div class="mobile-user-card__actions">
-                <NButton block tertiary :disabled="!row.mfaEnabled" @click="createMfaResetLink(row)">
+                <NButton
+                  block
+                  tertiary
+                  :disabled="!row.mfaEnabled"
+                  @click="createMfaResetLink(row)"
+                >
                   {{ t("adminUsers.actions.resetMfa") }}
                 </NButton>
                 <NButton block tertiary @click="createResetCode(row)">
@@ -298,7 +343,10 @@
         <n-form-item :label="t('adminUsers.fields.expiresAt')">
           <NInput
             disabled
-            :value="formatDate(resetCodeInfo?.expiresAt) || t('adminUsers.common.dash')"
+            :value="
+              formatDate(resetCodeInfo?.expiresAt) ||
+              t('adminUsers.common.dash')
+            "
           ></NInput>
         </n-form-item>
       </n-form>
@@ -326,7 +374,9 @@
           <div class="token-activation-summary">
             <span>
               {{ t("adminUsers.fields.account") }}:
-              <strong>{{ tokenActivationTarget?.username || t("adminUsers.common.dash") }}</strong>
+              <strong>{{
+                tokenActivationTarget?.username || t("adminUsers.common.dash")
+              }}</strong>
             </span>
             <span>
               {{ t("adminUsers.fields.tokenActivationTotal") }}:
@@ -376,7 +426,10 @@
         <n-form-item :label="t('adminUsers.fields.expiresAt')">
           <NInput
             disabled
-            :value="formatDate(mfaResetLinkInfo?.expiresAt) || t('adminUsers.common.dash')"
+            :value="
+              formatDate(mfaResetLinkInfo?.expiresAt) ||
+              t('adminUsers.common.dash')
+            "
           ></NInput>
         </n-form-item>
       </n-form>
@@ -448,10 +501,9 @@ let sensitiveConfirmTicker = null;
 const AUTO_REFRESH_INTERVAL = 30 * 1000;
 const ACCESS_SCOPE_FULL = "full";
 const ACCESS_SCOPE_TASK_CONTROL_ONLY = "task_control_only";
-const resolvePasswordMinLength = (user) =>
-  user?.mfaEnabled ? 8 : 12;
-const passwordPolicyHint = computed(
-  () => t("adminUsers.validation.passwordPolicy"),
+const resolvePasswordMinLength = (user) => (user?.mfaEnabled ? 8 : 12);
+const passwordPolicyHint = computed(() =>
+  t("adminUsers.validation.passwordPolicy"),
 );
 const canAccess = computed(
   () => authStore.isAuthenticated && authStore.user?.isAdmin,
@@ -461,7 +513,9 @@ const adminCount = computed(
   () => users.value.filter((user) => user.isAdmin).length,
 );
 const filteredUsers = computed(() => {
-  const keyword = String(searchKeyword.value || "").trim().toLowerCase();
+  const keyword = String(searchKeyword.value || "")
+    .trim()
+    .toLowerCase();
   if (!keyword) {
     return users.value;
   }
@@ -471,36 +525,24 @@ const filteredUsers = computed(() => {
     return username.includes(keyword) || email.includes(keyword);
   });
 });
-const localRoleCounts = computed(() => {
-  try {
-    const parsed = JSON.parse(localStorage.getItem("gameTokens") || "[]");
-    if (!Array.isArray(parsed)) {
-      return {};
-    }
-
-    return parsed.reduce((acc, token) => {
-      if (!token?.ownerId || !token?.id) {
-        return acc;
-      }
-
-      acc[token.ownerId] = (acc[token.ownerId] || 0) + 1;
-      return acc;
-    }, {});
-  } catch {
-    return {};
-  }
-});
 const accountTypeOptions = computed(() => [
   { label: t("adminUsers.accountTypes.full"), value: ACCESS_SCOPE_FULL },
-  { label: t("adminUsers.accountTypes.normal"), value: ACCESS_SCOPE_TASK_CONTROL_ONLY },
+  {
+    label: t("adminUsers.accountTypes.normal"),
+    value: ACCESS_SCOPE_TASK_CONTROL_ONLY,
+  },
 ]);
 
 const formatDate = (value) =>
-  value ? new Date(value).toLocaleString(locale.value) : t("adminUsers.common.dash");
+  value
+    ? new Date(value).toLocaleString(locale.value)
+    : t("adminUsers.common.dash");
 
 const tokenActivationStats = computed(() => {
   const total = tokenActivationItems.value.length;
-  const active = tokenActivationItems.value.filter((item) => item.active).length;
+  const active = tokenActivationItems.value.filter(
+    (item) => item.active,
+  ).length;
   return {
     total,
     active,
@@ -527,15 +569,12 @@ const resolveDesktopRowClass = (row) => {
 };
 
 const formatRelativeTime = (value) => {
-  if (!value)
-    return t("adminUsers.common.dash");
+  if (!value) return t("adminUsers.common.dash");
   const targetTs = new Date(value).getTime();
-  if (!Number.isFinite(targetTs))
-    return t("adminUsers.common.dash");
+  if (!Number.isFinite(targetTs)) return t("adminUsers.common.dash");
 
   const diffMs = Date.now() - targetTs;
-  if (diffMs <= 60 * 1000)
-    return t("adminUsers.relativeTime.justNow");
+  if (diffMs <= 60 * 1000) return t("adminUsers.relativeTime.justNow");
 
   const minutes = Math.floor(diffMs / (60 * 1000));
   if (minutes < 60)
@@ -546,12 +585,10 @@ const formatRelativeTime = (value) => {
     return t("adminUsers.relativeTime.hoursAgo", { count: hours });
 
   const days = Math.floor(diffMs / (24 * 60 * 60 * 1000));
-  if (days < 7)
-    return t("adminUsers.relativeTime.daysAgo", { count: days });
+  if (days < 7) return t("adminUsers.relativeTime.daysAgo", { count: days });
 
   const weeks = Math.floor(days / 7);
-  if (weeks < 5)
-    return t("adminUsers.relativeTime.weeksAgo", { count: weeks });
+  if (weeks < 5) return t("adminUsers.relativeTime.weeksAgo", { count: weeks });
 
   const months = Math.floor(days / 30);
   if (months < 12)
@@ -562,8 +599,7 @@ const formatRelativeTime = (value) => {
 };
 
 const formatDateWithRelative = (value) => {
-  if (!value)
-    return t("adminUsers.common.dash");
+  if (!value) return t("adminUsers.common.dash");
   return t("adminUsers.fields.dateWithRelative", {
     date: formatDate(value),
     relative: formatRelativeTime(value),
@@ -588,15 +624,12 @@ const accountTypeValueFor = (row) => normalizeAccessScope(row?.accessScope);
 const roleCountFor = (row) =>
   row.isCurrentUser
     ? currentLocalRoleCount.value
-    : Math.max(
-        normalizeCount(
-          row.roleCount,
-          row.role_count,
-          row.rolesCount,
-          row.roles_count,
-          row.roleNum,
-        ),
-        normalizeCount(localRoleCounts.value[row.id]),
+    : normalizeCount(
+        row.roleCount,
+        row.role_count,
+        row.rolesCount,
+        row.roles_count,
+        row.roleNum,
       );
 
 const tWithFallback = (key, fallback, params = undefined) => {
@@ -606,9 +639,9 @@ const tWithFallback = (key, fallback, params = undefined) => {
 
 const getCachedSensitiveToken = () => {
   if (
-    sensitiveConfirmToken.value
-    && Number.isFinite(sensitiveConfirmExpiresAt.value)
-    && sensitiveConfirmExpiresAt.value > Date.now() + 3000
+    sensitiveConfirmToken.value &&
+    Number.isFinite(sensitiveConfirmExpiresAt.value) &&
+    sensitiveConfirmExpiresAt.value > Date.now() + 3000
   ) {
     return sensitiveConfirmToken.value;
   }
@@ -627,7 +660,9 @@ const setRefreshSecondVerifyUpdating = (userId, value) => {
   };
 };
 
-const promptAdminConfirmCredential = ({ actionLabel = tWithFallback("adminUsers.actions.highRiskAction", "高危操作") } = {}) =>
+const promptAdminConfirmCredential = ({
+  actionLabel = tWithFallback("adminUsers.actions.highRiskAction", "高危操作"),
+} = {}) =>
   new Promise((resolve) => {
     const mfaEnabled = Boolean(authStore.user?.mfaEnabled);
     const mode = ref(mfaEnabled ? "totp" : "password");
@@ -645,8 +680,14 @@ const promptAdminConfirmCredential = ({ actionLabel = tWithFallback("adminUsers.
     };
 
     dialog.warning({
-      title: tWithFallback("adminUsers.dialogs.sensitiveConfirm.title", "高危操作二次确认"),
-      positiveText: tWithFallback("adminUsers.dialogs.sensitiveConfirm.confirm", "确认"),
+      title: tWithFallback(
+        "adminUsers.dialogs.sensitiveConfirm.title",
+        "高危操作二次确认",
+      ),
+      positiveText: tWithFallback(
+        "adminUsers.dialogs.sensitiveConfirm.confirm",
+        "确认",
+      ),
       negativeText: tWithFallback("adminUsers.actions.cancel", "取消"),
       content: () =>
         h("div", { style: "display:flex;flex-direction:column;gap:12px;" }, [
@@ -671,19 +712,38 @@ const promptAdminConfirmCredential = ({ actionLabel = tWithFallback("adminUsers.
                   },
                   {
                     default: () => [
-                      h(NRadioButton, { value: "totp" }, {
-                        default: () => tWithFallback("adminUsers.messages.confirmMethodTotp", "动态验证码（推荐）"),
-                      }),
-                      h(NRadioButton, { value: "recovery" }, {
-                        default: () => tWithFallback("adminUsers.messages.confirmMethodRecovery", "恢复码"),
-                      }),
+                      h(
+                        NRadioButton,
+                        { value: "totp" },
+                        {
+                          default: () =>
+                            tWithFallback(
+                              "adminUsers.messages.confirmMethodTotp",
+                              "动态验证码（推荐）",
+                            ),
+                        },
+                      ),
+                      h(
+                        NRadioButton,
+                        { value: "recovery" },
+                        {
+                          default: () =>
+                            tWithFallback(
+                              "adminUsers.messages.confirmMethodRecovery",
+                              "恢复码",
+                            ),
+                        },
+                      ),
                     ],
                   },
                 ),
                 h(
                   "div",
                   { style: "font-size:12px;opacity:0.75;" },
-                  tWithFallback("adminUsers.messages.confirmMfaPreferredHint", "已开启 MFA：请使用动态验证码或恢复码完成确认。"),
+                  tWithFallback(
+                    "adminUsers.messages.confirmMfaPreferredHint",
+                    "已开启 MFA：请使用动态验证码或恢复码完成确认。",
+                  ),
                 ),
               ]
             : []),
@@ -691,7 +751,10 @@ const promptAdminConfirmCredential = ({ actionLabel = tWithFallback("adminUsers.
             ? h(NInput, {
                 "value": totpCode.value,
                 "maxlength": 6,
-                "placeholder": tWithFallback("adminUsers.placeholders.confirmTotpCode", "输入 6 位动态验证码"),
+                "placeholder": tWithFallback(
+                  "adminUsers.placeholders.confirmTotpCode",
+                  "输入 6 位动态验证码",
+                ),
                 "autofocus": true,
                 "onUpdate:value": (value) => {
                   totpCode.value = String(value || "").replace(/\D/g, "");
@@ -702,7 +765,10 @@ const promptAdminConfirmCredential = ({ actionLabel = tWithFallback("adminUsers.
             ? h(NInput, {
                 "value": recoveryCode.value,
                 "maxlength": 64,
-                "placeholder": tWithFallback("adminUsers.placeholders.confirmRecoveryCode", "输入一次性恢复码"),
+                "placeholder": tWithFallback(
+                  "adminUsers.placeholders.confirmRecoveryCode",
+                  "输入一次性恢复码",
+                ),
                 "autofocus": true,
                 "onUpdate:value": (value) => {
                   recoveryCode.value = String(value || "").trim();
@@ -714,7 +780,10 @@ const promptAdminConfirmCredential = ({ actionLabel = tWithFallback("adminUsers.
                 "type": "password",
                 "showPasswordOn": "click",
                 "value": password.value,
-                "placeholder": tWithFallback("adminUsers.placeholders.confirmCurrentPassword", "输入当前管理员密码"),
+                "placeholder": tWithFallback(
+                  "adminUsers.placeholders.confirmCurrentPassword",
+                  "输入当前管理员密码",
+                ),
                 "autofocus": true,
                 "onUpdate:value": (value) => {
                   password.value = String(value || "");
@@ -723,13 +792,20 @@ const promptAdminConfirmCredential = ({ actionLabel = tWithFallback("adminUsers.
             : null,
         ]),
       onPositiveClick: () => {
-        const credential = mode.value === "totp"
-          ? { totpCode: String(totpCode.value || "").replace(/\D/g, "") }
-          : mode.value === "recovery"
-            ? { recoveryCode: String(recoveryCode.value || "").trim() }
-            : { password: String(password.value || "").trim() };
-        if (!credential.password && !credential.totpCode && !credential.recoveryCode) {
-          message.warning(tWithFallback("adminUsers.messages.confirmFailed", "二次确认失败"));
+        const credential =
+          mode.value === "totp"
+            ? { totpCode: String(totpCode.value || "").replace(/\D/g, "") }
+            : mode.value === "recovery"
+              ? { recoveryCode: String(recoveryCode.value || "").trim() }
+              : { password: String(password.value || "").trim() };
+        if (
+          !credential.password &&
+          !credential.totpCode &&
+          !credential.recoveryCode
+        ) {
+          message.warning(
+            tWithFallback("adminUsers.messages.confirmFailed", "二次确认失败"),
+          );
           return false;
         }
         finish(credential);
@@ -763,9 +839,9 @@ const startSensitiveConfirmTicker = () => {
   sensitiveConfirmTicker = window.setInterval(() => {
     sensitiveConfirmNowTs.value = Date.now();
     if (
-      sensitiveConfirmToken.value
-      && sensitiveConfirmExpiresAt.value
-      && Number(sensitiveConfirmExpiresAt.value) <= Date.now()
+      sensitiveConfirmToken.value &&
+      sensitiveConfirmExpiresAt.value &&
+      Number(sensitiveConfirmExpiresAt.value) <= Date.now()
     ) {
       clearSensitiveConfirmCache();
     }
@@ -791,14 +867,19 @@ const ensureSensitiveActionConfirmed = async (
 
   const credential = await promptAdminConfirmCredential({ actionLabel });
   if (!credential) {
-    message.warning(tWithFallback("adminUsers.messages.confirmCancelled", "已取消二次确认"));
+    message.warning(
+      tWithFallback("adminUsers.messages.confirmCancelled", "已取消二次确认"),
+    );
     return "";
   }
 
   try {
     const res = await api.admin.confirmSensitiveAction(credential);
     if (!res.success || !res.data?.token) {
-      message.error(res.message || tWithFallback("adminUsers.messages.confirmFailed", "二次确认失败"));
+      message.error(
+        res.message ||
+          tWithFallback("adminUsers.messages.confirmFailed", "二次确认失败"),
+      );
       return "";
     }
     const expiresTs = new Date(res.data.expiresAt || "").getTime();
@@ -806,11 +887,16 @@ const ensureSensitiveActionConfirmed = async (
     sensitiveConfirmExpiresAt.value = Number.isFinite(expiresTs)
       ? expiresTs
       : Date.now();
-    message.success(tWithFallback("adminUsers.messages.confirmSuccess", "二次确认通过"));
+    message.success(
+      tWithFallback("adminUsers.messages.confirmSuccess", "二次确认通过"),
+    );
     return sensitiveConfirmToken.value;
   } catch (error) {
     clearSensitiveConfirmCache();
-    message.error(error.message || tWithFallback("adminUsers.messages.confirmFailed", "二次确认失败"));
+    message.error(
+      error.message ||
+        tWithFallback("adminUsers.messages.confirmFailed", "二次确认失败"),
+    );
     return "";
   }
 };
@@ -855,8 +941,7 @@ const fetchUsers = async () => {
           normalizeCount(row.tokenBindLimit, row.token_bind_limit, 999),
         ),
       ),
-      refreshSecondVerifyEnabled:
-        row.refreshSecondVerifyEnabled !== false,
+      refreshSecondVerifyEnabled: row.refreshSecondVerifyEnabled !== false,
     }));
   } catch (error) {
     message.error(error.message || t("adminUsers.messages.loadFailed"));
@@ -874,18 +959,28 @@ const handleAccessScopeChange = async (row, value) => {
   row.accessScope = nextScope;
 
   try {
-    const confirmToken = await ensureSensitiveActionConfirmed(t("adminUsers.actions.updateAccountType"));
+    const confirmToken = await ensureSensitiveActionConfirmed(
+      t("adminUsers.actions.updateAccountType"),
+    );
     if (!confirmToken) {
       row.accessScope = previous;
       return;
     }
-    const res = await api.admin.updateUserAccessScope(row.id, nextScope, confirmToken);
+    const res = await api.admin.updateUserAccessScope(
+      row.id,
+      nextScope,
+      confirmToken,
+    );
     if (!res.success) {
       row.accessScope = previous;
-      message.error(res.message || t("adminUsers.messages.updateAccountTypeFailed"));
+      message.error(
+        res.message || t("adminUsers.messages.updateAccountTypeFailed"),
+      );
       return;
     }
-    message.success(res.message || t("adminUsers.messages.updateAccountTypeSuccess"));
+    message.success(
+      res.message || t("adminUsers.messages.updateAccountTypeSuccess"),
+    );
     if (row.isCurrentUser) {
       await authStore.fetchUserInfo();
     }
@@ -894,7 +989,9 @@ const handleAccessScopeChange = async (row, value) => {
     if (shouldResetConfirmCache(error)) {
       clearSensitiveConfirmCache();
     }
-    message.error(error.message || t("adminUsers.messages.updateAccountTypeFailed"));
+    message.error(
+      error.message || t("adminUsers.messages.updateAccountTypeFailed"),
+    );
   }
 };
 
@@ -912,7 +1009,10 @@ const startAutoRefresh = () => {
     return;
   }
   autoRefreshTimer = window.setInterval(() => {
-    if (typeof document !== "undefined" && document.visibilityState !== "visible") {
+    if (
+      typeof document !== "undefined" &&
+      document.visibilityState !== "visible"
+    ) {
       return;
     }
     fetchUsers();
@@ -932,7 +1032,9 @@ const handleAdminToggle = async (row, value) => {
   row.isAdmin = value;
 
   try {
-    const confirmToken = await ensureSensitiveActionConfirmed(t("adminUsers.actions.updateAdmin"));
+    const confirmToken = await ensureSensitiveActionConfirmed(
+      t("adminUsers.actions.updateAdmin"),
+    );
     if (!confirmToken) {
       row.isAdmin = previous;
       return;
@@ -957,7 +1059,10 @@ const handleAdminToggle = async (row, value) => {
 };
 
 const updateTokenBindLimit = async (row) => {
-  const current = Math.max(1, Math.min(999, Number(row?.tokenBindLimit) || 999));
+  const current = Math.max(
+    1,
+    Math.min(999, Number(row?.tokenBindLimit) || 999),
+  );
   const input = window.prompt(
     t("adminUsers.messages.tokenLimitPrompt", {
       username: row?.username || "",
@@ -976,22 +1081,34 @@ const updateTokenBindLimit = async (row) => {
   }
 
   try {
-    const confirmToken = await ensureSensitiveActionConfirmed(t("adminUsers.actions.updateTokenBindLimit"));
+    const confirmToken = await ensureSensitiveActionConfirmed(
+      t("adminUsers.actions.updateTokenBindLimit"),
+    );
     if (!confirmToken) {
       return;
     }
-    const res = await api.admin.updateUserTokenBindLimit(row.id, next, confirmToken);
+    const res = await api.admin.updateUserTokenBindLimit(
+      row.id,
+      next,
+      confirmToken,
+    );
     if (!res.success) {
-      message.error(res.message || t("adminUsers.messages.updateTokenBindLimitFailed"));
+      message.error(
+        res.message || t("adminUsers.messages.updateTokenBindLimitFailed"),
+      );
       return;
     }
     row.tokenBindLimit = next;
-    message.success(res.message || t("adminUsers.messages.updateTokenBindLimitSuccess"));
+    message.success(
+      res.message || t("adminUsers.messages.updateTokenBindLimitSuccess"),
+    );
   } catch (error) {
     if (shouldResetConfirmCache(error)) {
       clearSensitiveConfirmCache();
     }
-    message.error(error.message || t("adminUsers.messages.updateTokenBindLimitFailed"));
+    message.error(
+      error.message || t("adminUsers.messages.updateTokenBindLimitFailed"),
+    );
   }
 };
 
@@ -1009,15 +1126,27 @@ const handleRefreshSecondVerifyChange = async (row, value) => {
     setRefreshSecondVerifyUpdating(row.id, true);
     const confirmToken = await ensureSensitiveActionConfirmed(
       nextValue
-        ? tWithFallback("adminUsers.actions.enableRefreshSecondVerify", "开启刷新二次验证")
-        : tWithFallback("adminUsers.actions.disableRefreshSecondVerify", "关闭刷新二次验证"),
+        ? tWithFallback(
+            "adminUsers.actions.enableRefreshSecondVerify",
+            "开启刷新二次验证",
+          )
+        : tWithFallback(
+            "adminUsers.actions.disableRefreshSecondVerify",
+            "关闭刷新二次验证",
+          ),
     );
     if (!confirmToken) {
       return;
     }
-    const res = await api.admin.updateUserRefreshSecondVerify(row.id, nextValue, confirmToken);
+    const res = await api.admin.updateUserRefreshSecondVerify(
+      row.id,
+      nextValue,
+      confirmToken,
+    );
     if (!res.success) {
-      message.error(res.message || t("adminUsers.messages.updateRefreshSecondVerifyFailed"));
+      message.error(
+        res.message || t("adminUsers.messages.updateRefreshSecondVerifyFailed"),
+      );
       return;
     }
     row.refreshSecondVerifyEnabled = nextValue;
@@ -1030,7 +1159,9 @@ const handleRefreshSecondVerifyChange = async (row, value) => {
     if (shouldResetConfirmCache(error)) {
       clearSensitiveConfirmCache();
     }
-    message.error(error.message || t("adminUsers.messages.updateRefreshSecondVerifyFailed"));
+    message.error(
+      error.message || t("adminUsers.messages.updateRefreshSecondVerifyFailed"),
+    );
   } finally {
     setRefreshSecondVerifyUpdating(row.id, false);
   }
@@ -1066,7 +1197,10 @@ const submitPasswordReset = async () => {
   if (!selectedUser.value) {
     return;
   }
-  if (String(newPassword.value || "").length < resolvePasswordMinLength(selectedUser.value)) {
+  if (
+    String(newPassword.value || "").length <
+    resolvePasswordMinLength(selectedUser.value)
+  ) {
     message.error(passwordPolicyHint.value);
     return;
   }
@@ -1077,7 +1211,9 @@ const submitPasswordReset = async () => {
 
   passwordSaving.value = true;
   try {
-    const confirmToken = await ensureSensitiveActionConfirmed(t("adminUsers.actions.resetPassword"));
+    const confirmToken = await ensureSensitiveActionConfirmed(
+      t("adminUsers.actions.resetPassword"),
+    );
     if (!confirmToken) {
       return;
     }
@@ -1087,17 +1223,23 @@ const submitPasswordReset = async () => {
       confirmToken,
     );
     if (!res.success) {
-      message.error(res.message || t("adminUsers.messages.resetPasswordFailed"));
+      message.error(
+        res.message || t("adminUsers.messages.resetPasswordFailed"),
+      );
       return;
     }
-    message.success(res.message || t("adminUsers.messages.resetPasswordSuccess"));
+    message.success(
+      res.message || t("adminUsers.messages.resetPasswordSuccess"),
+    );
     closePasswordModal();
     fetchUsers();
   } catch (error) {
     if (shouldResetConfirmCache(error)) {
       clearSensitiveConfirmCache();
     }
-    message.error(error.message || t("adminUsers.messages.resetPasswordFailed"));
+    message.error(
+      error.message || t("adminUsers.messages.resetPasswordFailed"),
+    );
   } finally {
     passwordSaving.value = false;
   }
@@ -1114,7 +1256,9 @@ const submitDeleteUser = async () => {
 
   deleteSaving.value = true;
   try {
-    const confirmToken = await ensureSensitiveActionConfirmed(t("adminUsers.actions.deleteUser"));
+    const confirmToken = await ensureSensitiveActionConfirmed(
+      t("adminUsers.actions.deleteUser"),
+    );
     if (!confirmToken) {
       return;
     }
@@ -1138,23 +1282,31 @@ const submitDeleteUser = async () => {
 
 const createResetCode = async (row) => {
   try {
-    const confirmToken = await ensureSensitiveActionConfirmed(t("adminUsers.actions.createResetCode"));
+    const confirmToken = await ensureSensitiveActionConfirmed(
+      t("adminUsers.actions.createResetCode"),
+    );
     if (!confirmToken) {
       return;
     }
     const res = await api.admin.createUserResetCode(row.id, 15, confirmToken);
     if (!res.success) {
-      message.error(res.message || t("adminUsers.messages.createResetCodeFailed"));
+      message.error(
+        res.message || t("adminUsers.messages.createResetCodeFailed"),
+      );
       return;
     }
     resetCodeInfo.value = res.data || null;
     resetCodeModalVisible.value = true;
-    message.success(res.message || t("adminUsers.messages.createResetCodeSuccess"));
+    message.success(
+      res.message || t("adminUsers.messages.createResetCodeSuccess"),
+    );
   } catch (error) {
     if (shouldResetConfirmCache(error)) {
       clearSensitiveConfirmCache();
     }
-    message.error(error.message || t("adminUsers.messages.createResetCodeFailed"));
+    message.error(
+      error.message || t("adminUsers.messages.createResetCodeFailed"),
+    );
   }
 };
 
@@ -1174,23 +1326,31 @@ const copyResetCode = async () => {
 
 const createMfaResetLink = async (row) => {
   try {
-    const confirmToken = await ensureSensitiveActionConfirmed(t("adminUsers.actions.resetMfa"));
+    const confirmToken = await ensureSensitiveActionConfirmed(
+      t("adminUsers.actions.resetMfa"),
+    );
     if (!confirmToken) {
       return;
     }
     const res = await api.admin.createUserMfaResetLink(row.id, confirmToken);
     if (!res.success) {
-      message.error(res.message || t("adminUsers.messages.createMfaResetLinkFailed"));
+      message.error(
+        res.message || t("adminUsers.messages.createMfaResetLinkFailed"),
+      );
       return;
     }
     mfaResetLinkInfo.value = res.data || null;
     mfaResetLinkModalVisible.value = true;
-    message.success(res.message || t("adminUsers.messages.createMfaResetLinkSuccess"));
+    message.success(
+      res.message || t("adminUsers.messages.createMfaResetLinkSuccess"),
+    );
   } catch (error) {
     if (shouldResetConfirmCache(error)) {
       clearSensitiveConfirmCache();
     }
-    message.error(error.message || t("adminUsers.messages.createMfaResetLinkFailed"));
+    message.error(
+      error.message || t("adminUsers.messages.createMfaResetLinkFailed"),
+    );
   }
 };
 
@@ -1236,7 +1396,8 @@ const tokenActivationColumns = computed(() => [
     title: t("adminUsers.fields.roleId"),
     key: "roleId",
     width: 120,
-    render: (row) => String(row.roleId || row.gameAccountId || t("adminUsers.common.dash")),
+    render: (row) =>
+      String(row.roleId || row.gameAccountId || t("adminUsers.common.dash")),
   },
   {
     title: t("adminUsers.fields.tokenActivationStatus"),
@@ -1280,7 +1441,9 @@ const openTokenActivationModal = async (row) => {
   try {
     const res = await api.admin.listUserTokenActivations(row.id);
     if (!res.success) {
-      message.error(res.message || t("adminUsers.messages.loadTokenActivationsFailed"));
+      message.error(
+        res.message || t("adminUsers.messages.loadTokenActivationsFailed"),
+      );
       return;
     }
     const list = Array.isArray(res.data?.items) ? res.data.items : [];
@@ -1289,7 +1452,9 @@ const openTokenActivationModal = async (row) => {
       active: Boolean(item.active),
     }));
   } catch (error) {
-    message.error(error.message || t("adminUsers.messages.loadTokenActivationsFailed"));
+    message.error(
+      error.message || t("adminUsers.messages.loadTokenActivationsFailed"),
+    );
   } finally {
     tokenActivationLoading.value = false;
   }
@@ -1348,13 +1513,25 @@ const columns = computed(() => [
         h("div", { class: "account-name-row" }, [
           h("div", { class: "account-name" }, row.username),
           row.isCurrentUser
-            ? h("span", { class: "status-chip status-chip--current" }, t("adminUsers.status.currentUser"))
+            ? h(
+                "span",
+                { class: "status-chip status-chip--current" },
+                t("adminUsers.status.currentUser"),
+              )
             : null,
           row.isAdmin
-            ? h("span", { class: "status-chip status-chip--admin" }, t("adminUsers.status.admin"))
+            ? h(
+                "span",
+                { class: "status-chip status-chip--admin" },
+                t("adminUsers.status.admin"),
+              )
             : null,
         ]),
-        h("div", { class: "account-meta" }, row.email || t("adminUsers.common.noEmail")),
+        h(
+          "div",
+          { class: "account-meta" },
+          row.email || t("adminUsers.common.noEmail"),
+        ),
       ]),
   },
   {
@@ -1415,12 +1592,24 @@ const columns = computed(() => [
     render: (row) =>
       h("div", { class: "time-summary-cell" }, [
         h("div", { class: "time-summary-item" }, [
-          h("span", { class: "time-summary-label" }, t("adminUsers.fields.createdAt")),
+          h(
+            "span",
+            { class: "time-summary-label" },
+            t("adminUsers.fields.createdAt"),
+          ),
           h("span", { class: "time-summary-value" }, formatDate(row.createdAt)),
         ]),
         h("div", { class: "time-summary-item" }, [
-          h("span", { class: "time-summary-label" }, t("adminUsers.fields.lastLoginAt")),
-          h("span", { class: "time-summary-value" }, formatDateWithRelative(row.lastLoginAt)),
+          h(
+            "span",
+            { class: "time-summary-label" },
+            t("adminUsers.fields.lastLoginAt"),
+          ),
+          h(
+            "span",
+            { class: "time-summary-value" },
+            formatDateWithRelative(row.lastLoginAt),
+          ),
         ]),
       ]),
   },

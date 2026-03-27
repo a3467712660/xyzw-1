@@ -13,12 +13,10 @@ const SENSITIVE_TOKEN_KEYS = new Set([
 ]);
 
 const sanitizeGameTokenForPersistence = (tokenData = {}) => {
-  if (!tokenData || typeof tokenData !== "object")
-    return {};
+  if (!tokenData || typeof tokenData !== "object") return {};
   const sanitized = {};
   Object.entries(tokenData).forEach(([key, value]) => {
-    if (SENSITIVE_TOKEN_KEYS.has(String(key)))
-      return;
+    if (SENSITIVE_TOKEN_KEYS.has(String(key))) return;
     sanitized[key] = value;
   });
   return sanitized;
@@ -34,23 +32,20 @@ function openDB() {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
     let settled = false;
     const timeoutId = setTimeout(() => {
-      if (settled)
-        return;
+      if (settled) return;
       settled = true;
       reject(new Error("打开本地 Token 数据库超时"));
     }, 5000);
 
     const finishResolve = (value) => {
-      if (settled)
-        return;
+      if (settled) return;
       settled = true;
       clearTimeout(timeoutId);
       resolve(value);
     };
 
     const finishReject = (error) => {
-      if (settled)
-        return;
+      if (settled) return;
       settled = true;
       clearTimeout(timeoutId);
       reject(error);
@@ -67,8 +62,12 @@ function openDB() {
     };
 
     req.onsuccess = () => finishResolve(req.result);
-    req.onerror = () => finishReject(req.error || new Error("打开本地 Token 数据库失败"));
-    req.onblocked = () => finishReject(new Error("本地 Token 数据库被占用，请关闭其他标签页后重试"));
+    req.onerror = () =>
+      finishReject(req.error || new Error("打开本地 Token 数据库失败"));
+    req.onblocked = () =>
+      finishReject(
+        new Error("本地 Token 数据库被占用，请关闭其他标签页后重试"),
+      );
   });
 }
 
@@ -128,8 +127,7 @@ export async function getAllGameTokens() {
         const arr = req.result || [];
         const map = {};
         arr.forEach((t) => {
-          if (t && t.roleId)
-            map[t.roleId] = t;
+          if (t && t.roleId) map[t.roleId] = t;
         });
         resolve(map);
       };
@@ -140,8 +138,7 @@ export async function getAllGameTokens() {
 
 export async function putGameToken(roleId, tokenData) {
   const safeRoleId = String(roleId || tokenData?.roleId || "").trim();
-  if (!safeRoleId)
-    return;
+  if (!safeRoleId) return;
   const sanitized = sanitizeGameTokenForPersistence(tokenData);
   return withStore(STORE_GAME_TOKENS, "readwrite", (store) => {
     store.put({ ...sanitized, roleId: safeRoleId });
@@ -160,61 +157,29 @@ export async function clearGameTokens() {
   });
 }
 
-// Migration from localStorage for backward compatibility
-export async function migrateFromLocalStorageIfNeeded() {
-  try {
-    const clearLegacyWebStorage = () => {
-      if (typeof localStorage !== "undefined") {
-        localStorage.removeItem("userToken");
-        localStorage.removeItem("gameTokens");
-      }
-      if (typeof sessionStorage !== "undefined") {
-        sessionStorage.removeItem("userToken");
-        sessionStorage.removeItem("gameTokens");
-      }
-    };
-
-    const existing = await getAllGameTokens();
-    const hasAny = existing && Object.keys(existing).length > 0;
-    const userTok = await getUserToken();
-    const hasUser = !!userTok;
-
-    // Try migrate from localStorage
-    const lsUser = localStorage.getItem("userToken");
-    const lsGameTokensRaw = localStorage.getItem("gameTokens");
-    let lsGameTokens = {};
-    try {
-      lsGameTokens = lsGameTokensRaw ? JSON.parse(lsGameTokensRaw) : {};
-    } catch {
-      lsGameTokens = {};
-    }
-
-    const lsHasAny
-      = lsUser || (lsGameTokens && Object.keys(lsGameTokens).length > 0);
-    if (!lsHasAny)
-      return { migrated: false };
-
-    // Always clear legacy localStorage secrets.
-    // If DB already has data, only clean localStorage and skip migration.
-    if (hasAny || hasUser) {
-      clearLegacyWebStorage();
-      return { migrated: false, cleanedLocalStorage: true };
-    }
-
-    const entries = Array.isArray(lsGameTokens)
-      ? lsGameTokens
-          .map((item) => [item?.id || item?.roleId, item])
-          .filter(([roleId]) => !!roleId)
-      : Object.entries(lsGameTokens || {});
-
-    for (const [roleId, tokenData] of entries) {
-      await putGameToken(roleId, tokenData);
-    }
-
-    clearLegacyWebStorage();
-    return { migrated: true, cleanedLocalStorage: true };
-  } catch (e) {
-    console.warn("Token DB migration skipped:", e);
-    return { migrated: false, error: e?.message };
+const clearLegacyWebStorage = () => {
+  if (typeof localStorage !== "undefined") {
+    localStorage.removeItem("userToken");
+    localStorage.removeItem("gameTokens");
+    localStorage.removeItem("selectedRoleInfo");
   }
+  if (typeof sessionStorage !== "undefined") {
+    sessionStorage.removeItem("userToken");
+    sessionStorage.removeItem("gameTokens");
+    sessionStorage.removeItem("selectedRoleInfo");
+  }
+};
+
+export async function clearLegacyWebStorageIfNeeded() {
+  try {
+    clearLegacyWebStorage();
+    return { cleanedLocalStorage: true };
+  } catch (e) {
+    console.warn("Legacy web storage cleanup skipped:", e);
+    return { cleanedLocalStorage: false, error: e?.message };
+  }
+}
+
+export async function migrateFromLocalStorageIfNeeded() {
+  return clearLegacyWebStorageIfNeeded();
 }

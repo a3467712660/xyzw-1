@@ -49,13 +49,15 @@ interface OwnedTokenGroup extends TokenGroup {
 }
 
 export const activeUserId = useLocalStorage("activeUserId", "");
-export const safeModeEnabled = useLocalStorage<boolean>(SAFE_MODE_LOCAL_KEY, true);
+export const safeModeEnabled = useLocalStorage<boolean>(
+  SAFE_MODE_LOCAL_KEY,
+  true,
+);
 export const allGameTokens = ref<TokenData[]>([]);
 export const selectedTokenId = useLocalStorage<string | null>(
   "selectedTokenId",
   null,
 );
-export const selectedRoleInfo = useLocalStorage<any>("selectedRoleInfo", null);
 export const activeConnections = useLocalStorage<
   Record<string, CrossTabConnectionState>
 >("activeConnections", {});
@@ -67,8 +69,10 @@ export const allTokenGroups = useLocalStorage<OwnedTokenGroup[]>(
 if (typeof window !== "undefined") {
   try {
     window.localStorage.removeItem("gameTokens");
+    window.localStorage.removeItem("selectedRoleInfo");
     window.localStorage.removeItem("userToken");
     window.sessionStorage.removeItem("gameTokens");
+    window.sessionStorage.removeItem("selectedRoleInfo");
     window.sessionStorage.removeItem("userToken");
   } catch {
     // ignore storage cleanup errors

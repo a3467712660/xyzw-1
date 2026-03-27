@@ -22,7 +22,10 @@
       </a-upload>
     </NFormItem>
 
-    <NFormItem :label="t('tokenImportBin.fields.nameTemplate')" :show-label="true">
+    <NFormItem
+      :label="t('tokenImportBin.fields.nameTemplate')"
+      :show-label="true"
+    >
       <NInput
         placeholder="{name}"
         v-model:value="importForm.nameTemplate"
@@ -49,15 +52,36 @@
       <a-list-item v-for="(role, index) in roleList" :key="index">
         <div class="role-item-row">
           <div>
-            <strong>{{ t("tokenImportBin.roleLabels.name") }}</strong> {{ role.name || t("tokenImportBin.roleFallbacks.unnamed") }}<br>
+            <strong>{{ t("tokenImportBin.roleLabels.name") }}</strong>
+            {{ role.name || t("tokenImportBin.roleFallbacks.unnamed") }}<br>
             <strong>{{ t("tokenImportBin.roleLabels.token") }}</strong>
-            <span class="word-break-all">{{ role.token }}</span><br>
-            <strong>{{ t("tokenImportBin.roleLabels.server") }}</strong> {{ role.server || t("tokenImportBin.roleFallbacks.unspecified") }}<br>
-            <strong>{{ t("tokenImportBin.roleLabels.roleIndex") }}</strong> {{ role.roleIndex }}
+            <span class="word-break-all">{{ maskedRoleToken(role.token) }}</span
+            ><br>
+            <strong>{{ t("tokenImportBin.roleLabels.server") }}</strong>
+            {{ role.server || t("tokenImportBin.roleFallbacks.unspecified")
+            }}<br>
+            <strong>{{ t("tokenImportBin.roleLabels.roleIndex") }}</strong>
+            {{ role.roleIndex }}
           </div>
-          <NButton size="small" type="error" @click="removeRole(index)">
-            {{ t("tokenImportBin.actions.delete") }}
-          </NButton>
+          <div class="role-item-actions">
+            <NButton
+              secondary
+              size="tiny"
+              @click="copyMaskedRoleToken(role.token)"
+            >
+              {{ t("tokenImport.actions.copyMaskedToken") }}
+            </NButton>
+            <NButton
+              tertiary
+              size="tiny"
+              @click="copyFullRoleToken(role.token)"
+            >
+              {{ t("tokenImport.actions.copyFullToken") }}
+            </NButton>
+            <NButton size="small" type="error" @click="removeRole(index)">
+              {{ t("tokenImportBin.actions.delete") }}
+            </NButton>
+          </div>
         </div>
       </a-list-item>
     </a-list>
@@ -100,6 +124,7 @@ import {
   NFormItem,
   NIcon,
   NInput,
+  useDialog,
   useMessage,
 } from "naive-ui/es";
 
@@ -108,6 +133,11 @@ import { getServerList, getTokenId, transformToken } from "@/utils/token";
 import { g_utils } from "@/utils/bonProtocol";
 import { formatPower } from "@/utils/legionWar";
 import { saveBinBuffer } from "@/utils/binStorage";
+import { maskToken } from "@/utils/securitySanitizer";
+import {
+  confirmAndCopyFullToken,
+  copyMaskedToken,
+} from "@/utils/sensitiveCopy";
 
 const $emit = defineEmits(["cancel", "ok"]);
 
@@ -122,6 +152,7 @@ const removeRole = (index: number) => {
 
 const tokenStore = useTokenStore();
 const message = useMessage();
+const dialog = useDialog();
 const { t } = useI18n();
 const isImporting = ref(false);
 const importForm = reactive({
@@ -148,16 +179,41 @@ const currentBinData = ref<ArrayBuffer | null>(null);
 const binDecodedResult = ref("");
 const originalBinData = ref<any>(null);
 
+const maskedRoleToken = (token: string) => maskToken(token, 4, 4) || "***";
+
+const copyMaskedRoleToken = async (token: string) => {
+  await copyMaskedToken({
+    token,
+    message,
+    successMessage: t("tokenImport.messages.tokenCopiedMasked"),
+    failureMessage: t("tokenImport.messages.clipboardCopyFailed"),
+  });
+};
+
+const copyFullRoleToken = (token: string) => {
+  confirmAndCopyFullToken({
+    token,
+    dialog,
+    message,
+    title: t("tokenImport.dialogs.copyFullToken.title"),
+    content: t("tokenImport.dialogs.copyFullToken.content"),
+    placeholder: t("tokenImport.dialogs.copyFullToken.placeholder"),
+    positiveText: t("tokenImport.common.confirm"),
+    negativeText: t("tokenImport.common.cancel"),
+    successMessage: t("tokenImport.messages.tokenCopiedFull"),
+    failureMessage: t("tokenImport.messages.clipboardCopyFailed"),
+    missingConfirmMessage: t("tokenImport.messages.copyFullConfirmMissing"),
+  });
+};
+
 const columns = computed(() => [
   {
     title: t("tokenImportBin.columns.server"),
     key: "serverId",
     render(row: any) {
       let sid = Number(row.serverId);
-      if (sid >= 2000000)
-        sid -= 2000000;
-      else if (sid >= 1000000)
-        sid -= 1000000;
+      if (sid >= 2000000) sid -= 2000000;
+      else if (sid >= 1000000) sid -= 1000000;
       return sid - 27;
     },
   },
@@ -166,10 +222,8 @@ const columns = computed(() => [
     key: "roleIndex",
     render(row: any) {
       const sid = Number(row.serverId);
-      if (sid >= 2000000)
-        return 2;
-      if (sid >= 1000000)
-        return 1;
+      if (sid >= 2000000) return 2;
+      if (sid >= 1000000) return 1;
       return 0;
     },
   },
@@ -220,7 +274,11 @@ const columns = computed(() => [
 const tQueue = new PQueue({ concurrency: 1, interval: 1000 });
 
 const resolveRoleIndex = (roleInfo: any) => {
-  const candidate = [roleInfo?.roleIndex, roleInfo?.index, roleInfo?.role?.index]
+  const candidate = [
+    roleInfo?.roleIndex,
+    roleInfo?.index,
+    roleInfo?.role?.index,
+  ]
     .map((value) => String(value ?? "").trim())
     .find((value) => /^\d+$/.test(value));
   if (candidate !== undefined) {
@@ -240,8 +298,7 @@ const resolveRoleIndex = (roleInfo: any) => {
 };
 
 const initName = (fileName: string) => {
-  if (!fileName)
-    return;
+  if (!fileName) return;
   fileName = fileName.trim();
   const binRes = fileName.match(/^bin-(.*?)服-([0-2])-(\d{6,12})-(.*)\.bin$/);
   if (binRes) {
@@ -287,7 +344,9 @@ const handleDownload = (roleInfo: any) => {
     message.success(t("tokenImportBin.messages.downloadStarted", { fileName }));
   } catch (e: any) {
     console.error("下载失败", e);
-    message.error(t("tokenImportBin.messages.downloadFailed", { error: e.message }));
+    message.error(
+      t("tokenImportBin.messages.downloadFailed", { error: e.message }),
+    );
   }
 };
 
@@ -303,7 +362,9 @@ const addSelectedRole = async (roleInfo: any) => {
     const newBinBuffer = g_utils.encode(newData) as ArrayBuffer;
     const tokenId = getTokenId(newBinBuffer);
     const roleToken = await transformToken(newBinBuffer);
-    const roleName = roleInfo.name || t("tokenImportBin.messages.roleFallback", { roleId: roleInfo.roleId });
+    const roleName =
+      roleInfo.name ||
+      t("tokenImportBin.messages.roleFallback", { roleId: roleInfo.roleId });
 
     // 刷新indexDB数据库token数据 (保存原始bin)
     await saveBinBuffer(tokenId, newBinBuffer);
@@ -325,7 +386,9 @@ const addSelectedRole = async (roleInfo: any) => {
     );
 
     if (exists) {
-      message.warning(t("tokenImportBin.messages.roleAlreadyQueued", { name: finalName }));
+      message.warning(
+        t("tokenImportBin.messages.roleAlreadyQueued", { name: finalName }),
+      );
       return;
     }
 
@@ -344,10 +407,14 @@ const addSelectedRole = async (roleInfo: any) => {
       binSourceMissingAt: null,
     });
 
-    message.success(t("tokenImportBin.messages.roleAdded", { name: finalName }));
+    message.success(
+      t("tokenImportBin.messages.roleAdded", { name: finalName }),
+    );
   } catch (e: any) {
     console.error("添加角色失败", e);
-    message.error(t("tokenImportBin.messages.addRoleFailed", { error: e.message }));
+    message.error(
+      t("tokenImportBin.messages.addRoleFailed", { error: e.message }),
+    );
   }
 };
 
@@ -466,6 +533,13 @@ const downloadBinFile = (fileName, bin) => {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.role-item-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
 }
 
 .dropzone-content {

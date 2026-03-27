@@ -10,7 +10,9 @@
           </p>
           <div class="app-chip-row">
             <span class="app-inline-stat">
-              <strong>{{ authStore.user?.username || t("tokenImport.header.notLoggedIn") }}</strong>
+              <strong>{{
+                authStore.user?.username || t("tokenImport.header.notLoggedIn")
+              }}</strong>
               当前账号
             </span>
             <span class="app-inline-stat">
@@ -71,7 +73,11 @@
       </section>
 
       <div class="app-page__summary token-import-summary">
-        <article v-for="card in tokenSummaryCards" :key="card.label" class="app-summary-card">
+        <article
+          v-for="card in tokenSummaryCards"
+          :key="card.label"
+          class="app-summary-card"
+        >
           <span class="app-summary-card__label">{{ card.label }}</span>
           <strong class="app-summary-card__value">{{ card.value }}</strong>
           <span class="app-summary-card__meta">{{ card.meta }}</span>
@@ -151,9 +157,17 @@
         <template #header>
           <div class="bin-files-header">
             <div>
-              <h2>{{ t("tokenImport.binFiles.title", { count: binFiles.length }) }}</h2>
+              <h2>
+                {{
+                  t("tokenImport.binFiles.title", { count: binFiles.length })
+                }}
+              </h2>
               <p>{{ t("tokenImport.binFiles.desc") }}</p>
-              <n-tag v-if="sensitiveConfirmRemainingText" size="small" type="warning">
+              <n-tag
+                v-if="sensitiveConfirmRemainingText"
+                size="small"
+                type="warning"
+              >
                 {{ sensitiveConfirmRemainingText }}
               </n-tag>
             </div>
@@ -184,10 +198,20 @@
       <div v-if="tokenStore.hasTokens" class="tokens-section">
         <div class="section-header">
           <n-space align="center">
-            <h2>{{ t("tokenImport.tokenList.title", { count: tokenStore.gameTokens.length }) }}</h2>
+            <h2>
+              {{
+                t("tokenImport.tokenList.title", {
+                  count: tokenStore.gameTokens.length,
+                })
+              }}
+            </h2>
             <n-radio-group size="small" v-model:value="viewMode">
-              <n-radio-button value="list">{{ t("tokenImport.viewModes.list") }}</n-radio-button>
-              <n-radio-button value="card">{{ t("tokenImport.viewModes.card") }}</n-radio-button>
+              <n-radio-button value="list">{{
+                t("tokenImport.viewModes.list")
+              }}</n-radio-button>
+              <n-radio-button value="card">{{
+                t("tokenImport.viewModes.card")
+              }}</n-radio-button>
             </n-radio-group>
             <n-divider vertical class="divider-h-24"></n-divider>
             <n-button-group size="small">
@@ -207,13 +231,15 @@
                 :type="sortConfig.field === 'createdAt' ? 'primary' : 'default'"
                 @click="toggleSort('createdAt')"
               >
-                {{ t("tokenImport.sort.createdAt") }} {{ getSortIcon("createdAt") }}
+                {{ t("tokenImport.sort.createdAt") }}
+                {{ getSortIcon("createdAt") }}
               </NButton>
               <NButton
                 :type="sortConfig.field === 'lastUsed' ? 'primary' : 'default'"
                 @click="toggleSort('lastUsed')"
               >
-                {{ t("tokenImport.sort.lastUsed") }} {{ getSortIcon("lastUsed") }}
+                {{ t("tokenImport.sort.lastUsed") }}
+                {{ getSortIcon("lastUsed") }}
               </NButton>
             </n-button-group>
           </n-space>
@@ -281,10 +307,7 @@
                   :src="token.avatar"
                 ></n-avatar>
                 {{ token.name }}
-                <a-tag
-                  v-if="token.server"
-                  :color="getServerTagColor(token.id)"
-                >
+                <a-tag v-if="token.server" :color="getServerTagColor(token.id)">
                   {{ token.server }}
                 </a-tag>
                 <!-- 连接状态指示器 -->
@@ -322,7 +345,9 @@
 
             <template #default>
               <div class="token-display">
-                <span class="token-label">{{ t("tokenImport.labels.token") }}</span>
+                <span class="token-label">{{
+                  t("tokenImport.labels.token")
+                }}</span>
                 <code class="token-value">{{ maskToken(token.token) }}</code>
               </div>
 
@@ -332,7 +357,9 @@
                 class="token-remark token-remark-edit"
                 @click.stop
               >
-                <span class="remark-label">{{ t("tokenImport.labels.remark") }}</span>
+                <span class="remark-label">{{
+                  t("tokenImport.labels.remark")
+                }}</span>
                 <n-input
                   autofocus
                   type="textarea"
@@ -349,7 +376,9 @@
                 class="token-remark"
                 @click.stop="startEditRemark(token)"
               >
-                <span class="remark-label">{{ t("tokenImport.labels.remark") }}</span>
+                <span class="remark-label">{{
+                  t("tokenImport.labels.remark")
+                }}</span>
                 <span class="remark-value">{{
                   token.remark || t("tokenImport.placeholders.remarkClick")
                 }}</span>
@@ -367,18 +396,26 @@
                     <Refresh></Refresh>
                   </NIcon>
                 </template>
-                {{ token.sourceUrl ? t("tokenImport.actions.refresh") : t("tokenImport.actions.reacquire") }}
+                {{
+                  token.sourceUrl
+                    ? t("tokenImport.actions.refresh")
+                    : t("tokenImport.actions.reacquire")
+                }}
               </a-button>
 
               <div class="token-timestamps">
                 <div class="timestamp-item">
-                  <span class="timestamp-label">{{ t("tokenImport.labels.created") }}</span>
+                  <span class="timestamp-label">{{
+                    t("tokenImport.labels.created")
+                  }}</span>
                   <span class="timestamp-value">{{
                     formatTime(token.createdAt)
                   }}</span>
                 </div>
                 <div class="timestamp-item">
-                  <span class="timestamp-label">{{ t("tokenImport.labels.used") }}</span>
+                  <span class="timestamp-label">{{
+                    t("tokenImport.labels.used")
+                  }}</span>
                   <span class="timestamp-value">{{
                     formatTime(token.lastUsed)
                   }}</span>
@@ -388,14 +425,16 @@
               <!-- 存储类型信息 -->
               <div class="storage-info">
                 <div class="storage-item">
-                  <span class="storage-label">{{ t("tokenImport.labels.storageType") }}</span>
+                  <span class="storage-label">{{
+                    t("tokenImport.labels.storageType")
+                  }}</span>
                   <n-tag
                     size="small"
                     :type="
-                      token.importMethod === 'url'
-                        || token.importMethod === 'bin'
-                        || token.importMethod === 'wxQrcode'
-                        || token.upgradedToPermanent
+                      token.importMethod === 'url' ||
+                      token.importMethod === 'bin' ||
+                      token.importMethod === 'wxQrcode' ||
+                      token.upgradedToPermanent
                         ? 'success'
                         : 'warning'
                     "
@@ -404,18 +443,22 @@
                   </n-tag>
                 </div>
                 <div v-if="hasMissingBinSource(token)" class="storage-item">
-                  <span class="storage-label">{{ t("tokenImport.labels.sourceFile") }}</span>
-                  <n-tag size="small" type="error">{{ t("tokenImport.tokenCard.missingBinSource") }}</n-tag>
+                  <span class="storage-label">{{
+                    t("tokenImport.labels.sourceFile")
+                  }}</span>
+                  <n-tag size="small" type="error">{{
+                    t("tokenImport.tokenCard.missingBinSource")
+                  }}</n-tag>
                 </div>
 
                 <!-- 升级选项（仅对临时存储的token显示） -->
                 <div
                   v-if="
                     !(
-                      token.importMethod === 'url'
-                      || token.importMethod === 'bin'
-                      || token.importMethod === 'wxQrcode'
-                      || token.upgradedToPermanent
+                      token.importMethod === 'url' ||
+                      token.importMethod === 'bin' ||
+                      token.importMethod === 'wxQrcode' ||
+                      token.upgradedToPermanent
                     )
                   "
                   class="storage-upgrade"
@@ -531,7 +574,10 @@
                       @click.stop="startEditRemark(token)"
                     >
                       <i class="i-mdi:note-outline note-icon-tight"></i>
-                      {{ token.remark || t("tokenImport.placeholders.remarkClick") }}
+                      {{
+                        token.remark ||
+                        t("tokenImport.placeholders.remarkClick")
+                      }}
                       <NIcon class="remark-create-icon">
                         <Create></Create>
                       </NIcon>
@@ -546,10 +592,10 @@
                 <n-tag
                   size="small"
                   :type="
-                    token.importMethod === 'url'
-                      || token.importMethod === 'bin'
-                      || token.importMethod === 'wxQrcode'
-                      || token.upgradedToPermanent
+                    token.importMethod === 'url' ||
+                    token.importMethod === 'bin' ||
+                    token.importMethod === 'wxQrcode' ||
+                    token.upgradedToPermanent
                       ? 'success'
                       : 'warning'
                   "
@@ -561,10 +607,10 @@
                 <NButton
                   v-if="
                     !(
-                      token.importMethod === 'url'
-                      || token.importMethod === 'bin'
-                      || token.importMethod === 'wxQrcode'
-                      || token.upgradedToPermanent
+                      token.importMethod === 'url' ||
+                      token.importMethod === 'bin' ||
+                      token.importMethod === 'wxQrcode' ||
+                      token.upgradedToPermanent
                     )
                   "
                   ghost
@@ -629,10 +675,7 @@
           <i class="mdi:bed-empty"></i>
         </template>
         {{ t("tokenImport.empty.noTokens") }}
-        <a-button
-          type="link"
-          @click="openshowImportForm"
-        >
+        <a-button type="link" @click="openshowImportForm">
           {{ t("tokenImport.empty.openManager") }}
         </a-button>
       </a-empty>
@@ -652,10 +695,16 @@
         :model="editForm"
         :rules="editRules"
       >
-        <n-form-item path="name" :label="t('tokenImport.editModal.fields.name')">
+        <n-form-item
+          path="name"
+          :label="t('tokenImport.editModal.fields.name')"
+        >
           <n-input v-model:value="editForm.name"></n-input>
         </n-form-item>
-        <n-form-item path="token" :label="t('tokenImport.editModal.fields.token')">
+        <n-form-item
+          path="token"
+          :label="t('tokenImport.editModal.fields.token')"
+        >
           <n-input
             clearable
             type="textarea"
@@ -668,7 +717,10 @@
           <n-input v-model:value="editForm.server"></n-input>
         </n-form-item>
         <n-collapse>
-          <n-collapse-item name="advancedWs" :title="t('tokenImport.wsSecurity.advancedSettings')">
+          <n-collapse-item
+            name="advancedWs"
+            :title="t('tokenImport.wsSecurity.advancedSettings')"
+          >
             <n-form-item :label="t('tokenImport.editModal.fields.wsUrl')">
               <n-input v-model:value="editForm.wsUrl"></n-input>
             </n-form-item>
@@ -711,12 +763,12 @@
       :mask-closable="false"
       @close="cancelActivationInput"
     >
-      <n-form
-        label-placement="left"
-        label-width="96px"
-      >
+      <n-form label-placement="left" label-width="96px">
         <n-form-item label="角色名称">
-          <n-input readonly :value="activationTargetToken?.name || '-'"></n-input>
+          <n-input
+            readonly
+            :value="activationTargetToken?.name || '-'"
+          ></n-input>
         </n-form-item>
         <n-form-item label="RoleID">
           <n-input
@@ -735,10 +787,17 @@
       </n-form>
       <template #footer>
         <div class="modal-actions">
-          <NButton :disabled="activationSubmitting" @click="cancelActivationInput">
+          <NButton
+            :disabled="activationSubmitting"
+            @click="cancelActivationInput"
+          >
             {{ t("tokenImport.common.cancel") }}
           </NButton>
-          <NButton type="primary" :loading="activationSubmitting" @click="confirmActivationInput">
+          <NButton
+            type="primary"
+            :loading="activationSubmitting"
+            @click="confirmActivationInput"
+          >
             确认激活
           </NButton>
         </div>
@@ -783,6 +842,7 @@ import {
   fetchTokenPayloadFromUrl,
   isTrustedTokenImportUrl,
 } from "@/services/tokenImport/tokenRemoteSource";
+import { maskToken } from "@/utils/securitySanitizer";
 // 接收路由参数
 const props = defineProps({
   name: String,
@@ -809,14 +869,14 @@ const connectingTokens = ref(new Set());
 const viewMode = ref(getTokenViewMode());
 
 const hasMissingBinSource = (token) =>
-  (token.importMethod === "bin" || token.importMethod === "wxQrcode")
-  && token.binSourceState === "missing";
+  (token.importMethod === "bin" || token.importMethod === "wxQrcode") &&
+  token.binSourceState === "missing";
 
 const isPersistentToken = (token) =>
-  token.importMethod === "url"
-  || token.importMethod === "bin"
-  || token.importMethod === "wxQrcode"
-  || token.upgradedToPermanent;
+  token.importMethod === "url" ||
+  token.importMethod === "bin" ||
+  token.importMethod === "wxQrcode" ||
+  token.upgradedToPermanent;
 
 const getLongStorageLabel = (token) =>
   isPersistentToken(token)
@@ -828,12 +888,14 @@ const getShortStorageLabel = (token) =>
     ? t("tokenImport.storage.longShort")
     : t("tokenImport.storage.temporaryShort");
 
-const persistentTokenCount = computed(() =>
-  tokenStore.gameTokens.filter((token) => isPersistentToken(token)).length,
+const persistentTokenCount = computed(
+  () =>
+    tokenStore.gameTokens.filter((token) => isPersistentToken(token)).length,
 );
 
 const tokenHeroDescription = computed(() => {
-  const username = authStore.user?.username || t("tokenImport.header.notLoggedIn");
+  const username =
+    authStore.user?.username || t("tokenImport.header.notLoggedIn");
   if (!tokenStore.hasTokens) {
     return `${username} · ${t("tokenImport.header.accountIsolation")}。先导入一个角色，后续再统一做刷新、批量操作和连接管理。`;
   }
@@ -849,15 +911,18 @@ const tokenSummaryCards = computed(() => [
   },
   {
     label: "视图模式",
-    value: viewMode.value === "card"
-      ? t("tokenImport.viewModes.card")
-      : t("tokenImport.viewModes.list"),
+    value:
+      viewMode.value === "card"
+        ? t("tokenImport.viewModes.card")
+        : t("tokenImport.viewModes.list"),
     meta: "移动端默认更适合卡片流式查看",
   },
   {
     label: "长效凭证",
     value: String(persistentTokenCount.value),
-    meta: tokenStore.hasTokens ? `共 ${tokenStore.gameTokens.length} 个角色` : "导入后可长期复用",
+    meta: tokenStore.hasTokens
+      ? `共 ${tokenStore.gameTokens.length} 个角色`
+      : "导入后可长期复用",
   },
   {
     label: "安全确认",
@@ -904,7 +969,10 @@ const normalizeRoleId = (value) => {
   return matched ? matched[1] : "";
 };
 
-const normalizeSessId = (value) => String(value || "").trim().slice(0, 256);
+const normalizeSessId = (value) =>
+  String(value || "")
+    .trim()
+    .slice(0, 256);
 
 const ACCOUNT_ID_PRIORITY = [
   "roleid",
@@ -933,7 +1001,9 @@ const collectNineDigitIdsFromPayload = (payload) => {
     seen.add(value);
     Object.entries(value).forEach(([key, child]) => {
       if (typeof child !== "object" || child === null) {
-        const normalizedKey = String(key || "").trim().toLowerCase();
+        const normalizedKey = String(key || "")
+          .trim()
+          .toLowerCase();
         if (ACCOUNT_ID_KEYS.has(normalizedKey)) {
           push(normalizedKey, child);
         }
@@ -978,21 +1048,23 @@ const resolveTokenRoleId = (token) => {
 };
 
 const resolveTokenSessId = (token) => {
-  const directSessId = normalizeSessId(token?.activationSessId || token?.sessId);
+  const directSessId = normalizeSessId(
+    token?.activationSessId || token?.sessId,
+  );
   if (directSessId) {
     return directSessId;
   }
 
   const payload = parseTokenPayload(token?.token);
   return normalizeSessId(
-    payload?.sessId
-    || payload?.sessid
-    || payload?.sess_id
-    || payload?.sessionId
-    || payload?.sessionid
-    || payload?.session_id
-    || payload?.sid
-    || "",
+    payload?.sessId ||
+      payload?.sessid ||
+      payload?.sess_id ||
+      payload?.sessionId ||
+      payload?.sessionid ||
+      payload?.session_id ||
+      payload?.sid ||
+      "",
   );
 };
 
@@ -1005,13 +1077,16 @@ const resolveServerActivationBinding = async (tokenId) => {
   const res = await api.tokenActivation.listMine();
   const bindings = Array.isArray(res?.data) ? res.data : [];
   const matched = bindings.find(
-    (item) => String(item?.tokenId || "").trim() === String(tokenId || "").trim(),
+    (item) =>
+      String(item?.tokenId || "").trim() === String(tokenId || "").trim(),
   );
   if (!matched) {
     return null;
   }
 
-  const roleId = normalizeRoleId(matched?.roleId || matched?.gameAccountId || "");
+  const roleId = normalizeRoleId(
+    matched?.roleId || matched?.gameAccountId || "",
+  );
   if (!roleId) {
     return null;
   }
@@ -1078,30 +1153,31 @@ const confirmActivationInput = () => {
 const ensureTokenActivation = async (token, options = {}) => {
   let normalizedSessId = resolveTokenSessId(token);
   let normalizedRoleId = normalizeRoleId(
-    token.activationRoleId
-    || token.activationGameAccountId
-    || token.roleId
-    || resolveTokenRoleId(token),
+    token.activationRoleId ||
+      token.activationGameAccountId ||
+      token.roleId ||
+      resolveTokenRoleId(token),
   );
   if (!normalizedRoleId && typeof tokenStore.parseBase64Token === "function") {
     const parsed = tokenStore.parseBase64Token(String(token?.token || ""));
     if (parsed?.success) {
       normalizedSessId = normalizeSessId(
-        parsed?.data?.activationSessId
-        || parsed?.data?.sessId
-        || normalizedSessId,
+        parsed?.data?.activationSessId ||
+          parsed?.data?.sessId ||
+          normalizedSessId,
       );
       normalizedRoleId = normalizeRoleId(
-        parsed?.data?.activationRoleId
-        || parsed?.data?.activationGameAccountId
-        || parsed?.data?.roleId
-        || resolveTokenRoleId(parsed?.data),
+        parsed?.data?.activationRoleId ||
+          parsed?.data?.activationGameAccountId ||
+          parsed?.data?.roleId ||
+          resolveTokenRoleId(parsed?.data),
       );
     }
     if (normalizedRoleId || normalizedSessId) {
       tokenStore.updateToken(token.id, {
         sessId: normalizedSessId || token.sessId || "",
-        activationSessId: normalizedSessId || token.activationSessId || token.sessId || "",
+        activationSessId:
+          normalizedSessId || token.activationSessId || token.sessId || "",
         roleId: normalizedRoleId,
         activationRoleId: normalizedRoleId,
         activationGameAccountId: normalizedRoleId,
@@ -1114,12 +1190,11 @@ const ensureTokenActivation = async (token, options = {}) => {
       });
     }
   }
-  const normalizedRoleName = String(
-    token?.activationRoleName || token?.name || "",
-  ).trim() || "未命名角色";
-  const normalizedRegion = String(
-    token?.activationRegion || token?.server || "",
-  ).trim() || "未知大区";
+  const normalizedRoleName =
+    String(token?.activationRoleName || token?.name || "").trim() ||
+    "未命名角色";
+  const normalizedRegion =
+    String(token?.activationRegion || token?.server || "").trim() || "未知大区";
   const normalizedRoleIndex = String(token?.roleIndex ?? "").trim();
   if (normalizedRoleId && !options.forceRenew) {
     try {
@@ -1137,8 +1212,12 @@ const ensureTokenActivation = async (token, options = {}) => {
       if (status?.success && status?.data?.active) {
         tokenStore.updateToken(token.id, {
           sessId: normalizedSessId || token.sessId || "",
-          activationSessId:
-            normalizeSessId(status.data.sessId || normalizedSessId || token.activationSessId || token.sessId),
+          activationSessId: normalizeSessId(
+            status.data.sessId ||
+              normalizedSessId ||
+              token.activationSessId ||
+              token.sessId,
+          ),
           roleId: normalizedRoleId,
           activationRoleId: normalizedRoleId,
           activationGameAccountId: normalizedRoleId,
@@ -1148,8 +1227,10 @@ const ensureTokenActivation = async (token, options = {}) => {
           activationRegion: String(
             status.data.region || normalizedRegion,
           ).trim(),
-          activationExpiresAt: status.data.expiresAt || token.activationExpiresAt || null,
-          activationBoundAt: status.data.boundAt || token.activationBoundAt || null,
+          activationExpiresAt:
+            status.data.expiresAt || token.activationExpiresAt || null,
+          activationBoundAt:
+            status.data.boundAt || token.activationBoundAt || null,
         });
         return true;
       }
@@ -1175,35 +1256,53 @@ const ensureTokenActivation = async (token, options = {}) => {
             if (status?.success && status?.data?.active) {
               tokenStore.updateToken(token.id, {
                 sessId: binding.sessId || token.sessId || "",
-                activationSessId:
-                  normalizeSessId(status.data.sessId || binding.sessId || token.activationSessId || token.sessId),
+                activationSessId: normalizeSessId(
+                  status.data.sessId ||
+                    binding.sessId ||
+                    token.activationSessId ||
+                    token.sessId,
+                ),
                 roleId: binding.roleId,
                 activationRoleId: binding.roleId,
                 activationGameAccountId: binding.roleId,
                 activationRoleName: String(
-                  status.data.roleName || binding.roleName || normalizedRoleName,
+                  status.data.roleName ||
+                    binding.roleName ||
+                    normalizedRoleName,
                 ).trim(),
                 activationRegion: String(
                   status.data.region || binding.region || normalizedRegion,
                 ).trim(),
                 activationExpiresAt:
-                  status.data.expiresAt || binding.expiresAt || token.activationExpiresAt || null,
+                  status.data.expiresAt ||
+                  binding.expiresAt ||
+                  token.activationExpiresAt ||
+                  null,
                 activationBoundAt:
-                  status.data.boundAt || binding.boundAt || token.activationBoundAt || null,
+                  status.data.boundAt ||
+                  binding.boundAt ||
+                  token.activationBoundAt ||
+                  null,
               });
               return true;
             }
             if (binding.active) {
               tokenStore.updateToken(token.id, {
                 sessId: binding.sessId || token.sessId || "",
-                activationSessId: binding.sessId || token.activationSessId || token.sessId || "",
+                activationSessId:
+                  binding.sessId ||
+                  token.activationSessId ||
+                  token.sessId ||
+                  "",
                 roleId: binding.roleId,
                 activationRoleId: binding.roleId,
                 activationGameAccountId: binding.roleId,
                 activationRoleName: binding.roleName || normalizedRoleName,
                 activationRegion: binding.region || normalizedRegion,
-                activationExpiresAt: binding.expiresAt || token.activationExpiresAt || null,
-                activationBoundAt: binding.boundAt || token.activationBoundAt || null,
+                activationExpiresAt:
+                  binding.expiresAt || token.activationExpiresAt || null,
+                activationBoundAt:
+                  binding.boundAt || token.activationBoundAt || null,
               });
               return true;
             }
@@ -1239,7 +1338,8 @@ const ensureTokenActivation = async (token, options = {}) => {
     }
     tokenStore.updateToken(token.id, {
       sessId: normalizedSessId || token.sessId || "",
-      activationSessId: normalizedSessId || token.activationSessId || token.sessId || "",
+      activationSessId:
+        normalizedSessId || token.activationSessId || token.sessId || "",
       roleId: input.roleId,
       activationRoleId: input.roleId,
       activationGameAccountId: input.roleId,
@@ -1291,15 +1391,6 @@ const goToAdminCenter = () => {
  */
 const openshowImportForm = () => {
   showImportForm.value = true;
-};
-
-const maskToken = (token) => {
-  if (!token)
-    return "";
-  const len = token.length;
-  if (len <= 8)
-    return token;
-  return `${token.substring(0, 4)}***${token.substring(len - 4)}`;
 };
 
 const formatTime = (timestamp) => {
@@ -1401,26 +1492,31 @@ const formatActivationExpiry = (value) => {
 
 const showActivationExpiryDialog = (token) => {
   const wsStatus = tokenStore.getWebSocketStatus(token.id);
-  const refreshRoleInfo = wsStatus === "connected"
-    ? tokenStore.sendGetRoleInfo(token.id).catch(() => {
-        // 读取实时角色信息失败时回退到本地缓存名称。
-      })
-    : Promise.resolve();
+  const refreshRoleInfo =
+    wsStatus === "connected"
+      ? tokenStore.sendGetRoleInfo(token.id).catch(() => {
+          // 读取实时角色信息失败时回退到本地缓存名称。
+        })
+      : Promise.resolve();
 
-  return refreshRoleInfo.then(() =>
-    new Promise((resolve) => {
-      const latestToken = tokenStore.gameTokens.find((item) => item.id === token.id) || token;
-      const expiryText = formatActivationExpiry(latestToken?.activationExpiresAt);
-      dialog.info({
-        title: "激活到期时间",
-        content: `${latestToken?.name || token.name} 到期时间：${expiryText}`,
-        positiveText: "进入控制台",
-        negativeText: "取消",
-        onPositiveClick: () => resolve(true),
-        onNegativeClick: () => resolve(false),
-        onClose: () => resolve(false),
-      });
-    }),
+  return refreshRoleInfo.then(
+    () =>
+      new Promise((resolve) => {
+        const latestToken =
+          tokenStore.gameTokens.find((item) => item.id === token.id) || token;
+        const expiryText = formatActivationExpiry(
+          latestToken?.activationExpiresAt,
+        );
+        dialog.info({
+          title: "激活到期时间",
+          content: `${latestToken?.name || token.name} 到期时间：${expiryText}`,
+          positiveText: "进入控制台",
+          negativeText: "取消",
+          onPositiveClick: () => resolve(true),
+          onNegativeClick: () => resolve(false),
+          onClose: () => resolve(false),
+        });
+      }),
   );
 };
 
@@ -1431,17 +1527,23 @@ const startTaskManagement = async (token) => {
   const confirmed = await showActivationExpiryDialog(token);
   if (!confirmed) return;
   tokenStore.selectToken(token.id);
-  message.success(t("tokenImport.messages.enteringConsole", { name: token.name }));
+  message.success(
+    t("tokenImport.messages.enteringConsole", { name: token.name }),
+  );
   router.push("/admin/dashboard");
 };
 
 // URL参数处理函数
 const handleUrlParams = async () => {
-  const legacyToken = String(router.currentRoute.value.query.token || "").trim();
+  const legacyToken = String(
+    router.currentRoute.value.query.token || "",
+  ).trim();
   if (legacyToken) {
-    message.warning(t("tokenImport.messages.importFailedWithReason", {
-      error: "URL 中携带 token 已禁用，请改用手动导入或受信任 API 导入",
-    }));
+    message.warning(
+      t("tokenImport.messages.importFailedWithReason", {
+        error: "URL 中携带 token 已禁用，请改用手动导入或受信任 API 导入",
+      }),
+    );
     router.replace("/tokens");
     return;
   }
@@ -1463,7 +1565,9 @@ const handleUrlParams = async () => {
 
       // 使用API获取的token
       tokenResult = tokenStore.importBase64Token(
-        props.name || data.name || t("tokenImport.messages.importedFromApiDefaultName"),
+        props.name ||
+          data.name ||
+          t("tokenImport.messages.importedFromApiDefaultName"),
         data.token,
         {
           server: props.server || data.server,
@@ -1484,7 +1588,9 @@ const handleUrlParams = async () => {
         if (props.auto && tokenResult.token) {
           const activated = await ensureTokenActivation(tokenResult.token);
           if (activated) {
-            const confirmed = await showActivationExpiryDialog(tokenResult.token);
+            const confirmed = await showActivationExpiryDialog(
+              tokenResult.token,
+            );
             if (confirmed) {
               tokenStore.selectToken(tokenResult.token.id);
               message.success(t("tokenImport.messages.redirectingToConsole"));
@@ -1498,7 +1604,9 @@ const handleUrlParams = async () => {
           router.replace("/tokens");
         }
       } else {
-        throw new Error(tokenResult?.message || t("tokenImport.messages.tokenImportFailed"));
+        throw new Error(
+          tokenResult?.message || t("tokenImport.messages.tokenImportFailed"),
+        );
       }
     } catch (error) {
       console.error("URL参数处理失败:", error);

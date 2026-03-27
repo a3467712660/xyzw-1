@@ -25,6 +25,7 @@ npm --prefix backend ci
 ```
 
 说明：
+
 - 根目录使用 `package-lock.json`
 - `backend/` 使用 `backend/package-lock.json`
 - 不使用 pnpm/yarn，避免依赖漂移
@@ -36,6 +37,7 @@ cp backend/.env.example backend/.env
 ```
 
 必须改掉以下占位值：
+
 - `JWT_SECRET`
 - `AES_KEY`
 
@@ -45,11 +47,25 @@ cp backend/.env.example backend/.env
 BACKEND_PORT=8787
 JWT_SECRET=replace-with-your-own-long-random-secret
 AES_KEY=replace-with-your-own-long-random-secret
-CORS_ORIGINS=http://localhost:3000,https://xyzw.xq5007.fun
+CORS_ORIGINS=http://localhost:3000,https://your-single-domain.example
 LOG_REQUESTS=true
 DB_PATH=./data/xyzw.sqlite.bin
 BIN_STORAGE_PATH=./data/bin-storage
 ```
+
+前端单域安全相关 env：
+
+```env
+VITE_XYZW_RUNTIME_ALLOWED_HOSTS=your-single-domain.example
+VITE_TRUSTED_IMPORT_API_HOSTS=your-single-domain.example
+# 仅在需要对外暴露 dev/preview host 时设置
+VITE_DEV_ALLOWED_HOSTS=preview.example.com,.preview.example.com
+```
+
+说明：
+
+- 未配置 `VITE_XYZW_RUNTIME_ALLOWED_HOSTS` / `VITE_TRUSTED_IMPORT_API_HOSTS` 时，前端默认仅允许 `localhost`、`127.0.0.1`、`::1`。
+- 一旦显式配置上述 env，就严格按配置白名单执行，不再隐式追加 loopback。
 
 ## 4. 启动校验规则
 
@@ -74,6 +90,7 @@ npm run dev:all
 ```
 
 约定：
+
 - 日常联调只使用 `npm run dev:all`
 - 浏览器只访问 `http://localhost:3000`
 - `/api/v1` 与 `/ws` 通过 Vite 代理进入后端 `http://localhost:8787`
