@@ -57,6 +57,7 @@ export function useTokenImportTokenActions({
       if (token.importMethod === "url") {
         const data = await fetchTokenPayloadFromUrl(token.sourceUrl, {
           trustedOnly: true,
+          useProxy: true,
         });
         const parsed = tokenStore.parseBase64Token(data.token);
         const nextToken =

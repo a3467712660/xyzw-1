@@ -200,12 +200,14 @@ npm run dev
   - `VITE_DEV_DEBUG_PROXY=true|false`
   - `VITE_DEV_OPEN=true|false`
   - `VITE_XYZW_RUNTIME_ALLOWED_HOSTS=your-single-domain.example`（控制 `/tokens` 页高风险 runtime 允许加载的 host；未配置时默认仅允许 localhost/127.0.0.1/::1）
-  - `VITE_TRUSTED_IMPORT_API_HOSTS=your-single-domain.example`（控制受信任 URL 导入 API host；同源始终允许，未配置时默认仅允许 localhost/127.0.0.1/::1）
+  - `VITE_TRUSTED_IMPORT_API_HOSTS=your-single-domain.example`（控制前端允许发起 trusted URL 导入/刷新 的 host；同源始终允许，未配置时默认仅允许 localhost/127.0.0.1/::1）
+  - `TRUSTED_IMPORT_API_HOSTS=your-single-domain.example`（控制后端 `/api/v1/token-import/proxy` 允许代理的 host；默认仅允许 localhost/127.0.0.1/::1）
 
 单域部署推荐：
 
 - 当前阶段保持单域，不需要拆 `PUBLIC_APP_ORIGIN` / `ADMIN_APP_ORIGIN`。
-- 线上只需要把当前单域 host 同时配置到 `VITE_XYZW_RUNTIME_ALLOWED_HOSTS` 与 `VITE_TRUSTED_IMPORT_API_HOSTS`。
+- 线上只需要把当前单域 host 同时配置到 `VITE_XYZW_RUNTIME_ALLOWED_HOSTS`、`VITE_TRUSTED_IMPORT_API_HOSTS` 与 `TRUSTED_IMPORT_API_HOSTS`。
+- 前端白名单只负责浏览器侧兜底；真正的 trusted URL 代理仍以后端 `TRUSTED_IMPORT_API_HOSTS` 为准。
 
 ## 常用命令
 

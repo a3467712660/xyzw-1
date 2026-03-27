@@ -1561,6 +1561,7 @@ const handleUrlParams = async () => {
 
       const data = await fetchTokenPayloadFromUrl(props.api, {
         trustedOnly: true,
+        useProxy: true,
       });
 
       // 使用API获取的token

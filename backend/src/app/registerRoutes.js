@@ -9,6 +9,7 @@ import taskControlRoutes from "../routes/taskControl.js";
 import feedbackRoutes from "../routes/feedbacks.js";
 import notificationRoutes from "../routes/notifications.js";
 import wechatProxyRoutes from "../routes/wechatProxy.js";
+import tokenImportProxyRoutes from "../routes/tokenImportProxy.js";
 import tokenActivationRoutes from "../routes/tokenActivations.js";
 import { publicBuildInfo } from "../lib/buildInfo.js";
 import { createUserRoutes } from "./userRoutes.js";
@@ -42,6 +43,7 @@ export function registerRoutes(app) {
   app.use("/api/v1/auth", authRoutes);
   app.use("/api/v1/admin", adminRoutes);
   app.use("/api/v1", wechatProxyRoutes);
+  app.use("/api/v1", tokenImportProxyRoutes);
   app.use("/api/v1", roleRoutes);
   app.use("/api/v1", taskRoutes);
   app.use("/api/v1", binFileRoutes);

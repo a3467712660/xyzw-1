@@ -24,6 +24,7 @@ cp backend/.env.example backend/.env
 ```
 
 关键变量：
+
 - `JWT_SECRET`：JWT 签名密钥（必填）
 - `AES_KEY`：字段加密密钥（必填）
 - `CSRF_SECRET`：CSRF 签名密钥（必填，必须显式设置，不能复用 `JWT_SECRET`）
@@ -33,11 +34,13 @@ cp backend/.env.example backend/.env
 - `BACKEND_PORT`：服务端口（默认 `8787`）
 - `CORS_ORIGINS`：允许跨域来源白名单（逗号分隔）
 - `CSP_CONNECT_SRC`：前端 `Content-Security-Policy connect-src` 白名单（逗号分隔，避免使用 `https:`/`wss:`/`ws:` 这类全局放行）
+- `TRUSTED_IMPORT_API_HOSTS`：后端 `/api/v1/token-import/proxy` 允许代理的 host 白名单（逗号分隔，支持精确 host 和 `.example.com` 后缀匹配）
 - `DB_PATH`：SQLite 数据文件路径
 - `BIN_STORAGE_PATH`：BIN 存储目录
 - `BACKEND_ERROR_LOG_PATH`：后端错误日志文件路径（默认 `./data/backend-errors.log`）
 
 可选变量：
+
 - `LOG_REQUESTS`：是否打印请求日志（默认 `true`）
 - 后端错误日志落盘策略：
   - `BACKEND_ERROR_LOG_MAX_BYTES`（默认 `5242880`，约 5MB）
@@ -68,6 +71,7 @@ cp backend/.env.example backend/.env
   - `LOG_CLEANUP_MINUTE`（默认 `20`）
 
 启动校验：
+
 - `JWT_SECRET` 为空或占位值会直接拒绝启动
 - `AES_KEY` 为空或占位值会直接拒绝启动
 - `CSRF_SECRET`、`INVITE_CODE_PEPPER`、`ACTIVATION_CODE_PEPPER`、`PASSWORD_RESET_CODE_PEPPER` 必须显式设置
@@ -75,6 +79,7 @@ cp backend/.env.example backend/.env
 - `NODE_ENV=production && BOOTSTRAP_ADMIN_PASSWORD` 存在会直接拒绝启动
 - `NODE_ENV=production && CORS_ORIGINS` 未显式设置会直接拒绝启动
 - `NODE_ENV=production && CORS_ORIGINS` 包含 `localhost/127.0.0.1/::1` 会直接拒绝启动
+- `TRUSTED_IMPORT_API_HOSTS` 若未显式设置，后端 token-import proxy 默认仅允许 loopback host
 - `NODE_ENV=production` 下 `JWT_SECRET` / `CSRF_SECRET` / 三个 pepper 不能复用同一个值
 - `NODE_ENV=production` 下若存在未启用 MFA 的管理员账号，会直接拒绝启动
 - `NODE_ENV=production` 下应用内 SQLite 明文备份默认关闭；示例配置也保持 `APP_DB_BACKUP_ENABLED=false`
@@ -103,6 +108,7 @@ npm run backend:start
 ```
 
 健康检查：
+
 - `GET /health`
 
 ## 管理员初始化
@@ -117,6 +123,7 @@ npm --prefix backend run init-admin
 ```
 
 要求：
+
 - `ADMIN_USERNAME`、`ADMIN_EMAIL`、`ADMIN_PASSWORD` 都必须显式提供
 - 不传用户名或邮箱时，初始化脚本会直接失败，不会使用任何默认身份
 
@@ -141,6 +148,7 @@ npm --prefix backend run init-admin-mfa
 ```
 
 运行时约束：
+
 - `BOOTSTRAP_ADMIN_*` 不再由 `backend/src/index.js` 消费
 - 生产环境如果仍设置 `BOOTSTRAP_ADMIN_*`，主进程会直接拒绝启动
 - 所有管理员接口现在都要求管理员账号已启用 MFA
@@ -155,6 +163,7 @@ npm --prefix backend run incident:invalidate-sensitive-codes
 ```
 
 作用说明：
+
 - `incident:revoke-all-sessions`
   - 对所有用户执行 `token_version + 1`
   - 撤销所有仍未撤销的 refresh token
@@ -166,6 +175,7 @@ npm --prefix backend run incident:invalidate-sensitive-codes
 这两条脚本不会替你轮换 `JWT_SECRET` / `AES_KEY` / `CSRF_SECRET` / 三个 pepper。密钥轮换仍需在部署平台完成，并在轮换后重启服务。
 
 推荐事故响应顺序：
+
 1. 立即执行：
    `npm --prefix backend run incident:revoke-all-sessions`
    `npm --prefix backend run incident:invalidate-sensitive-codes`
@@ -210,6 +220,7 @@ npm --prefix backend run incident:invalidate-sensitive-codes
 - 日志口径：管理员页默认只展示带 `[backend]` 前缀的服务端调度日志，不展示前端手动执行写入的普通任务日志。
 
 认证真相接口：
+
 - `GET /api/v1/auth/me`（前端应以此作为刷新后登录态判断依据）
 
 认证错误响应（401/403）统一结构：
@@ -226,10 +237,12 @@ npm --prefix backend run incident:invalidate-sensitive-codes
 ```
 
 会话失效机制：
+
 - Access token 含 `ver`（token version）声明。
 - `logout-all`、用户改密、管理员重置密码、管理员强制下线、短码重置密码后，服务端会将用户 `token_version +1`，并撤销该用户 refresh token。
 
 Access/Refresh 传输策略：
+
 - 默认采用 `HttpOnly` cookie 会话：
   - access cookie：`ACCESS_COOKIE_NAME`（默认 `xyzw_access_token`，路径默认 `/`）
   - refresh cookie：`REFRESH_COOKIE_NAME`（默认 `xyzw_refresh_token`，路径默认 `/api/v1/auth`）
@@ -241,7 +254,7 @@ Access/Refresh 传输策略：
     - `*_COOKIE_DOMAIN` 为空（不可设置 Domain）
     - `ACCESS_COOKIE_PATH=/`
     - `REFRESH_COOKIE_PATH=/`
-    （后端启动时会强校验，不满足即拒绝启动）
+      （后端启动时会强校验，不满足即拒绝启动）
 - `POST /api/v1/auth/refresh` 仅依赖 refresh cookie，不要求先携带 access token。
 - 默认不在 JSON 响应体返回 access token（`ACCESS_TOKEN_EXPOSE_IN_BODY=false`）。如需兼容旧客户端可显式开启。
 - 生产环境部署建议：
@@ -249,11 +262,13 @@ Access/Refresh 传输策略：
   - 网关层启用 HSTS（本仓库静态网关配置已默认开启）
 
 CSRF 防护：
+
 - 所有写操作接口默认启用 CSRF 校验（`X-CSRF-Token` + signed double-submit cookie）。
 - `POST /api/v1/auth/login`、`POST /api/v1/auth/register`、`POST /api/v1/auth/password-reset` 也启用 CSRF 校验（需先调用 `GET /api/v1/auth/csrf` 获取 token/cookies）。
 - CSRF 校验失败会写入 `security_event_logs`（事件类型：`csrf_validation_failed`），用于识别自动化探测与被动攻击流量。
 
 敏感文本字段加密：
+
 - 新写入统一使用 AEAD：`AES-256-GCM`（含认证标签，支持篡改检测）。
 - 历史 `AES-256-CBC` 文本密文可继续读取，后续写回会自然迁移为 GCM。
 

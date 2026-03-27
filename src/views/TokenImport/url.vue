@@ -23,7 +23,9 @@
       ></NInput>
       <template #feedback>
         <div class="form-tips">
-          <span class="form-tip">{{ t("tokenImportUrl.feedback.tokenField") }}</span>
+          <span class="form-tip">{{
+            t("tokenImportUrl.feedback.tokenField")
+          }}</span>
           <span class="form-tip cors-tip">
             {{ t("tokenImportUrl.feedback.cors") }}
           </span>
@@ -33,26 +35,31 @@
 
     <!-- 角色详情 -->
     <NCollapse>
-      <NCollapseItem name="optional" :title="t('tokenImportUrl.optional.title')">
+      <NCollapseItem
+        name="optional"
+        :title="t('tokenImportUrl.optional.title')"
+      >
         <div class="optional-fields">
           <NFormItem :label="t('tokenImportUrl.fields.server')">
-            <NInput v-model:value="urlForm.server" :placeholder="t('tokenImportUrl.placeholders.server')"></NInput>
+            <NInput
+              v-model:value="urlForm.server"
+              :placeholder="t('tokenImportUrl.placeholders.server')"
+            ></NInput>
           </NFormItem>
         </div>
 
         <NCollapse class="mt-8">
-          <NCollapseItem name="advancedWs" :title="t('tokenImport.wsSecurity.advancedSettings')">
+          <NCollapseItem
+            name="advancedWs"
+            :title="t('tokenImport.wsSecurity.advancedSettings')"
+          >
             <NFormItem :label="t('tokenImportUrl.fields.wsUrl')">
               <NInput
                 v-model:value="urlForm.wsUrl"
                 :placeholder="t('tokenImportUrl.placeholders.wsUrl')"
               ></NInput>
             </NFormItem>
-            <NAlert
-              v-if="wsRisk.shouldWarn"
-              type="error"
-              :show-icon="true"
-            >
+            <NAlert v-if="wsRisk.shouldWarn" type="error" :show-icon="true">
               {{ t("tokenImport.wsSecurity.riskWarning") }}
             </NAlert>
           </NCollapseItem>
@@ -127,7 +134,11 @@ const wsRisk = computed(() => analyzeWsUrlSafety(urlForm.wsUrl));
 
 const urlRules = {
   name: [
-    { required: true, message: t("tokenImportUrl.validation.nameRequired"), trigger: "blur" },
+    {
+      required: true,
+      message: t("tokenImportUrl.validation.nameRequired"),
+      trigger: "blur",
+    },
     {
       min: 1,
       max: 50,
@@ -136,14 +147,21 @@ const urlRules = {
     },
   ],
   url: [
-    { required: true, message: t("tokenImportUrl.validation.urlRequired"), trigger: "blur" },
-    { type: "url", message: t("tokenImportUrl.validation.urlValid"), trigger: "blur" },
+    {
+      required: true,
+      message: t("tokenImportUrl.validation.urlRequired"),
+      trigger: "blur",
+    },
+    {
+      type: "url",
+      message: t("tokenImportUrl.validation.urlValid"),
+      trigger: "blur",
+    },
   ],
 };
 
 const handleUrlImport = async () => {
-  if (!urlFormRef.value)
-    return;
+  if (!urlFormRef.value) return;
 
   try {
     await urlFormRef.value.validate();
@@ -161,12 +179,16 @@ const handleUrlImport = async () => {
 
     const data = await fetchTokenPayloadFromUrl(urlForm.url, {
       trustedOnly: true,
+      useProxy: true,
     });
     if (data?.token) {
       const newToken = {
         name: urlForm.name,
         token: data.token,
-        server: urlForm.server || data.server || t("tokenImportUrl.messages.unknownServer"),
+        server:
+          urlForm.server ||
+          data.server ||
+          t("tokenImportUrl.messages.unknownServer"),
         wsUrl: urlForm.wsUrl || "",
         id: Date.now().toString(),
         sourceUrl: urlForm.url,

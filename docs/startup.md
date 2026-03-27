@@ -58,6 +58,7 @@ BIN_STORAGE_PATH=./data/bin-storage
 ```env
 VITE_XYZW_RUNTIME_ALLOWED_HOSTS=your-single-domain.example
 VITE_TRUSTED_IMPORT_API_HOSTS=your-single-domain.example
+TRUSTED_IMPORT_API_HOSTS=your-single-domain.example
 # 仅在需要对外暴露 dev/preview host 时设置
 VITE_DEV_ALLOWED_HOSTS=preview.example.com,.preview.example.com
 ```
@@ -65,7 +66,9 @@ VITE_DEV_ALLOWED_HOSTS=preview.example.com,.preview.example.com
 说明：
 
 - 未配置 `VITE_XYZW_RUNTIME_ALLOWED_HOSTS` / `VITE_TRUSTED_IMPORT_API_HOSTS` 时，前端默认仅允许 `localhost`、`127.0.0.1`、`::1`。
+- 未配置 `TRUSTED_IMPORT_API_HOSTS` 时，后端 `/api/v1/token-import/proxy` 默认仅允许 `localhost`、`127.0.0.1`、`::1`。
 - 一旦显式配置上述 env，就严格按配置白名单执行，不再隐式追加 loopback。
+- `VITE_TRUSTED_IMPORT_API_HOSTS` 是前端白名单，`TRUSTED_IMPORT_API_HOSTS` 是后端代理白名单，两者应保持一致。
 
 ## 4. 启动校验规则
 

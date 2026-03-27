@@ -2,6 +2,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import dotenv from "dotenv";
+import {
+  LOOPBACK_HOST_ALLOWLIST,
+  parseHostPatterns,
+} from "../lib/hostAllowlist.js";
 import { normalizeHttpOrigin } from "../lib/origin.js";
 
 const currentFile = fileURLToPath(import.meta.url);
@@ -152,6 +156,7 @@ const rawPasswordResetCodePepper = String(
   process.env.PASSWORD_RESET_CODE_PEPPER || "",
 ).trim();
 const defaultCorsOrigins = ["http://localhost:3000"];
+const defaultTrustedImportApiHosts = LOOPBACK_HOST_ALLOWLIST;
 const defaultCspConnectSrc = [
   "https://*.hortorgames.com",
   "wss://*.hortorgames.com",
@@ -165,6 +170,9 @@ const cspConnectSrc = String(process.env.CSP_CONNECT_SRC || "")
   .split(",")
   .map((item) => item.trim())
   .filter(Boolean);
+const trustedImportApiHosts = parseHostPatterns(
+  process.env.TRUSTED_IMPORT_API_HOSTS,
+);
 const dbWriteSafetyParamsTables = parseCsv(
   process.env.DB_WRITE_SAFETY_PARAMS_TABLES,
 ).map((item) => item.toLowerCase());
@@ -420,6 +428,10 @@ export const env = {
   csrfHeaderName:
     String(process.env.CSRF_HEADER_NAME || "x-csrf-token").trim() ||
     "x-csrf-token",
+  trustedImportApiHosts:
+    trustedImportApiHosts.length > 0
+      ? trustedImportApiHosts
+      : defaultTrustedImportApiHosts,
   cspConnectSrc:
     cspConnectSrc.length > 0 ? cspConnectSrc : defaultCspConnectSrc,
   wechatProxyHortorLoginGuestOnly: parseBoolean(

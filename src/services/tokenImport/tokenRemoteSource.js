@@ -201,7 +201,7 @@ export const fetchTokenPayloadFromUrl = async (rawUrl, options = {}) => {
     if (!isTrustedTokenImportUrl(parsed.toString())) {
       throw new Error("代理模式仅允许同源、localhost 或受信任域名");
     }
-    requestUrl = `/api/proxy?url=${encodeURIComponent(parsed.toString())}`;
+    requestUrl = `/api/v1/token-import/proxy?url=${encodeURIComponent(parsed.toString())}`;
     requestOptions = {
       method: "GET",
       headers: { Accept: "application/json" },
