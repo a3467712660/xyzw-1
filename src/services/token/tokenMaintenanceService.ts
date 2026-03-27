@@ -4,6 +4,7 @@ import {
   getConnectionMonitorStats,
   getExpiredConnectionMonitorEntries,
 } from "@/services/token/tokenMaintenanceLogic";
+import { fetchTokenPayloadFromUrl } from "@/services/tokenImport/tokenRemoteSource";
 
 interface RefLike<T> {
   value: T;
@@ -16,7 +17,10 @@ interface AttemptTokenRefreshDeps {
   gameTokens: RefLike<any[]>;
   wsConnections: RefLike<Record<string, any>>;
   updateToken: (tokenId: string, updates: Record<string, any>) => boolean;
-  markBinSourceState: (tokenId: string, state: "available" | "missing") => boolean;
+  markBinSourceState: (
+    tokenId: string,
+    state: "available" | "missing",
+  ) => boolean;
   selectToken: (tokenId: string, forceReconnect?: boolean) => any;
   getCurrentPath: () => string;
   logger: {
@@ -56,18 +60,20 @@ export const attemptTokenRefreshById = async ({
 
   try {
     if (gameToken.importMethod === "url" && gameToken.sourceUrl) {
-      const response = await fetch(gameToken.sourceUrl);
-      if (response.ok) {
-        const data = await response.json();
-        if (data.token) {
-          updateToken(tokenId, { ...gameToken, token: data.token });
-          logger.info(`从URL获取token成功: ${gameToken.name}`);
-          refreshSuccess = true;
-        }
-      }
+      const data = await fetchTokenPayloadFromUrl(gameToken.sourceUrl, {
+        trustedOnly: true,
+        useProxy: true,
+      });
+      updateToken(tokenId, {
+        ...gameToken,
+        token: data.token,
+        server: data.server || gameToken.server,
+      });
+      logger.info(`从URL获取token成功: ${gameToken.name}`);
+      refreshSuccess = true;
     } else if (
-      gameToken.importMethod === "bin"
-      || gameToken.importMethod === "wxQrcode"
+      gameToken.importMethod === "bin" ||
+      gameToken.importMethod === "wxQrcode"
     ) {
       const userToken = await loadBinBuffer(tokenId, [gameToken.name]);
 
@@ -97,10 +103,10 @@ export const attemptTokenRefreshById = async ({
   logger.info(`Token刷新成功 [${tokenId}]`);
 
   const currentPath = getCurrentPath();
-  const shouldReconnect
-    = forceReconnect
-      || currentPath === "/tokens"
-      || currentPath === "/admin/game-features";
+  const shouldReconnect =
+    forceReconnect ||
+    currentPath === "/tokens" ||
+    currentPath === "/admin/game-features";
 
   if (shouldReconnect) {
     logger.info(`触发自动重连 [${tokenId}]`);
