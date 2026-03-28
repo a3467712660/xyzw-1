@@ -1,5 +1,5 @@
 import { nowIso, randomId } from "../db/sql.js";
-import { sanitizeNotificationPayloadForClient } from "../lib/notificationPayloadSanitizer.js";
+import { serializeNotificationRowForClient } from "../lib/notificationRowSerializer.js";
 import { notificationRepository } from "../repositories/notificationRepository.js";
 
 const asJson = (value) => {
@@ -43,18 +43,7 @@ export const listUserNotifications = ({ userId, unreadOnly = false, limit = 50 }
   const safeLimit = Math.max(1, Math.min(200, Number(limit) || 50));
   return notificationRepository
     .listByUser({ userId, unreadOnly, limit: safeLimit })
-    .map((row) => ({
-      ...row,
-      isRead: Number(row.isRead) === 1,
-      payload: (() => {
-        try {
-          const parsedPayload = row.payloadJson ? JSON.parse(row.payloadJson) : {};
-          return sanitizeNotificationPayloadForClient(parsedPayload);
-        } catch {
-          return {};
-        }
-      })(),
-    }));
+    .map((row) => serializeNotificationRowForClient(row));
 };
 
 export const markNotificationRead = ({ id, userId, readAt = nowIso() }) => {
