@@ -5,6 +5,8 @@ const URL_KEY_PATTERN = /(url|uri|endpoint|wsUrl)/i;
 const URL_TOKEN_PARAM_PATTERN = /^(p|token|access_token|auth|authorization|bearer)$/i;
 const SOURCE_URL_SENSITIVE_PARAM_PATTERN = /^(p|token|access_token|auth|authorization|bearer|code|ticket|secret|password|passwd)$/i;
 const ABSOLUTE_URL_PATTERN = /^[a-z][a-z0-9+.-]*:\/\//i;
+const WS_URL_SENSITIVE_PARAM_FALLBACK_PATTERN = /[?&](?:p|token|access_token|auth|authorization|bearer)=/i;
+const SOURCE_URL_SENSITIVE_PARAM_FALLBACK_PATTERN = /[?&](?:p|token|access_token|auth|authorization|bearer|code|ticket|secret|password|passwd)=/i;
 
 export const maskToken = (raw, startLen = 4, endLen = 4) => {
   const token = String(raw || "").trim();
@@ -62,7 +64,7 @@ const parseSourceUrl = (rawUrl) => {
 export const hasSensitiveSourceUrlParams = (rawUrl) => {
   const parsed = parseSourceUrl(rawUrl);
   if (!parsed) {
-    return /[?&](?:p|token|access_token|auth|authorization|bearer|code|ticket|secret|password|passwd)=/i.test(
+    return SOURCE_URL_SENSITIVE_PARAM_FALLBACK_PATTERN.test(
       String(rawUrl || ""),
     );
   }
@@ -70,6 +72,21 @@ export const hasSensitiveSourceUrlParams = (rawUrl) => {
   return Array.from(parsed.parsed.searchParams.keys()).some((key) =>
     SOURCE_URL_SENSITIVE_PARAM_PATTERN.test(key),
   );
+};
+
+export const hasSensitiveWsUrlParams = (rawUrl) => {
+  const value = String(rawUrl || "").trim();
+  if (!value)
+    return false;
+
+  try {
+    const url = new URL(value);
+    return Array.from(url.searchParams.keys()).some((key) =>
+      URL_TOKEN_PARAM_PATTERN.test(key),
+    );
+  } catch {
+    return WS_URL_SENSITIVE_PARAM_FALLBACK_PATTERN.test(value);
+  }
 };
 
 export const sanitizeSourceUrlForDisplay = (rawUrl) => {

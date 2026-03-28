@@ -118,7 +118,7 @@
                   t("tokenManager.labels.wsUrl")
                 }}</span>
                 <span class="detail-value">{{
-                  maskedWsUrl(tokenData.wsUrl)
+                  maskedWsUrl(tokenData)
                 }}</span>
               </div>
               <div class="detail-item">
@@ -214,7 +214,9 @@ const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
 
 // 方法
-const maskedWsUrl = (url) => sanitizeWsUrl(url);
+const maskedWsUrl = (tokenData) =>
+  sanitizeWsUrl(tokenData?.wsUrl)
+  || String(tokenData?.wsUrlDisplay || "").trim();
 const maskedSourceUrl = (tokenData) =>
   sanitizeSourceUrlForDisplay(tokenData?.sourceUrl)
   || String(tokenData?.sourceUrlDisplay || "").trim();

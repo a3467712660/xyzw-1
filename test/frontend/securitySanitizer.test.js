@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 
 import {
   hasSensitiveSourceUrlParams,
+  hasSensitiveWsUrlParams,
   sanitizeSourceUrlForDisplay,
+  sanitizeWsUrl,
 } from "../../src/utils/securitySanitizer.js";
 
 test("hasSensitiveSourceUrlParams detects common sensitive sourceUrl query keys", () => {
@@ -35,4 +37,26 @@ test("sanitizeSourceUrlForDisplay falls back to text masking when URL parsing fa
 
   assert.equal(sanitized.includes("abc123"), false);
   assert.equal(sanitized.includes("xyz789"), false);
+});
+
+test("hasSensitiveWsUrlParams detects common sensitive wsUrl query keys", () => {
+  assert.equal(
+    hasSensitiveWsUrlParams("wss://example.com/agent?p=abc123&lang=chinese"),
+    true,
+  );
+  assert.equal(
+    hasSensitiveWsUrlParams("wss://example.com/agent?lang=chinese"),
+    false,
+  );
+});
+
+test("sanitizeWsUrl masks sensitive wsUrl query values", () => {
+  const sanitized = sanitizeWsUrl(
+    "wss://example.com/agent?p=abc123&token=xyz789&lang=chinese",
+  );
+
+  assert.equal(sanitized.startsWith("wss://example.com/agent?"), true);
+  assert.equal(sanitized.includes("abc123"), false);
+  assert.equal(sanitized.includes("xyz789"), false);
+  assert.equal(sanitized.includes("lang=chinese"), true);
 });

@@ -12,6 +12,7 @@ import {
 } from "@/utils/tokenDb";
 import { safeModeEnabled } from "@/services/token/tokenStorage";
 import {
+  hasSensitiveWsUrlParams,
   maskToken,
   sanitizeErrorForDisplay,
   sanitizeSourceUrlForDisplay,
@@ -47,6 +48,7 @@ const ALLOWED_IMPORT_TOKEN_KEYS = new Set([
   "updatedAt",
   "sourceUrl",
   "sourceUrlDisplay",
+  "wsUrlDisplay",
   "importMethod",
   "remark",
   "name",
@@ -80,28 +82,57 @@ const stripSensitiveFields = (tokenData = {}) => {
   const sourceUrlDisplay =
     (rawSourceUrl && sanitizeSourceUrlForDisplay(rawSourceUrl))
     || String(tokenData.sourceUrlDisplay || "").trim();
+  const rawWsUrl = String(tokenData.wsUrl || "").trim();
+  const shouldKeepRawWsUrl = rawWsUrl && !hasSensitiveWsUrlParams(rawWsUrl);
+  const wsUrlDisplay =
+    (rawWsUrl && sanitizeWsUrl(rawWsUrl))
+    || String(tokenData.wsUrlDisplay || "").trim();
   Object.entries(tokenData).forEach(([key, value]) => {
     if (SENSITIVE_EXPORT_KEYS.has(String(key))) return;
+    if (key === "wsUrl") {
+      if (shouldKeepRawWsUrl) {
+        sanitized[key] = rawWsUrl;
+      }
+      return;
+    }
     if (key === "sourceUrlDisplay") return;
+    if (key === "wsUrlDisplay") return;
     sanitized[key] = value;
   });
   if (sourceUrlDisplay) {
     sanitized.sourceUrlDisplay = sourceUrlDisplay;
   }
+  if (wsUrlDisplay) {
+    sanitized.wsUrlDisplay = wsUrlDisplay;
+  }
   return sanitized;
 };
 
-const stripSourceUrlForFullExport = (tokenData = {}) => {
+const stripSensitiveUrlFieldsForFullExport = (tokenData = {}) => {
   if (!isPlainObject(tokenData)) return {};
   const sanitized = { ...tokenData };
   const rawSourceUrl = String(tokenData.sourceUrl || "").trim();
   const sourceUrlDisplay =
     (rawSourceUrl && sanitizeSourceUrlForDisplay(rawSourceUrl))
     || String(tokenData.sourceUrlDisplay || "").trim();
+  const rawWsUrl = String(tokenData.wsUrl || "").trim();
+  const shouldKeepRawWsUrl = rawWsUrl && !hasSensitiveWsUrlParams(rawWsUrl);
+  const wsUrlDisplay =
+    (rawWsUrl && sanitizeWsUrl(rawWsUrl))
+    || String(tokenData.wsUrlDisplay || "").trim();
   delete sanitized.sourceUrl;
   delete sanitized.sourceUrlDisplay;
+  if (!shouldKeepRawWsUrl) {
+    delete sanitized.wsUrl;
+  } else if (rawWsUrl) {
+    sanitized.wsUrl = rawWsUrl;
+  }
+  delete sanitized.wsUrlDisplay;
   if (sourceUrlDisplay) {
     sanitized.sourceUrlDisplay = sourceUrlDisplay;
+  }
+  if (wsUrlDisplay) {
+    sanitized.wsUrlDisplay = wsUrlDisplay;
   }
   return sanitized;
 };
@@ -588,7 +619,7 @@ export const useLocalTokenStore = defineStore("localToken", () => {
         ? Object.fromEntries(
             Object.entries(gameTokens.value || {}).map(([roleId, data]) => [
               roleId,
-              stripSourceUrlForFullExport(data),
+              stripSensitiveUrlFieldsForFullExport(data),
             ]),
           )
         : Object.fromEntries(

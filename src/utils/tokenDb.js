@@ -1,7 +1,9 @@
 // Lightweight IndexedDB wrapper for token persistence
 import {
   hasSensitiveSourceUrlParams,
+  hasSensitiveWsUrlParams,
   sanitizeSourceUrlForDisplay,
+  sanitizeWsUrl,
 } from "@/utils/securitySanitizer";
 
 const DB_NAME = "xyzw_token_db";
@@ -30,6 +32,11 @@ const sanitizeGameTokenForPersistence = (tokenData = {}) => {
   const sourceUrlDisplay =
     (rawSourceUrl && sanitizeSourceUrlForDisplay(rawSourceUrl))
     || String(tokenData.sourceUrlDisplay || "").trim();
+  const rawWsUrl = String(tokenData.wsUrl || "").trim();
+  const shouldKeepRawWsUrl = rawWsUrl && !hasSensitiveWsUrlParams(rawWsUrl);
+  const wsUrlDisplay =
+    (rawWsUrl && sanitizeWsUrl(rawWsUrl))
+    || String(tokenData.wsUrlDisplay || "").trim();
   const sanitized = {};
   Object.entries(tokenData).forEach(([key, value]) => {
     if (SENSITIVE_TOKEN_KEYS.has(String(key))) return;
@@ -39,11 +46,21 @@ const sanitizeGameTokenForPersistence = (tokenData = {}) => {
       }
       return;
     }
+    if (key === "wsUrl") {
+      if (shouldKeepRawWsUrl) {
+        sanitized[key] = rawWsUrl;
+      }
+      return;
+    }
     if (key === "sourceUrlDisplay") return;
+    if (key === "wsUrlDisplay") return;
     sanitized[key] = value;
   });
   if (sourceUrlDisplay) {
     sanitized.sourceUrlDisplay = sourceUrlDisplay;
+  }
+  if (wsUrlDisplay) {
+    sanitized.wsUrlDisplay = wsUrlDisplay;
   }
   return sanitized;
 };

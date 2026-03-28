@@ -10,6 +10,7 @@ export interface TokenData {
   name: string;
   token: string;
   wsUrl: string | null;
+  wsUrlDisplay?: string;
   server: string;
   roleIndex?: number | string;
   remark?: string;

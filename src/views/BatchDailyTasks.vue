@@ -2240,7 +2240,7 @@ import {
   ref,
   watch,
 } from "vue";
-import { gameTokens, tokenGroups, useTokenStore } from "@/stores/tokenStore";
+import { tokenGroups, useTokenStore } from "@/stores/tokenStore";
 import { useBatchTaskPersistence } from "@/composables/useBatchTaskPersistence";
 import { useBatchConnectionManager } from "@/composables/useBatchConnectionManager";
 import { useBatchConfigTransfer } from "@/composables/useBatchConfigTransfer";
@@ -2817,7 +2817,6 @@ const deselectAllTokens = () => {
 
 const { exportConfig, importConfig } = useBatchConfigTransfer({
   batchSettings,
-  gameTokens,
   message,
   saveBatchSettings,
   saveScheduledTasks,

@@ -2,7 +2,11 @@ import type { Ref } from "vue";
 
 import { getEffectiveUserId, scopeTokenToUser } from "@/services/token/tokenStorage";
 import type { TokenData } from "@/services/token/tokenStorage";
-import { sanitizeSourceUrlForDisplay } from "@/utils/securitySanitizer";
+import {
+  hasSensitiveWsUrlParams,
+  sanitizeSourceUrlForDisplay,
+  sanitizeWsUrl,
+} from "@/utils/securitySanitizer";
 
 interface TokenDataServiceDeps {
   gameTokens: Ref<TokenData[]>;
@@ -43,6 +47,7 @@ const ALLOWED_IMPORT_TOKEN_KEYS = new Set([
   "importMethod",
   "sourceUrl",
   "sourceUrlDisplay",
+  "wsUrlDisplay",
   "avatar",
   "upgradedToPermanent",
   "upgradedAt",
@@ -189,30 +194,58 @@ const stripSensitiveFields = (tokenData: Record<string, any> = {}) => {
   const rawSourceUrl = String(tokenData.sourceUrl || "").trim();
   const sourceUrlDisplay = (rawSourceUrl && sanitizeSourceUrlForDisplay(rawSourceUrl))
     || String(tokenData.sourceUrlDisplay || "").trim();
+  const rawWsUrl = String(tokenData.wsUrl || "").trim();
+  const shouldKeepRawWsUrl = rawWsUrl && !hasSensitiveWsUrlParams(rawWsUrl);
+  const wsUrlDisplay = (rawWsUrl && sanitizeWsUrl(rawWsUrl))
+    || String(tokenData.wsUrlDisplay || "").trim();
   Object.entries(tokenData).forEach(([key, value]) => {
     if (SENSITIVE_EXPORT_KEYS.has(String(key)))
       return;
+    if (key === "wsUrl") {
+      if (shouldKeepRawWsUrl) {
+        sanitized[key] = rawWsUrl;
+      }
+      return;
+    }
     if (key === "sourceUrlDisplay")
+      return;
+    if (key === "wsUrlDisplay")
       return;
     sanitized[key] = value;
   });
   if (sourceUrlDisplay) {
     sanitized.sourceUrlDisplay = sourceUrlDisplay;
   }
+  if (wsUrlDisplay) {
+    sanitized.wsUrlDisplay = wsUrlDisplay;
+  }
   return sanitized;
 };
 
-const stripSourceUrlForFullExport = (tokenData: Record<string, any> = {}) => {
+const stripSensitiveUrlFieldsForFullExport = (tokenData: Record<string, any> = {}) => {
   if (!isPlainObject(tokenData))
     return {};
   const sanitized: Record<string, any> = { ...tokenData };
   const rawSourceUrl = String(tokenData.sourceUrl || "").trim();
   const sourceUrlDisplay = (rawSourceUrl && sanitizeSourceUrlForDisplay(rawSourceUrl))
     || String(tokenData.sourceUrlDisplay || "").trim();
+  const rawWsUrl = String(tokenData.wsUrl || "").trim();
+  const shouldKeepRawWsUrl = rawWsUrl && !hasSensitiveWsUrlParams(rawWsUrl);
+  const wsUrlDisplay = (rawWsUrl && sanitizeWsUrl(rawWsUrl))
+    || String(tokenData.wsUrlDisplay || "").trim();
   delete sanitized.sourceUrl;
   delete sanitized.sourceUrlDisplay;
+  if (!shouldKeepRawWsUrl) {
+    delete sanitized.wsUrl;
+  } else if (rawWsUrl) {
+    sanitized.wsUrl = rawWsUrl;
+  }
+  delete sanitized.wsUrlDisplay;
   if (sourceUrlDisplay) {
     sanitized.sourceUrlDisplay = sourceUrlDisplay;
+  }
+  if (wsUrlDisplay) {
+    sanitized.wsUrlDisplay = wsUrlDisplay;
   }
   return sanitized;
 };
@@ -416,7 +449,7 @@ export function createTokenDataService({
     const mode = options.mode === "metadata" ? "metadata" : "full";
     const tokenList = mode === "metadata"
       ? gameTokens.value.map((token) => stripSensitiveFields(token as Record<string, any>))
-      : gameTokens.value.map((token) => stripSourceUrlForFullExport(token as Record<string, any>));
+      : gameTokens.value.map((token) => stripSensitiveUrlFieldsForFullExport(token as Record<string, any>));
     return {
       version: "2.1",
       format: "xyzw-token-export",
