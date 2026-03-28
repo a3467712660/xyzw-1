@@ -47,12 +47,14 @@ const removeSessionItem = (key) => {
 };
 
 export const extractSensitiveTokenImportQuery = (query = {}) => {
+  const token = normalizeQueryValue(query.token);
   const api = normalizeQueryValue(query.api);
   const wsUrl = normalizeQueryValue(query.wsUrl);
   return {
+    token,
     api,
     wsUrl,
-    hasSensitiveParams: Boolean(api || wsUrl),
+    hasSensitiveParams: Boolean(token || api || wsUrl),
   };
 };
 

@@ -1494,8 +1494,9 @@ const replaceWithSanitizedTokenImportRoute = async () => {
     router.currentRoute.value.query,
   );
   await router.replace({
-    path: "/tokens",
+    path: router.currentRoute.value.path || "/tokens",
     query: sanitizedQuery,
+    hash: router.currentRoute.value.hash,
   });
 };
 
@@ -1560,19 +1561,6 @@ const startTaskManagement = async (token) => {
 
 // URL参数处理函数
 const handleUrlParams = async () => {
-  const legacyToken = String(
-    router.currentRoute.value.query.token || "",
-  ).trim();
-  if (legacyToken) {
-    message.warning(
-      t("tokenImport.messages.importFailedWithReason", {
-        error: "URL 中携带 token 已禁用，请改用手动导入或受信任 API 导入",
-      }),
-    );
-    await router.replace("/tokens");
-    return true;
-  }
-
   const routeNotice = consumeTokenImportRouteNotice();
   if (routeNotice === "legacySensitiveQueryDisabled") {
     showLegacySensitiveImportQueryWarning();
