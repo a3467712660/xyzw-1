@@ -27,11 +27,15 @@
 </template>
 
 <script setup>
-import { computed, ref } from "vue";
+import { onMounted, ref } from "vue";
 import { useMessage } from "naive-ui/es";
 import { useI18n } from "vue-i18n";
 import { useRoute, useRouter } from "vue-router";
 import api from "@/api";
+import {
+  buildRouteWithoutSecret,
+  readRouteSecret,
+} from "@/utils/routeSecretFragment";
 
 const route = useRoute();
 const router = useRouter();
@@ -41,13 +45,20 @@ const { t } = useI18n();
 const submitting = ref(false);
 const status = ref("idle");
 const resultMessage = ref("");
-
-const token = computed(() => String(route.query?.token || "").trim());
+const token = ref(readRouteSecret(route, "token").value);
+const tokenSource = ref(readRouteSecret(route, "token").source);
 
 if (!token.value) {
   status.value = "invalid";
   resultMessage.value = t("mfaReset.invalid");
 }
+
+const cleanupSecretFromUrl = async () => {
+  if (!tokenSource.value) {
+    return;
+  }
+  await router.replace(buildRouteWithoutSecret(route, "token"));
+};
 
 const submitReset = async () => {
   if (!token.value || submitting.value) {
@@ -72,6 +83,10 @@ const submitReset = async () => {
     submitting.value = false;
   }
 };
+
+onMounted(() => {
+  cleanupSecretFromUrl();
+});
 </script>
 
 <style scoped lang="scss">

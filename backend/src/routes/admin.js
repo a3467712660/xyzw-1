@@ -711,7 +711,7 @@ router.post(
     const expiresInMinutes = Math.floor(MFA_RESET_LINK_TTL_SECONDS / 60);
     const expiresAt = new Date(Date.now() + expiresInMinutes * 60 * 1000).toISOString();
     const appOrigin = target.isAdmin ? resolveAdminAppOrigin() : resolvePublicAppOrigin();
-    const resetPath = `/mfa-reset?token=${encodeURIComponent(token)}`;
+    const resetPath = `/mfa-reset#token=${encodeURIComponent(token)}`;
     const resetUrl = appOrigin ? `${appOrigin}${resetPath}` : resetPath;
 
     recordAdminAudit({

@@ -637,7 +637,7 @@ const startMfaQrFlow = async () => {
   }
 
   mfaQrSessionId.value = String(sessionResult.data.sessionId || "");
-  const approvalUrl = `${window.location.origin}/mfa-qr-approve?sid=${encodeURIComponent(mfaQrSessionId.value)}`;
+  const approvalUrl = `${window.location.origin}/mfa-qr-approve#sid=${encodeURIComponent(mfaQrSessionId.value)}`;
   try {
     mfaQrDataUrl.value = await qrToDataURL(approvalUrl, {
       width: 220,

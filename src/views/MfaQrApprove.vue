@@ -95,11 +95,15 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, ref } from "vue";
+import { nextTick, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useMessage } from "naive-ui/es";
 import { useI18n } from "vue-i18n";
 import api from "@/api";
+import {
+  buildRouteWithoutSecret,
+  readRouteSecret,
+} from "@/utils/routeSecretFragment";
 
 const route = useRoute();
 const router = useRouter();
@@ -112,7 +116,15 @@ const isSubmitting = ref(false);
 const isDone = ref(false);
 const formErrorRef = ref(null);
 const formErrorMessage = ref("");
-const sessionId = computed(() => String(route.query.sid || "").trim());
+const sessionId = ref(readRouteSecret(route, "sid").value);
+const sessionIdSource = ref(readRouteSecret(route, "sid").source);
+
+const cleanupSecretFromUrl = async () => {
+  if (!sessionIdSource.value) {
+    return;
+  }
+  await router.replace(buildRouteWithoutSecret(route, "sid"));
+};
 
 const focusNamedInput = (name) => {
   if (typeof document === "undefined")
@@ -186,6 +198,7 @@ const submitApprove = async () => {
 };
 
 onMounted(() => {
+  cleanupSecretFromUrl();
   if (sessionId.value) {
     nextTick(() => {
       focusNamedInput("mfa-totp-code");
