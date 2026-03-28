@@ -835,6 +835,12 @@ import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import {
+  consumeTokenImportLaunchPayload,
+  consumeTokenImportRouteNotice,
+  extractSensitiveTokenImportQuery,
+  getSanitizedTokenImportQuery,
+} from "@/services/tokenImport/tokenImportRouteHandoff";
+import {
   getTokenViewMode,
   setTokenViewMode,
 } from "@/services/tokenImport/tokenImportPreferences";
@@ -847,8 +853,6 @@ import { maskToken } from "@/utils/securitySanitizer";
 const props = defineProps({
   name: String,
   server: String,
-  wsUrl: String,
-  api: String,
   auto: Boolean,
 });
 
@@ -1482,6 +1486,27 @@ const goToDashboard = () => {
   router.push("/admin/task-control");
 };
 
+const LEGACY_SENSITIVE_IMPORT_QUERY_WARNING =
+  "URL 中携带敏感导入参数已禁用，请改用页面内输入或安全会话跳转";
+
+const replaceWithSanitizedTokenImportRoute = async () => {
+  const sanitizedQuery = getSanitizedTokenImportQuery(
+    router.currentRoute.value.query,
+  );
+  await router.replace({
+    path: "/tokens",
+    query: sanitizedQuery,
+  });
+};
+
+const showLegacySensitiveImportQueryWarning = () => {
+  message.warning(
+    t("tokenImport.messages.importFailedWithReason", {
+      error: LEGACY_SENSITIVE_IMPORT_QUERY_WARNING,
+    }),
+  );
+};
+
 const formatActivationExpiry = (value) => {
   const raw = String(value || "").trim();
   if (!raw) return "未获取到到期时间";
@@ -1544,36 +1569,59 @@ const handleUrlParams = async () => {
         error: "URL 中携带 token 已禁用，请改用手动导入或受信任 API 导入",
       }),
     );
-    router.replace("/tokens");
-    return;
+    await router.replace("/tokens");
+    return true;
   }
 
+  const routeNotice = consumeTokenImportRouteNotice();
+  if (routeNotice === "legacySensitiveQueryDisabled") {
+    showLegacySensitiveImportQueryWarning();
+  }
+
+  const sensitiveTokenImportQuery = extractSensitiveTokenImportQuery(
+    router.currentRoute.value.query,
+  );
+  if (sensitiveTokenImportQuery.hasSensitiveParams) {
+    showLegacySensitiveImportQueryWarning();
+    await replaceWithSanitizedTokenImportRoute();
+    return true;
+  }
+
+  const handoffPayload = consumeTokenImportLaunchPayload();
+  const launchApi = String(handoffPayload?.api || "").trim();
+  const launchWsUrl = String(handoffPayload?.wsUrl || "").trim();
+  const launchName = String(handoffPayload?.name || props.name || "").trim();
+  const launchServer = String(
+    handoffPayload?.server || props.server || "",
+  ).trim();
+  const shouldAutoLaunch = handoffPayload?.auto === true || props.auto === true;
+
   // 仅允许通过受信任 API 地址导入，避免任意外部 URL 拉取
-  if (props.api) {
+  if (launchApi) {
     try {
       isImporting.value = true;
       let tokenResult = null;
 
-      if (!isTrustedTokenImportUrl(props.api)) {
+      if (!isTrustedTokenImportUrl(launchApi)) {
         throw new Error("仅允许同源或 localhost API 地址");
       }
       message.info(t("tokenImport.messages.importingFromApi"));
 
-      const data = await fetchTokenPayloadFromUrl(props.api, {
+      const data = await fetchTokenPayloadFromUrl(launchApi, {
         trustedOnly: true,
         useProxy: true,
       });
 
       // 使用API获取的token
       tokenResult = tokenStore.importBase64Token(
-        props.name ||
+        launchName ||
           data.name ||
           t("tokenImport.messages.importedFromApiDefaultName"),
         data.token,
         {
-          server: props.server || data.server,
-          wsUrl: props.wsUrl,
-          sourceUrl: props.api,
+          server: launchServer || data.server,
+          wsUrl: launchWsUrl || null,
+          sourceUrl: launchApi,
           importMethod: "url",
         },
       );
@@ -1586,7 +1634,7 @@ const handleUrlParams = async () => {
         );
 
         // 如果auto=true，自动选择并跳转到控制台
-        if (props.auto && tokenResult.token) {
+        if (shouldAutoLaunch && tokenResult.token) {
           const activated = await ensureTokenActivation(tokenResult.token);
           if (activated) {
             const confirmed = await showActivationExpiryDialog(
@@ -1602,7 +1650,7 @@ const handleUrlParams = async () => {
           }
         } else {
           // 清除URL参数，避免重复处理
-          router.replace("/tokens");
+          await replaceWithSanitizedTokenImportRoute();
         }
       } else {
         throw new Error(
@@ -1617,15 +1665,30 @@ const handleUrlParams = async () => {
         }),
       );
       // 清除URL参数
-      router.replace("/tokens");
+      await replaceWithSanitizedTokenImportRoute();
     } finally {
       isImporting.value = false;
     }
+    return true;
   }
+
+  return false;
 };
 
-// 监听路由参数变化
-watch(() => props.api, handleUrlParams, { immediate: false });
+// 监听路由变化
+watch(
+  () => router.currentRoute.value.fullPath,
+  async (nextPath, previousPath) => {
+    if (nextPath === previousPath) {
+      return;
+    }
+    if (router.currentRoute.value.path !== "/tokens") {
+      return;
+    }
+    await handleUrlParams();
+  },
+  { immediate: false },
+);
 
 // 生命周期
 onMounted(async () => {
@@ -1635,10 +1698,10 @@ onMounted(async () => {
   await tryRestoreTokensFromSavedBins();
 
   // 处理URL参数
-  await handleUrlParams();
+  const handledImportEntry = await handleUrlParams();
 
   // 如果没有token且没有URL参数，显示导入表单
-  if (!tokenStore.hasTokens && !props.api) {
+  if (!tokenStore.hasTokens && !handledImportEntry) {
     showImportForm.value = true;
   }
 });

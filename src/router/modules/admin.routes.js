@@ -8,8 +8,6 @@ const adminChildren = [
     props: (route) => ({
       name: route.query.name,
       server: route.query.server,
-      wsUrl: route.query.wsUrl,
-      api: route.query.api,
       auto: route.query.auto === "true",
     }),
     meta: withRouteMeta({

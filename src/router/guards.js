@@ -1,5 +1,10 @@
 import { useAuthStore } from "@/stores/auth";
 import { useTokenStore } from "@/stores/tokenStore";
+import {
+  extractSensitiveTokenImportQuery,
+  getSanitizedTokenImportQuery,
+  stashTokenImportRouteNotice,
+} from "@/services/tokenImport/tokenImportRouteHandoff";
 import { isNowInLegionWarTime } from "@/utils/clubBattleUtils";
 import {
   canAccessAdminCenter,
@@ -28,10 +33,36 @@ export const setupRouterGuards = (router) => {
       return getDefaultAuthenticatedPath(authStore.user);
     }
 
+    const isTokenImportRoute = to.path === "/tokens" || to.name === "TokenImport";
+    const sanitizedTokenImportQuery = isTokenImportRoute
+      ? getSanitizedTokenImportQuery(to.query)
+      : null;
+    const sensitiveTokenImportQuery = isTokenImportRoute
+      ? extractSensitiveTokenImportQuery(to.query)
+      : { hasSensitiveParams: false };
+
+    if (isTokenImportRoute && sensitiveTokenImportQuery.hasSensitiveParams) {
+      stashTokenImportRouteNotice("legacySensitiveQueryDisabled");
+      return {
+        path: to.path,
+        query: sanitizedTokenImportQuery || {},
+        hash: to.hash,
+        replace: true,
+      };
+    }
+
+    const safeRedirect = isTokenImportRoute
+      ? router.resolve({
+        path: to.path,
+        query: sanitizedTokenImportQuery || {},
+        hash: to.hash,
+      }).fullPath
+      : to.fullPath;
+
     if (mergedMeta.requiresAuth && !authStore.isAuthenticated) {
       return {
         path: "/login",
-        query: { redirect: to.fullPath },
+        query: { redirect: safeRedirect },
       };
     }
 
