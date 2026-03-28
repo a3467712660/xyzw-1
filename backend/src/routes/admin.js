@@ -733,7 +733,6 @@ router.post(
       content: "如需重新绑定认证器，请向管理员索取重置链接并在有效期内完成操作。",
       payload: {
         path: "/admin/feedback",
-        resetPath,
         expiresAt,
       },
     });

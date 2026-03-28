@@ -1,4 +1,5 @@
 import { nowIso, randomId } from "../db/sql.js";
+import { sanitizeNotificationPayloadForClient } from "../lib/notificationPayloadSanitizer.js";
 import { notificationRepository } from "../repositories/notificationRepository.js";
 
 const asJson = (value) => {
@@ -47,7 +48,8 @@ export const listUserNotifications = ({ userId, unreadOnly = false, limit = 50 }
       isRead: Number(row.isRead) === 1,
       payload: (() => {
         try {
-          return row.payloadJson ? JSON.parse(row.payloadJson) : {};
+          const parsedPayload = row.payloadJson ? JSON.parse(row.payloadJson) : {};
+          return sanitizeNotificationPayloadForClient(parsedPayload);
         } catch {
           return {};
         }
