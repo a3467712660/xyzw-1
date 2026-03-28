@@ -372,6 +372,19 @@ const api = {
     logoutAll: () => request.post("/auth/logout-all"),
   },
 
+  tokenImport: {
+    proxyFetch: (url) =>
+      request.post(
+        "/token-import/proxy",
+        { url },
+        {
+          headers: {
+            Accept: "application/json",
+          },
+        },
+      ),
+  },
+
   // 游戏角色相关
   gameRoles: {
     getList: () => request.get("/gamerole_list"),

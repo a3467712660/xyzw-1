@@ -1,4 +1,8 @@
-import { isHostAllowed } from "@/utils/hostAllowlist";
+import api from "@/api";
+import {
+  isHostAllowed,
+  LOOPBACK_HOST_ALLOWLIST,
+} from "@/utils/hostAllowlist";
 
 const toAbsoluteUrl = (rawUrl) => {
   const value = String(rawUrl || "").trim();
@@ -20,9 +24,11 @@ export const isTrustedTokenImportUrl = (rawUrl) => {
   }
 
   const isSameOrigin = parsed.origin === window.location.origin;
+  const fallbackHosts = import.meta.env.PROD ? [] : LOOPBACK_HOST_ALLOWLIST;
   const isTrustedHost = isHostAllowed(
     parsed.hostname,
     import.meta.env.VITE_TRUSTED_IMPORT_API_HOSTS,
+    fallbackHosts,
   );
   return isSameOrigin || isTrustedHost;
 };
@@ -190,24 +196,20 @@ export const fetchTokenPayloadFromUrl = async (rawUrl, options = {}) => {
     throw new Error("仅允许同源或受信任 API 地址");
   }
 
-  let requestUrl = parsed.toString();
-  let requestOptions = buildRequestOptions(parsed);
-
   if (
     useProxy &&
     typeof window !== "undefined" &&
     parsed.origin !== window.location.origin
   ) {
     if (!isTrustedTokenImportUrl(parsed.toString())) {
-      throw new Error("代理模式仅允许同源、localhost 或受信任域名");
+      throw new Error("代理模式仅允许同源或受信任域名");
     }
-    requestUrl = `/api/v1/token-import/proxy?url=${encodeURIComponent(parsed.toString())}`;
-    requestOptions = {
-      method: "GET",
-      headers: { Accept: "application/json" },
-    };
+    const data = await api.tokenImport.proxyFetch(parsed.toString());
+    return normalizeTokenResponse(data);
   }
 
+  const requestUrl = parsed.toString();
+  const requestOptions = buildRequestOptions(parsed);
   const response = await fetch(requestUrl, requestOptions);
   if (!response.ok) {
     const error = new Error(`HTTP ${response.status} ${response.statusText}`);

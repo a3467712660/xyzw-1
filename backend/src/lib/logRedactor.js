@@ -12,6 +12,13 @@ const SENSITIVE_QUERY_KEYS = [
 const EXACT_SENSITIVE_QUERY_KEYS = new Set([
   "p",
 ]);
+const EXACT_URL_CONTAINER_QUERY_KEYS = new Set([
+  "url",
+  "target",
+  "upstream",
+  "redirect_uri",
+  "redirect",
+]);
 
 const isSensitiveHeaderKey = (key) => {
   const name = String(key || "").trim().toLowerCase();
@@ -41,7 +48,10 @@ export const redactHeaders = (headers = {}) => {
 
 const shouldMaskQueryKey = (key) => {
   const normalized = String(key || "").toLowerCase();
-  if (EXACT_SENSITIVE_QUERY_KEYS.has(normalized)) {
+  if (
+    EXACT_SENSITIVE_QUERY_KEYS.has(normalized)
+    || EXACT_URL_CONTAINER_QUERY_KEYS.has(normalized)
+  ) {
     return true;
   }
   return SENSITIVE_QUERY_KEYS.some((segment) => normalized.includes(segment));

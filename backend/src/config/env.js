@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import dotenv from "dotenv";
 import {
   LOOPBACK_HOST_ALLOWLIST,
+  matchesAllowedHost,
   parseHostPatterns,
 } from "../lib/hostAllowlist.js";
 import { normalizeHttpOrigin } from "../lib/origin.js";
@@ -155,8 +156,17 @@ const rawActivationCodePepper = String(
 const rawPasswordResetCodePepper = String(
   process.env.PASSWORD_RESET_CODE_PEPPER || "",
 ).trim();
+const nodeEnv = process.env.NODE_ENV || "development";
+const isProduction = nodeEnv === "production";
 const defaultCorsOrigins = ["http://localhost:3000"];
-const defaultTrustedImportApiHosts = LOOPBACK_HOST_ALLOWLIST;
+const rawTrustedImportApiHosts = String(
+  process.env.TRUSTED_IMPORT_API_HOSTS || "",
+);
+const trustedImportApiHostsExplicitlySet =
+  rawTrustedImportApiHosts.trim().length > 0;
+const defaultTrustedImportApiHosts = isProduction
+  ? []
+  : LOOPBACK_HOST_ALLOWLIST;
 const defaultCspConnectSrc = [
   "https://*.hortorgames.com",
   "wss://*.hortorgames.com",
@@ -170,9 +180,7 @@ const cspConnectSrc = String(process.env.CSP_CONNECT_SRC || "")
   .split(",")
   .map((item) => item.trim())
   .filter(Boolean);
-const trustedImportApiHosts = parseHostPatterns(
-  process.env.TRUSTED_IMPORT_API_HOSTS,
-);
+const trustedImportApiHosts = parseHostPatterns(rawTrustedImportApiHosts);
 const dbWriteSafetyParamsTables = parseCsv(
   process.env.DB_WRITE_SAFETY_PARAMS_TABLES,
 ).map((item) => item.toLowerCase());
@@ -319,7 +327,7 @@ if (accessCookieName.startsWith("__Host-") && accessCookiePath !== "/") {
 }
 
 export const env = {
-  nodeEnv: process.env.NODE_ENV || "development",
+  nodeEnv,
   port: Number(process.env.BACKEND_PORT || 8787),
   jwtSecret: rawJwtSecret,
   aesKey: rawAesKey,
@@ -587,6 +595,20 @@ if (
 ) {
   throw new Error(
     "CORS_ORIGINS must not include localhost/loopback origins in production.",
+  );
+}
+
+if (
+  env.nodeEnv === "production" &&
+  trustedImportApiHostsExplicitlySet &&
+  trustedImportApiHosts.some((pattern) =>
+    LOOPBACK_HOST_ALLOWLIST.some((loopbackHost) =>
+      matchesAllowedHost(loopbackHost, pattern),
+    ),
+  )
+) {
+  throw new Error(
+    "TRUSTED_IMPORT_API_HOSTS must not include localhost/loopback hosts in production.",
   );
 }
 

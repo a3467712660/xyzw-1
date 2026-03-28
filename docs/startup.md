@@ -65,9 +65,11 @@ VITE_DEV_ALLOWED_HOSTS=preview.example.com,.preview.example.com
 
 说明：
 
-- 未配置 `VITE_XYZW_RUNTIME_ALLOWED_HOSTS` / `VITE_TRUSTED_IMPORT_API_HOSTS` 时，前端默认仅允许 `localhost`、`127.0.0.1`、`::1`。
-- 未配置 `TRUSTED_IMPORT_API_HOSTS` 时，后端 `/api/v1/token-import/proxy` 默认仅允许 `localhost`、`127.0.0.1`、`::1`。
+- 未配置 `VITE_XYZW_RUNTIME_ALLOWED_HOSTS` 时，前端默认仅允许 `localhost`、`127.0.0.1`、`::1`。
+- 未配置 `VITE_TRUSTED_IMPORT_API_HOSTS` 时：开发环境前端默认仅允许 `localhost`、`127.0.0.1`、`::1`；生产环境不再隐式允许跨域 loopback。
+- 未配置 `TRUSTED_IMPORT_API_HOSTS` 时：开发环境后端 `POST /api/v1/token-import/proxy` 默认仅允许 `localhost`、`127.0.0.1`、`::1`；生产环境默认空白名单并 fail-closed。
 - 一旦显式配置上述 env，就严格按配置白名单执行，不再隐式追加 loopback。
+- 生产环境必须显式设置 `TRUSTED_IMPORT_API_HOSTS`，且不得包含 `localhost`、`127.0.0.1`、`::1`、`[::1]`。
 - `VITE_TRUSTED_IMPORT_API_HOSTS` 是前端白名单，`TRUSTED_IMPORT_API_HOSTS` 是后端代理白名单，两者应保持一致。
 
 ## 4. 启动校验规则

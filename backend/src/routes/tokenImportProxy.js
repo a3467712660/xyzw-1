@@ -17,7 +17,7 @@ const tokenImportProxyLimiter = createRateLimiter({
   keyGenerator: (req) =>
     `${req.auth?.user?.id || "anonymous"}:${req.ip || "anonymous"}`,
 });
-const tokenImportProxyQuerySchema = z
+const tokenImportProxyBodySchema = z
   .object({
     url: z.string().trim().min(1).max(2048),
   })
@@ -25,14 +25,14 @@ const tokenImportProxyQuerySchema = z
 
 router.use(authRequired);
 
-router.get(
+router.post(
   "/token-import/proxy",
   tokenImportProxyLimiter,
-  validateRequest({ query: tokenImportProxyQuerySchema }),
+  validateRequest({ body: tokenImportProxyBodySchema }),
   async (req, res) => {
     let target;
     try {
-      target = new URL(req.query.url);
+      target = new URL(req.body.url);
     } catch {
       return errorResponse(
         res,

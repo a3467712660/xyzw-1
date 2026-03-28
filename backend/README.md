@@ -79,7 +79,9 @@ cp backend/.env.example backend/.env
 - `NODE_ENV=production && BOOTSTRAP_ADMIN_PASSWORD` 存在会直接拒绝启动
 - `NODE_ENV=production && CORS_ORIGINS` 未显式设置会直接拒绝启动
 - `NODE_ENV=production && CORS_ORIGINS` 包含 `localhost/127.0.0.1/::1` 会直接拒绝启动
-- `TRUSTED_IMPORT_API_HOSTS` 若未显式设置，后端 token-import proxy 默认仅允许 loopback host
+- `TRUSTED_IMPORT_API_HOSTS` 在开发/测试环境未显式设置时，后端 token-import proxy 默认仅允许 loopback host
+- `NODE_ENV=production` 下若未显式设置 `TRUSTED_IMPORT_API_HOSTS`，后端 token-import proxy 默认空白名单并 fail-closed
+- `NODE_ENV=production` 下若 `TRUSTED_IMPORT_API_HOSTS` 包含 `localhost/127.0.0.1/::1/[::1]`，会直接拒绝启动
 - `NODE_ENV=production` 下 `JWT_SECRET` / `CSRF_SECRET` / 三个 pepper 不能复用同一个值
 - `NODE_ENV=production` 下若存在未启用 MFA 的管理员账号，会直接拒绝启动
 - `NODE_ENV=production` 下应用内 SQLite 明文备份默认关闭；示例配置也保持 `APP_DB_BACKUP_ENABLED=false`
