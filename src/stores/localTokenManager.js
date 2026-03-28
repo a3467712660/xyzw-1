@@ -14,6 +14,7 @@ import { safeModeEnabled } from "@/services/token/tokenStorage";
 import {
   maskToken,
   sanitizeErrorForDisplay,
+  sanitizeSourceUrlForDisplay,
   sanitizeWsUrl,
 } from "@/utils/securitySanitizer";
 
@@ -22,6 +23,7 @@ const SENSITIVE_EXPORT_KEYS = new Set([
   "actualToken",
   "gameToken",
   "userToken",
+  "sourceUrl",
 ]);
 
 const ALLOWED_IMPORT_ROOT_KEYS = new Set([
@@ -44,6 +46,7 @@ const ALLOWED_IMPORT_TOKEN_KEYS = new Set([
   "lastUsed",
   "updatedAt",
   "sourceUrl",
+  "sourceUrlDisplay",
   "importMethod",
   "remark",
   "name",
@@ -73,10 +76,33 @@ const normalizeImportValue = (value) => {
 const stripSensitiveFields = (tokenData = {}) => {
   if (!isPlainObject(tokenData)) return {};
   const sanitized = {};
+  const rawSourceUrl = String(tokenData.sourceUrl || "").trim();
+  const sourceUrlDisplay =
+    (rawSourceUrl && sanitizeSourceUrlForDisplay(rawSourceUrl))
+    || String(tokenData.sourceUrlDisplay || "").trim();
   Object.entries(tokenData).forEach(([key, value]) => {
     if (SENSITIVE_EXPORT_KEYS.has(String(key))) return;
+    if (key === "sourceUrlDisplay") return;
     sanitized[key] = value;
   });
+  if (sourceUrlDisplay) {
+    sanitized.sourceUrlDisplay = sourceUrlDisplay;
+  }
+  return sanitized;
+};
+
+const stripSourceUrlForFullExport = (tokenData = {}) => {
+  if (!isPlainObject(tokenData)) return {};
+  const sanitized = { ...tokenData };
+  const rawSourceUrl = String(tokenData.sourceUrl || "").trim();
+  const sourceUrlDisplay =
+    (rawSourceUrl && sanitizeSourceUrlForDisplay(rawSourceUrl))
+    || String(tokenData.sourceUrlDisplay || "").trim();
+  delete sanitized.sourceUrl;
+  delete sanitized.sourceUrlDisplay;
+  if (sourceUrlDisplay) {
+    sanitized.sourceUrlDisplay = sourceUrlDisplay;
+  }
   return sanitized;
 };
 
@@ -559,7 +585,12 @@ export const useLocalTokenStore = defineStore("localToken", () => {
     const mode = options.mode === "full" ? "full" : "metadata";
     const exportGameTokens =
       mode === "full"
-        ? gameTokens.value
+        ? Object.fromEntries(
+            Object.entries(gameTokens.value || {}).map(([roleId, data]) => [
+              roleId,
+              stripSourceUrlForFullExport(data),
+            ]),
+          )
         : Object.fromEntries(
             Object.entries(gameTokens.value || {}).map(([roleId, data]) => [
               roleId,

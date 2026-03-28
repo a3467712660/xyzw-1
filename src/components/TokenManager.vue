@@ -184,6 +184,7 @@ import { triggerBlobDownload } from "@/utils/download";
 import {
   maskToken,
   sanitizeErrorForDisplay,
+  sanitizeSourceUrlForDisplay,
   sanitizeWsUrl,
 } from "@/utils/securitySanitizer";
 import {
@@ -214,6 +215,9 @@ const textDecoder = new TextDecoder();
 
 // 方法
 const maskedWsUrl = (url) => sanitizeWsUrl(url);
+const maskedSourceUrl = (tokenData) =>
+  sanitizeSourceUrlForDisplay(tokenData?.sourceUrl)
+  || String(tokenData?.sourceUrlDisplay || "").trim();
 
 const formatTime = (timestamp) => {
   const localeTag = locale.value === "zh-CN" ? "zh-CN" : "en-US";
@@ -656,7 +660,7 @@ const refreshTokenFromUrl = async (roleId, tokenData) => {
   dialog.info({
     title: t("tokenManager.dialogs.refreshFromUrl.title"),
     content: t("tokenManager.dialogs.refreshFromUrl.content", {
-      sourceUrl: tokenData.sourceUrl,
+      sourceUrl: maskedSourceUrl(tokenData),
     }),
     positiveText: t("tokenManager.common.confirm"),
     negativeText: t("tokenManager.common.cancel"),

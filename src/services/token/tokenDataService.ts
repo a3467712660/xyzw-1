@@ -2,6 +2,7 @@ import type { Ref } from "vue";
 
 import { getEffectiveUserId, scopeTokenToUser } from "@/services/token/tokenStorage";
 import type { TokenData } from "@/services/token/tokenStorage";
+import { sanitizeSourceUrlForDisplay } from "@/utils/securitySanitizer";
 
 interface TokenDataServiceDeps {
   gameTokens: Ref<TokenData[]>;
@@ -15,6 +16,7 @@ const SENSITIVE_EXPORT_KEYS = new Set([
   "actualToken",
   "gameToken",
   "userToken",
+  "sourceUrl",
 ]);
 
 const ALLOWED_IMPORT_ROOT_KEYS = new Set([
@@ -40,6 +42,7 @@ const ALLOWED_IMPORT_TOKEN_KEYS = new Set([
   "remark",
   "importMethod",
   "sourceUrl",
+  "sourceUrlDisplay",
   "avatar",
   "upgradedToPermanent",
   "upgradedAt",
@@ -183,11 +186,34 @@ const stripSensitiveFields = (tokenData: Record<string, any> = {}) => {
   if (!isPlainObject(tokenData))
     return {};
   const sanitized: Record<string, any> = {};
+  const rawSourceUrl = String(tokenData.sourceUrl || "").trim();
+  const sourceUrlDisplay = (rawSourceUrl && sanitizeSourceUrlForDisplay(rawSourceUrl))
+    || String(tokenData.sourceUrlDisplay || "").trim();
   Object.entries(tokenData).forEach(([key, value]) => {
     if (SENSITIVE_EXPORT_KEYS.has(String(key)))
       return;
+    if (key === "sourceUrlDisplay")
+      return;
     sanitized[key] = value;
   });
+  if (sourceUrlDisplay) {
+    sanitized.sourceUrlDisplay = sourceUrlDisplay;
+  }
+  return sanitized;
+};
+
+const stripSourceUrlForFullExport = (tokenData: Record<string, any> = {}) => {
+  if (!isPlainObject(tokenData))
+    return {};
+  const sanitized: Record<string, any> = { ...tokenData };
+  const rawSourceUrl = String(tokenData.sourceUrl || "").trim();
+  const sourceUrlDisplay = (rawSourceUrl && sanitizeSourceUrlForDisplay(rawSourceUrl))
+    || String(tokenData.sourceUrlDisplay || "").trim();
+  delete sanitized.sourceUrl;
+  delete sanitized.sourceUrlDisplay;
+  if (sourceUrlDisplay) {
+    sanitized.sourceUrlDisplay = sourceUrlDisplay;
+  }
   return sanitized;
 };
 
@@ -390,7 +416,7 @@ export function createTokenDataService({
     const mode = options.mode === "metadata" ? "metadata" : "full";
     const tokenList = mode === "metadata"
       ? gameTokens.value.map((token) => stripSensitiveFields(token as Record<string, any>))
-      : gameTokens.value.map((token) => ({ ...token }));
+      : gameTokens.value.map((token) => stripSourceUrlForFullExport(token as Record<string, any>));
     return {
       version: "2.1",
       format: "xyzw-token-export",

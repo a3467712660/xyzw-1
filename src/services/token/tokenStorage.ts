@@ -15,6 +15,7 @@ export interface TokenData {
   remark?: string;
   importMethod?: "manual" | "bin" | "url" | "wxQrcode";
   sourceUrl?: string;
+  sourceUrlDisplay?: string;
   avatar?: string;
   upgradedToPermanent?: boolean;
   upgradedAt?: string;

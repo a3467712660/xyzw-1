@@ -1,4 +1,8 @@
 // Lightweight IndexedDB wrapper for token persistence
+import {
+  hasSensitiveSourceUrlParams,
+  sanitizeSourceUrlForDisplay,
+} from "@/utils/securitySanitizer";
 
 const DB_NAME = "xyzw_token_db";
 const DB_VERSION = 1;
@@ -20,11 +24,27 @@ const getNowIso = () => new Date().toISOString();
 
 const sanitizeGameTokenForPersistence = (tokenData = {}) => {
   if (!tokenData || typeof tokenData !== "object") return {};
+  const rawSourceUrl = String(tokenData.sourceUrl || "").trim();
+  const shouldKeepRawSourceUrl =
+    rawSourceUrl && !hasSensitiveSourceUrlParams(rawSourceUrl);
+  const sourceUrlDisplay =
+    (rawSourceUrl && sanitizeSourceUrlForDisplay(rawSourceUrl))
+    || String(tokenData.sourceUrlDisplay || "").trim();
   const sanitized = {};
   Object.entries(tokenData).forEach(([key, value]) => {
     if (SENSITIVE_TOKEN_KEYS.has(String(key))) return;
+    if (key === "sourceUrl") {
+      if (shouldKeepRawSourceUrl) {
+        sanitized[key] = rawSourceUrl;
+      }
+      return;
+    }
+    if (key === "sourceUrlDisplay") return;
     sanitized[key] = value;
   });
+  if (sourceUrlDisplay) {
+    sanitized.sourceUrlDisplay = sourceUrlDisplay;
+  }
   return sanitized;
 };
 
