@@ -60,7 +60,7 @@ router.post(
       );
     }
 
-    if (!isHostAllowed(target.hostname, env.trustedImportApiHosts)) {
+    if (!isHostAllowed(target.hostname, env.trustedImportApiHosts, [])) {
       return errorResponse(
         res,
         403,

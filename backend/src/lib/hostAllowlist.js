@@ -40,6 +40,10 @@ export const resolveAllowedHosts = (
   rawValue,
   fallbackHosts = LOOPBACK_HOST_ALLOWLIST,
 ) => {
+  if (Array.isArray(rawValue)) {
+    return parseHostPatterns(rawValue);
+  }
+
   const explicitHosts = parseHostPatterns(rawValue);
   if (explicitHosts.length > 0) {
     return explicitHosts;
