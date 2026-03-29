@@ -55,7 +55,7 @@ const bindActivationBodySchema = z.object({
   }
 });
 
-const activationStatusQuerySchema = z.object({
+const activationStatusBodySchema = z.object({
   tokenId: tokenIdSchema.optional(),
   sessId: z.string().trim().max(256).optional().default(""),
   roleId: roleIdSchema.optional(),
@@ -346,14 +346,22 @@ router.post(
 
 router.get(
   "/token-activations/status",
-  validateRequest({ query: activationStatusQuerySchema }),
+  (_req, res) => res.status(405).json({
+    success: false,
+    message: "激活状态查询仅支持 POST 提交",
+  }),
+);
+
+router.post(
+  "/token-activations/status",
+  validateRequest({ body: activationStatusBodySchema }),
   (req, res) => {
-    const tokenId = String(req.query?.tokenId || "").trim();
-    const sessId = normalizeSessId(req.query?.sessId);
-    const roleId = String(req.query?.roleId || req.query?.gameAccountId || "").trim();
-    const roleName = String(req.query?.roleName || "").trim();
-    const region = String(req.query?.region || req.query?.server || "").trim();
-    const roleIndex = normalizeRoleIndex(req.query?.roleIndex);
+    const tokenId = String(req.body?.tokenId || "").trim();
+    const sessId = normalizeSessId(req.body?.sessId);
+    const roleId = String(req.body?.roleId || req.body?.gameAccountId || "").trim();
+    const roleName = String(req.body?.roleName || "").trim();
+    const region = String(req.body?.region || req.body?.server || "").trim();
+    const roleIndex = normalizeRoleIndex(req.body?.roleIndex);
     const normalizedRoleName = normalizeRoleName(roleName);
     const normalizedRegion = normalizeRegion(region);
     const accountIdentity = buildAccountIdentity({

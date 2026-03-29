@@ -11,6 +11,9 @@ const SENSITIVE_QUERY_KEYS = [
 ];
 const EXACT_SENSITIVE_QUERY_KEYS = new Set([
   "p",
+  "sessid",
+  "sessionid",
+  "sid2",
 ]);
 const EXACT_URL_CONTAINER_QUERY_KEYS = new Set([
   "url",

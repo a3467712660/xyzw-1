@@ -38,6 +38,16 @@ test("redactUrl masks sensitive query params", () => {
   assert.equal(redacted, expected);
 });
 
+test("redactUrl masks sessId-style activation query params", () => {
+  const query = new URLSearchParams({
+    sessId: "abc123",
+    tokenId: "t1",
+  }).toString();
+  const redacted = redactUrl(`/api/v1/token-activations/status?${query}`);
+  assert.equal(redacted.includes("sessId=***") || redacted.includes("sessid=***"), true);
+  assert.equal(redacted.includes("abc123"), false);
+});
+
 test("sanitizeForLog escapes control characters", () => {
   assert.equal(sanitizeForLog("/a\tb\r\nc"), "/a\\tb\\r\\nc");
 });

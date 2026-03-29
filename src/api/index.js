@@ -684,7 +684,7 @@ const api = {
     },
     getStatus: (tokenId, roleId, options = {}) => {
       const normalizedRoleIndex = String(options.roleIndex ?? "").trim();
-      const params = {
+      const payload = {
         tokenId,
         roleId,
         gameAccountId: roleId,
@@ -694,9 +694,9 @@ const api = {
         server: options.server || options.region || "",
       };
       if (normalizedRoleIndex) {
-        params.roleIndex = normalizedRoleIndex;
+        payload.roleIndex = normalizedRoleIndex;
       }
-      return request.get("/token-activations/status", { params });
+      return request.post("/token-activations/status", payload);
     },
     listMine: () => request.get("/token-activations/my"),
   },
