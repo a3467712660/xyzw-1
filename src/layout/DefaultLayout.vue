@@ -271,6 +271,7 @@ const workspaceMenuOptions = computed(() => {
   const options = [
     { label: "控制台", key: "/admin/dashboard", icon: renderIcon(Home) },
     { label: "Token 管理", key: "/tokens", icon: renderIcon(PersonCircle) },
+    { label: "推广中心", key: "/admin/referral-center", icon: renderIcon(Megaphone) },
   ];
 
   if (canOpenWorkbenchFeatures.value) {
@@ -300,6 +301,7 @@ const adminMenuOptions = [
   { label: "账号管理", key: "/admin/admin-users", icon: renderIcon(People) },
   { label: "邀请码管理", key: "/admin/admin-invites", icon: renderIcon(People) },
   { label: "激活码管理", key: "/admin/activation-codes", icon: renderIcon(People) },
+  { label: "推广邀请管理", key: "/admin/referrals", icon: renderIcon(Megaphone) },
   { label: "微信联系配置", key: "/admin/wechat-contacts", icon: renderIcon(People) },
   { label: "工单管理", key: "/admin/feedback-tickets", icon: renderIcon(Receipt) },
   { label: "后端任务日志", key: "/admin/task-control-logs", icon: renderIcon(Receipt) },

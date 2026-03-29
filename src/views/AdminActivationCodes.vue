@@ -30,6 +30,16 @@
               :options="featureScopeOptions"
             ></n-select>
           </div>
+          <div class="activation-creator__field">
+            <span class="activation-creator__label">售价（元）</span>
+            <n-input-number
+              v-model:value="saleAmountYuan"
+              :min="0"
+              :precision="2"
+              :step="1"
+            ></n-input-number>
+            <span class="activation-creator__hint">{{ getFeatureScopeLabel(featureScope) }}：{{ presetPriceSummary }}</span>
+          </div>
           <NButton class="activation-creator__button" type="primary" :loading="creating" @click="createCodes">
             生成激活码
           </NButton>
@@ -74,6 +84,10 @@
             <div class="meta-row">
               <span class="meta-label">时长</span>
               <span>{{ Math.max(1, Number(row.durationMonths) || 1) }}个月</span>
+            </div>
+            <div class="meta-row">
+              <span class="meta-label">售价</span>
+              <span>{{ formatSale(row.saleAmountCents, row.saleCurrency) }}</span>
             </div>
             <div class="meta-row">
               <span class="meta-label">绑定信息</span>
@@ -148,7 +162,7 @@
 </template>
 
 <script setup>
-import { computed, h, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, h, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { NButton, NInput, NTag, useDialog, useMessage } from "naive-ui/es";
 import { useRouter } from "vue-router";
 import api from "@/api";
@@ -165,6 +179,7 @@ const creating = ref(false);
 const createCount = ref(1);
 const durationMonths = ref(1);
 const featureScope = ref("full");
+const saleAmountYuan = ref(0);
 const codes = ref([]);
 const isMobile = ref(false);
 const MOBILE_BREAKPOINT = 768;
@@ -179,6 +194,20 @@ const durationOptions = [
   { label: "半年", value: 6 },
   { label: "一年", value: 12 },
 ];
+const ACTIVATION_SALE_PRICE_PRESETS = Object.freeze({
+  task_control_only: Object.freeze({
+    1: 6,
+    3: 16,
+    6: 30,
+    12: 58,
+  }),
+  full: Object.freeze({
+    1: 30,
+    3: 85,
+    6: 165,
+    12: 300,
+  }),
+});
 const featureScopeOptions = [
   { label: "全功能", value: "full" },
   { label: "普通版本", value: "task_control_only" },
@@ -187,9 +216,33 @@ const featureScopeOptions = [
 const getFeatureScopeLabel = (value) =>
   String(value || "").trim() === "task_control_only" ? "普通版本" : "全功能";
 
+const formatYuan = (value) => {
+  const amount = Number(value) || 0;
+  if (Number.isInteger(amount)) {
+    return `¥${amount}`;
+  }
+  return `¥${amount.toFixed(2)}`;
+};
+
+const getPresetSaleAmountYuan = (scope, months) => {
+  const scopeKey = String(scope || "").trim() === "task_control_only" ? "task_control_only" : "full";
+  const monthKey = Number(months) || 1;
+  return Number(ACTIVATION_SALE_PRICE_PRESETS[scopeKey]?.[monthKey] || 0);
+};
+
+const presetPriceSummary = computed(() =>
+  durationOptions
+    .map((option) => `${option.label} ${formatYuan(getPresetSaleAmountYuan(featureScope.value, option.value))}`)
+    .join(" / "));
+
 const formatTime = (value) => {
   if (!value) return "-";
   return new Date(value).toLocaleString();
+};
+
+const formatSale = (amountCents, currency = "CNY") => {
+  const amount = Math.max(0, Number(amountCents) || 0) / 100;
+  return `¥${amount.toFixed(2)} ${String(currency || "CNY").trim() || "CNY"}`;
 };
 
 const statusTag = (row) => {
@@ -385,6 +438,9 @@ const unbindCode = async (row) => {
       return;
     }
     message.success(res.message || "已解绑");
+    if (Number(res?.data?.voidedConversions || 0) > 0) {
+      message.info("相关返佣台账已同步作废");
+    }
     await loadCodes();
   } catch (error) {
     if (Number(error?.status || 0) === 401 || Number(error?.status || 0) === 403) {
@@ -407,7 +463,8 @@ const unbindAllCodes = async () => {
     }
     const deletedBindings = Number(res?.data?.deletedBindings || 0);
     const resetCodes = Number(res?.data?.resetCodes || 0);
-    message.success(`已清空绑定：解绑记录 ${deletedBindings} 条，重置激活码 ${resetCodes} 条`);
+    const voidedConversions = Number(res?.data?.voidedConversions || 0);
+    message.success(`已清空绑定：解绑记录 ${deletedBindings} 条，重置激活码 ${resetCodes} 条，作废返佣 ${voidedConversions} 条`);
     await loadCodes();
   } catch (error) {
     if (Number(error?.status || 0) === 401 || Number(error?.status || 0) === 403) {
@@ -433,12 +490,12 @@ const columns = computed(() => [
       const tag = statusTag(row);
       return h("div", { class: "table-stack-cell" }, [
         h(NTag, { size: "small", type: tag.type }, { default: () => tag.text }),
-        h(
-          "span",
-          { class: "table-subtext-cell" },
-          `${getFeatureScopeLabel(row.featureScope)} · ${Math.max(1, Number(row.durationMonths) || 1)}个月`,
-        ),
-      ]);
+          h(
+            "span",
+            { class: "table-subtext-cell" },
+            `${getFeatureScopeLabel(row.featureScope)} · ${Math.max(1, Number(row.durationMonths) || 1)}个月 · ${formatSale(row.saleAmountCents, row.saleCurrency)}`,
+          ),
+        ]);
     },
   },
   {
@@ -542,6 +599,7 @@ const createCodes = async () => {
       count: Math.max(1, Math.min(100, Number(createCount.value) || 1)),
       featureScope: featureScope.value,
       durationMonths: Number(durationMonths.value) || 1,
+      saleAmountCents: Math.max(0, Math.round((Number(saleAmountYuan.value) || 0) * 100)),
     }, confirmToken);
     if (!res?.success) {
       message.error(res?.message || "生成失败");
@@ -608,6 +666,14 @@ const handleCreatedCodesModalUpdate = (show) => {
   }
   closeCreatedCodesModal();
 };
+
+watch(
+  [featureScope, durationMonths],
+  ([nextFeatureScope, nextDurationMonths]) => {
+    saleAmountYuan.value = getPresetSaleAmountYuan(nextFeatureScope, nextDurationMonths);
+  },
+  { immediate: true },
+);
 
 onMounted(() => {
   updateMobileState();
@@ -714,6 +780,12 @@ onBeforeUnmount(() => {
 .activation-creator__label {
   font-size: 12px;
   color: var(--text-tertiary);
+}
+
+.activation-creator__hint {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-secondary);
 }
 
 .activation-creator__button {

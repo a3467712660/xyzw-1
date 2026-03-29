@@ -16,6 +16,7 @@ import { createRateLimiter } from "../middleware/rateLimit.js";
 import { validateRequest } from "../middleware/validate.js";
 import { errorResponse } from "../lib/httpResponse.js";
 import { inviteCodeRepository } from "../repositories/inviteCodeRepository.js";
+import { referralProfileRepository } from "../repositories/referralProfileRepository.js";
 import { refreshTokenRepository } from "../repositories/refreshTokenRepository.js";
 import { userRepository } from "../repositories/userRepository.js";
 import { transaction } from "../db/client.js";
@@ -39,6 +40,10 @@ import {
   verifyTotpCode,
 } from "../services/mfaService.js";
 import { recordSecurityEvent } from "../services/securityEventService.js";
+import {
+  attachReferralAttributionOnRegister,
+  normalizeReferralCode,
+} from "../services/referralService.js";
 
 const router = Router();
 router.get("/temporary-invites", (_req, res) => {
@@ -102,6 +107,7 @@ const registerBodySchema = z.object({
   email: z.union([z.string().trim().email(), z.literal(""), z.null()]).optional(),
   password: z.string().min(1).max(128),
   inviteCode: z.string().trim().min(1).max(64),
+  referralCode: z.string().trim().max(32).optional().default(""),
 }).strict();
 const loginBodySchema = z.object({
   username: z.string().trim().min(1).max(128),
@@ -529,6 +535,7 @@ router.post("/register", registerLimiter, validateRequest({ body: registerBodySc
     email,
     password,
     inviteCode,
+    referralCode,
   } = req.body;
 
   const passwordCheck = await validatePasswordStrengthAsync(password, { mfaEnabled: false });
@@ -567,6 +574,14 @@ router.post("/register", registerLimiter, validateRequest({ body: registerBodySc
     return res.status(400).json({ success: false, message: "邀请码已过期" });
   }
 
+  const normalizedReferralCode = normalizeReferralCode(referralCode);
+  if (
+    normalizedReferralCode
+    && !referralProfileRepository.findByCode(normalizedReferralCode)
+  ) {
+    return res.status(400).json({ success: false, message: "推广码无效" });
+  }
+
   const ts = nowIso();
   const userId = randomId("user");
   const passwordMeta = createPassword(password);
@@ -575,6 +590,7 @@ router.post("/register", registerLimiter, validateRequest({ body: registerBodySc
   const trialExpiresAt = isTemporaryInvite
     ? new Date(Date.now() + TEMP_ACCOUNT_DAYS * 24 * 60 * 60 * 1000).toISOString()
     : null;
+  let referralAttribution = null;
 
   transaction(() => {
     userRepository.create({
@@ -597,6 +613,18 @@ router.post("/register", registerLimiter, validateRequest({ body: registerBodySc
       usedBy: userId,
       usedAt: ts,
     });
+
+    if (normalizedReferralCode) {
+      referralAttribution = attachReferralAttributionOnRegister({
+        referralCode: normalizedReferralCode,
+        referredUserId: userId,
+        inviteCodeId: invite.id,
+        inviteCodeMask: invite.codeMask || invite.code || null,
+        registeredAt: ts,
+        registerIp: req.ip || null,
+        registerUserAgent: req.headers["user-agent"] || null,
+      });
+    }
   });
 
   return res.json({
@@ -605,6 +633,7 @@ router.post("/register", registerLimiter, validateRequest({ body: registerBodySc
     data: {
       isTemporaryInvite,
       trialExpiresAt,
+      referralAttributed: Boolean(referralAttribution?.id),
     },
   });
 });

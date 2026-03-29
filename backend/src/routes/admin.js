@@ -16,6 +16,7 @@ import { recordAdminAudit } from "../services/adminAuditService.js";
 import { createUserNotification } from "../services/notificationService.js";
 import { inviteCodeRepository } from "../repositories/inviteCodeRepository.js";
 import { activationCodeRepository } from "../repositories/activationCodeRepository.js";
+import { referralConversionRepository } from "../repositories/referralConversionRepository.js";
 import { tokenActivationRepository } from "../repositories/tokenActivationRepository.js";
 import { userRepository } from "../repositories/userRepository.js";
 import { userPreferenceRepository } from "../repositories/userPreferenceRepository.js";
@@ -95,6 +96,7 @@ const createActivationCodesBodySchema = z.object({
   durationMonths: z.coerce.number().int().refine((value) => [1, 3, 6, 12].includes(value), {
     message: "durationMonths must be one of 1/3/6/12",
   }),
+  saleAmountCents: z.coerce.number().int().min(0).max(10_000_000).optional().default(0),
 }).strict();
 const adminTaskControlLogsQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(2000).optional().default(500),
@@ -941,6 +943,8 @@ router.get("/activation-codes", (_req, res) => {
         bindingUsername: binding?.bindingUsername || null,
         bindingExpiresAt: binding?.expiresAt || null,
         bindingActive: Boolean(activeBinding),
+        saleAmountCents: row.saleAmountCents,
+        saleCurrency: row.saleCurrency,
       };
     }),
   });
@@ -975,7 +979,12 @@ router.post(
         activationCodeId: req.params.id,
       });
       const resetCodes = activationCodeRepository.resetBindingById(req.params.id);
-      return { deletedBindings, resetCodes };
+      const voidedConversions = referralConversionRepository.voidByActivationCodeIdExcludingPaid({
+        activationCodeId: req.params.id,
+        note: "管理员解绑激活码，未结算推广返佣已作废",
+        updatedAt: nowIso(),
+      });
+      return { deletedBindings, resetCodes, voidedConversions };
     });
 
     recordAdminAudit({
@@ -986,6 +995,7 @@ router.post(
       detail: {
         deletedBindings: result.deletedBindings,
         resetCodes: result.resetCodes,
+        voidedConversions: result.voidedConversions,
       },
       ...reqMeta(req),
     });
@@ -1006,7 +1016,11 @@ router.post(
     const result = transaction(() => {
       const deletedBindings = tokenActivationRepository.deleteAll();
       const resetCodes = activationCodeRepository.resetAllConsumedBindings();
-      return { deletedBindings, resetCodes };
+      const voidedConversions = referralConversionRepository.voidAllExcludingPaid({
+        note: "管理员清空全部激活码绑定，未结算推广返佣已作废",
+        updatedAt: nowIso(),
+      });
+      return { deletedBindings, resetCodes, voidedConversions };
     });
 
     recordAdminAudit({
@@ -1034,6 +1048,7 @@ router.post(
     const count = Number(req.body?.count) || 1;
     const featureScope = normalizeAccessScope(req.body?.featureScope);
     const durationMonths = Number(req.body?.durationMonths) || 1;
+    const saleAmountCents = Math.max(0, Number(req.body?.saleAmountCents) || 0);
     if (![1, 3, 6, 12].includes(durationMonths)) {
       return res.status(400).json({ success: false, message: "激活时长仅支持 1/3/6/12 个月" });
     }
@@ -1052,6 +1067,7 @@ router.post(
         createdBy: req.auth.user.id,
         featureScope,
         durationMonths,
+        saleAmountCents,
         createdAt,
       });
       created.push({
@@ -1059,6 +1075,8 @@ router.post(
         code,
         featureScope,
         durationMonths,
+        saleAmountCents,
+        saleCurrency: "CNY",
         createdAt,
       });
     }
@@ -1071,6 +1089,7 @@ router.post(
         count: created.length,
         featureScope,
         durationMonths,
+        saleAmountCents,
       },
       ...reqMeta(req),
     });

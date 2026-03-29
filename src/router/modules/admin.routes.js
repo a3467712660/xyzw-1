@@ -58,6 +58,16 @@ const adminChildren = [
     }),
   },
   {
+    path: "referral-center",
+    name: "ReferralCenter",
+    component: () => import("@/views/ReferralCenter.vue"),
+    meta: withRouteMeta({
+      title: "推广中心",
+      requiresAuth: true,
+      layout: "default",
+    }),
+  },
+  {
     path: "feedback",
     name: "FeedbackCenter",
     component: () => import("@/views/FeedbackCenter.vue"),
@@ -170,6 +180,17 @@ const adminChildren = [
     component: () => import("@/views/AdminWechatContacts.vue"),
     meta: withRouteMeta({
       title: "微信联系配置",
+      requiresAuth: true,
+      requiresAdmin: true,
+      layout: "default",
+    }),
+  },
+  {
+    path: "referrals",
+    name: "AdminReferrals",
+    component: () => import("@/views/AdminReferrals.vue"),
+    meta: withRouteMeta({
+      title: "推广邀请管理",
       requiresAuth: true,
       requiresAdmin: true,
       layout: "default",

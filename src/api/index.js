@@ -385,6 +385,13 @@ const api = {
       ),
   },
 
+  publicReferral: {
+    resolve: (code) =>
+      request.get(`/public/referrals/${encodeURIComponent(code)}`, {
+        skipAuthHandling: true,
+      }),
+  },
+
   // 游戏角色相关
   gameRoles: {
     getList: () => request.get("/gamerole_list"),
@@ -490,6 +497,11 @@ const api = {
     getCachedSensitiveConfirmToken: (options = {}) => getCachedUserConfirmToken(options),
     getCachedSensitiveConfirmState: (options = {}) => getCachedUserConfirmState(options),
     clearSensitiveConfirmToken: () => clearCachedUserConfirmToken(),
+    getReferralProfile: () => request.get("/user/referral-profile"),
+    generateReferralProfile: () => request.post("/user/referral-profile/generate"),
+    getReferralOverview: () => request.get("/user/referral-overview"),
+    getReferralConversions: (limit = 200) =>
+      request.get(`/user/referral-conversions?limit=${Math.max(1, Number(limit) || 200)}`),
   },
 
   resourceChangeLogs: {
@@ -559,6 +571,10 @@ const api = {
         headers: api.admin.adminConfirmHeaders(confirmToken),
       }),
     listUsers: () => request.get("/admin/users"),
+    listReferralAttributions: (limit = 200) =>
+      request.get(`/admin/referrals/attributions?limit=${Math.max(1, Number(limit) || 200)}`),
+    listReferralConversions: (limit = 200) =>
+      request.get(`/admin/referrals/conversions?limit=${Math.max(1, Number(limit) || 200)}`),
     listWechatContacts: () => request.get("/admin/wechat-contacts"),
     createWechatContact: (payload) =>
       request.post("/admin/wechat-contacts", payload),
@@ -658,6 +674,14 @@ const api = {
     notifyChangelogToAll: (payload) =>
       request.post("/admin/changelog/notify-all", payload),
     listActivationCodes: () => request.get("/admin/activation-codes"),
+    markReferralConversionPaid: (id, payload = {}, confirmToken = "") =>
+      request.post(`/admin/referrals/conversions/${id}/mark-paid`, payload, {
+        headers: api.admin.adminConfirmHeaders(confirmToken),
+      }),
+    rejectReferralConversion: (id, payload = {}, confirmToken = "") =>
+      request.post(`/admin/referrals/conversions/${id}/reject`, payload, {
+        headers: api.admin.adminConfirmHeaders(confirmToken),
+      }),
     createActivationCodes: (payload, confirmToken = "") =>
       request.post("/admin/activation-codes", payload, {
         headers: api.admin.adminConfirmHeaders(confirmToken),

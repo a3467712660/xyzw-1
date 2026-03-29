@@ -8,6 +8,7 @@ import { transaction } from "../db/client.js";
 import { activationCodeRepository } from "../repositories/activationCodeRepository.js";
 import { tokenActivationRepository } from "../repositories/tokenActivationRepository.js";
 import { userRepository } from "../repositories/userRepository.js";
+import { recordReferralConversionOnActivation } from "../services/referralService.js";
 
 const router = Router();
 
@@ -267,10 +268,11 @@ router.post(
         accountIdentity,
         accountSeed,
       });
+      const tokenActivationId = binding?.id || randomId("tact");
 
       if (binding) {
         tokenActivationRepository.updateById({
-          id: binding.id,
+          id: tokenActivationId,
           tokenId,
           userId,
           roleName: normalizedRoleName,
@@ -285,7 +287,7 @@ router.post(
         });
       } else {
         tokenActivationRepository.create({
-          id: randomId("tact"),
+          id: tokenActivationId,
           tokenId,
           roleId,
           roleName: normalizedRoleName,
@@ -316,6 +318,15 @@ router.post(
         boundGameAccountId: roleCompositeLabel,
       });
 
+      recordReferralConversionOnActivation({
+        referredUserId: userId,
+        activationCodeId: codeRow.id,
+        tokenActivationId,
+        featureScope: codeRow.featureScope,
+        durationMonths,
+        grossAmountCents: codeRow.saleAmountCents,
+      });
+
       return {
         status: 200,
         payload: {
@@ -330,6 +341,7 @@ router.post(
             accountIdentity,
             roleCompositeLabel,
             gameAccountId: roleId,
+            tokenActivationId,
             boundAt: nowAt,
             expiresAt,
             previousExpiresAt: previousExpiresAt || null,

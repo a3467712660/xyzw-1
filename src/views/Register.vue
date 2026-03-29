@@ -53,6 +53,18 @@
           <p>{{ t("register.cardDesc") }}</p>
         </header>
 
+        <div v-if="registerForm.referralCode" class="referral-banner">
+          <strong>{{ t("register.referral.title") }}</strong>
+          <p>
+            {{
+              referrerUsername
+                ? t("register.referral.referrer", { username: referrerUsername })
+                : t("register.referral.code", { code: registerForm.referralCode })
+            }}
+          </p>
+          <span>{{ t("register.referral.hint") }}</span>
+        </div>
+
         <n-form
           ref="registerFormRef"
           size="large"
@@ -274,9 +286,10 @@
 
 <script setup>
 import { computed, nextTick, onMounted, reactive, ref } from "vue";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { useMessage } from "naive-ui/es";
 import { useI18n } from "vue-i18n";
+import api from "@/api";
 import { useAuthStore } from "@/stores/auth";
 import {
   Key,
@@ -287,6 +300,7 @@ import {
 } from "@vicons/ionicons5";
 
 const router = useRouter();
+const route = useRoute();
 const message = useMessage();
 const authStore = useAuthStore();
 const { t } = useI18n();
@@ -298,14 +312,18 @@ const trialExpiresAtText = ref("");
 const isPageReady = ref(false);
 const formErrorRef = ref(null);
 const formErrorMessage = ref("");
+const referrerUsername = ref("");
 const passwordPolicyHint
   = t("register.validation.passwordPolicy");
+const REFERRAL_CODE_STORAGE_KEY = "xyzw_referral_code";
+const REFERRAL_AT_STORAGE_KEY = "xyzw_referral_at";
 
 const registerForm = reactive({
   username: "",
   email: "",
   password: "",
   inviteCode: "",
+  referralCode: "",
   confirmPassword: "",
   agreeTerms: false,
 });
@@ -443,6 +461,48 @@ const announceFormError = async (messageText, focusFieldName = "") => {
   }
 };
 
+const clearStoredReferral = () => {
+  if (typeof window === "undefined") {
+    return;
+  }
+  window.localStorage.removeItem(REFERRAL_CODE_STORAGE_KEY);
+  window.localStorage.removeItem(REFERRAL_AT_STORAGE_KEY);
+};
+
+const persistReferral = (referralCode) => {
+  if (typeof window === "undefined") {
+    return;
+  }
+  window.localStorage.setItem(REFERRAL_CODE_STORAGE_KEY, referralCode);
+  window.localStorage.setItem(REFERRAL_AT_STORAGE_KEY, new Date().toISOString());
+};
+
+const resolveReferralCode = async (rawCode) => {
+  const normalizedCode = String(rawCode || "").trim().toUpperCase();
+  registerForm.referralCode = normalizedCode;
+  referrerUsername.value = "";
+  if (!normalizedCode) {
+    return;
+  }
+
+  try {
+    const res = await api.publicReferral.resolve(normalizedCode);
+    if (!res?.success || !res?.data) {
+      registerForm.referralCode = "";
+      clearStoredReferral();
+      return;
+    }
+    registerForm.referralCode = String(res.data.referralCode || normalizedCode).trim().toUpperCase();
+    referrerUsername.value = String(res.data.referrerUsername || "").trim();
+    persistReferral(registerForm.referralCode);
+  } catch (error) {
+    registerForm.referralCode = "";
+    referrerUsername.value = "";
+    clearStoredReferral();
+    message.warning(error?.message || t("register.messages.referralInvalid"));
+  }
+};
+
 const handleRegister = async () => {
   if (!registerFormRef.value)
     return;
@@ -462,9 +522,11 @@ const handleRegister = async () => {
       email: registerForm.email,
       password: registerForm.password,
       inviteCode: registerForm.inviteCode,
+      referralCode: registerForm.referralCode,
     });
 
     if (result.success) {
+      clearStoredReferral();
       if (result.data?.isTemporaryInvite && result.data?.trialExpiresAt) {
         trialExpiresAtText.value = new Date(
           result.data.trialExpiresAt,
@@ -493,6 +555,12 @@ const confirmTrialNotice = () => {
 };
 
 onMounted(() => {
+  const routeReferralCode = String(route.query?.ref || "").trim();
+  const cachedReferralCode = typeof window !== "undefined"
+    ? String(window.localStorage.getItem(REFERRAL_CODE_STORAGE_KEY) || "").trim()
+    : "";
+  resolveReferralCode(routeReferralCode || cachedReferralCode);
+
   requestAnimationFrame(() => {
     isPageReady.value = true;
   });
@@ -757,6 +825,27 @@ onMounted(() => {
 
 .card-header p {
   color: var(--text-secondary);
+}
+
+.referral-banner {
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: rgba(15, 107, 255, 0.08);
+  border: 1px solid rgba(15, 107, 255, 0.16);
+  display: grid;
+  gap: 6px;
+}
+
+.referral-banner strong {
+  color: var(--primary-color);
+}
+
+.referral-banner p,
+.referral-banner span {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.6;
 }
 
 .form-options {
