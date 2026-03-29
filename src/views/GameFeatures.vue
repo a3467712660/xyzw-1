@@ -175,7 +175,7 @@ const summaryCards = computed(() => [
   {
     label: "角色总数",
     value: String(tokenStore.gameTokens.length),
-    meta: "延续现有业务逻辑，仅重排展示与交互壳层",
+    meta: "当前账号已导入角色数量",
   },
   {
     label: "当前建议",
