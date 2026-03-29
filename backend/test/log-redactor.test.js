@@ -48,6 +48,20 @@ test("redactUrl masks sessId-style activation query params", () => {
   assert.equal(redacted.includes("abc123"), false);
 });
 
+test("redactUrl masks deviceUniqueId and distinctId query params", () => {
+  const query = new URLSearchParams({
+    deviceUniqueId: "abc123",
+    distinctId: "did-456",
+    gameId: "xyzwapp",
+  }).toString();
+  const redacted = redactUrl(`/api/v1/wechat-proxy/hortor-login?${query}`);
+  assert.equal(redacted.includes("deviceUniqueId=***"), true);
+  assert.equal(redacted.includes("distinctId=***"), true);
+  assert.equal(redacted.includes("abc123"), false);
+  assert.equal(redacted.includes("did-456"), false);
+  assert.equal(redacted.includes("gameId=xyzwapp"), true);
+});
+
 test("sanitizeForLog escapes control characters", () => {
   assert.equal(sanitizeForLog("/a\tb\r\nc"), "/a\\tb\\r\\nc");
 });

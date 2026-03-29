@@ -7,6 +7,8 @@ import { createRateLimiter } from "../middleware/rateLimit.js";
 const router = Router();
 const PROXY_TIMEOUT_MS = 15000;
 const HORTOR_LOGIN_BODY_LIMIT = "64kb";
+const HORTOR_DEVICE_UNIQUE_ID_HEADER = "x-xyzw-device-unique-id";
+const HORTOR_DEVICE_UNIQUE_ID_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/;
 
 const qrConnectLimiter = createRateLimiter({
   scope: "wechat_proxy_qrconnect",
@@ -76,6 +78,13 @@ const appendQuery = (target, query) => {
       target.searchParams.append(key, String(value));
     }
   });
+};
+
+const hasNonEmptyQueryValue = (value) => {
+  if (Array.isArray(value)) {
+    return value.some((item) => String(item ?? "").trim());
+  }
+  return Boolean(String(value ?? "").trim());
 };
 
 const proxyText = async ({ res, url, method = "GET", body = undefined, headers = {} }) => {
@@ -148,8 +157,27 @@ router.post(
   ensureAllowedHortorSource,
   express.text({ type: "*/*", limit: HORTOR_LOGIN_BODY_LIMIT }),
   async (req, res) => {
+    const rawDeviceUniqueId = String(
+      req.get(HORTOR_DEVICE_UNIQUE_ID_HEADER) || "",
+    ).trim();
+    if (hasNonEmptyQueryValue(req.query?.["deviceUniqueId"])) {
+      return res.status(400).json({
+        success: false,
+        message: "deviceUniqueId 不能通过 URL 参数传递",
+      });
+    }
+    if (!HORTOR_DEVICE_UNIQUE_ID_PATTERN.test(rawDeviceUniqueId)) {
+      return res.status(400).json({
+        success: false,
+        message: "deviceUniqueId 非法",
+      });
+    }
+
     const target = new URL("https://comb-platform.hortorgames.com/comb-login-server/api/v1/login");
-    appendQuery(target, req.query);
+    const passthroughQuery = { ...req.query };
+    delete passthroughQuery.deviceUniqueId;
+    appendQuery(target, passthroughQuery);
+    target.searchParams.set("deviceUniqueId", rawDeviceUniqueId);
     return proxyText({
       res,
       url: target.toString(),
