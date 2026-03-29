@@ -158,7 +158,7 @@ const selectedTokenDescription = computed(() => {
     return "还没有选中角色，先去 Token 管理页导入并选择角色，再回到这里拉起连接。";
   }
 
-  return `${tokenStore.selectedToken.name} · ${tokenStore.selectedToken.server || "未知服务器"}。当前页面保留原有功能能力，只重新整理 PC / Mobile 的信息层级。`;
+  return `${tokenStore.selectedToken.name} · ${tokenStore.selectedToken.server || "未知服务器"}`;
 });
 
 const summaryCards = computed(() => [
