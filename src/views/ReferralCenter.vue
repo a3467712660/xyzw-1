@@ -129,6 +129,9 @@ const conversionTypeLabel = (value) =>
 const rewardStatusLabel = (value) =>
   t(`referralCenter.rewardStatus.${String(value || "").trim() || "pending"}`);
 
+const settlementChannelLabel = (value) =>
+  t(`referralCenter.settlementChannels.${String(value || "").trim() || "other"}`);
+
 const loadOverview = async () => {
   const res = await api.user.getReferralOverview();
   if (!res?.success) {
@@ -234,6 +237,16 @@ const columns = computed(() => [
       h(NTag, { size: "small", type: row.rewardStatus === "paid" ? "success" : row.rewardStatus === "pending" ? "warning" : "default" }, {
         default: () => rewardStatusLabel(row.rewardStatus),
       }),
+  },
+  {
+    title: t("referralCenter.columns.settlementChannel"),
+    key: "settlementChannel",
+    render: (row) => row.settlementChannel ? settlementChannelLabel(row.settlementChannel) : "-",
+  },
+  {
+    title: t("referralCenter.columns.settledAt"),
+    key: "settledAt",
+    render: (row) => formatTime(row.settledAt),
   },
   {
     title: t("referralCenter.columns.createdAt"),

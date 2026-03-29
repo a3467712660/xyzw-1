@@ -5,15 +5,18 @@ import { adminRequired } from "../middleware/admin.js";
 import { createRateLimiter } from "../middleware/rateLimit.js";
 import { validateRequest } from "../middleware/validate.js";
 import { makeSensitiveAction } from "../middleware/sensitiveAction.js";
-import { nowIso } from "../db/sql.js";
+import { nowIso, randomId } from "../db/sql.js";
+import { transaction } from "../db/client.js";
 import { recordAdminAudit } from "../services/adminAuditService.js";
 import { referralAttributionRepository } from "../repositories/referralAttributionRepository.js";
 import { referralConversionRepository } from "../repositories/referralConversionRepository.js";
+import { referralSettlementRepository } from "../repositories/referralSettlementRepository.js";
 
 const router = Router();
 const SENSITIVE_ACTION_TTL_SECONDS = 5 * 60;
 const SENSITIVE_ACTION_TOKEN_HEADER = "x-admin-confirm-token";
 const SENSITIVE_ACTION_TOKEN_PURPOSE = "admin-sensitive-action";
+const REFERRAL_SETTLEMENT_CHANNELS = ["wechat_manual", "bank", "other"];
 const adminSensitiveAction = makeSensitiveAction({
   purpose: SENSITIVE_ACTION_TOKEN_PURPOSE,
   ttlSeconds: SENSITIVE_ACTION_TTL_SECONDS,
@@ -44,6 +47,8 @@ const conversionIdParamSchema = z.object({
   id: z.string().trim().min(1).max(64),
 });
 const markPaidBodySchema = z.object({
+  channel: z.enum(REFERRAL_SETTLEMENT_CHANNELS),
+  settlementRef: z.string().trim().max(128).optional().default(""),
   note: z.string().trim().max(1000).optional().default(""),
 }).strict();
 const rejectBodySchema = z.object({
@@ -54,6 +59,9 @@ const reqMeta = (req) => ({
   ip: String(req.ip || ""),
   userAgent: String(req.headers["user-agent"] || ""),
 });
+
+const isUniqueSettlementConflict = (error) =>
+  String(error?.message || "").includes("referral_settlements.conversion_id");
 
 router.use(authRequired, adminRequired);
 router.use(adminApiLimiter);
@@ -88,44 +96,96 @@ router.post(
   sensitiveActionRequired,
   validateRequest({ params: conversionIdParamSchema, body: markPaidBodySchema }),
   (req, res) => {
-    const current = referralConversionRepository.findById(req.params.id);
-    if (!current) {
-      return res.status(404).json({ success: false, message: "返佣台账不存在" });
-    }
-    if (current.rewardStatus !== "pending") {
-      return res.status(400).json({ success: false, message: "只有待结算台账可标记为已结算" });
-    }
-
     const timestamp = nowIso();
-    const note = String(req.body?.note || "").trim() || current.note || "";
-    referralConversionRepository.markPaid({
-      id: current.id,
-      note,
-      paidAt: timestamp,
-      paidBy: req.auth.user.id,
-      updatedAt: timestamp,
-    });
+    const note = String(req.body?.note || "").trim();
+    const settlementRef = String(req.body?.settlementRef || "").trim();
+    const channel = String(req.body?.channel || "").trim();
 
-    const updated = referralConversionRepository.findById(current.id);
-    recordAdminAudit({
-      adminUserId: req.auth.user.id,
-      action: "mark_referral_conversion_paid",
-      targetType: "referral_conversion",
-      targetId: current.id,
-      detail: {
-        previousStatus: current.rewardStatus,
-        currentStatus: updated?.rewardStatus || "paid",
-        rewardAmountCents: current.rewardAmountCents,
-        note: note || null,
-      },
-      ...reqMeta(req),
-    });
+    try {
+      const result = transaction(() => {
+        const current = referralConversionRepository.findById(req.params.id);
+        if (!current) {
+          return {
+            kind: "missing",
+          };
+        }
+        if (current.rewardStatus !== "pending") {
+          return {
+            kind: "conflict",
+            current,
+          };
+        }
 
-    return res.json({
-      success: true,
-      message: "返佣台账已标记为已结算",
-      data: updated,
-    });
+        referralSettlementRepository.create({
+          id: randomId("refset"),
+          conversionId: current.id,
+          amountCents: current.rewardAmountCents,
+          currency: "CNY",
+          channel,
+          settlementRef,
+          note,
+          settledBy: req.auth.user.id,
+          settledAt: timestamp,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        });
+
+        const changes = referralConversionRepository.markPaidIfPending({
+          id: current.id,
+          note,
+          paidAt: timestamp,
+          paidBy: req.auth.user.id,
+          updatedAt: timestamp,
+        });
+        if (changes !== 1) {
+          return {
+            kind: "conflict",
+            current,
+          };
+        }
+
+        return {
+          kind: "ok",
+          current,
+          updated: referralConversionRepository.findById(current.id),
+        };
+      });
+
+      if (result.kind === "missing") {
+        return res.status(404).json({ success: false, message: "返佣台账不存在" });
+      }
+      if (result.kind === "conflict") {
+        return res.status(409).json({ success: false, message: "该返佣台账已不是待结算状态，请刷新后重试" });
+      }
+
+      recordAdminAudit({
+        adminUserId: req.auth.user.id,
+        action: "mark_referral_conversion_paid",
+        targetType: "referral_conversion",
+        targetId: result.current.id,
+        detail: {
+          conversionId: result.current.id,
+          previousStatus: result.current.rewardStatus,
+          currentStatus: result.updated?.rewardStatus || "paid",
+          amountCents: result.current.rewardAmountCents,
+          channel,
+          settlementRef: settlementRef || null,
+          note: note || null,
+        },
+        ...reqMeta(req),
+      });
+
+      return res.json({
+        success: true,
+        message: "返佣台账已标记为已结算",
+        data: result.updated,
+      });
+    } catch (error) {
+      if (isUniqueSettlementConflict(error)) {
+        return res.status(409).json({ success: false, message: "该返佣台账已不是待结算状态，请刷新后重试" });
+      }
+      throw error;
+    }
   },
 );
 
@@ -139,17 +199,18 @@ router.post(
     if (!current) {
       return res.status(404).json({ success: false, message: "返佣台账不存在" });
     }
-    if (current.rewardStatus !== "pending") {
-      return res.status(400).json({ success: false, message: "只有待结算台账可拒绝" });
-    }
 
     const timestamp = nowIso();
     const note = String(req.body?.note || "").trim();
-    referralConversionRepository.reject({
+    const changes = referralConversionRepository.rejectIfPending({
       id: current.id,
       note,
       updatedAt: timestamp,
     });
+
+    if (changes !== 1) {
+      return res.status(409).json({ success: false, message: "该返佣台账已不是待结算状态，请刷新后重试" });
+    }
 
     const updated = referralConversionRepository.findById(current.id);
     recordAdminAudit({
@@ -158,9 +219,10 @@ router.post(
       targetType: "referral_conversion",
       targetId: current.id,
       detail: {
+        conversionId: current.id,
         previousStatus: current.rewardStatus,
         currentStatus: updated?.rewardStatus || "rejected",
-        rewardAmountCents: current.rewardAmountCents,
+        amountCents: current.rewardAmountCents,
         note,
       },
       ...reqMeta(req),

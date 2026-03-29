@@ -42,7 +42,7 @@
 
 <script setup>
 import { computed, h, onMounted, ref } from "vue";
-import { NButton, NInput, NTag, useDialog, useMessage } from "naive-ui/es";
+import { NButton, NInput, NSelect, NTag, useDialog, useMessage } from "naive-ui/es";
 import { useI18n } from "vue-i18n";
 import { useAuthStore } from "@/stores/auth";
 import api from "@/api";
@@ -60,6 +60,11 @@ const sensitiveConfirmExpiresAt = ref(0);
 const canAccess = computed(
   () => authStore.isAuthenticated && Boolean(authStore.user?.isAdmin),
 );
+const settlementChannelOptions = computed(() => ([
+  { label: t("adminReferralsPage.channels.wechatManual"), value: "wechat_manual" },
+  { label: t("adminReferralsPage.channels.bank"), value: "bank" },
+  { label: t("adminReferralsPage.channels.other"), value: "other" },
+]));
 
 const formatTime = (value) =>
   value ? new Date(value).toLocaleString(locale.value === "en" ? "en-US" : "zh-CN") : "-";
@@ -241,21 +246,88 @@ const promptNote = ({ title, placeholder, required = false }) =>
     });
   });
 
+const settlementChannelLabel = (value) =>
+  t(`adminReferralsPage.channelLabels.${String(value || "").trim() || "other"}`);
+
+const promptMarkPaidPayload = () =>
+  new Promise((resolve) => {
+    const form = ref({
+      channel: "wechat_manual",
+      settlementRef: "",
+      note: "",
+    });
+    let settled = false;
+
+    const finish = (value) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      resolve(value);
+    };
+
+    dialog.info({
+      title: t("adminReferralsPage.actions.markPaid"),
+      positiveText: t("adminReferralsPage.confirm.confirm"),
+      negativeText: t("adminReferralsPage.confirm.cancel"),
+      content: () =>
+        h("div", { style: "display:flex;flex-direction:column;gap:12px;" }, [
+          h("label", { style: "font-weight:600;" }, t("adminReferralsPage.fields.channel")),
+          h(NSelect, {
+            value: form.value.channel,
+            options: settlementChannelOptions.value,
+            onUpdateValue: (value) => {
+              form.value.channel = String(value || "wechat_manual");
+            },
+          }),
+          h("label", { style: "font-weight:600;" }, t("adminReferralsPage.fields.settlementRef")),
+          h(NInput, {
+            value: form.value.settlementRef,
+            placeholder: t("adminReferralsPage.messages.settlementRefPlaceholder"),
+            onUpdateValue: (value) => {
+              form.value.settlementRef = String(value || "");
+            },
+          }),
+          h("label", { style: "font-weight:600;" }, t("adminReferralsPage.fields.note")),
+          h(NInput, {
+            type: "textarea",
+            rows: 4,
+            value: form.value.note,
+            placeholder: t("adminReferralsPage.messages.optionalNote"),
+            onUpdateValue: (value) => {
+              form.value.note = String(value || "");
+            },
+          }),
+        ]),
+      onPositiveClick: () => {
+        const channel = String(form.value.channel || "").trim();
+        if (!channel) {
+          message.warning(t("adminReferralsPage.messages.channelRequired"));
+          return false;
+        }
+        finish({
+          channel,
+          settlementRef: String(form.value.settlementRef || "").trim(),
+          note: String(form.value.note || "").trim(),
+        });
+        return true;
+      },
+      onNegativeClick: () => finish(null),
+      onClose: () => finish(null),
+    });
+  });
+
 const markPaid = async (row) => {
   const confirmToken = await ensureSensitiveActionConfirmed(t("adminReferralsPage.actions.markPaid"));
   if (!confirmToken) {
     return;
   }
-  const note = await promptNote({
-    title: t("adminReferralsPage.actions.markPaid"),
-    placeholder: t("adminReferralsPage.messages.optionalNote"),
-    required: false,
-  });
-  if (note === null) {
+  const payload = await promptMarkPaidPayload();
+  if (!payload) {
     return;
   }
   try {
-    const res = await api.admin.markReferralConversionPaid(row.id, { note }, confirmToken);
+    const res = await api.admin.markReferralConversionPaid(row.id, payload, confirmToken);
     if (!res?.success) {
       message.error(res?.message || t("adminReferralsPage.messages.markPaidFailed"));
       return;
@@ -370,6 +442,21 @@ const conversionColumns = computed(() => [
       h(NTag, { size: "small", type: rewardStatusTagType(row.rewardStatus) }, {
         default: () => t(`referralCenter.rewardStatus.${row.rewardStatus}`),
       }),
+  },
+  {
+    title: t("adminReferralsPage.columns.settlementChannel"),
+    key: "settlementChannel",
+    render: (row) => row.settlementChannel ? settlementChannelLabel(row.settlementChannel) : "-",
+  },
+  {
+    title: t("adminReferralsPage.columns.settlementRef"),
+    key: "settlementRef",
+    render: (row) => row.settlementRef || "-",
+  },
+  {
+    title: t("adminReferralsPage.columns.settledAt"),
+    key: "settledAt",
+    render: (row) => formatTime(row.settledAt),
   },
   {
     title: t("adminReferralsPage.columns.note"),

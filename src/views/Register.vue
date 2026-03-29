@@ -57,8 +57,8 @@
           <strong>{{ t("register.referral.title") }}</strong>
           <p>
             {{
-              referrerUsername
-                ? t("register.referral.referrer", { username: referrerUsername })
+              referrerDisplayName
+                ? t("register.referral.referrer", { username: referrerDisplayName })
                 : t("register.referral.code", { code: registerForm.referralCode })
             }}
           </p>
@@ -312,11 +312,12 @@ const trialExpiresAtText = ref("");
 const isPageReady = ref(false);
 const formErrorRef = ref(null);
 const formErrorMessage = ref("");
-const referrerUsername = ref("");
+const referrerDisplayName = ref("");
 const passwordPolicyHint
   = t("register.validation.passwordPolicy");
 const REFERRAL_CODE_STORAGE_KEY = "xyzw_referral_code";
 const REFERRAL_AT_STORAGE_KEY = "xyzw_referral_at";
+const REFERRAL_STORAGE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 const registerForm = reactive({
   username: "",
@@ -473,14 +474,31 @@ const persistReferral = (referralCode) => {
   if (typeof window === "undefined") {
     return;
   }
-  window.localStorage.setItem(REFERRAL_CODE_STORAGE_KEY, referralCode);
+  window.localStorage.setItem(REFERRAL_CODE_STORAGE_KEY, String(referralCode || "").trim().toUpperCase());
   window.localStorage.setItem(REFERRAL_AT_STORAGE_KEY, new Date().toISOString());
+};
+
+const getStoredReferralCode = () => {
+  if (typeof window === "undefined") {
+    return "";
+  }
+  const storedCode = String(window.localStorage.getItem(REFERRAL_CODE_STORAGE_KEY) || "").trim();
+  const storedAtRaw = String(window.localStorage.getItem(REFERRAL_AT_STORAGE_KEY) || "").trim();
+  const storedAtTs = new Date(storedAtRaw).getTime();
+  if (!storedCode) {
+    return "";
+  }
+  if (!Number.isFinite(storedAtTs) || Date.now() - storedAtTs > REFERRAL_STORAGE_TTL_MS) {
+    clearStoredReferral();
+    return "";
+  }
+  return storedCode;
 };
 
 const resolveReferralCode = async (rawCode) => {
   const normalizedCode = String(rawCode || "").trim().toUpperCase();
   registerForm.referralCode = normalizedCode;
-  referrerUsername.value = "";
+  referrerDisplayName.value = "";
   if (!normalizedCode) {
     return;
   }
@@ -493,11 +511,11 @@ const resolveReferralCode = async (rawCode) => {
       return;
     }
     registerForm.referralCode = String(res.data.referralCode || normalizedCode).trim().toUpperCase();
-    referrerUsername.value = String(res.data.referrerUsername || "").trim();
+    referrerDisplayName.value = String(res.data.referrerDisplayName || "").trim();
     persistReferral(registerForm.referralCode);
   } catch (error) {
     registerForm.referralCode = "";
-    referrerUsername.value = "";
+    referrerDisplayName.value = "";
     clearStoredReferral();
     message.warning(error?.message || t("register.messages.referralInvalid"));
   }
@@ -556,9 +574,7 @@ const confirmTrialNotice = () => {
 
 onMounted(() => {
   const routeReferralCode = String(route.query?.ref || "").trim();
-  const cachedReferralCode = typeof window !== "undefined"
-    ? String(window.localStorage.getItem(REFERRAL_CODE_STORAGE_KEY) || "").trim()
-    : "";
+  const cachedReferralCode = getStoredReferralCode();
   resolveReferralCode(routeReferralCode || cachedReferralCode);
 
   requestAnimationFrame(() => {

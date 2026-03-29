@@ -17,6 +17,20 @@ export const normalizeReferralCode = (value) =>
     .trim()
     .toUpperCase();
 
+export const maskReferrerDisplayName = (value) => {
+  const text = String(value || "").trim();
+  if (!text) {
+    return "";
+  }
+  if (text.length <= 2) {
+    return text;
+  }
+  if (text.length <= 4) {
+    return `${text.slice(0, 1)}***${text.slice(-1)}`;
+  }
+  return `${text.slice(0, 2)}***${text.slice(-2)}`;
+};
+
 export const generateReferralCode = () => {
   let code = "";
   while (code.length < REFERRAL_CODE_LENGTH) {
@@ -150,14 +164,16 @@ export const recordReferralConversionOnActivation = ({
     return null;
   }
 
-  const previousCount = referralConversionRepository.countNonVoidByReferredUserId(normalizedReferredUserId);
   const safeDurationMonths = Math.max(1, Number(durationMonths) || 1);
   const safeGrossAmountCents = Math.max(0, Number(grossAmountCents) || 0);
+  const hasPriorPaidPurchase = referralConversionRepository.hasAnyPriorNonVoidPaidPurchaseByReferredUserId(
+    normalizedReferredUserId,
+  );
 
   let conversionType = "renewal_le_2m";
-  if (previousCount === 0) {
+  if (safeGrossAmountCents > 0 && !hasPriorPaidPurchase) {
     conversionType = "first_purchase";
-  } else if (safeDurationMonths > 2) {
+  } else if (safeGrossAmountCents > 0 && safeDurationMonths > 2) {
     conversionType = "renewal_gt_2m";
   }
 

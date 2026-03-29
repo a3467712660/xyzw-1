@@ -35,6 +35,23 @@
             </div>
           </template>
 
+          <template v-else-if="contact.contactType === 'external_url'">
+            <div class="wechat-contact-card__redirect">
+              <strong>即将离开本站</strong>
+              <p>目标站点：{{ targetHostname || "链接解析失败" }}</p>
+            </div>
+            <div class="wechat-contact-card__actions">
+              <n-button
+                type="primary"
+                :disabled="!safeTargetUrl"
+                @click="goToTarget"
+              >
+                继续前往
+              </n-button>
+              <n-button @click="router.push('/pricing')">返回价格菜单</n-button>
+            </div>
+          </template>
+
           <template v-else>
             <div class="wechat-contact-card__redirect">
               <strong>正在跳转到联系入口...</strong>
@@ -71,7 +88,7 @@
 </template>
 
 <script setup>
-import { onMounted, ref, watch } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { useMessage } from "naive-ui/es";
 import { useRoute, useRouter } from "vue-router";
 import api from "@/api";
@@ -84,6 +101,29 @@ const loading = ref(false);
 const status = ref("loading");
 const errorText = ref("");
 const contact = ref(null);
+
+const safeTargetUrl = computed(() => {
+  const raw = String(contact.value?.targetUrl || "").trim();
+  if (!raw) {
+    return "";
+  }
+  try {
+    return new URL(raw).toString();
+  } catch {
+    return "";
+  }
+});
+
+const targetHostname = computed(() => {
+  if (!safeTargetUrl.value) {
+    return "";
+  }
+  try {
+    return new URL(safeTargetUrl.value).hostname || "";
+  } catch {
+    return "";
+  }
+});
 
 const copyText = async (text) => {
   if (!text) {
@@ -106,7 +146,7 @@ const copyText = async (text) => {
 };
 
 const goToTarget = () => {
-  const targetUrl = String(contact.value?.targetUrl || "").trim();
+  const targetUrl = safeTargetUrl.value;
   if (!targetUrl) {
     message.error("目标链接无效");
     return;
@@ -119,7 +159,7 @@ const maybeRedirect = () => {
   if (!current) {
     return;
   }
-  if (current.contactType === "wecom_kf_link" || current.contactType === "external_url") {
+  if (current.contactType === "wecom_kf_link") {
     goToTarget();
   }
 };

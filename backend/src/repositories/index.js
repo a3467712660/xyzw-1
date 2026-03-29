@@ -18,3 +18,4 @@ export { wechatContactRepository } from "./wechatContactRepository.js";
 export { referralProfileRepository } from "./referralProfileRepository.js";
 export { referralAttributionRepository } from "./referralAttributionRepository.js";
 export { referralConversionRepository } from "./referralConversionRepository.js";
+export { referralSettlementRepository } from "./referralSettlementRepository.js";

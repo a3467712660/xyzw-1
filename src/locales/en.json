@@ -3709,10 +3709,17 @@
       "gross": "Gross amount",
       "reward": "Reward amount",
       "status": "Reward status",
+      "settlementChannel": "Settlement channel",
+      "settledAt": "Settled at",
       "createdAt": "Recorded at"
     },
+    "settlementChannels": {
+      "wechat_manual": "WeChat manual",
+      "bank": "Bank transfer",
+      "other": "Other"
+    },
     "conversionTypes": {
-      "first_purchase": "First activation",
+      "first_purchase": "First paid purchase",
       "renewal_gt_2m": "Renewal longer than 2 months",
       "renewal_le_2m": "Renewal not eligible"
     },
@@ -3757,8 +3764,26 @@
       "gross": "Gross amount",
       "reward": "Reward amount",
       "status": "Reward status",
+      "settlementChannel": "Settlement channel",
+      "settlementRef": "Settlement reference",
+      "settledAt": "Settled at",
       "note": "Note",
       "actions": "Actions"
+    },
+    "channels": {
+      "wechatManual": "WeChat manual",
+      "bank": "Bank transfer",
+      "other": "Other"
+    },
+    "channelLabels": {
+      "wechat_manual": "WeChat manual",
+      "bank": "Bank transfer",
+      "other": "Other"
+    },
+    "fields": {
+      "channel": "Settlement channel",
+      "settlementRef": "Settlement reference",
+      "note": "Note"
     },
     "confirm": {
       "title": "Security confirmation",
@@ -3776,7 +3801,9 @@
       "confirmCancelled": "Sensitive confirmation cancelled",
       "confirmFailed": "Sensitive confirmation failed",
       "confirmPassed": "Sensitive confirmation passed (valid for 5 minutes)",
+      "channelRequired": "Please choose a settlement channel",
       "optionalNote": "Optional settlement note",
+      "settlementRefPlaceholder": "Optional transfer reference, settlement id, or note id",
       "rejectNotePlaceholder": "Enter the rejection reason",
       "rejectNoteRequired": "Please enter the rejection reason",
       "markPaidSuccess": "Referral conversion marked as paid",

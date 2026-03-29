@@ -98,6 +98,7 @@ export const wechatContactRepository = {
       FROM wechat_contacts
       WHERE slug = $slug
         AND is_active = 1
+        AND show_in_pricing = 1
       LIMIT 1`,
       {
         $slug: String(slug || "").trim(),

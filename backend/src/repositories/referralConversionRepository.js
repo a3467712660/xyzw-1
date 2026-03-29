@@ -5,7 +5,7 @@ const normalizeReferralConversion = (row) => {
     return null;
   }
   return {
-    id: row.id,
+    id: String(row.id || "").trim(),
     referrerUserId: String(row.referrerUserId || "").trim(),
     referrerUsername: String(row.referrerUsername || "").trim(),
     referredUserId: String(row.referredUserId || "").trim(),
@@ -27,6 +27,11 @@ const normalizeReferralConversion = (row) => {
     paidAt: String(row.paidAt || "").trim() || null,
     paidBy: String(row.paidBy || "").trim() || null,
     paidByUsername: String(row.paidByUsername || "").trim() || null,
+    settlementChannel: String(row.settlementChannel || "").trim() || null,
+    settlementRef: String(row.settlementRef || "").trim() || null,
+    settledAt: String(row.settledAt || "").trim() || null,
+    settledBy: String(row.settledBy || "").trim() || null,
+    settledByUsername: String(row.settledByUsername || "").trim() || null,
   };
 };
 
@@ -53,12 +58,19 @@ const listBaseSql = `
     c.updated_at as updatedAt,
     c.paid_at as paidAt,
     c.paid_by as paidBy,
-    payer.username as paidByUsername
+    payer.username as paidByUsername,
+    s.channel as settlementChannel,
+    s.settlement_ref as settlementRef,
+    s.settled_at as settledAt,
+    s.settled_by as settledBy,
+    settler.username as settledByUsername
   FROM referral_conversions c
   JOIN users referrer ON referrer.id = c.referrer_user_id
   JOIN users referred ON referred.id = c.referred_user_id
   LEFT JOIN activation_codes ac ON ac.id = c.activation_code_id
   LEFT JOIN users payer ON payer.id = c.paid_by
+  LEFT JOIN referral_settlements s ON s.conversion_id = c.id
+  LEFT JOIN users settler ON settler.id = s.settled_by
 `;
 
 const sumByStatuses = ({ userId, statuses }) => {
@@ -214,6 +226,45 @@ export const referralConversionRepository = {
     return Number(rows[0]?.total || 0);
   },
 
+  hasAnyPriorNonVoidPaidPurchaseByReferredUserId(referredUserId) {
+    const rows = query(
+      `SELECT 1
+       FROM referral_conversions
+       WHERE referred_user_id = $referredUserId
+         AND reward_status != 'void'
+         AND gross_amount_cents > 0
+       LIMIT 1`,
+      {
+        $referredUserId: String(referredUserId || "").trim(),
+      },
+    );
+    return Boolean(rows[0]);
+  },
+
+  existsPaidByActivationCodeId(activationCodeId) {
+    const rows = query(
+      `SELECT 1
+       FROM referral_conversions
+       WHERE activation_code_id = $activationCodeId
+         AND reward_status = 'paid'
+       LIMIT 1`,
+      {
+        $activationCodeId: String(activationCodeId || "").trim(),
+      },
+    );
+    return Boolean(rows[0]);
+  },
+
+  existsAnyPaidConversion() {
+    const rows = query(
+      `SELECT 1
+       FROM referral_conversions
+       WHERE reward_status = 'paid'
+       LIMIT 1`,
+    );
+    return Boolean(rows[0]);
+  },
+
   sumPendingRewardAmountByReferrerUserId(userId) {
     return sumByStatuses({
       userId,
@@ -228,7 +279,7 @@ export const referralConversionRepository = {
     });
   },
 
-  markPaid({
+  markPaidIfPending({
     id,
     note,
     paidAt,
@@ -242,7 +293,8 @@ export const referralConversionRepository = {
            paid_at = $paidAt,
            paid_by = $paidBy,
            updated_at = $updatedAt
-       WHERE id = $id`,
+       WHERE id = $id
+         AND reward_status = 'pending'`,
       {
         $id: String(id || "").trim(),
         $note: String(note || "").trim() || null,
@@ -254,7 +306,7 @@ export const referralConversionRepository = {
     return Number(result?.changes || 0);
   },
 
-  reject({
+  rejectIfPending({
     id,
     note,
     updatedAt,
@@ -264,7 +316,8 @@ export const referralConversionRepository = {
        SET reward_status = 'rejected',
            note = $note,
            updated_at = $updatedAt
-       WHERE id = $id`,
+       WHERE id = $id
+         AND reward_status = 'pending'`,
       {
         $id: String(id || "").trim(),
         $note: String(note || "").trim(),

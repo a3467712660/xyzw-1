@@ -22,6 +22,10 @@ import { userRepository } from "../repositories/userRepository.js";
 import { transaction } from "../db/client.js";
 import { env } from "../config/env.js";
 import { parseCookies } from "../lib/cookies.js";
+import {
+  clearReferralCookie,
+  readReferralCookieFromRequest,
+} from "../lib/referralCookie.js";
 import { clearCsrfCookies } from "../middleware/csrf.js";
 import { resolveCookieSecure } from "../lib/cookieSecurity.js";
 import { normalizeHttpOrigin } from "../lib/origin.js";
@@ -575,9 +579,30 @@ router.post("/register", registerLimiter, validateRequest({ body: registerBodySc
   }
 
   const normalizedReferralCode = normalizeReferralCode(referralCode);
+  const referralCookieState = readReferralCookieFromRequest(req);
+  if (!referralCookieState.ok && referralCookieState.reason !== "missing") {
+    clearReferralCookie(req, res);
+  }
+
   if (
-    normalizedReferralCode
-    && !referralProfileRepository.findByCode(normalizedReferralCode)
+    referralCookieState.ok
+    && normalizedReferralCode
+    && normalizedReferralCode !== referralCookieState.code
+  ) {
+    clearReferralCookie(req, res);
+    return res.status(400).json({
+      success: false,
+      message: "推广信息不一致，请重新通过推广链接进入",
+    });
+  }
+
+  const effectiveReferralCode = referralCookieState.ok
+    ? referralCookieState.code
+    : normalizedReferralCode;
+
+  if (
+    effectiveReferralCode
+    && !referralProfileRepository.findByCode(effectiveReferralCode)
   ) {
     return res.status(400).json({ success: false, message: "推广码无效" });
   }
@@ -614,9 +639,9 @@ router.post("/register", registerLimiter, validateRequest({ body: registerBodySc
       usedAt: ts,
     });
 
-    if (normalizedReferralCode) {
+    if (effectiveReferralCode) {
       referralAttribution = attachReferralAttributionOnRegister({
-        referralCode: normalizedReferralCode,
+        referralCode: effectiveReferralCode,
         referredUserId: userId,
         inviteCodeId: invite.id,
         inviteCodeMask: invite.codeMask || invite.code || null,
@@ -626,6 +651,8 @@ router.post("/register", registerLimiter, validateRequest({ body: registerBodySc
       });
     }
   });
+
+  clearReferralCookie(req, res);
 
   return res.json({
     success: true,

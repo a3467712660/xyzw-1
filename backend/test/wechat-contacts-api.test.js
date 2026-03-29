@@ -192,6 +192,9 @@ test("GET /api/v1/public/wechat-contacts only returns active + showInPricing row
   const visibleDetailRes = await fetch(`${baseUrl}/api/v1/public/wechat-contacts/${encodeURIComponent(visibleSlug)}`);
   assert.equal(visibleDetailRes.status, 200);
 
+  const hiddenDetailRes = await fetch(`${baseUrl}/api/v1/public/wechat-contacts/${encodeURIComponent(hiddenSlug)}`);
+  assert.equal(hiddenDetailRes.status, 404);
+
   const inactiveDetailRes = await fetch(`${baseUrl}/api/v1/public/wechat-contacts/${encodeURIComponent(inactiveSlug)}`);
   assert.equal(inactiveDetailRes.status, 404);
 

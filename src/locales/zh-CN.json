@@ -3685,10 +3685,17 @@
       "gross": "消费金额",
       "reward": "返佣金额",
       "status": "返佣状态",
+      "settlementChannel": "结算渠道",
+      "settledAt": "结算时间",
       "createdAt": "记录时间"
     },
+    "settlementChannels": {
+      "wechat_manual": "微信人工结算",
+      "bank": "银行卡",
+      "other": "其他"
+    },
     "conversionTypes": {
-      "first_purchase": "首次激活",
+      "first_purchase": "首次付费购买",
       "renewal_gt_2m": "续费超过 2 个月",
       "renewal_le_2m": "续费不满足返佣"
     },
@@ -3733,8 +3740,26 @@
       "gross": "消费金额",
       "reward": "返佣金额",
       "status": "返佣状态",
+      "settlementChannel": "结算渠道",
+      "settlementRef": "结算单号",
+      "settledAt": "结算时间",
       "note": "备注",
       "actions": "操作"
+    },
+    "channels": {
+      "wechatManual": "微信人工结算",
+      "bank": "银行卡",
+      "other": "其他"
+    },
+    "channelLabels": {
+      "wechat_manual": "微信人工结算",
+      "bank": "银行卡",
+      "other": "其他"
+    },
+    "fields": {
+      "channel": "结算渠道",
+      "settlementRef": "结算单号",
+      "note": "备注"
     },
     "confirm": {
       "title": "安全确认",
@@ -3752,7 +3777,9 @@
       "confirmCancelled": "已取消二次验证",
       "confirmFailed": "二次验证失败",
       "confirmPassed": "二次验证通过（5分钟内有效）",
+      "channelRequired": "请选择结算渠道",
       "optionalNote": "可填写结算备注（选填）",
+      "settlementRefPlaceholder": "可填写微信转账单号、流水号或备注号",
       "rejectNotePlaceholder": "请填写拒绝原因",
       "rejectNoteRequired": "请填写拒绝原因",
       "markPaidSuccess": "返佣台账已标记为已结算",

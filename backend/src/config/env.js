@@ -156,6 +156,9 @@ const rawActivationCodePepper = String(
 const rawPasswordResetCodePepper = String(
   process.env.PASSWORD_RESET_CODE_PEPPER || "",
 ).trim();
+const rawReferralCookieSecret = String(
+  process.env.REFERRAL_COOKIE_SECRET || "",
+).trim();
 const nodeEnv = process.env.NODE_ENV || "development";
 const isProduction = nodeEnv === "production";
 const defaultCorsOrigins = ["http://localhost:3000"];
@@ -335,6 +338,7 @@ export const env = {
   inviteCodePepper: rawInviteCodePepper,
   activationCodePepper: rawActivationCodePepper,
   passwordResetCodePepper: rawPasswordResetCodePepper,
+  referralCookieSecret: rawReferralCookieSecret,
   corsOrigins: corsOrigins.length > 0 ? corsOrigins : defaultCorsOrigins,
   corsOriginsExplicitlySet,
   protectedAdminIdentities,

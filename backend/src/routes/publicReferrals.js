@@ -1,9 +1,17 @@
 import { Router } from "express";
 import { z } from "zod";
+import {
+  clearReferralCookie,
+  setReferralCookie,
+} from "../lib/referralCookie.js";
 import { validateRequest } from "../middleware/validate.js";
 import { referralProfileRepository } from "../repositories/referralProfileRepository.js";
 import { userRepository } from "../repositories/userRepository.js";
-import { buildReferralShareUrl, normalizeReferralCode } from "../services/referralService.js";
+import {
+  buildReferralShareUrl,
+  maskReferrerDisplayName,
+  normalizeReferralCode,
+} from "../services/referralService.js";
 
 const router = Router();
 const referralCodeParamSchema = z.object({
@@ -17,6 +25,7 @@ router.get(
     const referralCode = normalizeReferralCode(req.params.code);
     const profile = referralProfileRepository.findByCode(referralCode);
     if (!profile) {
+      clearReferralCookie(req, res);
       return res.status(404).json({
         success: false,
         message: "推广链接不存在",
@@ -25,16 +34,19 @@ router.get(
 
     const referrer = userRepository.findById(profile.userId);
     if (!referrer) {
+      clearReferralCookie(req, res);
       return res.status(404).json({
         success: false,
         message: "推广链接不存在",
       });
     }
 
+    setReferralCookie(req, res, referralCode);
+
     return res.json({
       success: true,
       data: {
-        referrerUsername: referrer.username,
+        referrerDisplayName: maskReferrerDisplayName(referrer.username),
         referralCode,
         registerPath: `/register?ref=${encodeURIComponent(referralCode)}`,
         shareUrl: buildReferralShareUrl(referralCode),

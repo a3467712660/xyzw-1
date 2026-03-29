@@ -187,11 +187,8 @@ export const activationCodeRepository = {
   resetBindingById(id) {
     const result = run(
       `UPDATE activation_codes
-       SET used_by = NULL,
-           used_at = NULL,
-           bound_token_id = NULL,
-           bound_game_account_id = NULL,
-           is_active = CASE WHEN is_deleted = 0 THEN 1 ELSE 0 END
+       SET bound_token_id = NULL,
+           bound_game_account_id = NULL
        WHERE id = $id`,
       { $id: String(id || "").trim() },
     );
@@ -201,12 +198,10 @@ export const activationCodeRepository = {
   resetAllConsumedBindings() {
     const result = run(
       `UPDATE activation_codes
-       SET used_by = NULL,
-           used_at = NULL,
-           bound_token_id = NULL,
-           bound_game_account_id = NULL,
-           is_active = CASE WHEN is_deleted = 0 THEN 1 ELSE 0 END
-       WHERE used_at IS NOT NULL`,
+       SET bound_token_id = NULL,
+           bound_game_account_id = NULL
+       WHERE bound_token_id IS NOT NULL
+          OR bound_game_account_id IS NOT NULL`,
     );
     return Number(result?.changes || 0);
   },

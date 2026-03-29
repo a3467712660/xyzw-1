@@ -975,6 +975,11 @@ router.post(
     }
 
     const result = transaction(() => {
+      if (referralConversionRepository.existsPaidByActivationCodeId(req.params.id)) {
+        return {
+          blocked: true,
+        };
+      }
       const deletedBindings = tokenActivationRepository.deleteByActivationCodeId({
         activationCodeId: req.params.id,
       });
@@ -986,6 +991,13 @@ router.post(
       });
       return { deletedBindings, resetCodes, voidedConversions };
     });
+
+    if (result?.blocked) {
+      return res.status(409).json({
+        success: false,
+        message: "该激活码已有已结算返佣，不能解绑；如需补偿请创建新激活码",
+      });
+    }
 
     recordAdminAudit({
       adminUserId: req.auth.user.id,
@@ -1002,7 +1014,7 @@ router.post(
 
     return res.json({
       success: true,
-      message: "该激活码绑定已清除",
+      message: "绑定关系已清除，消费记录保留，旧激活码不会恢复可用；如需补偿请创建新激活码",
       data: result,
     });
   },
@@ -1012,7 +1024,14 @@ router.post(
   "/activation-codes/unbind-all",
   adminWriteLimiter,
   sensitiveActionRequired,
-  (_req, res) => {
+  (req, res) => {
+    if (referralConversionRepository.existsAnyPaidConversion()) {
+      return res.status(409).json({
+        success: false,
+        message: "存在已结算返佣记录，不能批量解绑；如需补偿请创建新激活码",
+      });
+    }
+
     const result = transaction(() => {
       const deletedBindings = tokenActivationRepository.deleteAll();
       const resetCodes = activationCodeRepository.resetAllConsumedBindings();
@@ -1024,16 +1043,16 @@ router.post(
     });
 
     recordAdminAudit({
-      adminUserId: _req.auth.user.id,
+      adminUserId: req.auth.user.id,
       action: "unbind_all_activation_codes",
       targetType: "activation_code",
       detail: result,
-      ...reqMeta(_req),
+      ...reqMeta(req),
     });
 
     return res.json({
       success: true,
-      message: "已清除全部激活码绑定",
+      message: "绑定关系已清除，消费记录保留，旧激活码不会恢复可用；如需补偿请创建新激活码",
       data: result,
     });
   },

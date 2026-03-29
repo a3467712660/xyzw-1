@@ -19,6 +19,7 @@ import { userRepository } from "../src/repositories/userRepository.js";
 import {
   attachReferralAttributionOnRegister,
   generateReferralProfileForUser,
+  maskReferrerDisplayName,
 } from "../src/services/referralService.js";
 import {
   createMfaSetupPayload,
@@ -32,6 +33,16 @@ const makeBaseUrl = (server) => {
     throw new Error("test server address unavailable");
   }
   return `http://127.0.0.1:${address.port}`;
+};
+
+const extractCookiePair = (response, cookieName) => {
+  const raw = String(response.headers.get("set-cookie") || "");
+  const escapedName = String(cookieName || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const matched = raw.match(new RegExp(`${escapedName}=([^;]*)`));
+  if (!matched) {
+    return "";
+  }
+  return `${cookieName}=${matched[1]}`;
 };
 
 const createWorkflowServer = async () => {
@@ -117,6 +128,10 @@ const createInviteCode = ({ id, code, createdBy }) => {
   });
 };
 
+const clearRegisterRateLimit = () => {
+  run(`DELETE FROM security_rate_limits WHERE scope_key LIKE 'auth_register:%'`);
+};
+
 const createActivationCode = ({
   id,
   code,
@@ -140,21 +155,29 @@ const bindActivationCode = async ({
   baseUrl,
   user,
   activationCode,
-  tokenId = "token_ref_001",
-  roleId = "123456",
-  sessId = "sess-ref-001",
+  tokenId,
+  roleId,
+  sessId,
   roleName = "测试角色",
   region = "测试大区",
 }) => {
+  const userSeed = String(user?.id || "referraluser")
+    .replace(/[^a-zA-Z0-9]/g, "")
+    .slice(-8)
+    .toLowerCase() || "refuser";
+  const resolvedTokenId = String(tokenId || `token_${userSeed}`).trim();
+  const resolvedRoleId = String(roleId || `1${String(userSeed.length).padStart(5, "2")}`).replace(/\D/g, "").slice(0, 12).padEnd(6, "3");
+  const resolvedSessId = String(sessId || `sess-${userSeed}`).trim();
+
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const response = await fetch(`${baseUrl}/api/v1/token-activations/bind`, {
       method: "POST",
       headers: authHeaders(user),
       body: JSON.stringify({
-        tokenId,
-        sessId,
-        roleId,
-        gameAccountId: roleId,
+        tokenId: resolvedTokenId,
+        sessId: resolvedSessId,
+        roleId: resolvedRoleId,
+        gameAccountId: resolvedRoleId,
         roleName,
         region,
         server: region,
@@ -251,8 +274,9 @@ test("public referral route resolves without auth in full app", async (t) => {
   const response = await fetch(`${makeBaseUrl(server)}/api/v1/public/referrals/${profile.referralCode}`);
   assert.equal(response.status, 200);
   const payload = await response.json();
-  assert.equal(payload?.data?.referrerUsername, referrer.username);
+  assert.equal(payload?.data?.referrerDisplayName, maskReferrerDisplayName(referrer.username));
   assert.equal(payload?.data?.referralCode, profile.referralCode);
+  assert.match(String(response.headers.get("set-cookie") || ""), /xyzw_referral=/);
 });
 
 test("a user can generate referral profile only once", async (t) => {
@@ -305,6 +329,7 @@ test("a user can generate referral profile only once", async (t) => {
 
 test("registering with a valid referral code creates attribution", async (t) => {
   await initDatabase();
+  clearRegisterRateLimit();
 
   const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const referrer = {
@@ -327,6 +352,8 @@ test("registering with a valid referral code creates attribution", async (t) => 
   const server = await createWorkflowServer();
   t.after(async () => {
     await new Promise((resolve) => server.close(resolve));
+    clearRegisterRateLimit();
+    run(`DELETE FROM referral_settlements WHERE conversion_id IN (SELECT id FROM referral_conversions WHERE referred_user_id = (SELECT id FROM users WHERE username = $username))`, { $username: registerUsername });
     run(`DELETE FROM referral_conversions WHERE referred_user_id = (SELECT id FROM users WHERE username = $username)`, { $username: registerUsername });
     run(`DELETE FROM referral_attributions WHERE referred_user_id = (SELECT id FROM users WHERE username = $username)`, { $username: registerUsername });
     run(`DELETE FROM referral_profiles WHERE user_id = $userId`, { $userId: referrer.id });
@@ -376,8 +403,80 @@ test("registering with a valid referral code creates attribution", async (t) => 
   assert.equal(attributionRows[0]?.registerUserAgent, "referral-register-test");
 });
 
+test("registering with referral cookie creates attribution and clears cookie", async (t) => {
+  await initDatabase();
+  clearRegisterRateLimit();
+
+  const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const referrer = {
+    id: `cookie_referrer_${suffix}`,
+    username: `cookie_referrer_${suffix}`,
+    password: "Referrer1234!Aa",
+  };
+  const inviteCodeId = `invite_cookie_${suffix}`;
+  const inviteCode = `INVCK${suffix.replace(/[^a-zA-Z0-9]/g, "").slice(-8).toUpperCase()}`;
+  const registerUsername = `cookie_user_${suffix}`;
+
+  insertUser(referrer);
+  createInviteCode({
+    id: inviteCodeId,
+    code: inviteCode,
+    createdBy: referrer.id,
+  });
+  const profile = generateReferralProfileForUser(referrer.id);
+
+  const server = await createWorkflowServer();
+  t.after(async () => {
+    await new Promise((resolve) => server.close(resolve));
+    clearRegisterRateLimit();
+    run(`DELETE FROM referral_settlements WHERE conversion_id IN (SELECT id FROM referral_conversions WHERE referred_user_id = (SELECT id FROM users WHERE username = $username))`, { $username: registerUsername });
+    run(`DELETE FROM referral_conversions WHERE referred_user_id = (SELECT id FROM users WHERE username = $username)`, { $username: registerUsername });
+    run(`DELETE FROM referral_attributions WHERE referred_user_id = (SELECT id FROM users WHERE username = $username)`, { $username: registerUsername });
+    run(`DELETE FROM referral_profiles WHERE user_id = $userId`, { $userId: referrer.id });
+    run(`DELETE FROM invite_codes WHERE id = $id`, { $id: inviteCodeId });
+    run(`DELETE FROM users WHERE username = $username`, { $username: registerUsername });
+    run(`DELETE FROM users WHERE id = $userId`, { $userId: referrer.id });
+  });
+
+  const baseUrl = makeBaseUrl(server);
+  const resolveRes = await fetch(`${baseUrl}/api/v1/public/referrals/${profile.referralCode}`);
+  assert.equal(resolveRes.status, 200);
+  const referralCookie = extractCookiePair(resolveRes, "xyzw_referral");
+  assert.ok(referralCookie);
+
+  const registerRes = await fetch(`${baseUrl}/api/v1/auth/register`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      cookie: referralCookie,
+      "user-agent": "referral-cookie-register-test",
+    },
+    body: JSON.stringify({
+      username: registerUsername,
+      email: `${registerUsername}@example.com`,
+      password: "Register1234!Aa",
+      inviteCode,
+      referralCode: "",
+    }),
+  });
+
+  assert.equal(registerRes.status, 200);
+  assert.match(String(registerRes.headers.get("set-cookie") || ""), /xyzw_referral=;/);
+
+  const createdUser = userRepository.findByIdentity(registerUsername);
+  assert.ok(createdUser?.id);
+  const attribution = query(
+    `SELECT referral_code_snapshot as referralCodeSnapshot
+     FROM referral_attributions
+     WHERE referred_user_id = $referredUserId`,
+    { $referredUserId: createdUser.id },
+  )[0];
+  assert.equal(attribution?.referralCodeSnapshot, profile.referralCode);
+});
+
 test("registering with an invalid referral code returns 400", async (t) => {
   await initDatabase();
+  clearRegisterRateLimit();
 
   const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const owner = {
@@ -399,6 +498,7 @@ test("registering with an invalid referral code returns 400", async (t) => {
   const server = await createWorkflowServer();
   t.after(async () => {
     await new Promise((resolve) => server.close(resolve));
+    clearRegisterRateLimit();
     run(`DELETE FROM referral_attributions WHERE referred_user_id = (SELECT id FROM users WHERE username = $username)`, { $username: registerUsername });
     run(`DELETE FROM invite_codes WHERE id = $id`, { $id: inviteCodeId });
     run(`DELETE FROM users WHERE username = $username`, { $username: registerUsername });
@@ -429,6 +529,73 @@ test("registering with an invalid referral code returns 400", async (t) => {
     { $username: registerUsername },
   );
   assert.equal(Number(rows[0]?.total || 0), 0);
+});
+
+test("registering with mismatched referral cookie and body returns 400", async (t) => {
+  await initDatabase();
+  clearRegisterRateLimit();
+
+  const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const referrerA = {
+    id: `referrer_a_${suffix}`,
+    username: `referrer_a_${suffix}`,
+    password: "Referrer1234!Aa",
+  };
+  const referrerB = {
+    id: `referrer_b_${suffix}`,
+    username: `referrer_b_${suffix}`,
+    password: "Referrer1234!Aa",
+  };
+  const inviteCodeId = `invite_mismatch_${suffix}`;
+  const inviteCode = `INVMIS${suffix.replace(/[^a-zA-Z0-9]/g, "").slice(-8).toUpperCase()}`;
+  const registerUsername = `mismatch_${suffix}`;
+
+  insertUser(referrerA);
+  insertUser(referrerB);
+  createInviteCode({
+    id: inviteCodeId,
+    code: inviteCode,
+    createdBy: referrerA.id,
+  });
+  const profileA = generateReferralProfileForUser(referrerA.id);
+  const profileB = generateReferralProfileForUser(referrerB.id);
+
+  const server = await createWorkflowServer();
+  t.after(async () => {
+    await new Promise((resolve) => server.close(resolve));
+    clearRegisterRateLimit();
+    run(`DELETE FROM referral_attributions WHERE referred_user_id = (SELECT id FROM users WHERE username = $username)`, { $username: registerUsername });
+    run(`DELETE FROM referral_profiles WHERE user_id IN ($a, $b)`, { $a: referrerA.id, $b: referrerB.id });
+    run(`DELETE FROM invite_codes WHERE id = $id`, { $id: inviteCodeId });
+    run(`DELETE FROM users WHERE username = $username`, { $username: registerUsername });
+    run(`DELETE FROM users WHERE id IN ($a, $b)`, { $a: referrerA.id, $b: referrerB.id });
+  });
+
+  const baseUrl = makeBaseUrl(server);
+  const resolveRes = await fetch(`${baseUrl}/api/v1/public/referrals/${profileA.referralCode}`);
+  assert.equal(resolveRes.status, 200);
+  const referralCookie = extractCookiePair(resolveRes, "xyzw_referral");
+  assert.ok(referralCookie);
+
+  const response = await fetch(`${baseUrl}/api/v1/auth/register`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      cookie: referralCookie,
+    },
+    body: JSON.stringify({
+      username: registerUsername,
+      email: `${registerUsername}@example.com`,
+      password: "Register1234!Aa",
+      inviteCode,
+      referralCode: profileB.referralCode,
+    }),
+  });
+
+  assert.equal(response.status, 400);
+  const payload = await response.json();
+  assert.match(String(payload?.message || ""), /推广信息不一致/);
+  assert.match(String(response.headers.get("set-cookie") || ""), /xyzw_referral=;/);
 });
 
 test("activation conversions follow first purchase and renewal reward rules", async (t) => {
@@ -466,6 +633,7 @@ test("activation conversions follow first purchase and renewal reward rules", as
   const server = await createWorkflowServer();
   t.after(async () => {
     await new Promise((resolve) => server.close(resolve));
+    run(`DELETE FROM referral_settlements WHERE conversion_id IN (SELECT id FROM referral_conversions WHERE referred_user_id = $userId)`, { $userId: referred.id });
     run(`DELETE FROM referral_conversions WHERE referred_user_id = $userId`, { $userId: referred.id });
     run(`DELETE FROM referral_attributions WHERE referred_user_id = $userId`, { $userId: referred.id });
     run(`DELETE FROM referral_profiles WHERE user_id = $userId`, { $userId: referrer.id });
@@ -524,7 +692,7 @@ test("activation conversions follow first purchase and renewal reward rules", as
   assert.equal(thirdActivation?.rewardAmountCents, 0);
 });
 
-test("first zero-amount activation makes later paid 3-month renewal use 20%", async (t) => {
+test("first zero-amount activation does not consume first paid purchase reward", async (t) => {
   await initDatabase();
 
   const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -547,6 +715,7 @@ test("first zero-amount activation makes later paid 3-month renewal use 20%", as
   const server = await createWorkflowServer();
   t.after(async () => {
     await new Promise((resolve) => server.close(resolve));
+    run(`DELETE FROM referral_settlements WHERE conversion_id IN (SELECT id FROM referral_conversions WHERE referred_user_id = $userId)`, { $userId: referred.id });
     run(`DELETE FROM referral_conversions WHERE referred_user_id = $userId`, { $userId: referred.id });
     run(`DELETE FROM referral_attributions WHERE referred_user_id = $userId`, { $userId: referred.id });
     run(`DELETE FROM referral_profiles WHERE user_id = $userId`, { $userId: referrer.id });
@@ -575,12 +744,12 @@ test("first zero-amount activation makes later paid 3-month renewal use 20%", as
 
   const rows = referralConversionRepository.listByReferrerUserId(referrer.id);
   const paidRow = rows.find((row) => row.activationCodeId === `act_paid_${suffix}`);
-  assert.equal(paidRow?.conversionType, "renewal_gt_2m");
-  assert.equal(paidRow?.rewardRateBps, 2000);
-  assert.equal(paidRow?.rewardAmountCents, 2400);
+  assert.equal(paidRow?.conversionType, "first_purchase");
+  assert.equal(paidRow?.rewardRateBps, 5000);
+  assert.equal(paidRow?.rewardAmountCents, 6000);
 });
 
-test("admin can mark pending referral conversion as paid", async (t) => {
+test("admin can mark pending referral conversion as paid and settlement is created once", async (t) => {
   await initDatabase();
 
   const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -606,6 +775,7 @@ test("admin can mark pending referral conversion as paid", async (t) => {
   const server = await createWorkflowServer();
   t.after(async () => {
     await new Promise((resolve) => server.close(resolve));
+    run(`DELETE FROM referral_settlements WHERE conversion_id IN (SELECT id FROM referral_conversions WHERE referred_user_id = $userId)`, { $userId: referred.id });
     run(`DELETE FROM referral_conversions WHERE referred_user_id = $userId`, { $userId: referred.id });
     run(`DELETE FROM referral_attributions WHERE referred_user_id = $userId`, { $userId: referred.id });
     run(`DELETE FROM referral_profiles WHERE user_id = $userId`, { $userId: referrer.id });
@@ -643,7 +813,11 @@ test("admin can mark pending referral conversion as paid", async (t) => {
       ...authHeaders(adminUser),
       "x-admin-confirm-token": confirmToken,
     },
-    body: JSON.stringify({ note: "已线下打款" }),
+    body: JSON.stringify({
+      channel: "wechat_manual",
+      settlementRef: "WX-SETTLE-001",
+      note: "已线下打款",
+    }),
   });
   assert.equal(markPaidRes.status, 200);
 
@@ -652,9 +826,51 @@ test("admin can mark pending referral conversion as paid", async (t) => {
   assert.equal(updated?.paidBy, adminUser.id);
   assert.equal(updated?.note, "已线下打款");
   assert.ok(updated?.paidAt);
+  assert.equal(updated?.settlementChannel, "wechat_manual");
+  assert.equal(updated?.settlementRef, "WX-SETTLE-001");
+  assert.ok(updated?.settledAt);
+
+  const settlement = query(
+    `SELECT
+      conversion_id as conversionId,
+      channel,
+      settlement_ref as settlementRef,
+      amount_cents as amountCents
+     FROM referral_settlements
+     WHERE conversion_id = $conversionId`,
+    { $conversionId: pendingRow.id },
+  )[0];
+  assert.equal(settlement?.conversionId, pendingRow.id);
+  assert.equal(settlement?.channel, "wechat_manual");
+  assert.equal(settlement?.settlementRef, "WX-SETTLE-001");
+  assert.equal(Number(settlement?.amountCents || 0), pendingRow.rewardAmountCents);
+
+  const duplicateMarkPaidRes = await fetch(`${baseUrl}/api/v1/admin/referrals/conversions/${pendingRow.id}/mark-paid`, {
+    method: "POST",
+    headers: {
+      ...authHeaders(adminUser),
+      "x-admin-confirm-token": confirmToken,
+    },
+    body: JSON.stringify({
+      channel: "bank",
+      settlementRef: "BANK-SETTLE-002",
+      note: "重复提交",
+    }),
+  });
+  assert.equal(duplicateMarkPaidRes.status, 409);
+
+  const rejectAfterPaidRes = await fetch(`${baseUrl}/api/v1/admin/referrals/conversions/${pendingRow.id}/reject`, {
+    method: "POST",
+    headers: {
+      ...authHeaders(adminUser),
+      "x-admin-confirm-token": confirmToken,
+    },
+    body: JSON.stringify({ note: "状态已变化后重复拒绝" }),
+  });
+  assert.equal(rejectAfterPaidRes.status, 409);
 });
 
-test("activation code unbind voids unpaid conversions and keeps paid conversions", async (t) => {
+test("activation code unbind keeps paid codes immutable and consumed codes non-reusable", async (t) => {
   await initDatabase();
 
   const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -693,6 +909,7 @@ test("activation code unbind voids unpaid conversions and keeps paid conversions
   const server = await createWorkflowServer();
   t.after(async () => {
     await new Promise((resolve) => server.close(resolve));
+    run(`DELETE FROM referral_settlements WHERE conversion_id IN (SELECT id FROM referral_conversions WHERE referred_user_id = $userId)`, { $userId: referred.id });
     run(`DELETE FROM referral_conversions WHERE referred_user_id = $userId`, { $userId: referred.id });
     run(`DELETE FROM referral_attributions WHERE referred_user_id = $userId`, { $userId: referred.id });
     run(`DELETE FROM referral_profiles WHERE user_id = $userId`, { $userId: referrer.id });
@@ -729,9 +946,22 @@ test("activation code unbind voids unpaid conversions and keeps paid conversions
       ...authHeaders(adminUser),
       "x-admin-confirm-token": confirmToken,
     },
-    body: JSON.stringify({ note: "已结算首购返佣" }),
+    body: JSON.stringify({
+      channel: "wechat_manual",
+      settlementRef: "WX-UNBIND-001",
+      note: "已结算首购返佣",
+    }),
   });
   assert.equal(markPaidRes.status, 200);
+
+  const unbindAllRes = await fetch(`${baseUrl}/api/v1/admin/activation-codes/unbind-all`, {
+    method: "POST",
+    headers: {
+      ...authHeaders(adminUser),
+      "x-admin-confirm-token": confirmToken,
+    },
+  });
+  assert.equal(unbindAllRes.status, 409);
 
   const unbindSecondRes = await fetch(`${baseUrl}/api/v1/admin/activation-codes/${secondCodeId}/unbind`, {
     method: "POST",
@@ -749,10 +979,39 @@ test("activation code unbind voids unpaid conversions and keeps paid conversions
       "x-admin-confirm-token": confirmToken,
     },
   });
-  assert.equal(unbindFirstRes.status, 200);
+  assert.equal(unbindFirstRes.status, 409);
 
   const updatedFirst = referralConversionRepository.findById(firstConversion.id);
   const updatedSecond = referralConversionRepository.findById(secondConversion.id);
   assert.equal(updatedFirst?.rewardStatus, "paid");
   assert.equal(updatedSecond?.rewardStatus, "void");
+
+  const secondCodeState = query(
+    `SELECT
+      used_by as usedBy,
+      used_at as usedAt,
+      bound_token_id as boundTokenId,
+      bound_game_account_id as boundGameAccountId,
+      is_active as isActive
+     FROM activation_codes
+     WHERE id = $id`,
+    { $id: secondCodeId },
+  )[0];
+  assert.ok(String(secondCodeState?.usedBy || "").length > 0);
+  assert.ok(String(secondCodeState?.usedAt || "").length > 0);
+  assert.equal(secondCodeState?.boundTokenId, null);
+  assert.equal(secondCodeState?.boundGameAccountId, null);
+  assert.equal(Number(secondCodeState?.isActive || 0), 0);
+
+  const secondRebindRes = await bindActivationCode({
+    baseUrl,
+    user: referred,
+    activationCode: secondCode,
+    tokenId: "token_ref_002",
+    roleId: "123457",
+    sessId: "sess-ref-002",
+    roleName: "测试角色二号",
+  });
+  assert.equal(secondRebindRes.status, 400);
+  assert.match(String(secondRebindRes.payload?.message || ""), /(已失效|已使用)/);
 });
