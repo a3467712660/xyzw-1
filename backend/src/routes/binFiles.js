@@ -1,6 +1,8 @@
 import express, { Router } from "express";
+import { z } from "zod";
 import { authRequired } from "../middleware/auth.js";
 import { createRateLimiter } from "../middleware/rateLimit.js";
+import { validateRequest } from "../middleware/validate.js";
 import {
   USER_SENSITIVE_ACTION_TOKEN_HEADER,
   USER_SENSITIVE_ACTION_TOKEN_PURPOSE,
@@ -24,6 +26,9 @@ const router = Router();
 const REMOTE_BIN_DOWNLOAD_PREF_KEY = "security.remote_bin_download_enabled";
 const REFRESH_SECOND_VERIFY_PREF_KEY = "security.token_refresh_second_verify_enabled";
 const BIN_DOWNLOAD_TICKET_TTL_SECONDS = 5 * 60;
+const binDownloadBodySchema = z.object({
+  ticket: z.string().trim().min(1).max(128),
+});
 const binRateKey = (req) => `${req.auth?.user?.id || "anonymous"}:${req.ip || "anonymous"}`;
 const binListLimiter = createRateLimiter({
   scope: "bin_files_list",
@@ -403,20 +408,15 @@ router.post(
   },
 );
 
-router.get("/bin-files/:tokenId/download", binDownloadLimiter, (req, res) => {
+router.get("/bin-files/:tokenId/download", binDownloadLimiter, (req, res) =>
+  res.status(405).json({
+    success: false,
+    message: "下载票据仅支持 POST 提交，请重新申请下载授权",
+  }));
+
+router.post("/bin-files/:tokenId/download", binDownloadLimiter, validateRequest({ body: binDownloadBodySchema }), (req, res) => {
   try {
-    const ticket = String(req.query?.ticket || "").trim();
-    if (!ticket) {
-      writeBinAudit(req, {
-        action: "bin_download",
-        result: "forbidden",
-        message: "缺少下载票据",
-      });
-      return res.status(403).json({
-        success: false,
-        message: "缺少下载票据，请重新申请下载授权",
-      });
-    }
+    const ticket = String(req.body?.ticket || "").trim();
 
     if (!isRemoteBinDownloadEnabled(req.auth.user.id)) {
       writeBinAudit(req, {

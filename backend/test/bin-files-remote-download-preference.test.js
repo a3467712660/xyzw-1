@@ -160,12 +160,14 @@ test("internal BIN read respects refresh-second-verify preference while remote d
   assert.equal(Buffer.from(await internal.arrayBuffer()).toString("utf8"), "bin-data");
 
   const deniedWithoutTicket = await fetch(`${baseUrl}/api/v1/bin-files/${tokenId}/download`, {
-    method: "GET",
+    method: "POST",
     headers: {
       ...authHeaders({ userId, username }),
+      "content-type": "application/json",
     },
+    body: JSON.stringify({}),
   });
-  assert.equal(deniedWithoutTicket.status, 403);
+  assert.equal(deniedWithoutTicket.status, 400);
 
   const deniedTicketWithoutConfirm = await fetch(`${baseUrl}/api/v1/bin-files/${tokenId}/download-ticket`, {
     method: "POST",
@@ -199,22 +201,38 @@ test("internal BIN read respects refresh-second-verify preference while remote d
   const ticket = String(ticketPayload?.data?.ticket || "");
   assert.ok(ticket, "expected download ticket");
 
-  const allowed = await fetch(`${baseUrl}/api/v1/bin-files/${tokenId}/download?ticket=${encodeURIComponent(ticket)}`, {
-    method: "GET",
+  const allowed = await fetch(`${baseUrl}/api/v1/bin-files/${tokenId}/download`, {
+    method: "POST",
     headers: {
       ...authHeaders({ userId, username }),
+      "content-type": "application/json",
     },
+    body: JSON.stringify({ ticket }),
   });
   assert.equal(allowed.status, 200);
   assertBinPlaintextResponseHardeningHeaders(allowed);
   const body = Buffer.from(await allowed.arrayBuffer()).toString("utf8");
   assert.equal(body, "bin-data");
 
-  const replay = await fetch(`${baseUrl}/api/v1/bin-files/${tokenId}/download?ticket=${encodeURIComponent(ticket)}`, {
-    method: "GET",
-    headers: authHeaders({ userId, username }),
+  const replay = await fetch(`${baseUrl}/api/v1/bin-files/${tokenId}/download`, {
+    method: "POST",
+    headers: {
+      ...authHeaders({ userId, username }),
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ ticket }),
   });
   assert.equal(replay.status, 403);
+
+  const legacyTicketQuery = new URLSearchParams({ ticket }).toString();
+  const legacyGet = await fetch(
+    `${baseUrl}/api/v1/bin-files/${tokenId}/download?${legacyTicketQuery}`,
+    {
+      method: "GET",
+      headers: authHeaders({ userId, username }),
+    },
+  );
+  assert.equal(legacyGet.status, 405);
 
   const expiredTicketId = `bdt_expired_${suffix}`;
   run(
@@ -232,10 +250,14 @@ test("internal BIN read respects refresh-second-verify preference while remote d
     },
   );
   const expiredTicketResponse = await fetch(
-    `${baseUrl}/api/v1/bin-files/${tokenId}/download?ticket=${encodeURIComponent(expiredTicketId)}`,
+    `${baseUrl}/api/v1/bin-files/${tokenId}/download`,
     {
-      method: "GET",
-      headers: authHeaders({ userId, username }),
+      method: "POST",
+      headers: {
+        ...authHeaders({ userId, username }),
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ ticket: expiredTicketId }),
     },
   );
   assert.equal(expiredTicketResponse.status, 403);

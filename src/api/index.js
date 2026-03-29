@@ -412,10 +412,13 @@ const api = {
         responseType: "arraybuffer",
       }),
     download: (tokenId, ticket = "") =>
-      request.get(`/bin-files/${tokenId}/download`, {
-        params: ticket ? { ticket } : {},
-        responseType: "arraybuffer",
-      }),
+      request.post(
+        `/bin-files/${tokenId}/download`,
+        { ticket },
+        {
+          responseType: "arraybuffer",
+        },
+      ),
     createDownloadTicket: (tokenId, confirmToken = "") =>
       request.post(
         `/bin-files/${tokenId}/download-ticket`,

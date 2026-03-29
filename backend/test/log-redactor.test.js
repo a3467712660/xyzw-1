@@ -22,8 +22,20 @@ test("redactHeaders masks authorization/cookie/set-cookie/x-*-token headers", ()
 });
 
 test("redactUrl masks sensitive query params", () => {
-  const redacted = redactUrl("/api/v1/bin-files/abc/download?ticket=123&token=xyz&foo=bar&secret=s");
-  assert.equal(redacted, "/api/v1/bin-files/abc/download?ticket=***&token=***&foo=bar&secret=***");
+  const query = new URLSearchParams({
+    ticket: "123",
+    token: "xyz",
+    foo: "bar",
+    secret: "s",
+  }).toString();
+  const redacted = redactUrl(`/api/v1/bin-files/abc/download?${query}`);
+  const expected = `/api/v1/bin-files/abc/download?${new URLSearchParams({
+    ticket: "***",
+    token: "***",
+    foo: "bar",
+    secret: "***",
+  }).toString()}`;
+  assert.equal(redacted, expected);
 });
 
 test("sanitizeForLog escapes control characters", () => {
