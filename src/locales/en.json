@@ -1136,7 +1136,9 @@
       "agreeRequired": "Please agree to the Terms of Service and Privacy Policy first",
       "successLogin": "Registration successful. Please sign in.",
       "successTrial": "Registration successful. Please complete formal use before expiration.",
-      "referralInvalid": "The referral link is invalid and the attribution info has been cleared."
+      "referralInvalid": "The referral information is invalid. Please enter again through the referral link.",
+      "referralMismatch": "The referral information does not match. Please enter again through the referral link.",
+      "referralExpired": "The referral information has expired. Please enter again through the referral link."
     },
     "passwordStrength": {
       "title": "Current password strength",

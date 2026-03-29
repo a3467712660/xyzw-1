@@ -5,6 +5,7 @@ import { resolveCookieSecure } from "./cookieSecurity.js";
 
 export const REFERRAL_COOKIE_NAME = "xyzw_referral";
 export const REFERRAL_COOKIE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const REFERRAL_CODE_PATTERN = /^[A-Z0-9]+$/;
 
 const resolveReferralCookieSecret = () =>
   String(env.referralCookieSecret || env.jwtSecret || "").trim();
@@ -50,7 +51,7 @@ export const verifyReferralCookieValue = (cookieValue) => {
   }
   const [payloadBase64Url, signature] = raw.split(".", 2);
   if (!payloadBase64Url || !signature) {
-    return { ok: false, reason: "malformed" };
+    return { ok: false, reason: "invalid" };
   }
 
   const expectedSignature = signPayload(payloadBase64Url);
@@ -60,19 +61,22 @@ export const verifyReferralCookieValue = (cookieValue) => {
     normalizedExpected.length !== normalizedReceived.length
     || !crypto.timingSafeEqual(normalizedExpected, normalizedReceived)
   ) {
-    return { ok: false, reason: "bad_signature" };
+    return { ok: false, reason: "invalid" };
   }
 
   let payload;
   try {
     payload = JSON.parse(Buffer.from(payloadBase64Url, "base64url").toString("utf8"));
   } catch {
-    return { ok: false, reason: "malformed" };
+    return { ok: false, reason: "invalid" };
   }
 
   const code = String(payload?.code || "").trim().toUpperCase();
   const exp = Number(payload?.exp || 0);
-  if (!code || !Number.isFinite(exp) || exp <= Date.now()) {
+  if (!code || !REFERRAL_CODE_PATTERN.test(code) || !Number.isFinite(exp)) {
+    return { ok: false, reason: "invalid" };
+  }
+  if (exp <= Date.now()) {
     return { ok: false, reason: "expired" };
   }
 

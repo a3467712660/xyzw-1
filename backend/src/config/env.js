@@ -339,6 +339,10 @@ export const env = {
   activationCodePepper: rawActivationCodePepper,
   passwordResetCodePepper: rawPasswordResetCodePepper,
   referralCookieSecret: rawReferralCookieSecret,
+  allowLegacyReferralBodyFallback: parseBoolean(
+    process.env.ALLOW_LEGACY_REFERRAL_BODY_FALLBACK,
+    false,
+  ),
   corsOrigins: corsOrigins.length > 0 ? corsOrigins : defaultCorsOrigins,
   corsOriginsExplicitlySet,
   protectedAdminIdentities,

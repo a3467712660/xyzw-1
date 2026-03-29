@@ -60,6 +60,13 @@ const reqMeta = (req) => ({
   userAgent: String(req.headers["user-agent"] || ""),
 });
 
+class ConflictError extends Error {
+  constructor(message = "conflict") {
+    super(message);
+    this.name = "ConflictError";
+  }
+}
+
 const isUniqueSettlementConflict = (error) =>
   String(error?.message || "").includes("referral_settlements.conversion_id");
 
@@ -100,20 +107,22 @@ router.post(
     const note = String(req.body?.note || "").trim();
     const settlementRef = String(req.body?.settlementRef || "").trim();
     const channel = String(req.body?.channel || "").trim();
+    const current = referralConversionRepository.findById(req.params.id);
+    if (!current) {
+      return res.status(404).json({ success: false, message: "返佣台账不存在" });
+    }
 
     try {
-      const result = transaction(() => {
-        const current = referralConversionRepository.findById(req.params.id);
-        if (!current) {
-          return {
-            kind: "missing",
-          };
-        }
-        if (current.rewardStatus !== "pending") {
-          return {
-            kind: "conflict",
-            current,
-          };
+      transaction(() => {
+        const changes = referralConversionRepository.markPaidIfPending({
+          id: current.id,
+          note,
+          paidAt: timestamp,
+          paidBy: req.auth.user.id,
+          updatedAt: timestamp,
+        });
+        if (changes !== 1) {
+          throw new ConflictError("referral_conversion_not_pending");
         }
 
         referralSettlementRepository.create({
@@ -129,45 +138,19 @@ router.post(
           createdAt: timestamp,
           updatedAt: timestamp,
         });
-
-        const changes = referralConversionRepository.markPaidIfPending({
-          id: current.id,
-          note,
-          paidAt: timestamp,
-          paidBy: req.auth.user.id,
-          updatedAt: timestamp,
-        });
-        if (changes !== 1) {
-          return {
-            kind: "conflict",
-            current,
-          };
-        }
-
-        return {
-          kind: "ok",
-          current,
-          updated: referralConversionRepository.findById(current.id),
-        };
       });
-
-      if (result.kind === "missing") {
-        return res.status(404).json({ success: false, message: "返佣台账不存在" });
-      }
-      if (result.kind === "conflict") {
-        return res.status(409).json({ success: false, message: "该返佣台账已不是待结算状态，请刷新后重试" });
-      }
+      const updated = referralConversionRepository.findById(current.id);
 
       recordAdminAudit({
         adminUserId: req.auth.user.id,
         action: "mark_referral_conversion_paid",
         targetType: "referral_conversion",
-        targetId: result.current.id,
+        targetId: current.id,
         detail: {
-          conversionId: result.current.id,
-          previousStatus: result.current.rewardStatus,
-          currentStatus: result.updated?.rewardStatus || "paid",
-          amountCents: result.current.rewardAmountCents,
+          conversionId: current.id,
+          previousStatus: current.rewardStatus,
+          currentStatus: updated?.rewardStatus || "paid",
+          amountCents: current.rewardAmountCents,
           channel,
           settlementRef: settlementRef || null,
           note: note || null,
@@ -178,10 +161,10 @@ router.post(
       return res.json({
         success: true,
         message: "返佣台账已标记为已结算",
-        data: result.updated,
+        data: updated,
       });
     } catch (error) {
-      if (isUniqueSettlementConflict(error)) {
+      if (error instanceof ConflictError || isUniqueSettlementConflict(error)) {
         return res.status(409).json({ success: false, message: "该返佣台账已不是待结算状态，请刷新后重试" });
       }
       throw error;
@@ -200,39 +183,48 @@ router.post(
       return res.status(404).json({ success: false, message: "返佣台账不存在" });
     }
 
-    const timestamp = nowIso();
-    const note = String(req.body?.note || "").trim();
-    const changes = referralConversionRepository.rejectIfPending({
-      id: current.id,
-      note,
-      updatedAt: timestamp,
-    });
+    try {
+      const timestamp = nowIso();
+      const note = String(req.body?.note || "").trim();
 
-    if (changes !== 1) {
-      return res.status(409).json({ success: false, message: "该返佣台账已不是待结算状态，请刷新后重试" });
+      transaction(() => {
+        const changes = referralConversionRepository.rejectIfPending({
+          id: current.id,
+          note,
+          updatedAt: timestamp,
+        });
+        if (changes !== 1) {
+          throw new ConflictError("referral_conversion_not_pending");
+        }
+      });
+
+      const updated = referralConversionRepository.findById(current.id);
+      recordAdminAudit({
+        adminUserId: req.auth.user.id,
+        action: "reject_referral_conversion",
+        targetType: "referral_conversion",
+        targetId: current.id,
+        detail: {
+          conversionId: current.id,
+          previousStatus: current.rewardStatus,
+          currentStatus: updated?.rewardStatus || "rejected",
+          amountCents: current.rewardAmountCents,
+          note,
+        },
+        ...reqMeta(req),
+      });
+
+      return res.json({
+        success: true,
+        message: "返佣台账已拒绝",
+        data: updated,
+      });
+    } catch (error) {
+      if (error instanceof ConflictError) {
+        return res.status(409).json({ success: false, message: "该返佣台账已不是待结算状态，请刷新后重试" });
+      }
+      throw error;
     }
-
-    const updated = referralConversionRepository.findById(current.id);
-    recordAdminAudit({
-      adminUserId: req.auth.user.id,
-      action: "reject_referral_conversion",
-      targetType: "referral_conversion",
-      targetId: current.id,
-      detail: {
-        conversionId: current.id,
-        previousStatus: current.rewardStatus,
-        currentStatus: updated?.rewardStatus || "rejected",
-        amountCents: current.rewardAmountCents,
-        note,
-      },
-      ...reqMeta(req),
-    });
-
-    return res.json({
-      success: true,
-      message: "返佣台账已拒绝",
-      data: updated,
-    });
   },
 );
 

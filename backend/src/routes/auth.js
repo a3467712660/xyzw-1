@@ -229,6 +229,15 @@ const refreshCookieOptions = (req, maxAgeMs) => ({
   maxAge: maxAgeMs,
 });
 
+const referralRegisterError = (req, res, code, message) => {
+  clearReferralCookie(req, res);
+  return res.status(400).json({
+    success: false,
+    code,
+    message,
+  });
+};
+
 const accessCookieOptions = (req, maxAgeMs) => ({
   httpOnly: true,
   secure: resolveCookieSecure(req, env.accessCookieSecure),
@@ -580,31 +589,51 @@ router.post("/register", registerLimiter, validateRequest({ body: registerBodySc
 
   const normalizedReferralCode = normalizeReferralCode(referralCode);
   const referralCookieState = readReferralCookieFromRequest(req);
-  if (!referralCookieState.ok && referralCookieState.reason !== "missing") {
-    clearReferralCookie(req, res);
-  }
-
-  if (
-    referralCookieState.ok
-    && normalizedReferralCode
-    && normalizedReferralCode !== referralCookieState.code
-  ) {
-    clearReferralCookie(req, res);
-    return res.status(400).json({
-      success: false,
-      message: "推广信息不一致，请重新通过推广链接进入",
-    });
-  }
-
-  const effectiveReferralCode = referralCookieState.ok
-    ? referralCookieState.code
-    : normalizedReferralCode;
-
-  if (
-    effectiveReferralCode
-    && !referralProfileRepository.findByCode(effectiveReferralCode)
-  ) {
-    return res.status(400).json({ success: false, message: "推广码无效" });
+  let effectiveReferralCode = "";
+  if (referralCookieState.ok) {
+    if (
+      normalizedReferralCode
+      && normalizedReferralCode !== referralCookieState.code
+    ) {
+      return referralRegisterError(
+        req,
+        res,
+        "REFERRAL_MISMATCH",
+        "推广信息不一致，请重新通过推广链接进入",
+      );
+    }
+    if (!referralProfileRepository.findByCode(referralCookieState.code)) {
+      return referralRegisterError(
+        req,
+        res,
+        "REFERRAL_INVALID",
+        "推广链接已失效，请重新通过推广链接进入",
+      );
+    }
+    effectiveReferralCode = referralCookieState.code;
+  } else if (referralCookieState.reason === "expired") {
+    return referralRegisterError(
+      req,
+      res,
+      "REFERRAL_EXPIRED",
+      "推广信息已过期，请重新通过推广链接进入",
+    );
+  } else if (referralCookieState.reason === "invalid") {
+    return referralRegisterError(
+      req,
+      res,
+      "REFERRAL_INVALID",
+      "推广信息无效，请重新通过推广链接进入",
+    );
+  } else if (env.allowLegacyReferralBodyFallback && normalizedReferralCode) {
+    if (!referralProfileRepository.findByCode(normalizedReferralCode)) {
+      return res.status(400).json({
+        success: false,
+        code: "REFERRAL_INVALID",
+        message: "推广信息无效，请重新通过推广链接进入",
+      });
+    }
+    effectiveReferralCode = normalizedReferralCode;
   }
 
   const ts = nowIso();

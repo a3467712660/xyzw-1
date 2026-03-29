@@ -470,6 +470,25 @@ const clearStoredReferral = () => {
   window.localStorage.removeItem(REFERRAL_AT_STORAGE_KEY);
 };
 
+const clearReferralUiState = () => {
+  clearStoredReferral();
+  registerForm.referralCode = "";
+  referrerDisplayName.value = "";
+};
+
+const resolveReferralSubmitMessage = (code, fallbackMessage) => {
+  switch (String(code || "")) {
+    case "REFERRAL_MISMATCH":
+      return t("register.messages.referralMismatch");
+    case "REFERRAL_EXPIRED":
+      return t("register.messages.referralExpired");
+    case "REFERRAL_INVALID":
+      return t("register.messages.referralInvalid");
+    default:
+      return fallbackMessage;
+  }
+};
+
 const persistReferral = (referralCode) => {
   if (typeof window === "undefined") {
     return;
@@ -556,8 +575,15 @@ const handleRegister = async () => {
         router.push("/login");
       }
     } else {
-      await announceFormError(result.message, "username");
-      message.error(result.message);
+      const resolvedMessage = resolveReferralSubmitMessage(
+        result.code,
+        result.message,
+      );
+      if (["REFERRAL_MISMATCH", "REFERRAL_INVALID", "REFERRAL_EXPIRED"].includes(String(result.code || ""))) {
+        clearReferralUiState();
+      }
+      await announceFormError(resolvedMessage, "username");
+      message.error(resolvedMessage);
     }
   } catch (error) {
     await announceFormError(t("register.validation.usernameRequired"), "username");

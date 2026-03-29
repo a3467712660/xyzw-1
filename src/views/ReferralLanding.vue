@@ -62,8 +62,16 @@ const handleResolve = async () => {
       return;
     }
 
-    persistReferral(res.data.referralCode);
-    router.replace(res.data.registerPath || `/register?ref=${encodeURIComponent(res.data.referralCode)}`);
+    const attachRes = await api.publicReferral.attach(res.data.referralCode);
+    if (!attachRes?.success || !attachRes?.data?.referralCode) {
+      clearStoredReferral();
+      message.warning(attachRes?.message || t("referralLanding.invalid"));
+      router.replace("/register");
+      return;
+    }
+
+    persistReferral(attachRes.data.referralCode);
+    router.replace(res.data.registerPath || `/register?ref=${encodeURIComponent(attachRes.data.referralCode)}`);
   } catch (error) {
     clearStoredReferral();
     message.warning(error?.message || t("referralLanding.invalid"));

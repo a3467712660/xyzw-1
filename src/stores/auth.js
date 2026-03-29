@@ -169,9 +169,16 @@ export const useAuthStore = defineStore("auth", () => {
         success: !!res.success,
         message: res.message || (res.success ? "注册成功" : "注册失败"),
         data: res.data || null,
+        code: String(res?.code || ""),
+        status: 200,
       };
     } catch (error) {
-      return { success: false, message: error.message || "注册失败" };
+      return {
+        success: false,
+        message: error.message || "注册失败",
+        code: String(error?.code || ""),
+        status: Number(error?.status) || 0,
+      };
     } finally {
       isLoading.value = false;
     }

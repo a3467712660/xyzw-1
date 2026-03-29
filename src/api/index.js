@@ -268,6 +268,13 @@ request.interceptors.response.use(
       const getMessage = (fallback) => extractErrorMessage(data, fallback);
 
       switch (status) {
+        case 400:
+          return Promise.reject(
+            createRequestError(getMessage("请求失败"), {
+              code: data?.error?.code || data?.code || "",
+              status,
+            }),
+          );
         case 401:
           if (
             !skipAuthHandling &&
@@ -316,17 +323,21 @@ request.interceptors.response.use(
           }
           return Promise.reject(
             createRequestError(getMessage("没有权限访问"), {
-              code: data?.error?.code || "AUTH_FORBIDDEN",
+              code: data?.error?.code || data?.code || "AUTH_FORBIDDEN",
+              status,
             }),
           );
         case 404:
           return Promise.reject(
-            createRequestError(getMessage("请求的资源不存在")),
+            createRequestError(getMessage("请求的资源不存在"), {
+              code: data?.error?.code || data?.code || "",
+              status,
+            }),
           );
         case 429:
           return Promise.reject(
             createRequestError(getMessage("请求过于频繁，请稍后重试"), {
-              code: data?.error?.code || "RATE_LIMITED",
+              code: data?.error?.code || data?.code || "RATE_LIMITED",
               retryAfter: Number(data?.retryAfter) || 0,
               status,
             }),
@@ -388,6 +399,10 @@ const api = {
   publicReferral: {
     resolve: (code) =>
       request.get(`/public/referrals/${encodeURIComponent(code)}`, {
+        skipAuthHandling: true,
+      }),
+    attach: (code) =>
+      request.post(`/public/referrals/${encodeURIComponent(code)}/attach`, {}, {
         skipAuthHandling: true,
       }),
   },

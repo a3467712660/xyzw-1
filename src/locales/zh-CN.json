@@ -1112,7 +1112,9 @@
       "agreeRequired": "请先同意服务条款和隐私政策",
       "successLogin": "注册成功，请登录",
       "successTrial": "注册成功，请在到期前完成正式使用",
-      "referralInvalid": "推广链接无效，已为你清理归因信息"
+      "referralInvalid": "推广信息无效，请重新通过推广链接进入",
+      "referralMismatch": "推广信息不一致，请重新通过推广链接进入",
+      "referralExpired": "推广信息已过期，请重新通过推广链接进入"
     },
     "passwordStrength": {
       "title": "当前密码强度",
