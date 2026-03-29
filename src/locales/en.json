@@ -1067,6 +1067,7 @@
       "quietWindowEnabledNow": "Quiet hours were enabled immediately ({time}), and {count} connection(s) were closed",
       "quietWindowEnabled": "Quiet hours enabled",
       "quietWindowDisabled": "Quiet hours disabled",
+      "quietWindowSaveFailed": "Failed to save quiet hours setting: {error}",
       "clearLogsFailed": "Failed to clear logs",
       "allTasksEnabled": "All tasks enabled",
       "allTasksDisabled": "All tasks disabled",
@@ -2924,6 +2925,7 @@
     "actions": {
       "formation": "Arena Formation",
       "fightCount": "Battle Count",
+      "preferredWinRate": "Preferred Win Rate (Min %)",
       "refresh": "Refresh Score & Rank",
       "start": "Start Arena",
       "skipLineups": "Skip opponent lineups (defaults include Lu-Zhao and Guan Yu)",
@@ -2938,6 +2940,7 @@
       "clearRecords": "Clear Records"
     },
     "placeholders": {
+      "preferredWinRate": "e.g. 75, only prioritize 75% and above",
       "skipLineups": "Enter custom lineup keywords",
       "manualTarget": "Select from rank list / records",
       "manualRoleId": "e.g. 277019638",

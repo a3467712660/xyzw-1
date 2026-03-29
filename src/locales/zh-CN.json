@@ -1043,6 +1043,7 @@
       "quietWindowEnabledNow": "不上线时段已开启并生效（{time}），已断开 {count} 个连接",
       "quietWindowEnabled": "不上线时段已开启",
       "quietWindowDisabled": "不上线时段已关闭",
+      "quietWindowSaveFailed": "保存不上线时段设置失败：{error}",
       "clearLogsFailed": "清空日志失败",
       "allTasksEnabled": "所有任务已启用",
       "allTasksDisabled": "所有任务已关闭",
@@ -2900,6 +2901,7 @@
     "actions": {
       "formation": "竞技场阵容",
       "fightCount": "攻打次数",
+      "preferredWinRate": "胜率优选（至少%）",
       "refresh": "刷新积分排名",
       "start": "开始竞技场",
       "skipLineups": "跳过对手阵容（默认含吕赵、关羽）",
@@ -2914,6 +2916,7 @@
       "clearRecords": "清空记录"
     },
     "placeholders": {
+      "preferredWinRate": "如：75，仅优先 75% 及以上；留空按默认",
       "skipLineups": "可输入自定义阵容关键词",
       "manualTarget": "从榜单/记录选择",
       "manualRoleId": "如：277019638",
