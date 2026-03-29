@@ -800,20 +800,16 @@ const checkScanStatus = async () => {
       return;
     }
 
-    // 使用微信官方推荐的扫码状态轮询路径
-    const url = `${WECHAT_PROXY_BASE}/qrstatus?uuid=${
-      qrcodeUUID.value
-    }&f=url&_=${Date.now()}`;
-
     const res = await new Promise((resolve) => {
       const xhr = new XMLHttpRequest();
-      xhr.open("GET", url, true);
+      xhr.open("POST", `${WECHAT_PROXY_BASE}/qrstatus`, true);
       xhr.timeout = 5000;
       xhr.setRequestHeader("Accept", "*/*");
+      xhr.setRequestHeader("Content-Type", "application/json");
       xhr.onload = () => resolve(xhr);
       xhr.onerror = () => resolve({ status: 0 });
       xhr.ontimeout = () => resolve({ status: 0 });
-      xhr.send();
+      xhr.send(JSON.stringify({ uuid: qrcodeUUID.value }));
     });
 
     if (res.status === 200) {

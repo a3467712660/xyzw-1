@@ -251,6 +251,75 @@ test("POST /wechat-proxy/hortor-login can enforce guest-only mode", async (t) =>
   assert.equal(response.status, 403);
 });
 
+test("POST /wechat-proxy/qrstatus forwards body uuid to upstream", async (t) => {
+  await initDatabase();
+  run(`DELETE FROM security_rate_limits WHERE scope_key LIKE 'wechat_proxy_%'`);
+
+  let upstreamUrl = "";
+  const originalFetch = global.fetch;
+  global.fetch = async (url) => {
+    upstreamUrl = String(url);
+    return new Response("ok", { status: 200 });
+  };
+  t.after(() => {
+    global.fetch = originalFetch;
+  });
+
+  const server = await createServer();
+  t.after(async () => {
+    await new Promise((resolve) => server.close(resolve));
+    run(`DELETE FROM security_rate_limits WHERE scope_key LIKE 'wechat_proxy_%'`);
+  });
+
+  const response = await requestLocal({
+    url: `${makeBaseUrl(server)}/api/v1/wechat-proxy/qrstatus`,
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ uuid: "wx_uuid_123" }),
+  });
+
+  assert.equal(response.status, 200);
+  const target = new URL(upstreamUrl);
+  assert.equal(target.searchParams.get("uuid"), "wx_uuid_123");
+  assert.equal(target.searchParams.get("f"), "url");
+  assert.equal(Boolean(target.searchParams.get("_")), true);
+});
+
+test("POST /wechat-proxy/qrstatus rejects query uuid before upstream", async (t) => {
+  await initDatabase();
+  run(`DELETE FROM security_rate_limits WHERE scope_key LIKE 'wechat_proxy_%'`);
+
+  let upstreamCalls = 0;
+  const originalFetch = global.fetch;
+  global.fetch = async () => {
+    upstreamCalls += 1;
+    return new Response("ok", { status: 200 });
+  };
+  t.after(() => {
+    global.fetch = originalFetch;
+  });
+
+  const server = await createServer();
+  t.after(async () => {
+    await new Promise((resolve) => server.close(resolve));
+    run(`DELETE FROM security_rate_limits WHERE scope_key LIKE 'wechat_proxy_%'`);
+  });
+
+  const response = await requestLocal({
+    url: `${makeBaseUrl(server)}/api/v1/wechat-proxy/qrstatus?uuid=wx_uuid_123`,
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ uuid: "wx_uuid_123" }),
+  });
+
+  assert.equal(response.status, 400);
+  assert.equal(upstreamCalls, 0);
+});
+
 test("GET /wechat-proxy/qrconnect is rate limited", async (t) => {
   await initDatabase();
   run(`DELETE FROM security_rate_limits WHERE scope_key LIKE 'wechat_proxy_%'`);

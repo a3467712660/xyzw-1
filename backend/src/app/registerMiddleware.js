@@ -15,6 +15,7 @@ export function registerMiddleware(app) {
   const csrfExcludePaths = [
     // This endpoint is protected by strict Origin/Referer checks and route-level rate limits.
     "/api/v1/wechat-proxy/hortor-login",
+    "/api/v1/wechat-proxy/qrstatus",
   ];
 
   const corsOptionsDelegate = (req, callback) => {

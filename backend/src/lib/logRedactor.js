@@ -16,6 +16,7 @@ const EXACT_SENSITIVE_QUERY_KEYS = new Set([
   "sid2",
   "deviceuniqueid",
   "distinctid",
+  "uuid",
 ]);
 const EXACT_URL_CONTAINER_QUERY_KEYS = new Set([
   "url",

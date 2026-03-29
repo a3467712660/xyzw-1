@@ -62,6 +62,16 @@ test("redactUrl masks deviceUniqueId and distinctId query params", () => {
   assert.equal(redacted.includes("gameId=xyzwapp"), true);
 });
 
+test("redactUrl masks qrstatus uuid query params", () => {
+  const query = new URLSearchParams({
+    uuid: "wx-uuid-123",
+    f: "url",
+  }).toString();
+  const redacted = redactUrl(`/api/v1/wechat-proxy/qrstatus?${query}`);
+  assert.equal(redacted.includes("uuid=***"), true);
+  assert.equal(redacted.includes("wx-uuid-123"), false);
+});
+
 test("sanitizeForLog escapes control characters", () => {
   assert.equal(sanitizeForLog("/a\tb\r\nc"), "/a\\tb\\r\\nc");
 });
