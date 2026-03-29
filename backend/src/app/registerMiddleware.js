@@ -60,7 +60,7 @@ export function registerMiddleware(app) {
       },
     }),
   );
-  app.use(express.json({ limit: "1mb" }));
+  app.use(express.json({ limit: "4mb" }));
   app.use(
     csrfProtection({
       excludePaths: csrfExcludePaths,

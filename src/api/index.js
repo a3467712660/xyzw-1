@@ -518,6 +518,17 @@ const api = {
     updateByAdmin: (id, payload) => request.patch(`/feedbacks/${id}`, payload),
   },
 
+  publicWechat: {
+    list: () =>
+      request.get("/public/wechat-contacts", {
+        skipAuthHandling: true,
+      }),
+    detail: (slug) =>
+      request.get(`/public/wechat-contacts/${encodeURIComponent(slug)}`, {
+        skipAuthHandling: true,
+      }),
+  },
+
   notifications: {
     list: (options = {}) => {
       const search = new URLSearchParams();
@@ -548,6 +559,13 @@ const api = {
         headers: api.admin.adminConfirmHeaders(confirmToken),
       }),
     listUsers: () => request.get("/admin/users"),
+    listWechatContacts: () => request.get("/admin/wechat-contacts"),
+    createWechatContact: (payload) =>
+      request.post("/admin/wechat-contacts", payload),
+    updateWechatContact: (id, payload) =>
+      request.put(`/admin/wechat-contacts/${id}`, payload),
+    deleteWechatContact: (id) =>
+      request.delete(`/admin/wechat-contacts/${id}`),
     listUserTokenActivations: (id) =>
       request.get(`/admin/users/${id}/token-activations`),
     listSecurityEvents: (options = {}) => {

@@ -164,6 +164,17 @@ const adminChildren = [
       layout: "default",
     }),
   },
+  {
+    path: "wechat-contacts",
+    name: "AdminWechatContacts",
+    component: () => import("@/views/AdminWechatContacts.vue"),
+    meta: withRouteMeta({
+      title: "微信联系配置",
+      requiresAuth: true,
+      requiresAdmin: true,
+      layout: "default",
+    }),
+  },
 ];
 
 export const adminRoutes = [

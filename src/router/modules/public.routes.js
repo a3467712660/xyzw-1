@@ -81,6 +81,15 @@ export const publicRoutes = [
     }),
   },
   {
+    path: "/wx/:slug",
+    name: "PublicWechatContact",
+    component: () => import("@/views/PublicWechatContact.vue"),
+    meta: withRouteMeta({
+      title: "微信联系",
+      layout: "public",
+    }),
+  },
+  {
     path: "/:pathMatch(.*)*",
     name: "NotFound",
     component: () => import("@/views/NotFound.vue"),

@@ -69,7 +69,31 @@
             <span class="contact-card__label">{{ t("pricingPage.contact.label") }}</span>
             <h2>{{ t("pricingPage.contact.title") }}</h2>
             <p>{{ t("pricingPage.contact.description") }}</p>
-            <div class="contact-card__wechat">{{ t("pricingPage.contact.wechat") }}</div>
+
+            <div v-if="contactLoading" class="contact-card__state">
+              正在加载联系入口...
+            </div>
+
+            <div v-else-if="contacts.length" class="contact-list">
+              <button
+                v-for="item in contacts"
+                :key="item.id"
+                class="contact-list__item"
+                type="button"
+                @click="openContact(item.slug)"
+              >
+                <strong>{{ item.title }}</strong>
+                <span>{{ item.subtitle || contactTypeLabelMap[item.contactType] || "点击查看联系入口" }}</span>
+              </button>
+            </div>
+
+            <div v-else class="contact-card__state">
+              {{ contactError || "当前暂无可用的联系入口，请稍后再试。" }}
+            </div>
+
+            <div class="contact-card__meta">
+              <span>{{ refreshStatusText }}</span>
+            </div>
           </div>
         </section>
       </div>
@@ -78,12 +102,34 @@
 </template>
 
 <script setup>
-import { computed } from "vue";
+import { computed, onMounted, onUnmounted, ref } from "vue";
+import { useMessage } from "naive-ui/es";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
+import api from "@/api";
 
 const router = useRouter();
 const { t } = useI18n();
+const message = useMessage();
+const contacts = ref([]);
+const contactLoading = ref(false);
+const contactError = ref("");
+const isUsingSse = ref(false);
+let contactEventSource = null;
+let contactPollTimer = null;
+
+const contactTypeLabelMap = {
+  landing_qr: "二维码落地页",
+  wecom_kf_link: "企业微信客服链接",
+  external_url: "外部链接",
+};
+
+const refreshStatusText = computed(() => {
+  if (isUsingSse.value) {
+    return "联系人列表会自动刷新";
+  }
+  return "当前使用 30 秒轮询刷新联系人";
+});
 
 const priceCards = computed(() => [
   {
@@ -135,6 +181,100 @@ const priceCards = computed(() => [
     unit: t("pricingPage.cards.tokenLimitFull.unit"),
   },
 ]);
+
+const fetchContacts = async ({ silent = false } = {}) => {
+  if (!silent) {
+    contactLoading.value = true;
+  }
+  if (!silent) {
+    contactError.value = "";
+  }
+  try {
+    const res = await api.publicWechat.list();
+    if (!res?.success) {
+      if (!silent) {
+        contactError.value = res?.message || "联系入口加载失败";
+      }
+      return;
+    }
+    contacts.value = Array.isArray(res.data) ? res.data : [];
+    if (!silent) {
+      contactError.value = "";
+    }
+  } catch (error) {
+    if (!silent) {
+      contactError.value = error?.message || "联系入口加载失败";
+      message.error(contactError.value);
+    }
+  } finally {
+    if (!silent) {
+      contactLoading.value = false;
+    }
+  }
+};
+
+const stopPolling = () => {
+  if (contactPollTimer) {
+    window.clearInterval(contactPollTimer);
+    contactPollTimer = null;
+  }
+};
+
+const startPolling = () => {
+  if (typeof window === "undefined" || contactPollTimer) {
+    return;
+  }
+  isUsingSse.value = false;
+  contactPollTimer = window.setInterval(() => {
+    fetchContacts({ silent: true });
+  }, 30000);
+};
+
+const stopEventSource = () => {
+  if (contactEventSource) {
+    contactEventSource.close();
+    contactEventSource = null;
+  }
+  isUsingSse.value = false;
+};
+
+const startEventSource = () => {
+  if (typeof window === "undefined" || !("EventSource" in window)) {
+    startPolling();
+    return;
+  }
+
+  stopEventSource();
+  contactEventSource = new window.EventSource("/api/v1/public/wechat-contacts/stream");
+  contactEventSource.onopen = () => {
+    isUsingSse.value = true;
+    stopPolling();
+  };
+  contactEventSource.onerror = () => {
+    stopEventSource();
+    startPolling();
+  };
+  contactEventSource.addEventListener("contacts_changed", () => {
+    fetchContacts({ silent: true });
+  });
+};
+
+const openContact = (slug) => {
+  router.push(`/wx/${slug}`);
+};
+
+onMounted(async () => {
+  await fetchContacts();
+  startEventSource();
+  if (!("EventSource" in window)) {
+    startPolling();
+  }
+});
+
+onUnmounted(() => {
+  stopEventSource();
+  stopPolling();
+});
 </script>
 
 <style scoped lang="scss">
@@ -381,7 +521,43 @@ const priceCards = computed(() => [
   text-transform: uppercase;
 }
 
-.contact-card__wechat {
+.contact-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.contact-list__item {
+  border: 1px solid rgba(15, 107, 255, 0.14);
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: 18px;
+  padding: 16px;
+  display: grid;
+  gap: 8px;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    transform 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.contact-list__item:hover {
+  transform: translateY(-2px);
+  border-color: rgba(15, 107, 255, 0.28);
+  box-shadow: 0 16px 28px rgba(15, 107, 255, 0.08);
+}
+
+.contact-list__item strong {
+  font-size: 16px;
+}
+
+.contact-list__item span {
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.contact-card__state {
   display: inline-flex;
   width: fit-content;
   padding: 10px 14px;
@@ -389,6 +565,11 @@ const priceCards = computed(() => [
   background: rgba(0, 163, 137, 0.12);
   color: var(--secondary-color);
   font-weight: 700;
+}
+
+.contact-card__meta {
+  color: var(--text-tertiary);
+  font-size: 13px;
 }
 
 @media (max-width: 959px) {

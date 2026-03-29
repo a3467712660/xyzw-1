@@ -409,6 +409,24 @@ const createSchema = () => {
       FOREIGN KEY (activation_code_id) REFERENCES activation_codes(id) ON DELETE RESTRICT
     );
 
+    CREATE TABLE IF NOT EXISTS wechat_contacts (
+      id TEXT PRIMARY KEY,
+      slug TEXT UNIQUE NOT NULL,
+      title TEXT NOT NULL,
+      subtitle TEXT,
+      contact_type TEXT NOT NULL,
+      target_url TEXT,
+      wechat_id TEXT,
+      qr_image_data_url TEXT,
+      show_in_pricing INTEGER NOT NULL DEFAULT 1,
+      is_active INTEGER NOT NULL DEFAULT 1,
+      sort_order INTEGER NOT NULL DEFAULT 100,
+      created_by TEXT,
+      updated_by TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
     CREATE INDEX IF NOT EXISTS idx_roles_user_id ON roles(user_id);
     CREATE INDEX IF NOT EXISTS idx_tasks_role_id ON task_configs(role_id);
     CREATE INDEX IF NOT EXISTS idx_task_runs_role_id ON task_runs(role_id);
@@ -450,6 +468,10 @@ const createSchema = () => {
     CREATE INDEX IF NOT EXISTS idx_token_activation_bindings_token_id ON token_activation_bindings(token_id);
     CREATE INDEX IF NOT EXISTS idx_token_activation_bindings_game_account_id ON token_activation_bindings(game_account_id);
     CREATE INDEX IF NOT EXISTS idx_token_activation_bindings_expires_at ON token_activation_bindings(expires_at);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_wechat_contacts_slug ON wechat_contacts(slug);
+    CREATE INDEX IF NOT EXISTS idx_wechat_contacts_is_active ON wechat_contacts(is_active);
+    CREATE INDEX IF NOT EXISTS idx_wechat_contacts_show_in_pricing ON wechat_contacts(show_in_pricing);
+    CREATE INDEX IF NOT EXISTS idx_wechat_contacts_sort_order ON wechat_contacts(sort_order);
   `);
 
   // 兼容旧库：补充管理员字段。
