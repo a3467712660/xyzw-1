@@ -1,4 +1,5 @@
 import api from "@/api";
+import { resolveServerActivationBindingForToken } from "@/services/token/tokenActivationBindingResolver";
 
 export function useTaskControlRunner({
   appendLog,
@@ -100,30 +101,16 @@ export function useTaskControlRunner({
     return day >= 1 && day <= 3 && hour >= 6;
   };
 
-  const getTokenActivationByTokenId = async () => {
+  const getTokenActivationBindings = async () => {
     const res = await api.tokenActivation.listMine();
     if (!res?.success) {
       throw new Error(res?.message || t("taskControl.messages.activationCheckFailed"));
     }
-    const activationByTokenId = new Map();
-    const list = Array.isArray(res.data) ? res.data : [];
-    list.forEach((item) => {
-      const tokenId = String(item?.tokenId || "").trim();
-      if (!tokenId) {
-        return;
-      }
-      const existing = activationByTokenId.get(tokenId);
-      const existingTs = new Date(existing?.updatedAt || 0).getTime();
-      const currentTs = new Date(item?.updatedAt || 0).getTime();
-      if (!existing || currentTs >= existingTs) {
-        activationByTokenId.set(tokenId, item);
-      }
-    });
-    return activationByTokenId;
+    return Array.isArray(res.data) ? res.data : [];
   };
 
   const resolveActivatedTokenIds = async (tokenIds) => {
-    const activationMap = await getTokenActivationByTokenId();
+    const bindings = await getTokenActivationBindings();
     const activatedTokenIds = [];
     const skippedNames = [];
     const nowTs = Date.now();
@@ -140,7 +127,11 @@ export function useTaskControlRunner({
         token.activationRoleId || token.activationGameAccountId || token.roleId || "",
       ).trim();
       const displayName = String(token.name || token.id || roleId || tokenId);
-      const activation = activationMap.get(String(token.id || "").trim());
+      const activation = resolveServerActivationBindingForToken({
+        token,
+        bindings,
+        parseBase64Token: tokenStore.parseBase64Token,
+      });
       const expiresAt = String(
         activation?.expiresAt || token.activationExpiresAt || "",
       ).trim();
@@ -162,8 +153,14 @@ export function useTaskControlRunner({
       ).trim();
       if (tokenStore.updateToken) {
         tokenStore.updateToken(token.id, {
+          activationSessId:
+            activation?.sessId || token.activationSessId || token.sessId || "",
           activationRoleId: resolvedRoleId || roleId,
           activationGameAccountId: resolvedRoleId || roleId,
+          activationRoleName:
+            activation?.roleName || token.activationRoleName || token.name || "",
+          activationRegion:
+            activation?.region || token.activationRegion || token.server || "",
           activationExpiresAt: expiresAt || null,
           activationBoundAt:
             activation?.boundAt || token.activationBoundAt || null,

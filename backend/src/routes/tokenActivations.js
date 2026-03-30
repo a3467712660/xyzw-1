@@ -125,6 +125,9 @@ const normalizeRoleIndex = (value) => {
   return String(safe);
 };
 
+const parseBoundSessId = (accountIdentity) =>
+  String(String(accountIdentity || "").split("|")[0] || "").trim();
+
 const buildAccountIdentity = ({ sessId, roleId, region, roleName }) =>
   `${normalizeSessId(sessId)}|${String(roleId || "").trim()}|${normalizeRegion(region)}|${normalizeRoleName(roleName)}`;
 
@@ -384,40 +387,33 @@ router.post(
     });
     const userId = String(req.auth?.user?.id || "").trim();
 
-    let binding = tokenId
+    const bindingByTokenId = tokenId
       ? tokenActivationRepository.findByTokenId({ tokenId })
       : null;
-    if (tokenId && !binding) {
-      return res.json({
-        success: true,
-        data: {
-          tokenId,
-          roleId,
-          roleName: normalizedRoleName,
-          region: normalizedRegion,
-          roleIndex,
-          accountIdentity,
-          sessId,
-          gameAccountId: roleId,
-          active: false,
-          bound: false,
-          expiresAt: null,
-          boundAt: null,
-        },
-      });
-    }
-    if (binding && String(binding.accountIdentity || "").trim() !== accountIdentity) {
-      return res.status(403).json({
-        success: false,
-        message: "该Token未绑定当前账号标识，请使用已绑定账号",
-      });
-    }
+    let binding = bindingByTokenId
+      && String(bindingByTokenId.accountIdentity || "").trim() === accountIdentity
+      ? bindingByTokenId
+      : null;
+
     if (!binding) {
       binding = tokenActivationRepository.findByAccountIdentity({
         accountIdentity,
       });
     }
     if (!binding) {
+      binding = tokenActivationRepository.findByRoleIdAndRegion({
+        roleId,
+        region: normalizedRegion,
+        roleIndex,
+      });
+    }
+    if (!binding) {
+      if (bindingByTokenId) {
+        return res.status(403).json({
+          success: false,
+          message: "该Token未绑定当前账号标识，请使用已绑定账号",
+        });
+      }
       return res.json({
         success: true,
         data: {
@@ -443,7 +439,11 @@ router.post(
         message: "该账号标识已绑定到其他用户",
       });
     }
-    if (tokenId && String(binding.tokenId || "").trim() && String(binding.tokenId || "").trim() !== tokenId) {
+    if (
+      tokenId
+      && bindingByTokenId
+      && String(binding.id || "").trim() !== String(bindingByTokenId.id || "").trim()
+    ) {
       return res.status(403).json({
         success: false,
         message: "该Token未绑定当前账号标识，请使用已绑定账号",
@@ -452,6 +452,7 @@ router.post(
 
     const expiresAt = String(binding.expiresAt || "");
     const active = Boolean(binding.isActive) && new Date(expiresAt).getTime() > Date.now();
+    const boundSessId = parseBoundSessId(binding.accountIdentity) || sessId;
 
     return res.json({
       success: true,
@@ -461,8 +462,8 @@ router.post(
         roleName: binding.roleName || normalizedRoleName,
         region: binding.region || normalizedRegion,
         roleIndex: String(binding.roleIndex ?? roleIndex).trim(),
-        accountIdentity: buildAccountIdentity({
-          sessId,
+        accountIdentity: String(binding.accountIdentity || "").trim() || buildAccountIdentity({
+          sessId: boundSessId,
           roleName: binding.roleName || normalizedRoleName,
           region: binding.region || normalizedRegion,
           roleId: String(binding.roleId || roleId || "").trim(),
@@ -473,7 +474,7 @@ router.post(
           roleId: String(binding.roleId || roleId || "").trim(),
           roleIndex: String(binding.roleIndex ?? roleIndex).trim(),
         }),
-        sessId,
+        sessId: boundSessId,
         gameAccountId: String(binding.roleId || roleId || "").trim(),
         active,
         bound: true,

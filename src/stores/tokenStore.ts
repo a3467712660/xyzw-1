@@ -49,6 +49,7 @@ import {
   tokenGroups,
 } from "@/services/token/tokenStorage";
 import type { TokenData } from "@/services/token/tokenStorage";
+import { resolveServerActivationBindingForToken } from "@/services/token/tokenActivationBindingResolver";
 import { createTokenDataService } from "@/services/token/tokenDataService";
 import { createTokenGroupService } from "@/services/token/tokenGroupService";
 import { createWebSocketConnectionById } from "@/services/token/tokenWebSocketService";
@@ -228,38 +229,59 @@ export const useTokenStore = defineStore("tokens", () => {
     return false;
   };
 
-  const parseBoundSessId = (accountIdentity: unknown) => {
-    const parts = String(accountIdentity || "").split("|");
-    return String(parts[0] || "").trim();
-  };
-
   const resolveActivationBinding = async (tokenId: string) => {
+    const token = gameTokens.value.find(
+      (item) => String(item?.id || "").trim() === String(tokenId || "").trim(),
+    );
+    if (!token) {
+      return null;
+    }
+
     const res = await api.tokenActivation.listMine();
     const bindings = Array.isArray(res?.data) ? res.data : [];
-    const matched = bindings.find(
-      (item) =>
-        String(item?.tokenId || "").trim() === String(tokenId || "").trim(),
-    );
-    if (!matched) {
-      return null;
+    return resolveServerActivationBindingForToken({
+      token,
+      bindings,
+      parseBase64Token,
+    });
+  };
+
+  const syncActivationBindingsFromServer = async () => {
+    if (gameTokens.value.length === 0) {
+      return { matchedCount: 0 };
     }
 
-    const roleId = String(
-      matched?.roleId || matched?.gameAccountId || "",
-    ).trim();
-    if (!roleId) {
-      return null;
+    const res = await api.tokenActivation.listMine();
+    const bindings = Array.isArray(res?.data) ? res.data : [];
+    let matchedCount = 0;
+
+    for (const token of [...gameTokens.value]) {
+      const binding = resolveServerActivationBindingForToken({
+        token,
+        bindings,
+        parseBase64Token,
+      });
+      if (!binding) {
+        continue;
+      }
+
+      updateToken(token.id, {
+        activationSessId:
+          binding.sessId || token.activationSessId || token.sessId || "",
+        activationRoleId: binding.roleId,
+        activationGameAccountId: binding.roleId,
+        activationRoleName:
+          binding.roleName || token.activationRoleName || token.name || "",
+        activationRegion:
+          binding.region || token.activationRegion || token.server || "",
+        activationExpiresAt:
+          binding.expiresAt || token.activationExpiresAt || null,
+        activationBoundAt: binding.boundAt || token.activationBoundAt || null,
+      });
+      matchedCount += 1;
     }
 
-    return {
-      sessId: parseBoundSessId(matched?.accountIdentity),
-      roleId,
-      roleName: String(matched?.roleName || "").trim(),
-      region: String(matched?.region || "").trim(),
-      roleIndex: String(matched?.roleIndex ?? "").trim(),
-      expiresAt: matched?.expiresAt || null,
-      boundAt: matched?.boundAt || null,
-    };
+    return { matchedCount };
   };
 
   const markBinSourceState = (
@@ -857,6 +879,12 @@ export const useTokenStore = defineStore("tokens", () => {
     // 设置跨标签页监听
     setupCrossTabListener();
     tokenLogger.info("Token Store 初始化完成，连接监控已启动");
+
+    if (userId && gameTokens.value.length > 0) {
+      void syncActivationBindingsFromServer().catch((error: any) => {
+        tokenLogger.warn(`激活绑定同步失败: ${error?.message || "unknown"}`);
+      });
+    }
   };
   const setBattleVersion = (version: number | null) => {
     gameData.value.battleVersion = version;
@@ -944,6 +972,7 @@ export const useTokenStore = defineStore("tokens", () => {
     cleanExpiredTokens,
     upgradeTokenToPermanent,
     initTokenStore,
+    syncActivationBindingsFromServer,
     markBinSourceState,
     isTokenActivationExpired,
     isTokenWorkbenchReady,

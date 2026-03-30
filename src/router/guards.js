@@ -79,9 +79,17 @@ export const setupRouterGuards = (router) => {
     if (
       authStore.isAuthenticated
       && (to.name === "GameFeatures" || to.name === "TaskControl")
-      && !tokenStore.hasUsableWorkbenchToken
     ) {
-      return "/tokens";
+      if (!tokenStore.hasUsableWorkbenchToken) {
+        try {
+          await tokenStore.syncActivationBindingsFromServer();
+        } catch {
+          // ignore sync failure and keep existing fallback route behavior
+        }
+      }
+      if (!tokenStore.hasUsableWorkbenchToken) {
+        return "/tokens";
+      }
     }
 
     if (
