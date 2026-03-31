@@ -165,6 +165,23 @@ const reqMeta = (req) => ({
   userAgent: String(req.headers["user-agent"] || ""),
 });
 
+const USER_DELETE_REFERRAL_BLOCK_CODE = "USER_DELETE_BLOCKED_BY_REFERRAL_HISTORY";
+const USER_DELETE_REFERRAL_BLOCK_MESSAGE = "该用户存在推广归因/返佣历史，不能直接删除；请改为停用或保留账号";
+const isForeignKeyConstraintError = (error) => {
+  const code = String(error?.code || "").trim().toUpperCase();
+  const message = String(error?.message || "").trim();
+  return (
+    code === "SQLITE_CONSTRAINT_FOREIGNKEY"
+    || message.includes("FOREIGN KEY constraint failed")
+  );
+};
+const userDeleteBlockedByReferralHistory = (res) =>
+  res.status(409).json({
+    success: false,
+    code: USER_DELETE_REFERRAL_BLOCK_CODE,
+    message: USER_DELETE_REFERRAL_BLOCK_MESSAGE,
+  });
+
 const resolvePublicAppOrigin = () => env.publicAppOrigin;
 const resolveAdminAppOrigin = () => env.adminAppOrigin || env.publicAppOrigin;
 
@@ -760,26 +777,38 @@ router.delete(
   sensitiveActionRequired,
   validateRequest({ params: userIdParamSchema }),
   (req, res) => {
-  const target = userRepository.findAdminUserBasic(req.params.id);
+    const target = userRepository.findAdminUserBasic(req.params.id);
 
-  if (!target) {
-    return res.status(404).json({ success: false, message: "用户不存在" });
-  }
+    if (!target) {
+      return res.status(404).json({ success: false, message: "用户不存在" });
+    }
 
-  if (target.id === req.auth.user.id) {
-    return res.status(400).json({ success: false, message: "不能删除当前登录账号" });
-  }
+    if (target.id === req.auth.user.id) {
+      return res.status(400).json({ success: false, message: "不能删除当前登录账号" });
+    }
 
-  userRepository.deleteById(target.id);
-  recordAdminAudit({
-    adminUserId: req.auth.user.id,
-    action: "delete_user",
-    targetType: "user",
-    targetId: target.id,
-    detail: { targetUsername: target.username },
-    ...reqMeta(req),
-  });
-  return res.json({ success: true, message: `已删除账号 ${target.username}` });
+    if (userRepository.hasBlockingReferralHistory(target.id)) {
+      return userDeleteBlockedByReferralHistory(res);
+    }
+
+    try {
+      userRepository.deleteById(target.id);
+    } catch (error) {
+      if (isForeignKeyConstraintError(error)) {
+        return userDeleteBlockedByReferralHistory(res);
+      }
+      throw error;
+    }
+
+    recordAdminAudit({
+      adminUserId: req.auth.user.id,
+      action: "delete_user",
+      targetType: "user",
+      targetId: target.id,
+      detail: { targetUsername: target.username },
+      ...reqMeta(req),
+    });
+    return res.json({ success: true, message: `已删除账号 ${target.username}` });
   },
 );
 

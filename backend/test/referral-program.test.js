@@ -16,6 +16,7 @@ import tokenActivationRoutes from "../src/routes/tokenActivations.js";
 import { activationCodeRepository } from "../src/repositories/activationCodeRepository.js";
 import { inviteCodeRepository } from "../src/repositories/inviteCodeRepository.js";
 import { referralConversionRepository } from "../src/repositories/referralConversionRepository.js";
+import { referralProfileRepository } from "../src/repositories/referralProfileRepository.js";
 import { userRepository } from "../src/repositories/userRepository.js";
 import {
   attachReferralAttributionOnRegister,
@@ -333,6 +334,97 @@ test("a user can generate referral profile only once", async (t) => {
     { $userId: user.id },
   );
   assert.equal(Number(rows[0]?.total || 0), 1);
+});
+
+test("generateReferralProfileForUser returns existing profile when user_id unique conflict happens concurrently", async (t) => {
+  await initDatabase();
+
+  const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const user = {
+    id: `ref_profile_race_user_${suffix}`,
+    username: `ref_profile_race_user_${suffix}`,
+    password: "Profile1234!Aa",
+  };
+  insertUser(user);
+
+  const originalFindByUserId = referralProfileRepository.findByUserId;
+  const originalCreate = referralProfileRepository.create;
+  const concurrentProfile = {
+    id: `refprof_existing_${suffix}`,
+    userId: user.id,
+    referralCode: `RACEUSER${suffix.replace(/[^a-zA-Z0-9]/g, "").slice(-2).toUpperCase()}`,
+    createdAt: nowIso(),
+    updatedAt: nowIso(),
+    generatedAt: nowIso(),
+  };
+  let findByUserIdCalls = 0;
+
+  referralProfileRepository.findByUserId = (userId) => {
+    findByUserIdCalls += 1;
+    if (findByUserIdCalls === 1) {
+      return null;
+    }
+    return {
+      ...concurrentProfile,
+      userId: String(userId || "").trim(),
+    };
+  };
+  referralProfileRepository.create = () => {
+    const error = new Error("UNIQUE constraint failed: referral_profiles.user_id");
+    error.code = "SQLITE_CONSTRAINT_UNIQUE";
+    throw error;
+  };
+
+  t.after(() => {
+    referralProfileRepository.findByUserId = originalFindByUserId;
+    referralProfileRepository.create = originalCreate;
+  });
+  t.after(() => {
+    run(`DELETE FROM referral_profiles WHERE user_id = $userId`, { $userId: user.id });
+    run(`DELETE FROM users WHERE id = $userId`, { $userId: user.id });
+  });
+
+  const profile = generateReferralProfileForUser(user.id);
+  assert.equal(profile?.userId, user.id);
+  assert.equal(profile?.referralCode, concurrentProfile.referralCode);
+});
+
+test("generateReferralProfileForUser retries when referral_code unique conflict happens during create", async (t) => {
+  await initDatabase();
+
+  const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const user = {
+    id: `ref_profile_code_race_${suffix}`,
+    username: `ref_profile_code_race_${suffix}`,
+    password: "Profile1234!Aa",
+  };
+  insertUser(user);
+
+  const originalCreate = referralProfileRepository.create;
+  let createCalls = 0;
+  referralProfileRepository.create = (payload) => {
+    createCalls += 1;
+    if (createCalls === 1) {
+      const error = new Error("UNIQUE constraint failed: referral_profiles.referral_code");
+      error.code = "SQLITE_CONSTRAINT_UNIQUE";
+      throw error;
+    }
+    return originalCreate(payload);
+  };
+
+  t.after(() => {
+    referralProfileRepository.create = originalCreate;
+  });
+  t.after(() => {
+    run(`DELETE FROM referral_profiles WHERE user_id = $userId`, { $userId: user.id });
+    run(`DELETE FROM users WHERE id = $userId`, { $userId: user.id });
+  });
+
+  const profile = generateReferralProfileForUser(user.id);
+  assert.ok(profile?.id);
+  assert.equal(profile?.userId, user.id);
+  assert.ok(String(profile?.referralCode || "").length > 0);
+  assert.equal(createCalls, 2);
 });
 
 test("registering with body referralCode only does not attribute by default", async (t) => {
@@ -926,6 +1018,109 @@ test("first zero-amount activation does not consume first paid purchase reward",
   assert.equal(paidRow?.conversionType, "first_purchase");
   assert.equal(paidRow?.rewardRateBps, 5000);
   assert.equal(paidRow?.rewardAmountCents, 6000);
+});
+
+test("mark-paid requires settlementRef for wechat_manual and bank but allows empty ref for other", async (t) => {
+  await initDatabase();
+
+  const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const { referrer, referred } = createReferralScenarioUsers({ suffix });
+  const adminUser = {
+    id: `admin_settlement_ref_${suffix}`,
+    username: `admin_settlement_ref_${suffix}`,
+    password: "Admin1234!Aa",
+  };
+  const { mfaSecret } = insertUser({
+    ...adminUser,
+    isAdmin: true,
+    mfaEnabled: true,
+  });
+  createActivationCode({
+    id: `act_paid_ref_${suffix}`,
+    code: `ACTREF${suffix.replace(/[^a-zA-Z0-9]/g, "").slice(-7).toUpperCase()}`,
+    createdBy: referrer.id,
+    durationMonths: 1,
+    saleAmountCents: 5000,
+  });
+
+  const server = await createWorkflowServer();
+  t.after(async () => {
+    await new Promise((resolve) => server.close(resolve));
+    run(`DELETE FROM referral_settlements WHERE conversion_id IN (SELECT id FROM referral_conversions WHERE referred_user_id = $userId)`, { $userId: referred.id });
+    run(`DELETE FROM referral_conversions WHERE referred_user_id = $userId`, { $userId: referred.id });
+    run(`DELETE FROM referral_attributions WHERE referred_user_id = $userId`, { $userId: referred.id });
+    run(`DELETE FROM referral_profiles WHERE user_id = $userId`, { $userId: referrer.id });
+    run(`DELETE FROM token_activation_bindings WHERE user_id = $userId`, { $userId: referred.id });
+    run(`DELETE FROM activation_codes WHERE created_by = $createdBy`, { $createdBy: referrer.id });
+    run(`DELETE FROM admin_audit_logs WHERE admin_user_id = $adminId`, { $adminId: adminUser.id });
+    run(`DELETE FROM user_notifications WHERE user_id = $adminId`, { $adminId: adminUser.id });
+    run(`DELETE FROM security_event_logs WHERE user_id = $adminId`, { $adminId: adminUser.id });
+    run(`DELETE FROM users WHERE id IN ($referrerId, $referredId, $adminId)`, {
+      $referrerId: referrer.id,
+      $referredId: referred.id,
+      $adminId: adminUser.id,
+    });
+  });
+
+  const baseUrl = makeBaseUrl(server);
+  const bindRes = await bindActivationCode({
+    baseUrl,
+    user: referred,
+    activationCode: `ACTREF${suffix.replace(/[^a-zA-Z0-9]/g, "").slice(-7).toUpperCase()}`,
+  });
+  assert.equal(bindRes.status, 200);
+
+  const pendingRow = referralConversionRepository.listByReferrerUserId(referrer.id)[0];
+  assert.equal(pendingRow.rewardStatus, "pending");
+  const confirmToken = await fetchAdminConfirmToken({
+    baseUrl,
+    adminUser,
+    mfaSecret,
+  });
+  const headers = {
+    ...authHeaders(adminUser),
+    "x-admin-confirm-token": confirmToken,
+  };
+
+  const missingWechatRef = await fetch(`${baseUrl}/api/v1/admin/referrals/conversions/${pendingRow.id}/mark-paid`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      channel: "wechat_manual",
+      settlementRef: "",
+      note: "缺少凭证",
+    }),
+  });
+  assert.equal(missingWechatRef.status, 400);
+  assert.match(String((await missingWechatRef.json())?.message || ""), /settlementRef/);
+
+  const missingBankRef = await fetch(`${baseUrl}/api/v1/admin/referrals/conversions/${pendingRow.id}/mark-paid`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      channel: "bank",
+      settlementRef: "",
+      note: "缺少银行卡凭证",
+    }),
+  });
+  assert.equal(missingBankRef.status, 400);
+  assert.match(String((await missingBankRef.json())?.message || ""), /settlementRef/);
+
+  const otherWithoutRef = await fetch(`${baseUrl}/api/v1/admin/referrals/conversions/${pendingRow.id}/mark-paid`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      channel: "other",
+      settlementRef: "",
+      note: "其他渠道无需单号",
+    }),
+  });
+  assert.equal(otherWithoutRef.status, 200);
+
+  const updated = referralConversionRepository.findById(pendingRow.id);
+  assert.equal(updated?.rewardStatus, "paid");
+  assert.equal(updated?.settlementChannel, "other");
+  assert.equal(updated?.settlementRef, null);
 });
 
 test("admin can mark pending referral conversion as paid and settlement is created once", async (t) => {

@@ -3804,6 +3804,7 @@
       "confirmFailed": "Sensitive confirmation failed",
       "confirmPassed": "Sensitive confirmation passed (valid for 5 minutes)",
       "channelRequired": "Please choose a settlement channel",
+      "settlementRefRequired": "WeChat manual and bank settlements require a settlement reference",
       "optionalNote": "Optional settlement note",
       "settlementRefPlaceholder": "Optional transfer reference, settlement id, or note id",
       "rejectNotePlaceholder": "Enter the rejection reason",

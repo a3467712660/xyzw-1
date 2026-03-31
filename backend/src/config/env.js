@@ -165,6 +165,9 @@ const defaultCorsOrigins = ["http://localhost:3000"];
 const rawTrustedImportApiHosts = String(
   process.env.TRUSTED_IMPORT_API_HOSTS || "",
 );
+const rawWechatContactExternalUrlAllowlist = String(
+  process.env.WECHAT_CONTACT_EXTERNAL_URL_ALLOWLIST || "",
+);
 const trustedImportApiHostsExplicitlySet =
   rawTrustedImportApiHosts.trim().length > 0;
 const defaultTrustedImportApiHosts = isProduction
@@ -184,6 +187,9 @@ const cspConnectSrc = String(process.env.CSP_CONNECT_SRC || "")
   .map((item) => item.trim())
   .filter(Boolean);
 const trustedImportApiHosts = parseHostPatterns(rawTrustedImportApiHosts);
+const wechatContactExternalUrlAllowlist = parseHostPatterns(
+  rawWechatContactExternalUrlAllowlist,
+);
 const dbWriteSafetyParamsTables = parseCsv(
   process.env.DB_WRITE_SAFETY_PARAMS_TABLES,
 ).map((item) => item.toLowerCase());
@@ -448,6 +454,7 @@ export const env = {
     trustedImportApiHosts.length > 0
       ? trustedImportApiHosts
       : defaultTrustedImportApiHosts,
+  wechatContactExternalUrlAllowlist,
   cspConnectSrc:
     cspConnectSrc.length > 0 ? cspConnectSrc : defaultCspConnectSrc,
   wechatProxyHortorLoginGuestOnly: parseBoolean(

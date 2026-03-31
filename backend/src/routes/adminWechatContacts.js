@@ -2,19 +2,53 @@ import { Router } from "express";
 import { z } from "zod";
 import { authRequired } from "../middleware/auth.js";
 import { adminRequired } from "../middleware/admin.js";
+import { createRateLimiter } from "../middleware/rateLimit.js";
 import { validateRequest } from "../middleware/validate.js";
+import { makeSensitiveAction } from "../middleware/sensitiveAction.js";
 import { nowIso, randomId } from "../db/sql.js";
+import { env } from "../config/env.js";
+import { matchesAllowedHost } from "../lib/hostAllowlist.js";
 import { recordAdminAudit } from "../services/adminAuditService.js";
 import { wechatContactRepository } from "../repositories/wechatContactRepository.js";
 import { broadcastWechatContactsChanged } from "../services/publicWechatContactStream.js";
 
 const router = Router();
 const CONTACT_TYPES = ["landing_qr", "wecom_kf_link", "external_url"];
+const SENSITIVE_ACTION_TTL_SECONDS = 5 * 60;
+const SENSITIVE_ACTION_TOKEN_HEADER = "x-admin-confirm-token";
+const SENSITIVE_ACTION_TOKEN_PURPOSE = "admin-sensitive-action";
 const QR_DATA_URL_PATTERN = /^data:image\/(?:png|jpe?g|webp);base64,[A-Za-z0-9+/=]+$/i;
 const WECHAT_CONTACT_SLUG_PATTERN = /^[a-z0-9-]+$/;
 const WECOM_KF_URL_PATTERN = /^https:\/\/work\.weixin\.qq\.com\/kfid\/[A-Za-z0-9_-]+(?:[/?#].*)?$/i;
+const adminSensitiveAction = makeSensitiveAction({
+  purpose: SENSITIVE_ACTION_TOKEN_PURPOSE,
+  ttlSeconds: SENSITIVE_ACTION_TTL_SECONDS,
+  headerName: SENSITIVE_ACTION_TOKEN_HEADER,
+  codePrefix: "ADMIN_CONFIRM",
+  requiredMessage: "高危操作需要二次确认，请先验证当前密码",
+});
+const sensitiveActionRequired = adminSensitiveAction.required;
+const adminRateKey = (req) => `${req.auth?.user?.id || "anonymous"}:${req.ip || "anonymous"}`;
+const adminWriteLimiter = createRateLimiter({
+  scope: "admin_wechat_contacts_write",
+  windowMs: 60 * 1000,
+  max: 40,
+  blockMs: 10 * 60 * 1000,
+  keyGenerator: adminRateKey,
+});
 
 const trimString = (value) => String(value ?? "").trim();
+const resolveTargetHostname = (targetUrl) => {
+  try {
+    return String(new URL(targetUrl).hostname || "").trim().toLowerCase();
+  } catch {
+    return "";
+  }
+};
+const isAllowedExternalUrlHost = (hostname) =>
+  (env.wechatContactExternalUrlAllowlist || []).some((pattern) =>
+    matchesAllowedHost(hostname, pattern),
+  );
 const optionalString = (max) =>
   z.preprocess(
     (value) => trimString(value),
@@ -85,6 +119,27 @@ const validateContactByType = (data, ctx) => {
       path: ["targetUrl"],
       message: "wecom_kf_link 必须匹配 https://work.weixin.qq.com/kfid/...",
     });
+  }
+
+  if (data.contactType === "external_url") {
+    const allowlist = env.wechatContactExternalUrlAllowlist || [];
+    if (!allowlist.length) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["targetUrl"],
+        message: "未配置 external_url 白名单",
+      });
+      return;
+    }
+
+    const hostname = resolveTargetHostname(targetUrl);
+    if (!hostname || !isAllowedExternalUrlHost(hostname)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["targetUrl"],
+        message: "external_url 域名不在白名单",
+      });
+    }
   }
 };
 
@@ -169,6 +224,7 @@ const buildAuditDetail = (row = {}) => ({
   title: row.title,
   subtitle: row.subtitle || null,
   contactType: row.contactType,
+  targetHostname: resolveTargetHostname(row.targetUrl),
   showInPricing: Boolean(row.showInPricing),
   isActive: Boolean(row.isActive),
   sortOrder: Number(row.sortOrder) || 100,
@@ -191,6 +247,8 @@ router.get("/wechat-contacts", (_req, res) => {
 
 router.post(
   "/wechat-contacts",
+  adminWriteLimiter,
+  sensitiveActionRequired,
   validateRequest({ body: createWechatContactBodySchema }),
   (req, res) => {
     const payload = normalizePersistedContact(req.body);
@@ -234,6 +292,8 @@ router.post(
 
 router.put(
   "/wechat-contacts/:id",
+  adminWriteLimiter,
+  sensitiveActionRequired,
   validateRequest({ params: contactIdParamSchema, body: updateWechatContactBodySchema }),
   (req, res) => {
     const id = req.params.id;
@@ -315,6 +375,8 @@ router.put(
 
 router.delete(
   "/wechat-contacts/:id",
+  adminWriteLimiter,
+  sensitiveActionRequired,
   validateRequest({ params: contactIdParamSchema }),
   (req, res) => {
     const id = req.params.id;

@@ -248,6 +248,8 @@ const promptNote = ({ title, placeholder, required = false }) =>
 
 const settlementChannelLabel = (value) =>
   t(`adminReferralsPage.channelLabels.${String(value || "").trim() || "other"}`);
+const isSettlementRefRequired = (channel) =>
+  ["wechat_manual", "bank"].includes(String(channel || "").trim());
 
 const promptMarkPaidPayload = () =>
   new Promise((resolve) => {
@@ -305,9 +307,14 @@ const promptMarkPaidPayload = () =>
           message.warning(t("adminReferralsPage.messages.channelRequired"));
           return false;
         }
+        const settlementRef = String(form.value.settlementRef || "").trim();
+        if (isSettlementRefRequired(channel) && !settlementRef) {
+          message.warning(t("adminReferralsPage.messages.settlementRefRequired"));
+          return false;
+        }
         finish({
           channel,
-          settlementRef: String(form.value.settlementRef || "").trim(),
+          settlementRef,
           note: String(form.value.note || "").trim(),
         });
         return true;

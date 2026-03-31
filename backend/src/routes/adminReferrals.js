@@ -50,7 +50,16 @@ const markPaidBodySchema = z.object({
   channel: z.enum(REFERRAL_SETTLEMENT_CHANNELS),
   settlementRef: z.string().trim().max(128).optional().default(""),
   note: z.string().trim().max(1000).optional().default(""),
-}).strict();
+}).strict().superRefine((data, ctx) => {
+  const requiresSettlementRef = ["wechat_manual", "bank"].includes(String(data.channel || ""));
+  if (requiresSettlementRef && !String(data.settlementRef || "").trim()) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["settlementRef"],
+      message: "当前结算渠道必须填写结算单号",
+    });
+  }
+});
 const rejectBodySchema = z.object({
   note: z.string().trim().min(1).max(1000),
 }).strict();

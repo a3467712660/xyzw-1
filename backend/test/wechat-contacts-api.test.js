@@ -5,11 +5,14 @@ import { createApp } from "../src/app/createApp.js";
 import { initDatabase } from "../src/db/database.js";
 import { nowIso } from "../src/db/sql.js";
 import { query, run } from "../src/db/client.js";
+import { env } from "../src/config/env.js";
 import { createPassword, signJwt } from "../src/lib/crypto.js";
+import adminRoutes from "../src/routes/admin.js";
 import adminWechatContactsRoutes from "../src/routes/adminWechatContacts.js";
 import {
   createMfaSetupPayload,
   encryptMfaSecret,
+  generateTotpCode,
 } from "../src/services/mfaService.js";
 
 const makeBaseUrl = (server) => {
@@ -32,6 +35,7 @@ const createAppServer = async () => {
 const createAdminServer = async () => {
   const app = express();
   app.use(express.json());
+  app.use("/api/v1/admin", adminRoutes);
   app.use("/api/v1/admin", adminWechatContactsRoutes);
   const server = await new Promise((resolve, reject) => {
     const next = app.listen(0, "127.0.0.1", () => resolve(next));
@@ -107,6 +111,7 @@ const insertAdminUser = ({ id, username, password }) => {
       $updatedAt: ts,
     },
   );
+  return mfaSetup;
 };
 
 const authHeaders = ({ userId, username }) => {
@@ -115,6 +120,23 @@ const authHeaders = ({ userId, username }) => {
     authorization: `Bearer ${token}`,
     "content-type": "application/json",
   };
+};
+
+const fetchAdminConfirmToken = async ({ baseUrl, adminUser, secret }) => {
+  const response = await fetch(`${baseUrl}/api/v1/admin/confirm-password`, {
+    method: "POST",
+    headers: authHeaders({ userId: adminUser.id, username: adminUser.username }),
+    body: JSON.stringify({
+      totpCode: generateTotpCode({ secret }),
+    }),
+  });
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  return String(payload?.data?.token || "");
+};
+
+const clearAdminWechatContactsWriteRateLimit = () => {
+  run(`DELETE FROM security_rate_limits WHERE scope_key LIKE 'admin_wechat_contacts_write:%'`);
 };
 
 test("GET /api/v1/public/wechat-contacts only returns active + showInPricing rows and detail hides inactive rows", async (t) => {
@@ -217,11 +239,13 @@ test("POST /api/v1/admin/wechat-contacts rejects javascript URL", async (t) => {
   run(`DELETE FROM user_notifications WHERE user_id = $adminId`, { $adminId: adminUser.id });
   run(`DELETE FROM security_event_logs WHERE user_id = $adminId`, { $adminId: adminUser.id });
   run(`DELETE FROM users WHERE id = $adminId`, { $adminId: adminUser.id });
-  insertAdminUser(adminUser);
+  const mfaSetup = insertAdminUser(adminUser);
+  clearAdminWechatContactsWriteRateLimit();
 
   const server = await createAdminServer();
   t.after(async () => {
     await new Promise((resolve) => server.close(resolve));
+    clearAdminWechatContactsWriteRateLimit();
     run(`DELETE FROM wechat_contacts WHERE created_by = $adminId OR updated_by = $adminId`, { $adminId: adminUser.id });
     run(`DELETE FROM admin_audit_logs WHERE admin_user_id = $adminId`, { $adminId: adminUser.id });
     run(`DELETE FROM user_notifications WHERE user_id = $adminId`, { $adminId: adminUser.id });
@@ -229,9 +253,19 @@ test("POST /api/v1/admin/wechat-contacts rejects javascript URL", async (t) => {
     run(`DELETE FROM users WHERE id = $adminId`, { $adminId: adminUser.id });
   });
 
-  const response = await fetch(`${makeBaseUrl(server)}/api/v1/admin/wechat-contacts`, {
+  const baseUrl = makeBaseUrl(server);
+  const confirmToken = await fetchAdminConfirmToken({
+    baseUrl,
+    adminUser,
+    secret: mfaSetup.secret,
+  });
+
+  const response = await fetch(`${baseUrl}/api/v1/admin/wechat-contacts`, {
     method: "POST",
-    headers: authHeaders({ userId: adminUser.id, username: adminUser.username }),
+    headers: {
+      ...authHeaders({ userId: adminUser.id, username: adminUser.username }),
+      "x-admin-confirm-token": confirmToken,
+    },
     body: JSON.stringify({
       slug: `external-${slugSuffix}`,
       title: "外部联系",
@@ -266,11 +300,13 @@ test("POST /api/v1/admin/wechat-contacts rejects invalid QR data url", async (t)
   run(`DELETE FROM user_notifications WHERE user_id = $adminId`, { $adminId: adminUser.id });
   run(`DELETE FROM security_event_logs WHERE user_id = $adminId`, { $adminId: adminUser.id });
   run(`DELETE FROM users WHERE id = $adminId`, { $adminId: adminUser.id });
-  insertAdminUser(adminUser);
+  const mfaSetup = insertAdminUser(adminUser);
+  clearAdminWechatContactsWriteRateLimit();
 
   const server = await createAdminServer();
   t.after(async () => {
     await new Promise((resolve) => server.close(resolve));
+    clearAdminWechatContactsWriteRateLimit();
     run(`DELETE FROM wechat_contacts WHERE created_by = $adminId OR updated_by = $adminId`, { $adminId: adminUser.id });
     run(`DELETE FROM admin_audit_logs WHERE admin_user_id = $adminId`, { $adminId: adminUser.id });
     run(`DELETE FROM user_notifications WHERE user_id = $adminId`, { $adminId: adminUser.id });
@@ -278,9 +314,19 @@ test("POST /api/v1/admin/wechat-contacts rejects invalid QR data url", async (t)
     run(`DELETE FROM users WHERE id = $adminId`, { $adminId: adminUser.id });
   });
 
-  const response = await fetch(`${makeBaseUrl(server)}/api/v1/admin/wechat-contacts`, {
+  const baseUrl = makeBaseUrl(server);
+  const confirmToken = await fetchAdminConfirmToken({
+    baseUrl,
+    adminUser,
+    secret: mfaSetup.secret,
+  });
+
+  const response = await fetch(`${baseUrl}/api/v1/admin/wechat-contacts`, {
     method: "POST",
-    headers: authHeaders({ userId: adminUser.id, username: adminUser.username }),
+    headers: {
+      ...authHeaders({ userId: adminUser.id, username: adminUser.username }),
+      "x-admin-confirm-token": confirmToken,
+    },
     body: JSON.stringify({
       slug: `landing-${slugSuffix}`,
       title: "二维码联系",
@@ -315,11 +361,13 @@ test("POST /api/v1/admin/wechat-contacts accepts work.weixin.qq.com/kfid url and
   run(`DELETE FROM user_notifications WHERE user_id = $adminId`, { $adminId: adminUser.id });
   run(`DELETE FROM security_event_logs WHERE user_id = $adminId`, { $adminId: adminUser.id });
   run(`DELETE FROM users WHERE id = $adminId`, { $adminId: adminUser.id });
-  insertAdminUser(adminUser);
+  const mfaSetup = insertAdminUser(adminUser);
+  clearAdminWechatContactsWriteRateLimit();
 
   const server = await createAdminServer();
   t.after(async () => {
     await new Promise((resolve) => server.close(resolve));
+    clearAdminWechatContactsWriteRateLimit();
     run(`DELETE FROM wechat_contacts WHERE created_by = $adminId OR updated_by = $adminId`, { $adminId: adminUser.id });
     run(`DELETE FROM admin_audit_logs WHERE admin_user_id = $adminId`, { $adminId: adminUser.id });
     run(`DELETE FROM user_notifications WHERE user_id = $adminId`, { $adminId: adminUser.id });
@@ -328,9 +376,17 @@ test("POST /api/v1/admin/wechat-contacts accepts work.weixin.qq.com/kfid url and
   });
 
   const baseUrl = makeBaseUrl(server);
+  const confirmToken = await fetchAdminConfirmToken({
+    baseUrl,
+    adminUser,
+    secret: mfaSetup.secret,
+  });
   const createResponse = await fetch(`${baseUrl}/api/v1/admin/wechat-contacts`, {
     method: "POST",
-    headers: authHeaders({ userId: adminUser.id, username: adminUser.username }),
+    headers: {
+      ...authHeaders({ userId: adminUser.id, username: adminUser.username }),
+      "x-admin-confirm-token": confirmToken,
+    },
     body: JSON.stringify({
       slug: `wecom-${slugSuffix}`,
       title: "企业微信客服",
@@ -354,7 +410,10 @@ test("POST /api/v1/admin/wechat-contacts accepts work.weixin.qq.com/kfid url and
 
   const updateResponse = await fetch(`${baseUrl}/api/v1/admin/wechat-contacts/${createdId}`, {
     method: "PUT",
-    headers: authHeaders({ userId: adminUser.id, username: adminUser.username }),
+    headers: {
+      ...authHeaders({ userId: adminUser.id, username: adminUser.username }),
+      "x-admin-confirm-token": confirmToken,
+    },
     body: JSON.stringify({
       showInPricing: false,
       isActive: false,
@@ -375,4 +434,237 @@ test("POST /api/v1/admin/wechat-contacts accepts work.weixin.qq.com/kfid url and
   assert.equal(Number(stored?.showInPricing), 0);
   assert.equal(Number(stored?.isActive), 0);
   assert.equal(Number(stored?.sortOrder), 88);
+});
+
+test("admin wechat contact writes require sensitive confirmation for POST PUT DELETE", async (t) => {
+  await initDatabase();
+
+  const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const slugSuffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const adminUser = {
+    id: `wechat_admin_guard_${suffix}`,
+    username: `wechat_admin_guard_${suffix}`,
+    password: "Admin1234!Aa",
+  };
+  const existingContactId = `wechat_guard_existing_${suffix}`;
+
+  run(`DELETE FROM wechat_contacts WHERE id = $id`, { $id: existingContactId });
+  run(`DELETE FROM admin_audit_logs WHERE admin_user_id = $adminId`, { $adminId: adminUser.id });
+  run(`DELETE FROM user_notifications WHERE user_id = $adminId`, { $adminId: adminUser.id });
+  run(`DELETE FROM security_event_logs WHERE user_id = $adminId`, { $adminId: adminUser.id });
+  run(`DELETE FROM users WHERE id = $adminId`, { $adminId: adminUser.id });
+  insertAdminUser(adminUser);
+  insertWechatContact({
+    id: existingContactId,
+    slug: `guard-${slugSuffix}`,
+    title: "待更新联系人",
+    contactType: "landing_qr",
+    wechatId: "guard-wx",
+    qrImageDataUrl: "data:image/png;base64,QUJDREVGRw==",
+    createdBy: adminUser.id,
+    updatedBy: adminUser.id,
+  });
+  clearAdminWechatContactsWriteRateLimit();
+
+  const server = await createAdminServer();
+  t.after(async () => {
+    await new Promise((resolve) => server.close(resolve));
+    clearAdminWechatContactsWriteRateLimit();
+    run(`DELETE FROM wechat_contacts WHERE id = $id`, { $id: existingContactId });
+    run(`DELETE FROM wechat_contacts WHERE created_by = $adminId OR updated_by = $adminId`, { $adminId: adminUser.id });
+    run(`DELETE FROM admin_audit_logs WHERE admin_user_id = $adminId`, { $adminId: adminUser.id });
+    run(`DELETE FROM user_notifications WHERE user_id = $adminId`, { $adminId: adminUser.id });
+    run(`DELETE FROM security_event_logs WHERE user_id = $adminId`, { $adminId: adminUser.id });
+    run(`DELETE FROM users WHERE id = $adminId`, { $adminId: adminUser.id });
+  });
+
+  const baseUrl = makeBaseUrl(server);
+  const headers = authHeaders({ userId: adminUser.id, username: adminUser.username });
+
+  const createDenied = await fetch(`${baseUrl}/api/v1/admin/wechat-contacts`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      slug: `guard-create-${slugSuffix}`,
+      title: "创建拦截",
+      subtitle: "",
+      contactType: "landing_qr",
+      targetUrl: "",
+      wechatId: "guard-create",
+      qrImageDataUrl: "data:image/png;base64,QUJDREVGRw==",
+      showInPricing: true,
+      isActive: true,
+      sortOrder: 10,
+    }),
+  });
+  assert.equal(createDenied.status, 403);
+  assert.equal((await createDenied.json())?.error?.code, "ADMIN_CONFIRM_REQUIRED");
+
+  const updateDenied = await fetch(`${baseUrl}/api/v1/admin/wechat-contacts/${existingContactId}`, {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({
+      title: "更新拦截",
+    }),
+  });
+  assert.equal(updateDenied.status, 403);
+  assert.equal((await updateDenied.json())?.error?.code, "ADMIN_CONFIRM_REQUIRED");
+
+  const deleteDenied = await fetch(`${baseUrl}/api/v1/admin/wechat-contacts/${existingContactId}`, {
+    method: "DELETE",
+    headers,
+  });
+  assert.equal(deleteDenied.status, 403);
+  assert.equal((await deleteDenied.json())?.error?.code, "ADMIN_CONFIRM_REQUIRED");
+});
+
+test("external_url writes require configured allowlist and allowed hostname", async (t) => {
+  await initDatabase();
+
+  const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const slugSuffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const adminUser = {
+    id: `wechat_admin_allow_${suffix}`,
+    username: `wechat_admin_allow_${suffix}`,
+    password: "Admin1234!Aa",
+  };
+
+  run(`DELETE FROM admin_audit_logs WHERE admin_user_id = $adminId`, { $adminId: adminUser.id });
+  run(`DELETE FROM user_notifications WHERE user_id = $adminId`, { $adminId: adminUser.id });
+  run(`DELETE FROM security_event_logs WHERE user_id = $adminId`, { $adminId: adminUser.id });
+  run(`DELETE FROM users WHERE id = $adminId`, { $adminId: adminUser.id });
+  const mfaSetup = insertAdminUser(adminUser);
+  clearAdminWechatContactsWriteRateLimit();
+  const previousAllowlist = [...(env.wechatContactExternalUrlAllowlist || [])];
+  t.after(() => {
+    env.wechatContactExternalUrlAllowlist = previousAllowlist;
+  });
+
+  const server = await createAdminServer();
+  t.after(async () => {
+    await new Promise((resolve) => server.close(resolve));
+    clearAdminWechatContactsWriteRateLimit();
+    run(`DELETE FROM wechat_contacts WHERE created_by = $adminId OR updated_by = $adminId`, { $adminId: adminUser.id });
+    run(`DELETE FROM admin_audit_logs WHERE admin_user_id = $adminId`, { $adminId: adminUser.id });
+    run(`DELETE FROM user_notifications WHERE user_id = $adminId`, { $adminId: adminUser.id });
+    run(`DELETE FROM security_event_logs WHERE user_id = $adminId`, { $adminId: adminUser.id });
+    run(`DELETE FROM users WHERE id = $adminId`, { $adminId: adminUser.id });
+  });
+
+  const baseUrl = makeBaseUrl(server);
+  const confirmToken = await fetchAdminConfirmToken({
+    baseUrl,
+    adminUser,
+    secret: mfaSetup.secret,
+  });
+  const headers = {
+    ...authHeaders({ userId: adminUser.id, username: adminUser.username }),
+    "x-admin-confirm-token": confirmToken,
+  };
+
+  env.wechatContactExternalUrlAllowlist = [];
+  const unconfigured = await fetch(`${baseUrl}/api/v1/admin/wechat-contacts`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      slug: `allow-empty-${slugSuffix}`,
+      title: "未配置白名单",
+      subtitle: "",
+      contactType: "external_url",
+      targetUrl: "https://promo.example.com/a",
+      wechatId: "",
+      qrImageDataUrl: "",
+      showInPricing: true,
+      isActive: true,
+      sortOrder: 10,
+    }),
+  });
+  assert.equal(unconfigured.status, 400);
+  assert.match(String((await unconfigured.json())?.message || ""), /未配置 external_url 白名单/);
+
+  env.wechatContactExternalUrlAllowlist = ["promo.example.com"];
+  const createAllowed = await fetch(`${baseUrl}/api/v1/admin/wechat-contacts`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      slug: `allow-ok-${slugSuffix}`,
+      title: "允许域名",
+      subtitle: "",
+      contactType: "external_url",
+      targetUrl: "https://promo.example.com/path",
+      wechatId: "",
+      qrImageDataUrl: "",
+      showInPricing: true,
+      isActive: true,
+      sortOrder: 11,
+    }),
+  });
+  assert.equal(createAllowed.status, 200);
+  const createdPayload = await createAllowed.json();
+  const createdId = String(createdPayload?.data?.id || "");
+  assert.ok(createdId);
+
+  const updateDenied = await fetch(`${baseUrl}/api/v1/admin/wechat-contacts/${createdId}`, {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({
+      targetUrl: "https://evil.example.com/path",
+    }),
+  });
+  assert.equal(updateDenied.status, 400);
+  assert.match(String((await updateDenied.json())?.message || ""), /白名单/);
+});
+
+test("wechat contact writes are rate limited", async (t) => {
+  await initDatabase();
+
+  const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const adminUser = {
+    id: `wechat_admin_rate_${suffix}`,
+    username: `wechat_admin_rate_${suffix}`,
+    password: "Admin1234!Aa",
+  };
+
+  run(`DELETE FROM admin_audit_logs WHERE admin_user_id = $adminId`, { $adminId: adminUser.id });
+  run(`DELETE FROM user_notifications WHERE user_id = $adminId`, { $adminId: adminUser.id });
+  run(`DELETE FROM security_event_logs WHERE user_id = $adminId`, { $adminId: adminUser.id });
+  run(`DELETE FROM users WHERE id = $adminId`, { $adminId: adminUser.id });
+  insertAdminUser(adminUser);
+  clearAdminWechatContactsWriteRateLimit();
+
+  const server = await createAdminServer();
+  t.after(async () => {
+    await new Promise((resolve) => server.close(resolve));
+    clearAdminWechatContactsWriteRateLimit();
+    run(`DELETE FROM wechat_contacts WHERE created_by = $adminId OR updated_by = $adminId`, { $adminId: adminUser.id });
+    run(`DELETE FROM admin_audit_logs WHERE admin_user_id = $adminId`, { $adminId: adminUser.id });
+    run(`DELETE FROM user_notifications WHERE user_id = $adminId`, { $adminId: adminUser.id });
+    run(`DELETE FROM security_event_logs WHERE user_id = $adminId`, { $adminId: adminUser.id });
+    run(`DELETE FROM users WHERE id = $adminId`, { $adminId: adminUser.id });
+  });
+
+  const baseUrl = makeBaseUrl(server);
+  const headers = authHeaders({ userId: adminUser.id, username: adminUser.username });
+  let lastStatus = 0;
+  for (let index = 0; index < 41; index += 1) {
+    const response = await fetch(`${baseUrl}/api/v1/admin/wechat-contacts`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        slug: `rate-${suffix}-${index}`,
+        title: "限流测试",
+        subtitle: "",
+        contactType: "landing_qr",
+        targetUrl: "",
+        wechatId: "wx-rate",
+        qrImageDataUrl: "data:image/png;base64,QUJDREVGRw==",
+        showInPricing: true,
+        isActive: true,
+        sortOrder: 20,
+      }),
+    });
+    lastStatus = response.status;
+  }
+
+  assert.equal(lastStatus, 429);
 });

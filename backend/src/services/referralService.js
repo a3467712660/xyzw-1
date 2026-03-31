@@ -11,6 +11,17 @@ import { referralConversionRepository } from "../repositories/referralConversion
 
 const REFERRAL_CODE_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 const REFERRAL_CODE_LENGTH = 10;
+const isUniqueConstraintError = (error) => {
+  const code = String(error?.code || "").trim().toUpperCase();
+  const message = String(error?.message || "").trim();
+  return (
+    code === "SQLITE_CONSTRAINT_UNIQUE"
+    || message.includes("UNIQUE constraint failed")
+  );
+};
+const isReferralProfileUniqueConflict = (error, fieldName) =>
+  isUniqueConstraintError(error)
+  && String(error?.message || "").includes(`referral_profiles.${fieldName}`);
 
 export const normalizeReferralCode = (value) =>
   String(value || "")
@@ -78,14 +89,30 @@ export const generateReferralProfileForUser = (userId) => {
     }
     const timestamp = nowIso();
     const id = randomId("refprof");
-    referralProfileRepository.create({
-      id,
-      userId: normalizedUserId,
-      referralCode,
-      createdAt: timestamp,
-      updatedAt: timestamp,
-      generatedAt: timestamp,
-    });
+    try {
+      referralProfileRepository.create({
+        id,
+        userId: normalizedUserId,
+        referralCode,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        generatedAt: timestamp,
+      });
+    } catch (error) {
+      if (isReferralProfileUniqueConflict(error, "user_id")) {
+        const concurrentCreated = referralProfileRepository.findByUserId(normalizedUserId);
+        if (concurrentCreated) {
+          return {
+            ...concurrentCreated,
+            shareUrl: buildReferralShareUrl(concurrentCreated.referralCode),
+          };
+        }
+      }
+      if (isReferralProfileUniqueConflict(error, "referral_code")) {
+        continue;
+      }
+      throw error;
+    }
     const created = referralProfileRepository.findByUserId(normalizedUserId);
     return {
       ...created,

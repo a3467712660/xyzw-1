@@ -3780,6 +3780,7 @@
       "confirmFailed": "二次验证失败",
       "confirmPassed": "二次验证通过（5分钟内有效）",
       "channelRequired": "请选择结算渠道",
+      "settlementRefRequired": "微信人工结算和银行卡结算必须填写结算单号",
       "optionalNote": "可填写结算备注（选填）",
       "settlementRefPlaceholder": "可填写微信转账单号、流水号或备注号",
       "rejectNotePlaceholder": "请填写拒绝原因",
