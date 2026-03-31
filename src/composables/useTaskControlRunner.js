@@ -109,7 +109,7 @@ export function useTaskControlRunner({
     return Array.isArray(res.data) ? res.data : [];
   };
 
-  const resolveActivatedTokenIds = async (tokenIds) => {
+  const resolveActivatedTokenIds = async (tokenIds, tokenRoleIdMap = {}) => {
     const bindings = await getTokenActivationBindings();
     const activatedTokenIds = [];
     const skippedNames = [];
@@ -126,9 +126,21 @@ export function useTaskControlRunner({
       const roleId = String(
         token.activationRoleId || token.activationGameAccountId || token.roleId || "",
       ).trim();
+      const fallbackRoleId = String(tokenRoleIdMap?.[token.id] || "").trim();
       const displayName = String(token.name || token.id || roleId || tokenId);
+      const tokenForBindingMatch = fallbackRoleId
+        ? {
+            ...token,
+            roleId: roleId || fallbackRoleId,
+            activationRoleId:
+              String(token.activationRoleId || "").trim() || fallbackRoleId,
+            activationGameAccountId:
+              String(token.activationGameAccountId || "").trim()
+              || fallbackRoleId,
+          }
+        : token;
       const activation = resolveServerActivationBindingForToken({
-        token,
+        token: tokenForBindingMatch,
         bindings,
         parseBase64Token: tokenStore.parseBase64Token,
       });
@@ -149,6 +161,7 @@ export function useTaskControlRunner({
       const resolvedRoleId = String(
         activation?.roleId
         || activation?.gameAccountId
+        || fallbackRoleId
         || roleId,
       ).trim();
       if (tokenStore.updateToken) {
@@ -195,7 +208,10 @@ export function useTaskControlRunner({
     }
     let tokenIds = [...originalTokenIds];
     try {
-      const result = await resolveActivatedTokenIds(tokenIds);
+      const result = await resolveActivatedTokenIds(
+        tokenIds,
+        row.tokenRoleIdMap || {},
+      );
       tokenIds = result.activatedTokenIds;
       if (result.skippedNames.length > 0) {
         appendLog(

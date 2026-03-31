@@ -89,24 +89,36 @@ export const resolveServerActivationBindingForToken = ({
     }
   }
 
-  if (!snapshot.roleId || !snapshot.region) {
+  if (!snapshot.roleId) {
     return null;
+  }
+
+  if (!snapshot.region) {
+    const sameRoleBindings = normalizedBindings.filter(
+      (binding) => binding.roleId === snapshot.roleId,
+    );
+    return sameRoleBindings.length === 1 ? sameRoleBindings[0] : null;
   }
 
   const sameRoleBindings = normalizedBindings.filter(
-    (binding) =>
-      binding.roleId === snapshot.roleId
-      && binding.region === snapshot.region,
+    (binding) => binding.roleId === snapshot.roleId,
   );
-  if (sameRoleBindings.length === 0) {
-    return null;
+  const sameRoleSameRegionBindings = sameRoleBindings.filter(
+    (binding) =>
+      binding.region === snapshot.region,
+  );
+  if (sameRoleSameRegionBindings.length > 0) {
+    if (snapshot.roleIndex) {
+      return sameRoleSameRegionBindings.find(
+        (binding) => binding.roleIndex === snapshot.roleIndex,
+      ) || sameRoleSameRegionBindings[0];
+    }
+    return sameRoleSameRegionBindings[0];
   }
 
-  if (snapshot.roleIndex) {
-    return sameRoleBindings.find(
-      (binding) => binding.roleIndex === snapshot.roleIndex,
-    ) || null;
+  if (sameRoleBindings.length === 1) {
+    return sameRoleBindings[0];
   }
 
-  return sameRoleBindings[0] || null;
+  return null;
 };
