@@ -277,6 +277,7 @@ const workspaceMenuOptions = computed(() => {
   if (canOpenWorkbenchFeatures.value) {
     options.push(
       { label: "游戏功能", key: "/admin/game-features", icon: renderIcon(Cube) },
+      { label: "阵容助手", key: "/admin/lineup-assistant", icon: renderIcon(Cube) },
       { label: "任务控制", key: "/admin/task-control", icon: renderIcon(Settings) },
     );
   }

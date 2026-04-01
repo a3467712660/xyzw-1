@@ -213,6 +213,8 @@ export function registerDefaultCommands(reg) {
     .register("legion_refuseapply")
     .register("legion_agree")
     .register("legion_ignore")
+    .register("legion_research")
+    .register("legion_resetresearch")
 
     .register("legion_getinfobyid")
     .register("legion_getarearank")
@@ -291,6 +293,14 @@ export function registerDefaultCommands(reg) {
     .register("team_setteam")
     .register("presetteam_saveteam", { teamId: 1 })
     .register("role_gettargetteam")
+    .register("hero_gointobattle")
+    .register("hero_gobackbattle")
+    .register("artifact_load")
+    .register("artifact_unload")
+    .register("lordweapon_changedefaultweapon")
+    .register("pearl_replaceskill")
+    .register("pearl_exchangeskill")
+    .register("pearl_unloadskill")
     // 十殿试炼组队
     .register("matchteam_create", {
       custom: {},
@@ -329,6 +339,7 @@ export function registerDefaultCommands(reg) {
     // 武将升级相关
     .register("hero_heroupgradelevel") // 武将升级
     .register("hero_heroupgradeorder") // 武将进阶
+    .register("hero_rebirth") // 武将重生
     .register("hero_calcpowerbyteam", {
       battleTeam: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0 },
       lordWeaponId: 8,
@@ -1100,6 +1111,8 @@ export class XyzwWebSocketClient {
       nightmare_readyresp: "nightmare_readyfight",
       studyresp: "study_startgame",
       role_getroleinforesp: "role_getroleinfo",
+      legion_researchresp: "legion_research",
+      legion_resetresearchresp: "legion_resetresearch",
       hero_recruitresp: "hero_recruit",
       hero_exchangeresp: "hero_exchange",
       hero_calcpowerbyteamresp: "hero_calcpowerbyteam",
@@ -1178,6 +1191,15 @@ export class XyzwWebSocketClient {
       car_researchresp: "car_research",
       car_claimpartconsumerewardresp: "car_claimpartconsumereward",
       role_gettargetteamresp: "role_gettargetteam",
+      hero_gointobattleresp: "hero_gointobattle",
+      hero_gobackbattleresp: "hero_gobackbattle",
+      artifact_loadresp: "artifact_load",
+      artifact_unloadresp: "artifact_unload",
+      lordweapon_changedefaultweaponresp: "lordweapon_changedefaultweapon",
+      pearl_replaceskillresp: "pearl_replaceskill",
+      pearl_exchangeskillresp: "pearl_exchangeskill",
+      pearl_unloadskillresp: "pearl_unloadskill",
+      hero_rebirthresp: "hero_rebirth",
       activity_warorderclaimresp: "activity_recyclewarorderrewardclaim",
       bosstower_gethelprankresp: "bosstower_gethelprank",
       // 功法相关响应映射
@@ -1201,6 +1223,15 @@ export class XyzwWebSocketClient {
         "role_commitpassword",
         "nightmare_readyfight",
         "hero_exchange",
+        "hero_gointobattle",
+        "hero_gobackbattle",
+        "artifact_load",
+        "artifact_unload",
+        "lordweapon_changedefaultweapon",
+        "pearl_replaceskill",
+        "pearl_exchangeskill",
+        "pearl_unloadskill",
+        "hero_rebirth",
       ],
       syncrewardresp: [
         "system_buygold",

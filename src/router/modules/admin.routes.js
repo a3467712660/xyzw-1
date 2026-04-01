@@ -37,6 +37,17 @@ const adminChildren = [
     }),
   },
   {
+    path: "lineup-assistant",
+    name: "LineupAssistant",
+    component: () => import("@/views/LineupAssistant.vue"),
+    meta: withRouteMeta({
+      title: "阵容助手",
+      requiresAuth: true,
+      requiresGameAccess: true,
+      layout: "default",
+    }),
+  },
+  {
     path: "legion-war",
     name: "LegionWar",
     component: () => import("@/views/LegionWar.vue"),
