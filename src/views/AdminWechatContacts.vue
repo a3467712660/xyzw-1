@@ -239,8 +239,8 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from "vue";
-import { useDialog, useMessage } from "naive-ui/es";
+import { computed, h, onMounted, reactive, ref, watch } from "vue";
+import { NInput, useDialog, useMessage } from "naive-ui/es";
 import api from "@/api";
 import { useAuthStore } from "@/stores/auth";
 
@@ -258,6 +258,8 @@ const saving = ref(false);
 const showModal = ref(false);
 const isEditing = ref(false);
 const editingId = ref("");
+const sensitiveConfirmToken = ref("");
+const sensitiveConfirmExpiresAt = ref(0);
 const contacts = ref([]);
 const rowSavingMap = reactive({});
 const sortDraftMap = reactive({});
@@ -295,6 +297,136 @@ const visibleCount = computed(() => contacts.value.filter((row) => row.showInPri
 
 const formatDate = (value) =>
   value ? new Date(value).toLocaleString("zh-CN") : "-";
+
+const getCachedSensitiveConfirmToken = () => {
+  if (
+    sensitiveConfirmToken.value
+    && Number.isFinite(sensitiveConfirmExpiresAt.value)
+    && sensitiveConfirmExpiresAt.value > Date.now() + 3000
+  ) {
+    return sensitiveConfirmToken.value;
+  }
+  return "";
+};
+
+const clearSensitiveConfirmToken = () => {
+  sensitiveConfirmToken.value = "";
+  sensitiveConfirmExpiresAt.value = 0;
+};
+
+const promptSensitiveCredential = ({ actionLabel = "高危操作" } = {}) =>
+  new Promise((resolve) => {
+    const mfaEnabled = Boolean(authStore.user?.mfaEnabled);
+    const password = ref("");
+    const totpCode = ref("");
+    let settled = false;
+
+    const finish = (value) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      resolve(value || null);
+    };
+
+    dialog.warning({
+      title: "安全确认",
+      positiveText: "确认",
+      negativeText: "取消",
+      content: () =>
+        h("div", { style: "display:flex;flex-direction:column;gap:12px;" }, [
+          h(
+            "div",
+            { style: "line-height:1.6;" },
+            mfaEnabled
+              ? `执行“${actionLabel}”前，请输入认证器当前显示的 6 位动态验证码完成二次验证`
+              : `执行“${actionLabel}”前，请输入当前管理员密码完成二次验证`,
+          ),
+          h(NInput, {
+            type: mfaEnabled ? "text" : "password",
+            showPasswordOn: mfaEnabled ? undefined : "click",
+            value: mfaEnabled ? totpCode.value : password.value,
+            maxlength: mfaEnabled ? 6 : undefined,
+            placeholder: mfaEnabled ? "输入 6 位动态验证码" : "输入当前管理员密码",
+            autofocus: true,
+            onUpdateValue: (value) => {
+              if (mfaEnabled) {
+                totpCode.value = String(value || "").replace(/\D/g, "");
+                return;
+              }
+              password.value = String(value || "");
+            },
+          }),
+        ]),
+      onPositiveClick: () => {
+        if (mfaEnabled) {
+          const normalized = String(totpCode.value || "").replace(/\D/g, "");
+          if (!normalized) {
+            message.warning("请输入 6 位动态验证码");
+            return false;
+          }
+          finish({ totpCode: normalized });
+          return true;
+        }
+
+        const normalized = String(password.value || "").trim();
+        if (!normalized) {
+          message.warning("请输入当前管理员密码");
+          return false;
+        }
+        finish({ password: normalized });
+        return true;
+      },
+      onNegativeClick: () => finish(null),
+      onClose: () => finish(null),
+    });
+  });
+
+const ensureSensitiveActionConfirmed = async (actionLabel = "高危操作") => {
+  const cached = getCachedSensitiveConfirmToken();
+  if (cached) {
+    return cached;
+  }
+
+  const credential = await promptSensitiveCredential({ actionLabel });
+  if (!credential) {
+    message.warning("已取消二次验证");
+    return "";
+  }
+
+  try {
+    const res = await api.admin.confirmSensitiveAction(credential);
+    if (!res?.success || !res?.data?.token) {
+      message.error(res?.message || "二次验证失败");
+      return "";
+    }
+
+    const expiresTs = new Date(res.data.expiresAt || "").getTime();
+    sensitiveConfirmToken.value = String(res.data.token || "");
+    sensitiveConfirmExpiresAt.value = Number.isFinite(expiresTs)
+      ? expiresTs
+      : Date.now() + 5 * 60 * 1000;
+    message.success("二次验证通过（5分钟内有效）");
+    return sensitiveConfirmToken.value;
+  } catch (error) {
+    clearSensitiveConfirmToken();
+    message.error(error?.message || "二次验证失败");
+    return "";
+  }
+};
+
+const shouldResetConfirmCache = (error) => {
+  const code = String(error?.code || "");
+  const messageText = String(error?.message || "");
+  const status = Number(error?.status || 0);
+  return (
+    status === 401
+    || status === 403
+    || code.startsWith("ADMIN_CONFIRM_")
+    || messageText.includes("二次确认")
+    || messageText.includes("二次验证")
+  );
+};
 
 const syncSortDrafts = (rows) => {
   const ids = new Set(rows.map((row) => row.id));
@@ -424,12 +556,19 @@ const submitForm = async () => {
     return;
   }
 
+  const confirmToken = await ensureSensitiveActionConfirmed(
+    isEditing.value ? "编辑微信联系人" : "创建微信联系人",
+  );
+  if (!confirmToken) {
+    return;
+  }
+
   saving.value = true;
   try {
     const payload = buildPayload();
     const res = isEditing.value
-      ? await api.admin.updateWechatContact(editingId.value, payload)
-      : await api.admin.createWechatContact(payload);
+      ? await api.admin.updateWechatContact(editingId.value, payload, confirmToken)
+      : await api.admin.createWechatContact(payload, confirmToken);
     if (!res?.success) {
       message.error(res?.message || "保存失败");
       return;
@@ -438,6 +577,9 @@ const submitForm = async () => {
     closeModal();
     await fetchContacts();
   } catch (error) {
+    if (shouldResetConfirmCache(error)) {
+      clearSensitiveConfirmToken();
+    }
     message.error(error?.message || "保存失败");
   } finally {
     saving.value = false;
@@ -493,24 +635,48 @@ const withRowSaving = async (rowId, fn) => {
 };
 
 const toggleIsActive = async (row, value) => {
+  const confirmToken = await ensureSensitiveActionConfirmed(
+    Boolean(value) ? "启用微信联系人" : "停用微信联系人",
+  );
+  if (!confirmToken) {
+    return;
+  }
+
   await withRowSaving(row.id, async () => {
     try {
-      await api.admin.updateWechatContact(row.id, { isActive: Boolean(value) });
+      await api.admin.updateWechatContact(row.id, { isActive: Boolean(value) }, confirmToken);
       message.success(Boolean(value) ? "联系人已启用" : "联系人已停用");
       await fetchContacts();
     } catch (error) {
+      if (shouldResetConfirmCache(error)) {
+        clearSensitiveConfirmToken();
+      }
       message.error(error?.message || "更新启用状态失败");
     }
   });
 };
 
 const toggleShowInPricing = async (row, value) => {
+  const confirmToken = await ensureSensitiveActionConfirmed(
+    Boolean(value) ? "显示微信联系人到价格菜单" : "从价格菜单隐藏微信联系人",
+  );
+  if (!confirmToken) {
+    return;
+  }
+
   await withRowSaving(row.id, async () => {
     try {
-      await api.admin.updateWechatContact(row.id, { showInPricing: Boolean(value) });
+      await api.admin.updateWechatContact(
+        row.id,
+        { showInPricing: Boolean(value) },
+        confirmToken,
+      );
       message.success(Boolean(value) ? "已显示到价格菜单" : "已从价格菜单隐藏");
       await fetchContacts();
     } catch (error) {
+      if (shouldResetConfirmCache(error)) {
+        clearSensitiveConfirmToken();
+      }
       message.error(error?.message || "更新显示状态失败");
     }
   });
@@ -524,12 +690,20 @@ const saveSortOrder = async (row) => {
     return;
   }
 
+  const confirmToken = await ensureSensitiveActionConfirmed("修改微信联系人排序");
+  if (!confirmToken) {
+    return;
+  }
+
   await withRowSaving(row.id, async () => {
     try {
-      await api.admin.updateWechatContact(row.id, { sortOrder: nextSortOrder });
+      await api.admin.updateWechatContact(row.id, { sortOrder: nextSortOrder }, confirmToken);
       message.success("排序已更新");
       await fetchContacts();
     } catch (error) {
+      if (shouldResetConfirmCache(error)) {
+        clearSensitiveConfirmToken();
+      }
       message.error(error?.message || "更新排序失败");
     }
   });
@@ -542,12 +716,20 @@ const confirmDelete = (row) => {
     positiveText: "删除",
     negativeText: "取消",
     onPositiveClick: async () => {
+      const confirmToken = await ensureSensitiveActionConfirmed("删除微信联系人");
+      if (!confirmToken) {
+        return;
+      }
+
       await withRowSaving(row.id, async () => {
         try {
-          await api.admin.deleteWechatContact(row.id);
+          await api.admin.deleteWechatContact(row.id, confirmToken);
           message.success("联系人已删除");
           await fetchContacts();
         } catch (error) {
+          if (shouldResetConfirmCache(error)) {
+            clearSensitiveConfirmToken();
+          }
           message.error(error?.message || "删除失败");
         }
       });

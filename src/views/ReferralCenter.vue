@@ -120,6 +120,14 @@ const formatAmount = (amountCents) => {
   }).format(amount);
 };
 
+const formatDurationLabel = (value) => {
+  const numeric = Number(value);
+  if (numeric === 0) {
+    return locale.value === "en" ? "1 day" : "1天";
+  }
+  return `${Math.max(1, numeric || 1)}${t("referralCenter.columns.monthUnit")}`;
+};
+
 const formatTime = (value) =>
   value ? new Date(value).toLocaleString(locale.value === "en" ? "en-US" : "zh-CN") : "-";
 
@@ -218,7 +226,7 @@ const columns = computed(() => [
   {
     title: t("referralCenter.columns.duration"),
     key: "durationMonths",
-    render: (row) => `${Math.max(1, Number(row.durationMonths) || 1)}${t("referralCenter.columns.monthUnit")}`,
+    render: (row) => formatDurationLabel(row.durationMonths),
   },
   {
     title: t("referralCenter.columns.gross"),

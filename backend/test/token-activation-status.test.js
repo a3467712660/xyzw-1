@@ -32,20 +32,21 @@ const createServer = async () => {
   return server;
 };
 
-const insertUser = ({ id, username, password }) => {
+const insertUser = ({ id, username, password, trialExpiresAt = null }) => {
   const ts = nowIso();
   const meta = createPassword(password);
   run(
     `INSERT INTO users (
-      id, username, email, password_salt, password_hash, token_version, is_admin, created_at, updated_at
+      id, username, email, password_salt, password_hash, trial_expires_at, token_version, is_admin, created_at, updated_at
     ) VALUES (
-      $id, $username, NULL, $salt, $hash, 0, 0, $createdAt, $updatedAt
+      $id, $username, NULL, $salt, $hash, $trialExpiresAt, 0, 0, $createdAt, $updatedAt
     )`,
     {
       $id: id,
       $username: username,
       $salt: meta.salt,
       $hash: meta.hash,
+      $trialExpiresAt: trialExpiresAt,
       $createdAt: ts,
       $updatedAt: ts,
     },
@@ -137,4 +138,61 @@ test("status falls back to same account binding when the rescanned token has a n
   assert.equal(payload?.data?.bound, true);
   assert.equal(payload?.data?.sessId, oldSessId);
   assert.equal(payload?.data?.accountIdentity, `${oldSessId}|${roleId}|${region}|${roleName}`);
+});
+
+test("one-day activation code can be used by regular users and expires in about one day", async (t) => {
+  const originalDbPath = env.dbPath;
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "xyzw-one-day-activation-test-"));
+  env.dbPath = path.join(tempDir, "one-day-activation.sqlite.bin");
+
+  await initDatabase();
+
+  const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const regularUser = {
+    id: `oneday_regular_${suffix}`,
+    username: `oneday_regular_${suffix}`,
+    password: "Regular1234!Aa",
+  };
+  const activationCode = `ACT1D${suffix.replace(/[^a-zA-Z0-9]/g, "").slice(-8).toUpperCase()}`;
+
+  insertUser(regularUser);
+  activationCodeRepository.create({
+    id: `oneday_code_${suffix}`,
+    code: activationCode,
+    createdBy: regularUser.id,
+    durationMonths: 0,
+    createdAt: nowIso(),
+  });
+
+  const server = await createServer();
+  t.after(async () => {
+    await new Promise((resolve) => server.close(resolve));
+    getDb().close();
+    env.dbPath = originalDbPath;
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  const allowedResponse = await fetch(`${makeBaseUrl(server)}/api/v1/token-activations/bind`, {
+    method: "POST",
+    headers: authHeaders({ userId: regularUser.id, username: regularUser.username }),
+    body: JSON.stringify({
+      tokenId: `token_regular_${suffix}`,
+      sessId: `sess-regular-${suffix}`,
+      roleId: "123456",
+      gameAccountId: "123456",
+      roleName: "普通账号角色",
+      region: "测试大区",
+      server: "测试大区",
+      roleIndex: "0",
+      activationCode,
+    }),
+  });
+  assert.equal(allowedResponse.status, 200);
+  const allowedPayload = await allowedResponse.json();
+  assert.equal(Number(allowedPayload?.data?.durationMonths), 0);
+  const boundAtTs = new Date(allowedPayload?.data?.boundAt || "").getTime();
+  const expiresAtTs = new Date(allowedPayload?.data?.expiresAt || "").getTime();
+  const durationMs = expiresAtTs - boundAtTs;
+  assert.ok(durationMs >= 23 * 60 * 60 * 1000, `expected one-day activation >= 23h, got ${durationMs}`);
+  assert.ok(durationMs <= 25 * 60 * 60 * 1000, `expected one-day activation <= 25h, got ${durationMs}`);
 });

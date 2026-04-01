@@ -8,6 +8,11 @@ import { transaction } from "../db/client.js";
 import { activationCodeRepository } from "../repositories/activationCodeRepository.js";
 import { tokenActivationRepository } from "../repositories/tokenActivationRepository.js";
 import { userRepository } from "../repositories/userRepository.js";
+import {
+  addActivationDuration,
+  isAllowedActivationDurationMonths,
+  normalizeActivationDurationMonths,
+} from "../lib/activationCodeDuration.js";
 import { recordReferralConversionOnActivation } from "../services/referralService.js";
 
 const router = Router();
@@ -75,19 +80,6 @@ const activationStatusBodySchema = z.object({
     });
   }
 });
-
-const allowedDurationMonths = new Set([1, 3, 6, 12]);
-
-const addMonths = (baseDate, months) => {
-  const safeMonths = Number(months) || 0;
-  const date = new Date(baseDate);
-  const day = date.getDate();
-  date.setMonth(date.getMonth() + safeMonths);
-  if (date.getDate() < day) {
-    date.setDate(0);
-  }
-  return date;
-};
 
 const parseFutureDateOrNull = (value, nowTs) => {
   const text = String(value || "").trim();
@@ -251,8 +243,8 @@ router.post(
         };
       }
 
-      const durationMonths = Math.max(1, Number(codeRow.durationMonths) || 1);
-      if (!allowedDurationMonths.has(durationMonths)) {
+      const durationMonths = normalizeActivationDurationMonths(codeRow.durationMonths);
+      if (!isAllowedActivationDurationMonths(durationMonths)) {
         return {
           status: 400,
           payload: { success: false, message: "激活码时长配置无效" },
@@ -262,7 +254,7 @@ router.post(
       const previousExpiresAt = String(binding?.expiresAt || tokenBinding?.expiresAt || "").trim();
       const activeExpiresAt = parseFutureDateOrNull(previousExpiresAt, now.getTime());
       const baseStartAt = activeExpiresAt || now;
-      const expiresAt = addMonths(baseStartAt, durationMonths).toISOString();
+      const expiresAt = addActivationDuration(baseStartAt, durationMonths).toISOString();
       const extendedFromActive = Boolean(activeExpiresAt);
       const accountSeed = String(
         tokenBinding?.accountSeed || bindingByIdentity?.accountSeed || createAccountSeed(),

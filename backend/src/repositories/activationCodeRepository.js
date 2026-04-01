@@ -1,6 +1,7 @@
 import { query, run } from "../db/client.js";
 import { env } from "../config/env.js";
 import { codeSuffix, hmacHex, maskedCode } from "../lib/crypto.js";
+import { normalizeActivationDurationMonths } from "../lib/activationCodeDuration.js";
 import { normalizeAccessScope } from "../constants/accessScope.js";
 
 const redactStoredCode = (id) => `activation-redacted:${String(id || "").trim()}`;
@@ -15,7 +16,7 @@ const normalizeActivationCode = (row) => {
     codeMask: String(row.codeMask || row.code || "").trim(),
     codeSuffix: String(row.codeSuffix || "").trim(),
     featureScope: normalizeAccessScope(row.featureScope),
-    durationMonths: Math.max(1, Number(row.durationMonths) || 1),
+    durationMonths: normalizeActivationDurationMonths(row.durationMonths),
     saleAmountCents: Math.max(0, Number(row.saleAmountCents) || 0),
     saleCurrency: String(row.saleCurrency || "CNY").trim() || "CNY",
     isActive: Number(row.isActive) === 1,
@@ -105,7 +106,7 @@ export const activationCodeRepository = {
         $codeMask: activationCodeMask(code),
         $createdBy: String(createdBy || "").trim(),
         $featureScope: normalizeAccessScope(featureScope),
-        $durationMonths: Math.max(1, Math.min(24, Number(durationMonths) || 1)),
+        $durationMonths: normalizeActivationDurationMonths(durationMonths),
         $saleAmountCents: Math.max(0, Number(saleAmountCents) || 0),
         $saleCurrency: String(saleCurrency || "CNY").trim() || "CNY",
         $createdAt: String(createdAt || "").trim(),

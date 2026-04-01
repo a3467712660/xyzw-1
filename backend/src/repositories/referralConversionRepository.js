@@ -1,4 +1,5 @@
 import { query, run } from "../db/client.js";
+import { normalizeActivationDurationMonths } from "../lib/activationCodeDuration.js";
 
 const normalizeReferralConversion = (row) => {
   if (!row) {
@@ -16,7 +17,7 @@ const normalizeReferralConversion = (row) => {
     tokenActivationId: String(row.tokenActivationId || "").trim() || null,
     conversionType: String(row.conversionType || "").trim(),
     featureScope: String(row.featureScope || "").trim(),
-    durationMonths: Math.max(1, Number(row.durationMonths) || 1),
+    durationMonths: normalizeActivationDurationMonths(row.durationMonths),
     grossAmountCents: Math.max(0, Number(row.grossAmountCents) || 0),
     rewardRateBps: Math.max(0, Number(row.rewardRateBps) || 0),
     rewardAmountCents: Math.max(0, Number(row.rewardAmountCents) || 0),
@@ -165,7 +166,7 @@ export const referralConversionRepository = {
         $tokenActivationId: String(tokenActivationId || "").trim() || null,
         $conversionType: String(conversionType || "").trim(),
         $featureScope: String(featureScope || "").trim(),
-        $durationMonths: Math.max(1, Number(durationMonths) || 1),
+        $durationMonths: normalizeActivationDurationMonths(durationMonths),
         $grossAmountCents: Math.max(0, Number(grossAmountCents) || 0),
         $rewardRateBps: Math.max(0, Number(rewardRateBps) || 0),
         $rewardAmountCents: Math.max(0, Number(rewardAmountCents) || 0),

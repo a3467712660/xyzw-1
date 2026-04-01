@@ -5,6 +5,7 @@ import {
   REFERRAL_FIRST_PURCHASE_RATE_BPS,
   REFERRAL_RENEWAL_GT_2M_RATE_BPS,
 } from "../constants/referral.js";
+import { normalizeActivationDurationMonths } from "../lib/activationCodeDuration.js";
 import { referralProfileRepository } from "../repositories/referralProfileRepository.js";
 import { referralAttributionRepository } from "../repositories/referralAttributionRepository.js";
 import { referralConversionRepository } from "../repositories/referralConversionRepository.js";
@@ -191,7 +192,7 @@ export const recordReferralConversionOnActivation = ({
     return null;
   }
 
-  const safeDurationMonths = Math.max(1, Number(durationMonths) || 1);
+  const safeDurationMonths = normalizeActivationDurationMonths(durationMonths);
   const safeGrossAmountCents = Math.max(0, Number(grossAmountCents) || 0);
   const hasPriorPaidPurchase = referralConversionRepository.hasAnyPriorNonVoidPaidPurchaseByReferredUserId(
     normalizedReferredUserId,

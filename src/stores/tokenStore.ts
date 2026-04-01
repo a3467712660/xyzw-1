@@ -99,6 +99,9 @@ declare type LockCtx = Record<string, Partial<ConnectLock>>;
 export const useTokenStore = defineStore("tokens", () => {
   const wsConnections = ref<WebCtx>({}); // WebSocket连接状态
   const connectionLocks = ref<LockCtx>({}); // 连接操作锁，防止竞态条件
+  const skippedMessageWarnings = ref<
+    Record<string, { message: string; cmd?: string; timestamp: number }>
+  >({});
 
   const isTokenActivationExpired = (
     token: Partial<TokenData> | null | undefined,
@@ -416,10 +419,29 @@ export const useTokenStore = defineStore("tokens", () => {
       gameData,
       updateToken,
       syncRandomSeedFromStatistics,
+      onMessageSkipped: (warningTokenId, info) => {
+        skippedMessageWarnings.value = {
+          ...skippedMessageWarnings.value,
+          [warningTokenId]: info,
+        };
+      },
       attemptTokenRefresh,
       emitGameEvent: (cmd, payload) => emitPlus(cmd, payload),
       logger: gameLogger,
     });
+  };
+
+  const getSkippedMessageWarning = (tokenId: string) => {
+    return skippedMessageWarnings.value[tokenId] || null;
+  };
+
+  const clearSkippedMessageWarning = (tokenId: string) => {
+    if (!skippedMessageWarnings.value[tokenId]) {
+      return;
+    }
+    const nextWarnings = { ...skippedMessageWarnings.value };
+    delete nextWarnings[tokenId];
+    skippedMessageWarnings.value = nextWarnings;
   };
 
   const currentSessionId = generateSessionId();
@@ -980,6 +1002,8 @@ export const useTokenStore = defineStore("tokens", () => {
     // 游戏内发送消息方法
     sendMessageToLegion,
     sendMessageToWorld,
+    getSkippedMessageWarning,
+    clearSkippedMessageWarning,
 
     // 塔信息方法
     getCurrentTowerLevel,

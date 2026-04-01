@@ -361,6 +361,13 @@ request.interceptors.response.use(
 
 // API接口定义
 const api = {
+  system: {
+    getVersion: () =>
+      request.get("/version", {
+        skipAuthHandling: true,
+      }),
+  },
+
   // 认证相关
   auth: {
     login: (credentials) => request.post("/auth/login", credentials),
@@ -591,12 +598,18 @@ const api = {
     listReferralConversions: (limit = 200) =>
       request.get(`/admin/referrals/conversions?limit=${Math.max(1, Number(limit) || 200)}`),
     listWechatContacts: () => request.get("/admin/wechat-contacts"),
-    createWechatContact: (payload) =>
-      request.post("/admin/wechat-contacts", payload),
-    updateWechatContact: (id, payload) =>
-      request.put(`/admin/wechat-contacts/${id}`, payload),
-    deleteWechatContact: (id) =>
-      request.delete(`/admin/wechat-contacts/${id}`),
+    createWechatContact: (payload, confirmToken = "") =>
+      request.post("/admin/wechat-contacts", payload, {
+        headers: api.admin.adminConfirmHeaders(confirmToken),
+      }),
+    updateWechatContact: (id, payload, confirmToken = "") =>
+      request.put(`/admin/wechat-contacts/${id}`, payload, {
+        headers: api.admin.adminConfirmHeaders(confirmToken),
+      }),
+    deleteWechatContact: (id, confirmToken = "") =>
+      request.delete(`/admin/wechat-contacts/${id}`, {
+        headers: api.admin.adminConfirmHeaders(confirmToken),
+      }),
     listUserTokenActivations: (id) =>
       request.get(`/admin/users/${id}/token-activations`),
     listSecurityEvents: (options = {}) => {

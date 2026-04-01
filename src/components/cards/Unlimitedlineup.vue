@@ -176,6 +176,13 @@
               </div>
             </div>
             <div class="team-tabs-right">
+              <n-button
+                size="tiny"
+                :loading="savedLineupsCloudSyncing || savedLineupsCloudLoading"
+                @click="syncSavedLineupsCloudNow"
+              >
+                同步云端
+              </n-button>
               <n-button size="tiny" @click="exportLineups"> 导出 </n-button>
               <n-upload
                 :show-file-list="false"
@@ -298,6 +305,71 @@
             >
               暂无保存的阵容
             </div>
+          </div>
+        </div>
+      </n-modal>
+
+      <n-modal
+        v-model:show="applyProgressModalVisible"
+        preset="card"
+        title="正在应用已保存阵容"
+        style="width: 540px; max-width: 92vw"
+        :bordered="false"
+        :closable="false"
+        :mask-closable="false"
+        :close-on-esc="false"
+      >
+        <div class="apply-progress-modal">
+          <div class="apply-progress-head">
+            <strong class="apply-progress-lineup">{{
+              applyProgressLineupName
+            }}</strong>
+            <span
+              class="apply-progress-stage"
+              :class="{ 'apply-progress-stage--overdue': applyProgressOverdue }"
+            >{{
+              applyProgressStageText
+            }}</span>
+          </div>
+
+          <div class="apply-progress-stats">
+            <div class="apply-progress-stat">
+              <span class="apply-progress-label">预计耗时</span>
+              <strong>{{ applyProgressEstimatedText }}</strong>
+            </div>
+            <div class="apply-progress-stat">
+              <span class="apply-progress-label">已用时</span>
+              <strong>{{ applyProgressElapsedText }}</strong>
+            </div>
+            <div class="apply-progress-stat">
+              <span class="apply-progress-label">命令间隔</span>
+              <strong>{{ applyProgressDelayRangeText }}</strong>
+            </div>
+          </div>
+
+          <div class="apply-progress-bar">
+            <div
+              class="apply-progress-bar__fill"
+              :class="{ 'apply-progress-bar__fill--overdue': applyProgressOverdue }"
+              :style="{ width: `${applyProgressPercent}%` }"
+            ></div>
+          </div>
+
+          <p
+            class="apply-progress-source"
+            :class="{ 'apply-progress-source--overdue': applyProgressOverdue }"
+          >
+            {{ applyProgressSourceText }}
+          </p>
+
+          <div class="apply-progress-warning">
+            <strong>应用过程中请不要切到后台，也不要进行其他操作。</strong>
+            <span>
+              请等待当前阵容、鱼灵、鱼珠技能、科技和玩具同步完成，页面会在最后自动刷新结果。
+            </span>
+            <span v-if="applyProgressOverdue" class="apply-progress-overdue-tip">
+              当前已经超过预计时间，但任务仍在继续执行中，这不会自动取消。
+            </span>
           </div>
         </div>
       </n-modal>
@@ -517,9 +589,15 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch, h } from "vue";
+import { ref, computed, onMounted, onBeforeUnmount, watch, h } from "vue";
 import { useMessage, useDialog, NInput } from "naive-ui";
 import { useTokenStore } from "@/stores/tokenStore";
+import { useAuthStore } from "@/stores/auth";
+import api from "@/api";
+import {
+  acquireTokenOperationLock,
+  releaseTokenOperationLock,
+} from "@/services/token/tokenOperationCoordination";
 import MyCard from "../Common/MyCard.vue";
 import {
   HERO_DICT,
@@ -535,6 +613,7 @@ import {
 } from "@/utils/HeroList.js";
 
 const tokenStore = useTokenStore();
+const authStore = useAuthStore();
 const message = useMessage();
 const dialog = useDialog();
 
@@ -553,8 +632,81 @@ const pearlMap = ref({});
 let lastRefreshTime = 0;
 const REFRESH_DEBOUNCE = 3000;
 const COMMAND_DELAY = 500;
+const APPLY_LINEUP_COMMAND_DELAY_MIN = 2500;
+const APPLY_LINEUP_COMMAND_DELAY_MAX = 3500;
+const APPLY_SKIP_WARNING_MAX_RETRIES = 4;
+const APPLY_SERVER_WARNING_RETRY_DELAY = 10_000;
+const APPLY_DURATION_HISTORY_STORAGE_KEY = "saved_lineups_apply_duration_history";
+const APPLY_DURATION_HISTORY_LIMIT = 6;
+const APPLY_DIAGNOSTIC_SESSION_KEY = "xyzw:lineup-apply-diagnostics";
+const APPLY_DIAGNOSTIC_BUFFER_LIMIT = 200;
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const getRandomApplyCommandDelay = () =>
+  APPLY_LINEUP_COMMAND_DELAY_MIN
+  + Math.floor(
+    Math.random()
+      * (APPLY_LINEUP_COMMAND_DELAY_MAX - APPLY_LINEUP_COMMAND_DELAY_MIN + 1),
+  );
+
+const formatDurationMs = (durationMs) => {
+  const totalSeconds = Math.max(1, Math.round(Number(durationMs || 0) / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  if (minutes <= 0) {
+    return `${totalSeconds}秒`;
+  }
+  return `${minutes}分${String(seconds).padStart(2, "0")}秒`;
+};
+
+const serializeApplyDiagnosticValue = (value) => {
+  if (value === undefined) return null;
+  if (value === null) return null;
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch {
+    return String(value);
+  }
+};
+
+const getApplyDiagnosticBuffer = () => {
+  if (typeof window === "undefined") {
+    return [];
+  }
+
+  const bufferKey = "__XYZW_LINEUP_APPLY_DIAGNOSTICS__";
+  if (!Array.isArray(window[bufferKey])) {
+    try {
+      const cached = sessionStorage.getItem(APPLY_DIAGNOSTIC_SESSION_KEY);
+      window[bufferKey] = cached ? JSON.parse(cached) : [];
+    } catch {
+      window[bufferKey] = [];
+    }
+  }
+
+  return window[bufferKey];
+};
+
+const appendApplyDiagnosticEntry = (entry) => {
+  if (typeof window === "undefined") {
+    return entry;
+  }
+
+  const buffer = getApplyDiagnosticBuffer();
+  buffer.push(entry);
+  if (buffer.length > APPLY_DIAGNOSTIC_BUFFER_LIMIT) {
+    buffer.splice(0, buffer.length - APPLY_DIAGNOSTIC_BUFFER_LIMIT);
+  }
+
+  try {
+    sessionStorage.setItem(
+      APPLY_DIAGNOSTIC_SESSION_KEY,
+      JSON.stringify(buffer),
+    );
+  } catch {}
+
+  return entry;
+};
 
 const generateLineupId = () => {
   const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
@@ -592,8 +744,407 @@ const draggedHeroId = ref(null);
 const dragOverPosition = ref(null);
 
 const STORAGE_KEY = "saved_lineups";
+const SAVED_LINEUPS_PREF_KEY_PREFIX = "lineup.saved_lineups.v1";
+const applyProgressModalVisible = ref(false);
+const applyProgressLineupName = ref("");
+const applyProgressStage = ref("");
+const applyProgressEstimateMs = ref(0);
+const applyProgressEstimateSource = ref("");
+const applyProgressElapsedMs = ref(0);
+let applyProgressStartedAt = 0;
+let applyProgressTimer = null;
+const savedLineupsCloudLoading = ref(false);
+const savedLineupsCloudSyncing = ref(false);
+const applyingSavedLineupsCloud = ref(false);
+let savedLineupsCloudTimer = null;
 
-const syncLegionResearch = async (tokenId, targetResearch) => {
+const applyProgressOverdue = computed(
+  () =>
+    applyProgressEstimateMs.value > 0
+    && applyProgressElapsedMs.value > applyProgressEstimateMs.value,
+);
+
+const applyProgressPercent = computed(() => {
+  if (!applyProgressEstimateMs.value) return 0;
+  const percent = Math.round(
+    (applyProgressElapsedMs.value / applyProgressEstimateMs.value) * 100,
+  );
+  return Math.min(95, Math.max(6, percent));
+});
+
+const applyProgressStageText = computed(() => {
+  if (applyProgressOverdue.value) {
+    return applyProgressStage.value
+      ? `已超出预计时间，仍在继续执行 · ${applyProgressStage.value}`
+      : "已超出预计时间，仍在继续执行";
+  }
+  return applyProgressStage.value || "正在准备";
+});
+
+const applyProgressEstimatedText = computed(() =>
+  formatDurationMs(applyProgressEstimateMs.value),
+);
+
+const applyProgressElapsedText = computed(() =>
+  formatDurationMs(applyProgressElapsedMs.value),
+);
+
+const applyProgressDelayRangeText = computed(
+  () =>
+    `${APPLY_LINEUP_COMMAND_DELAY_MIN}-${APPLY_LINEUP_COMMAND_DELAY_MAX}ms 随机`,
+);
+
+const applyProgressSourceText = computed(() => {
+  if (applyProgressOverdue.value) {
+    return "已超过预计时间。任务不会自动中断，请保持前台并继续等待执行完成。";
+  }
+  return applyProgressEstimateSource.value;
+});
+
+const getApplyDurationHistoryKey = (tokenId) =>
+  `${APPLY_DURATION_HISTORY_STORAGE_KEY}_${tokenId}`;
+
+const getSavedLineupsCloudScopeId = () => {
+  const token = tokenStore.selectedToken;
+  if (!token) {
+    return "global";
+  }
+  return String(
+    token.activationRoleId
+    || token.activationGameAccountId
+    || token.roleId
+    || token.id
+    || "global",
+  ).trim() || "global";
+};
+
+const getSavedLineupsCloudPrefKey = () =>
+  `${SAVED_LINEUPS_PREF_KEY_PREFIX}:${getSavedLineupsCloudScopeId()}`;
+
+const sanitizeSavedLineupHero = (hero, index = 0) => ({
+  position: Number(hero?.position ?? index) || 0,
+  heroId: Number(hero?.heroId || 0) || 0,
+  level: hero?.level != null ? Number(hero.level) || null : null,
+  artifactId:
+    hero?.artifactId != null && hero.artifactId !== ""
+      ? Number(hero.artifactId) || null
+      : null,
+  attachmentUid:
+    hero?.attachmentUid != null && hero.attachmentUid !== ""
+      ? Number(hero.attachmentUid) || null
+      : null,
+  fishId: hero?.fishId != null ? Number(hero.fishId) || null : null,
+  pearlId: hero?.pearlId != null ? Number(hero.pearlId) || null : null,
+  skillId: hero?.skillId != null ? Number(hero.skillId) || null : null,
+  slotMap:
+    hero?.slotMap && typeof hero.slotMap === "object"
+      ? JSON.parse(JSON.stringify(hero.slotMap))
+      : null,
+});
+
+const sanitizeSavedLineups = (rawLineups) => {
+  if (!Array.isArray(rawLineups)) {
+    return [];
+  }
+
+  return rawLineups
+    .map((lineup, index) => {
+      if (!lineup || typeof lineup !== "object") {
+        return null;
+      }
+
+      const heroes = Array.isArray(lineup.heroes)
+        ? lineup.heroes
+            .map((hero, heroIndex) => sanitizeSavedLineupHero(hero, heroIndex))
+            .filter((hero) => hero.heroId > 0)
+        : [];
+
+      return {
+        id: String(
+          lineup.id
+          || `cloud-${index}-${Number(lineup.savedAt || 0) || Number(lineup.teamId || 0)}`,
+        ),
+        name: String(lineup.name || `阵容${index + 1}`).trim() || `阵容${index + 1}`,
+        heroes,
+        teamId: Number(lineup.teamId || 1) || 1,
+        savedAt: Number(lineup.savedAt || 0) || Date.now(),
+        applying: false,
+        legionResearch:
+          lineup.legionResearch && typeof lineup.legionResearch === "object"
+            ? { ...lineup.legionResearch }
+            : {},
+        weaponId:
+          lineup.weaponId !== undefined && lineup.weaponId !== null
+            ? Number(lineup.weaponId) || null
+            : null,
+      };
+    })
+    .filter((lineup) => lineup && lineup.heroes.length > 0);
+};
+
+const getSavedLineupsVersion = (lineups) => {
+  const versions = sanitizeSavedLineups(lineups).map((lineup) =>
+    Number(lineup?.savedAt || 0),
+  );
+  return versions.length ? Math.max(...versions) : 0;
+};
+
+const mergeSavedLineups = (localLineups, remoteLineups) => {
+  const merged = new Map();
+
+  sanitizeSavedLineups(localLineups).forEach((lineup) => {
+    merged.set(lineup.id, lineup);
+  });
+
+  sanitizeSavedLineups(remoteLineups).forEach((lineup) => {
+    const localLineup = merged.get(lineup.id);
+    const remoteSavedAt = Number(lineup?.savedAt || 0);
+    const localSavedAt = Number(localLineup?.savedAt || 0);
+    if (!localLineup || remoteSavedAt >= localSavedAt) {
+      merged.set(lineup.id, lineup);
+    }
+  });
+
+  return Array.from(merged.values()).sort(
+    (a, b) => Number(b.savedAt || 0) - Number(a.savedAt || 0),
+  );
+};
+
+const pushSavedLineupsToCloud = async () => {
+  if (!authStore.isAuthenticated || !tokenStore.selectedToken) {
+    return;
+  }
+
+  const payload = {
+    version: 1,
+    roleId: getSavedLineupsCloudScopeId(),
+    updatedAt: Date.now(),
+    lineups: sanitizeSavedLineups(savedLineups.value).map((lineup) => ({
+      ...lineup,
+      applying: false,
+    })),
+  };
+
+  await api.user.setPreference(getSavedLineupsCloudPrefKey(), payload);
+};
+
+const pullSavedLineupsFromCloud = async (silent = true) => {
+  if (!authStore.isAuthenticated || !tokenStore.selectedToken) {
+    return;
+  }
+
+  savedLineupsCloudLoading.value = true;
+  try {
+    const localLineups = sanitizeSavedLineups(savedLineups.value);
+    const res = await api.user.getPreference(getSavedLineupsCloudPrefKey());
+    const rawValue = res?.data?.value;
+    if (rawValue == null) {
+      if (localLineups.length > 0) {
+        await pushSavedLineupsToCloud();
+        if (!silent) {
+          message.success("已将本地已保存阵容上传到云端");
+        }
+      }
+      return;
+    }
+
+    const parsed = typeof rawValue === "string" ? JSON.parse(rawValue) : rawValue;
+    const remoteLineups = sanitizeSavedLineups(parsed?.lineups ?? parsed);
+    const mergedLineups = mergeSavedLineups(localLineups, remoteLineups);
+    const changed =
+      JSON.stringify(mergedLineups) !== JSON.stringify(localLineups);
+
+    if (changed) {
+      applyingSavedLineupsCloud.value = true;
+      savedLineups.value = mergedLineups;
+      saveLineupsToStorage({ scheduleCloudSync: false });
+      applyingSavedLineupsCloud.value = false;
+      if (!silent) {
+        message.success("已从云端同步已保存阵容");
+      }
+    }
+
+    if (getSavedLineupsVersion(localLineups) > getSavedLineupsVersion(remoteLineups)) {
+      await pushSavedLineupsToCloud();
+    }
+  } catch (error) {
+    if (!silent) {
+      message.error(`读取云端阵容失败: ${error?.message || error}`);
+    }
+  } finally {
+    savedLineupsCloudLoading.value = false;
+  }
+};
+
+const scheduleSavedLineupsCloudSync = () => {
+  if (
+    !authStore.isAuthenticated
+    || !tokenStore.selectedToken
+    || applyingSavedLineupsCloud.value
+  ) {
+    return;
+  }
+
+  if (savedLineupsCloudTimer) {
+    clearTimeout(savedLineupsCloudTimer);
+  }
+
+  savedLineupsCloudTimer = setTimeout(async () => {
+    savedLineupsCloudTimer = null;
+    savedLineupsCloudSyncing.value = true;
+    try {
+      await pushSavedLineupsToCloud();
+    } catch (error) {
+      console.warn("同步已保存阵容到云端失败:", error?.message || error);
+    } finally {
+      savedLineupsCloudSyncing.value = false;
+    }
+  }, 300);
+};
+
+const syncSavedLineupsCloudNow = async () => {
+  if (!authStore.isAuthenticated) {
+    message.warning("请先登录后再同步云端阵容");
+    return;
+  }
+  if (!tokenStore.selectedToken) {
+    message.warning("请先选择Token");
+    return;
+  }
+
+  savedLineupsCloudSyncing.value = true;
+  try {
+    await pushSavedLineupsToCloud();
+    message.success("已保存阵容已同步到云端");
+  } catch (error) {
+    message.error(`同步云端阵容失败: ${error?.message || error}`);
+  } finally {
+    savedLineupsCloudSyncing.value = false;
+  }
+};
+
+const loadApplyDurationHistory = (tokenId) => {
+  if (!tokenId || typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(getApplyDurationHistoryKey(tokenId));
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed)
+      ? parsed.map((item) => Number(item)).filter((item) => Number.isFinite(item) && item > 0)
+      : [];
+  } catch {
+    return [];
+  }
+};
+
+const saveApplyDurationHistory = (tokenId, durationMs) => {
+  if (!tokenId || typeof window === "undefined" || !durationMs) return;
+  try {
+    const history = loadApplyDurationHistory(tokenId);
+    history.push(Math.round(durationMs));
+    localStorage.setItem(
+      getApplyDurationHistoryKey(tokenId),
+      JSON.stringify(history.slice(-APPLY_DURATION_HISTORY_LIMIT)),
+    );
+  } catch {
+    // ignore storage failures
+  }
+};
+
+const estimateApplyDurationFromLineup = (lineup) => {
+  const heroCount = Array.isArray(lineup?.heroes) ? lineup.heroes.length : 0;
+  const hasLevelData = lineup?.heroes?.some((hero) => hero.level && hero.level > 0);
+  const hasFishData = lineup?.heroes?.some((hero) => hero.pearlId);
+  const hasResearchData =
+    lineup?.legionResearch && Object.keys(lineup.legionResearch).length > 0;
+  const hasWeaponData =
+    lineup?.weaponId !== undefined && lineup?.weaponId !== null;
+
+  let commandCount = 16 + heroCount * 3;
+  if (hasLevelData) commandCount += heroCount * 4;
+  if (hasFishData) commandCount += heroCount * 4;
+  if (hasResearchData) commandCount += 14;
+  if (hasWeaponData) commandCount += 2;
+
+  const averageCommandDelay =
+    (APPLY_LINEUP_COMMAND_DELAY_MIN + APPLY_LINEUP_COMMAND_DELAY_MAX) / 2;
+  const estimatedMs = commandCount * (averageCommandDelay + 350);
+  return Math.max(45_000, Math.round(estimatedMs));
+};
+
+const buildApplyEstimate = (lineup) => {
+  const tokenId = tokenStore.selectedToken?.id;
+  const history = loadApplyDurationHistory(tokenId);
+  if (history.length > 0) {
+    const recent = history.slice(-APPLY_DURATION_HISTORY_LIMIT);
+    const average =
+      recent.reduce((sum, value) => sum + value, 0) / recent.length;
+    return {
+      durationMs: Math.max(30_000, Math.round(average * 1.12)),
+      source: `基于当前角色最近 ${recent.length} 次应用耗时估算`,
+    };
+  }
+
+  return {
+    durationMs: estimateApplyDurationFromLineup(lineup),
+    source: "当前还没有历史记录，先按阵容复杂度粗略估算",
+  };
+};
+
+const clearApplyProgressTimer = () => {
+  if (applyProgressTimer) {
+    clearInterval(applyProgressTimer);
+    applyProgressTimer = null;
+  }
+};
+
+const startApplyProgress = (lineup) => {
+  const estimate = buildApplyEstimate(lineup);
+  applyProgressLineupName.value = lineup?.name || "已保存阵容";
+  applyProgressStage.value = "正在准备应用流程";
+  applyProgressEstimateMs.value = estimate.durationMs;
+  applyProgressEstimateSource.value = estimate.source;
+  applyProgressElapsedMs.value = 0;
+  applyProgressStartedAt = Date.now();
+  applyProgressModalVisible.value = true;
+  clearApplyProgressTimer();
+  applyProgressTimer = setInterval(() => {
+    applyProgressElapsedMs.value = Date.now() - applyProgressStartedAt;
+  }, 1000);
+};
+
+const setApplyProgressStage = (stage) => {
+  applyProgressStage.value = stage;
+  if (applyProgressStartedAt) {
+    applyProgressElapsedMs.value = Date.now() - applyProgressStartedAt;
+  }
+};
+
+const finishApplyProgress = ({ recordDuration = false } = {}) => {
+  const elapsed = applyProgressStartedAt
+    ? Date.now() - applyProgressStartedAt
+    : 0;
+
+  if (recordDuration && tokenStore.selectedToken?.id && elapsed > 0) {
+    saveApplyDurationHistory(tokenStore.selectedToken.id, elapsed);
+  }
+
+  clearApplyProgressTimer();
+  applyProgressModalVisible.value = false;
+  applyProgressLineupName.value = "";
+  applyProgressStage.value = "";
+  applyProgressEstimateMs.value = 0;
+  applyProgressEstimateSource.value = "";
+  applyProgressElapsedMs.value = 0;
+  applyProgressStartedAt = 0;
+};
+
+const syncLegionResearch = async (
+  tokenId,
+  targetResearch,
+  waitAfterCommand = async () => {
+    await delay(COMMAND_DELAY);
+  },
+) => {
   if (!targetResearch || Object.keys(targetResearch).length === 0) {
     return { success: true, message: "无科技数据需要同步" };
   }
@@ -603,7 +1154,7 @@ const syncLegionResearch = async (tokenId, targetResearch) => {
     "role_getroleinfo",
     {},
   );
-  await delay(COMMAND_DELAY);
+  await waitAfterCommand();
   const role = roleInfo?.role || roleInfo;
   const currentResearch = role?.legionResearch || {};
 
@@ -634,7 +1185,7 @@ const syncLegionResearch = async (tokenId, targetResearch) => {
         type: type,
       });
     } catch (err) {}
-    await delay(COMMAND_DELAY);
+    await waitAfterCommand();
   }
 
   const sortedTypes = [...typesToReset].sort((a, b) => a - b);
@@ -657,7 +1208,7 @@ const syncLegionResearch = async (tokenId, targetResearch) => {
               },
             );
           } catch (err) {}
-          await delay(COMMAND_DELAY);
+          await waitAfterCommand();
         } else {
           for (let i = 0; i < targetLevel; i++) {
             try {
@@ -670,7 +1221,7 @@ const syncLegionResearch = async (tokenId, targetResearch) => {
                 },
               );
             } catch (err) {}
-            await delay(COMMAND_DELAY);
+            await waitAfterCommand();
           }
         }
       }
@@ -737,14 +1288,12 @@ const getFishInfo = (artifactId) => {
   for (const [fishId, book] of Object.entries(artifactBooks.value)) {
     if (book.artifactId === artifactId) {
       const fishData = FishMap[fishId];
-      if (fishData) {
-        return {
-          fishId: Number(fishId),
-          name: fishData.name,
-          artifactId: book.artifactId,
-          star: book.claimedStar || 0,
-        };
-      }
+      return {
+        fishId: Number(fishId),
+        name: fishData?.name || `鱼灵${fishId}`,
+        artifactId: book.artifactId,
+        star: book.claimedStar || 0,
+      };
     }
   }
   return null;
@@ -855,6 +1404,13 @@ const filteredHeroList = computed(() => {
     const keyword = heroSearchKeyword.value.toLowerCase();
     list = list.filter((hero) => hero.name.toLowerCase().includes(keyword));
   }
+
+  const editingHeroIds = new Set(editingHeroes.value.map((hero) => hero.heroId));
+  if (exchangeMode.value === "exchange" && exchangeHero.value?.heroId) {
+    editingHeroIds.delete(exchangeHero.value.heroId);
+  }
+
+  list = list.filter((hero) => !editingHeroIds.has(hero.id));
 
   return list;
 });
@@ -1083,6 +1639,21 @@ const confirmHeroAction = () => {
     });
   }
 
+  const occupiedHeroIds = new Set(
+    Object.values(editingTeamHeroes.value)
+      .map((hero) => hero?.heroId)
+      .filter(Boolean),
+  );
+
+  if (exchangeMode.value === "exchange" && exchangeHero.value?.heroId) {
+    occupiedHeroIds.delete(exchangeHero.value.heroId);
+  }
+
+  if (occupiedHeroIds.has(exchangeTargetHeroId.value)) {
+    message.warning("该武将已在当前阵容中，不能重复上阵");
+    return;
+  }
+
   if (exchangeMode.value === "add") {
     const slot = getFirstEmptySlot();
     const targetHeroData =
@@ -1204,7 +1775,7 @@ const loadSavedLineups = () => {
     const key = `${STORAGE_KEY}_${token.id}`;
     const data = localStorage.getItem(key);
     if (data) {
-      savedLineups.value = JSON.parse(data);
+      savedLineups.value = sanitizeSavedLineups(JSON.parse(data));
     } else {
       savedLineups.value = [];
     }
@@ -1214,12 +1785,16 @@ const loadSavedLineups = () => {
   }
 };
 
-const saveLineupsToStorage = () => {
+const saveLineupsToStorage = ({ scheduleCloudSync = true } = {}) => {
   try {
     const token = tokenStore.selectedToken;
     if (!token) return;
     const key = `${STORAGE_KEY}_${token.id}`;
+    savedLineups.value = sanitizeSavedLineups(savedLineups.value);
     localStorage.setItem(key, JSON.stringify(savedLineups.value));
+    if (scheduleCloudSync) {
+      scheduleSavedLineupsCloudSync();
+    }
   } catch (e) {
     console.error("保存阵容到缓存失败:", e);
     message.error("保存阵容失败");
@@ -1484,11 +2059,30 @@ const getOrder = (level) => {
   return order;
 };
 
-const applyHeroLevel = async (tokenId, heroId, targetLevel, currentLevel) => {
+const getPendingOrderThreshold = (level, order) => {
+  for (const threshold of LEVEL_ORDER_THRESHOLDS) {
+    if (level <= threshold.level && Number(order || 0) < threshold.order) {
+      return threshold;
+    }
+  }
+  return null;
+};
+
+const applyHeroLevel = async (
+  tokenId,
+  heroId,
+  targetLevel,
+  currentLevel,
+  currentOrder = 0,
+  waitAfterCommand = async () => {
+    await delay(COMMAND_DELAY);
+  },
+) => {
   if (!targetLevel || targetLevel <= 0)
     return { success: true, message: "无目标等级" };
 
   let actualCurrentLevel = currentLevel;
+  let actualCurrentOrder = currentOrder;
 
   if (actualCurrentLevel > targetLevel) {
     try {
@@ -1496,8 +2090,14 @@ const applyHeroLevel = async (tokenId, heroId, targetLevel, currentLevel) => {
         heroId,
       });
       actualCurrentLevel = 1;
-    } catch (err) {}
-    await delay(COMMAND_DELAY);
+      actualCurrentOrder = 0;
+    } catch (err) {
+      return {
+        success: false,
+        message: err?.message || "武将重生失败",
+      };
+    }
+    await waitAfterCommand();
   }
 
   if (actualCurrentLevel >= targetLevel) {
@@ -1505,12 +2105,49 @@ const applyHeroLevel = async (tokenId, heroId, targetLevel, currentLevel) => {
   }
 
   while (actualCurrentLevel < targetLevel) {
-    const nextOrderLevel = getNextOrderLevel(actualCurrentLevel);
+    const pendingOrderThreshold = getPendingOrderThreshold(
+      actualCurrentLevel,
+      actualCurrentOrder,
+    );
+
+    if (
+      pendingOrderThreshold
+      && actualCurrentLevel >= pendingOrderThreshold.level
+    ) {
+      try {
+        await tokenStore.sendMessageWithPromise(
+          tokenId,
+          "hero_heroupgradeorder",
+          {
+            heroId,
+          },
+        );
+        actualCurrentOrder = pendingOrderThreshold.order;
+      } catch (err) {
+        return {
+          success: false,
+          message:
+            err?.message
+            || `武将在 ${pendingOrderThreshold.level} 级需要先完成进阶`,
+        };
+      }
+      await waitAfterCommand();
+      continue;
+    }
+
+    const nextOrderLevel = pendingOrderThreshold?.level ?? null;
     const maxAllowed = nextOrderLevel
       ? nextOrderLevel - actualCurrentLevel
       : targetLevel - actualCurrentLevel;
     const remaining = targetLevel - actualCurrentLevel;
     const stepLimit = Math.min(maxAllowed, remaining);
+
+    if (stepLimit <= 0) {
+      return {
+        success: false,
+        message: "当前等级受进阶限制，无法继续升级",
+      };
+    }
 
     let upgradeNum = 1;
     for (const num of UPGRADE_OPTIONS) {
@@ -1530,10 +2167,18 @@ const applyHeroLevel = async (tokenId, heroId, targetLevel, currentLevel) => {
         },
       );
       actualCurrentLevel += upgradeNum;
-    } catch (err) {}
-    await delay(COMMAND_DELAY);
+    } catch (err) {
+      return {
+        success: false,
+        message: err?.message || "武将升级失败",
+      };
+    }
+    await waitAfterCommand();
 
-    if (nextOrderLevel && actualCurrentLevel >= nextOrderLevel) {
+    if (
+      pendingOrderThreshold
+      && actualCurrentLevel >= pendingOrderThreshold.level
+    ) {
       try {
         await tokenStore.sendMessageWithPromise(
           tokenId,
@@ -1542,8 +2187,16 @@ const applyHeroLevel = async (tokenId, heroId, targetLevel, currentLevel) => {
             heroId,
           },
         );
-      } catch (err) {}
-      await delay(COMMAND_DELAY);
+        actualCurrentOrder = pendingOrderThreshold.order;
+      } catch (err) {
+        return {
+          success: false,
+          message:
+            err?.message
+            || `武将在 ${pendingOrderThreshold.level} 级需要先完成进阶`,
+        };
+      }
+      await waitAfterCommand();
     }
   }
 
@@ -1571,9 +2224,87 @@ const applyLineup = async (lineup) => {
     return;
   }
 
+  const getBusySourceText = (lock) => {
+    if (!lock) {
+      return "其他流程";
+    }
+    if (lock.source === "task-control") {
+      return "任务控制";
+    }
+    if (lock.source === "lineup-apply") {
+      return "另一个阵容应用流程";
+    }
+    return lock.meta?.label || lock.source || "其他流程";
+  };
+
+  const lockResult = acquireTokenOperationLock(tokenId, "lineup-apply", {
+    lineupId: lineup.id || null,
+    lineupName: lineup.name || "",
+    label: `阵容应用:${lineup.name || lineup.id || "未命名阵容"}`,
+  });
+  if (!lockResult.ok) {
+    message.warning(
+      `当前账号正在执行${getBusySourceText(lockResult.current)}，请等待完成后再应用阵容`,
+    );
+    return;
+  }
+  const applyOperationLockId = lockResult.lock.lockId;
+
   lineup.applying = true;
   state.value.isRunning = true;
+  startApplyProgress(lineup);
   const errors = [];
+  let shouldRecordDuration = false;
+  const applyRunId =
+    `lineup-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+  const logApplyDiagnostic = (event, details = {}, level = "info") => {
+    const entry = appendApplyDiagnosticEntry({
+      time: new Date().toISOString(),
+      runId: applyRunId,
+      event,
+      level,
+      tokenId,
+      lineupId: lineup.id || null,
+      lineupName: lineup.name || "",
+      teamId: Number(lineup.teamId || 0) || 0,
+      currentTeamId: Number(currentTeamId.value || 0) || 0,
+      stage: applyProgressStage.value || "",
+      details: serializeApplyDiagnosticValue(details),
+    });
+
+    const cmd = entry?.details?.cmd ? ` cmd=${entry.details.cmd}` : "";
+    const attempt =
+      entry?.details?.attempt != null ? ` attempt=${entry.details.attempt}` : "";
+    const retryType = entry?.details?.retryType
+      ? ` retry=${entry.details.retryType}`
+      : "";
+    const errorMessage = entry?.details?.errorMessage
+      ? ` error=${entry.details.errorMessage}`
+      : "";
+    const warningMessage = entry?.details?.skippedWarning?.message
+      ? ` warning=${entry.details.skippedWarning.message}`
+      : "";
+    const summary =
+      `[LineupApplyDiag] ${event}${cmd}${attempt}${retryType}${warningMessage}${errorMessage}`;
+
+    const logger =
+      level === "error"
+        ? console.error
+        : level === "warn"
+          ? console.warn
+          : console.info;
+    logger(summary, entry);
+    return entry;
+  };
+
+  logApplyDiagnostic("apply-start", {
+    heroCount: Array.isArray(lineup.heroes) ? lineup.heroes.length : 0,
+    heroIds: Array.isArray(lineup.heroes)
+      ? lineup.heroes.map((hero) => Number(hero.heroId || 0)).filter(Boolean)
+      : [],
+    savedAt: Number(lineup.savedAt || 0) || null,
+  });
 
   const getTeamHeroes = (teamInfo) => {
     if (!teamInfo) return [];
@@ -1588,19 +2319,346 @@ const applyLineup = async (lineup) => {
       .sort((a, b) => a.position - b.position);
   };
 
+  const getSkippedWarningForAttempt = (attemptStartedAt) => {
+    const warning = tokenStore.getSkippedMessageWarning(tokenId);
+    if (!warning) {
+      return null;
+    }
+    if (Number(warning.timestamp || 0) < attemptStartedAt) {
+      return null;
+    }
+    return warning;
+  };
+
+  const isServerTransientWarning = (value) => {
+    const messageText = String(value || "").toLowerCase();
+    return (
+      messageText.includes("200020")
+      || messageText.includes("出了点小问题")
+      || messageText.includes("重启游戏解决")
+    );
+  };
+
+  const isApplyCommandNoopWarning = (cmd, value) => {
+    const messageText = String(value || "").toLowerCase();
+    if (!messageText) {
+      return false;
+    }
+
+    if (
+      cmd === "artifact_unload"
+      && (
+        messageText.includes("未装备鱼灵")
+        || messageText.includes("该英雄未装备鱼灵")
+        || messageText.includes("400150")
+      )
+    ) {
+      return true;
+    }
+
+    return false;
+  };
+
+  const createApplyAbortError = (cmd, messageText, extra = {}) => {
+    const error = new Error(messageText);
+    error.__applyAbort = true;
+    error.__applyAbortCmd = cmd;
+    error.__applyAbortMeta = extra;
+    return error;
+  };
+
+  const rethrowIfApplyMustAbort = (error) => {
+    if (error?.__applyAbort) {
+      throw error;
+    }
+  };
+
+  const readLatestStateSnapshot = async () => {
+    try {
+      const roleInfo = await tokenStore.sendMessageWithPromise(
+        tokenId,
+        "role_getroleinfo",
+        {},
+      );
+      await delay(COMMAND_DELAY);
+      const presetTeam = await tokenStore.sendMessageWithPromise(
+        tokenId,
+        "presetteam_getinfo",
+        {},
+      );
+      await delay(COMMAND_DELAY);
+      const heroes = roleInfo?.role?.heroes || roleInfo?.heroes || {};
+      const pearlMapData = roleInfo?.role?.pearlMap || roleInfo?.pearlMap || {};
+      const artifactBooksData =
+        roleInfo?.role?.artifactBooks || roleInfo?.artifactBooks || {};
+      const team =
+        presetTeam?.presetTeamInfo?.presetTeamInfo?.[currentTeamId.value]
+        || presetTeam?.presetTeamInfo?.presetTeamInfo?.[String(currentTeamId.value)];
+      return {
+        heroes,
+        teamInfo: team?.teamInfo || {},
+        pearlMap: pearlMapData,
+        artifactBooks: artifactBooksData,
+      };
+    } catch {
+      return null;
+    }
+  };
+
+  const sendApplyCommand = async (cmd, params = {}, options = {}) => {
+    const verifyApplied =
+      typeof options?.verifyApplied === "function" ? options.verifyApplied : null;
+
+    for (let attempt = 1; attempt <= APPLY_SKIP_WARNING_MAX_RETRIES; attempt++) {
+      tokenStore.clearSkippedMessageWarning(tokenId);
+      const attemptStartedAt = Date.now();
+      let shouldRetry = false;
+
+      logApplyDiagnostic("command-attempt-start", {
+        cmd,
+        attempt,
+        maxRetries: APPLY_SKIP_WARNING_MAX_RETRIES,
+        params,
+      });
+
+      try {
+        const result = await tokenStore.sendMessageWithPromise(tokenId, cmd, params);
+        const skippedWarning = getSkippedWarningForAttempt(attemptStartedAt);
+
+        if (!skippedWarning) {
+          logApplyDiagnostic("command-attempt-success", {
+            cmd,
+            attempt,
+            durationMs: Date.now() - attemptStartedAt,
+          });
+          return result;
+        }
+
+        const shouldWaitForServerRetry = isServerTransientWarning(
+          skippedWarning.message,
+        );
+        const shouldTreatAsNoop = isApplyCommandNoopWarning(
+          cmd,
+          skippedWarning?.message,
+        );
+
+        logApplyDiagnostic(
+          "command-attempt-warning",
+          {
+            cmd,
+            attempt,
+            durationMs: Date.now() - attemptStartedAt,
+            retryType: shouldTreatAsNoop
+              ? "noop-warning"
+              : shouldWaitForServerRetry
+                ? "server-warning-200020"
+                : "skipped-message",
+            skippedWarning,
+          },
+          "warn",
+        );
+
+        if (shouldTreatAsNoop) {
+          logApplyDiagnostic("command-attempt-noop-success", {
+            cmd,
+            attempt,
+            durationMs: Date.now() - attemptStartedAt,
+            reason: skippedWarning?.message || "",
+          });
+          return {
+            success: true,
+            noop: true,
+          };
+        }
+
+        if (verifyApplied) {
+          const verifiedApplied = await verifyApplied({
+            cmd,
+            params,
+            attempt,
+            skippedWarning,
+          });
+          if (verifiedApplied) {
+            logApplyDiagnostic("command-attempt-verified-success", {
+              cmd,
+              attempt,
+              durationMs: Date.now() - attemptStartedAt,
+              verifiedAfter: "warning",
+            });
+            return result;
+          }
+        }
+
+        if (attempt >= APPLY_SKIP_WARNING_MAX_RETRIES) {
+          const finalMessage =
+            `命令 ${cmd} 多次出现消息处理跳过：${skippedWarning.message || "未知原因"}`;
+          logApplyDiagnostic(
+            "command-attempt-max-retries",
+            {
+              cmd,
+              attempt,
+              skippedWarning,
+              finalMessage,
+            },
+            "error",
+          );
+          throw createApplyAbortError(cmd, finalMessage, {
+            type: "skipped-warning-max-retries",
+            skippedWarning,
+          });
+        }
+
+        shouldRetry = true;
+        const retryDelayMs = shouldWaitForServerRetry
+          ? APPLY_SERVER_WARNING_RETRY_DELAY
+          : getRandomApplyCommandDelay();
+        setApplyProgressStage(
+          shouldWaitForServerRetry
+            ? `服务器提示“出了点小问题”，等待 10 秒后重试当前命令（${attempt}/${APPLY_SKIP_WARNING_MAX_RETRIES}）`
+            : `检测到消息处理跳过，正在等待后重试（${attempt}/${APPLY_SKIP_WARNING_MAX_RETRIES}）`,
+        );
+        logApplyDiagnostic(
+          "command-attempt-retry-scheduled",
+          {
+            cmd,
+            attempt,
+            retryDelayMs,
+            retryType: shouldWaitForServerRetry ? "server-warning-200020" : "skipped-message",
+          },
+          "warn",
+        );
+        await delay(retryDelayMs);
+      } catch (error) {
+        const skippedWarning = getSkippedWarningForAttempt(attemptStartedAt);
+        const shouldWaitForServerRetry = isServerTransientWarning(
+          skippedWarning?.message || error?.message,
+        );
+        const shouldTreatAsNoop = isApplyCommandNoopWarning(
+          cmd,
+          skippedWarning?.message || error?.message,
+        );
+
+        logApplyDiagnostic(
+          "command-attempt-error",
+          {
+            cmd,
+            attempt,
+            durationMs: Date.now() - attemptStartedAt,
+            errorMessage: error?.message || String(error),
+            retryType: shouldTreatAsNoop
+              ? "noop-warning"
+              : shouldWaitForServerRetry
+                ? "server-warning-200020"
+                : "non-transient",
+            skippedWarning,
+          },
+          shouldWaitForServerRetry || skippedWarning ? "warn" : "error",
+        );
+
+        if (shouldTreatAsNoop) {
+          logApplyDiagnostic("command-attempt-noop-success", {
+            cmd,
+            attempt,
+            durationMs: Date.now() - attemptStartedAt,
+            reason: skippedWarning?.message || error?.message || "",
+          });
+          return {
+            success: true,
+            noop: true,
+          };
+        }
+
+        if (!skippedWarning && !shouldWaitForServerRetry) {
+          throw error;
+        }
+
+        if (verifyApplied) {
+          const verifiedApplied = await verifyApplied({
+            cmd,
+            params,
+            attempt,
+            skippedWarning,
+            error,
+          });
+          if (verifiedApplied) {
+            logApplyDiagnostic("command-attempt-verified-success", {
+              cmd,
+              attempt,
+              durationMs: Date.now() - attemptStartedAt,
+              verifiedAfter: "error",
+            });
+            return {
+              success: true,
+              verifiedAfterWarning: true,
+            };
+          }
+        }
+
+        if (attempt >= APPLY_SKIP_WARNING_MAX_RETRIES) {
+          const finalMessage =
+            `命令 ${cmd} 多次出现消息处理跳过：${skippedWarning?.message || error?.message || "未知原因"}`;
+          logApplyDiagnostic(
+            "command-attempt-max-retries",
+            {
+              cmd,
+              attempt,
+              skippedWarning,
+              errorMessage: error?.message || String(error),
+              finalMessage,
+            },
+            "error",
+          );
+          throw createApplyAbortError(cmd, finalMessage, {
+            type: shouldWaitForServerRetry
+              ? "server-warning-max-retries"
+              : "skipped-warning-max-retries",
+            skippedWarning,
+            errorMessage: error?.message || String(error),
+          });
+        }
+
+        shouldRetry = true;
+        const retryDelayMs = shouldWaitForServerRetry
+          ? APPLY_SERVER_WARNING_RETRY_DELAY
+          : getRandomApplyCommandDelay();
+        setApplyProgressStage(
+          shouldWaitForServerRetry
+            ? `服务器提示“出了点小问题”，等待 10 秒后重试当前命令（${attempt}/${APPLY_SKIP_WARNING_MAX_RETRIES}）`
+            : `检测到消息处理跳过，正在等待后重试（${attempt}/${APPLY_SKIP_WARNING_MAX_RETRIES}）`,
+        );
+        logApplyDiagnostic(
+          "command-attempt-retry-scheduled",
+          {
+            cmd,
+            attempt,
+            retryDelayMs,
+            retryType: shouldWaitForServerRetry ? "server-warning-200020" : "skipped-message",
+            errorMessage: error?.message || String(error),
+          },
+          "warn",
+        );
+        await delay(retryDelayMs);
+      } finally {
+        if (!shouldRetry) {
+          await delay(getRandomApplyCommandDelay());
+        }
+      }
+
+      if (shouldRetry) {
+        continue;
+      }
+    }
+
+    throw new Error(`命令 ${cmd} 重试后仍未成功执行`);
+  };
+
+  const waitApplyCommandDelay = async () => {
+    await delay(getRandomApplyCommandDelay());
+  };
+
   const fetchLatestData = async (teamId = null) => {
-    const roleInfo = await tokenStore.sendMessageWithPromise(
-      tokenId,
-      "role_getroleinfo",
-      {},
-    );
-    await delay(COMMAND_DELAY);
-    const presetTeam = await tokenStore.sendMessageWithPromise(
-      tokenId,
-      "presetteam_getinfo",
-      {},
-    );
-    await delay(COMMAND_DELAY);
+    const roleInfo = await sendApplyCommand("role_getroleinfo", {});
+    const presetTeam = await sendApplyCommand("presetteam_getinfo", {});
     const heroes = roleInfo?.role?.heroes || roleInfo?.heroes || {};
     const pearlMapData = roleInfo?.role?.pearlMap || roleInfo?.pearlMap || {};
     const artifactBooksData =
@@ -1618,14 +2676,435 @@ const applyLineup = async (lineup) => {
     };
   };
 
-  const isIgnorableError = (err) => {
-    const msg = err.message || "";
-    return msg.includes("200020");
+  const isTargetLineupMatched = (heroesToCheck, targetHeroes) => {
+    if (heroesToCheck.length !== targetHeroes.length) {
+      return false;
+    }
+    const targetMap = new Map(
+      targetHeroes.map((hero) => [Number(hero.position), Number(hero.heroId)]),
+    );
+    return heroesToCheck.every(
+      (hero) => targetMap.get(Number(hero.position)) === Number(hero.heroId),
+    );
+  };
+
+  const targetHeroes = [...lineup.heroes];
+  const targetByPosition = new Map(
+    targetHeroes.map((hero) => [Number(hero.position), hero]),
+  );
+
+  const ensureFinalLineupMatches = async () => {
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      const latestData = await fetchLatestData();
+      const latestHeroes = getTeamHeroes(latestData.teamInfo);
+      if (isTargetLineupMatched(latestHeroes, targetHeroes)) {
+        return {
+          success: true,
+          repaired: attempt > 1,
+        };
+      }
+
+      setApplyProgressStage(`正在复核最终阵容（${attempt}/2）`);
+
+      for (const hero of latestHeroes) {
+        const targetHero = targetByPosition.get(Number(hero.position));
+        if (!targetHero || Number(targetHero.heroId) !== Number(hero.heroId)) {
+          await sendApplyCommand("hero_gobackbattle", {
+            slot: hero.position,
+          });
+        }
+      }
+
+      await waitApplyCommandDelay();
+      const clearedData = await fetchLatestData();
+      const clearedHeroes = getTeamHeroes(clearedData.teamInfo);
+      const currentByPosition = new Map(
+        clearedHeroes.map((hero) => [Number(hero.position), hero]),
+      );
+
+      for (const targetHero of targetHeroes) {
+        const heroAtPosition = currentByPosition.get(Number(targetHero.position));
+        if (heroAtPosition?.heroId === targetHero.heroId) {
+          continue;
+        }
+        await sendApplyCommand("hero_gointobattle", {
+          heroId: targetHero.heroId,
+          slot: targetHero.position,
+        });
+      }
+
+      await waitApplyCommandDelay();
+    }
+
+    const finalData = await fetchLatestData();
+    return {
+      success: isTargetLineupMatched(
+        getTeamHeroes(finalData.teamInfo),
+        targetHeroes,
+      ),
+      repaired: false,
+    };
+  };
+
+  const getCurrentFishIdByHeroId = (artifactBooks = {}, heroes = {}, heroId) => {
+    const heroData = heroes[String(heroId)] || heroes[heroId];
+    const artifactId = Number(heroData?.artifactId || 0) || null;
+    if (!artifactId) {
+      return null;
+    }
+
+    for (const [fishId, book] of Object.entries(artifactBooks)) {
+      if (Number(book?.artifactId || 0) === artifactId) {
+        return Number(fishId || 0) || null;
+      }
+    }
+    return null;
+  };
+
+  const verifyArtifactAppliedToHero = async (heroId, artifactId, pearlId) => {
+    const snapshot = await readLatestStateSnapshot();
+    if (!snapshot) {
+      return false;
+    }
+
+    const heroData = snapshot.heroes?.[String(heroId)] || snapshot.heroes?.[heroId] || null;
+    const currentArtifactId = Number(heroData?.artifactId || 0) || null;
+    if (currentArtifactId !== Number(artifactId || 0)) {
+      return false;
+    }
+
+    const teamHero = Object.values(snapshot.teamInfo || {}).find(
+      (item) => Number(item?.heroId || item?.id || 0) === Number(heroId),
+    );
+    const currentPearlId = Number(teamHero?.pearlId || 0) || null;
+    return currentPearlId === (Number(pearlId || 0) || null);
+  };
+
+  const getPearlIdByArtifactId = (pearlMap = {}, artifactId) => {
+    const targetArtifactId = Number(artifactId || 0) || null;
+    if (!targetArtifactId) {
+      return null;
+    }
+
+    for (const [pearlId, pearlData] of Object.entries(pearlMap)) {
+      if (Number(pearlData?.artifactId || 0) === targetArtifactId) {
+        return Number(pearlId || 0) || null;
+      }
+    }
+
+    return null;
+  };
+
+  const tryRestoreHeroToSlot = async (heroId, slot, reason) => {
+    if (!heroId && heroId !== 0) {
+      return false;
+    }
+
+    try {
+      logApplyDiagnostic(
+        "hero-rollback-start",
+        {
+          heroId,
+          slot,
+          reason,
+        },
+        "warn",
+      );
+      await sendApplyCommand("hero_gointobattle", {
+        heroId,
+        slot,
+      });
+      logApplyDiagnostic("hero-rollback-success", {
+        heroId,
+        slot,
+        reason,
+      });
+      return true;
+    } catch (restoreError) {
+      logApplyDiagnostic(
+        "hero-rollback-failed",
+        {
+          heroId,
+          slot,
+          reason,
+          errorMessage: restoreError?.message || String(restoreError),
+        },
+        "error",
+      );
+      return false;
+    }
+  };
+
+  const tryRestoreArtifactToHero = async (
+    heroId,
+    artifactId,
+    pearlId,
+    reason,
+  ) => {
+    if (!heroId || !artifactId || !pearlId) {
+      return false;
+    }
+
+    try {
+      logApplyDiagnostic(
+        "artifact-rollback-start",
+        {
+          heroId,
+          artifactId,
+          pearlId,
+          reason,
+        },
+        "warn",
+      );
+      await sendApplyCommand("artifact_load", {
+        heroId,
+        itemId: artifactId,
+        pearlId,
+      });
+      logApplyDiagnostic("artifact-rollback-success", {
+        heroId,
+        artifactId,
+        pearlId,
+        reason,
+      });
+      return true;
+    } catch (restoreError) {
+      logApplyDiagnostic(
+        "artifact-rollback-failed",
+        {
+          heroId,
+          artifactId,
+          pearlId,
+          reason,
+          errorMessage: restoreError?.message || String(restoreError),
+        },
+        "error",
+      );
+      return false;
+    }
+  };
+
+  const getTargetFishRequirements = (pearlMap = {}) =>
+    targetHeroes.map((hero) => {
+      const pearlId = Number(hero?.pearlId || 0) || null;
+      const pearlData = pearlId ? pearlMap[pearlId] : null;
+      const artifactId = Number(pearlData?.artifactId || 0) || null;
+      return {
+        heroId: Number(hero.heroId),
+        position: Number(hero.position),
+        pearlId,
+        skillId: hero?.skillId != null ? Number(hero.skillId) || null : null,
+        fishId: hero?.fishId != null ? Number(hero.fishId) || null : null,
+        artifactId,
+      };
+    });
+
+  const isTargetFishConfigMatched = (
+    teamInfo = {},
+    heroes = {},
+    pearlMap = {},
+    artifactBooks = {},
+  ) => {
+    const requirements = getTargetFishRequirements(pearlMap);
+
+    return requirements.every((requirement) => {
+      const teamHero =
+        teamInfo?.[requirement.position] || teamInfo?.[String(requirement.position)] || null;
+
+      if (Number(teamHero?.heroId || teamHero?.id || 0) !== Number(requirement.heroId)) {
+        return false;
+      }
+
+      const currentPearlId = Number(teamHero?.pearlId || 0) || null;
+      if ((requirement.pearlId || null) !== currentPearlId) {
+        return false;
+      }
+
+      const currentHeroData =
+        heroes[String(requirement.heroId)] || heroes[requirement.heroId] || null;
+      const currentArtifactId = Number(currentHeroData?.artifactId || 0) || null;
+
+      if ((requirement.artifactId || null) !== currentArtifactId) {
+        return false;
+      }
+
+      if (requirement.fishId) {
+        const currentFishId = getCurrentFishIdByHeroId(
+          artifactBooks,
+          heroes,
+          requirement.heroId,
+        );
+        if (currentFishId !== requirement.fishId) {
+          return false;
+        }
+      }
+
+      const currentSkillId =
+        currentPearlId && pearlMap[currentPearlId]
+          ? Number(pearlMap[currentPearlId]?.skillId || 0) || null
+          : null;
+
+      return (requirement.skillId || null) === currentSkillId;
+    });
+  };
+
+  const ensureFinalFishArtifactsMatch = async () => {
+    const initialData = await fetchLatestData();
+
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      const latestData = attempt === 1 ? initialData : await fetchLatestData();
+      const latestTeamInfo = latestData.teamInfo || {};
+      const latestHeroesData = latestData.heroes || {};
+      const latestPearlMap = latestData.pearlMap || {};
+      const latestArtifactBooks = latestData.artifactBooks || {};
+
+      if (
+        isTargetFishConfigMatched(
+          latestTeamInfo,
+          latestHeroesData,
+          latestPearlMap,
+          latestArtifactBooks,
+        )
+      ) {
+        return {
+          success: true,
+          repaired: attempt > 1,
+        };
+      }
+
+      setApplyProgressStage(`正在复核最终鱼灵（${attempt}/2）`);
+
+      const requirements = getTargetFishRequirements(latestPearlMap);
+      const artifactToHero = {};
+      for (const [heroId, hero] of Object.entries(latestHeroesData)) {
+        if (hero?.artifactId && hero.artifactId !== -1) {
+          artifactToHero[Number(hero.artifactId)] = Number(heroId);
+        }
+      }
+
+      for (const requirement of requirements) {
+        const currentTeamHero =
+          latestTeamInfo?.[requirement.position]
+          || latestTeamInfo?.[String(requirement.position)]
+          || null;
+        const latestHeroData =
+          latestHeroesData[String(requirement.heroId)] || latestHeroesData[requirement.heroId];
+        const currentArtifactId = Number(latestHeroData?.artifactId || 0) || null;
+        const currentPearlId = Number(currentTeamHero?.pearlId || 0) || null;
+        const currentSkillId =
+          currentPearlId && latestPearlMap[currentPearlId]
+            ? Number(latestPearlMap[currentPearlId]?.skillId || 0) || null
+            : null;
+
+        if (!requirement.pearlId || !requirement.artifactId) {
+          if (currentArtifactId) {
+            await sendApplyCommand("artifact_unload", {
+              heroId: requirement.heroId,
+            });
+          }
+          continue;
+        }
+
+        const currentHolderId = artifactToHero[requirement.artifactId];
+        const rollbackPearlId = getPearlIdByArtifactId(
+          latestPearlMap,
+          requirement.artifactId,
+        );
+        const targetRollbackPearlId =
+          currentPearlId
+          || getPearlIdByArtifactId(latestPearlMap, currentArtifactId);
+        if (currentHolderId && currentHolderId !== requirement.heroId) {
+          await sendApplyCommand("artifact_unload", {
+            heroId: currentHolderId,
+          });
+          delete artifactToHero[requirement.artifactId];
+        }
+
+        if (
+          currentArtifactId
+          && currentArtifactId !== Number(requirement.artifactId)
+        ) {
+          await sendApplyCommand("artifact_unload", {
+            heroId: requirement.heroId,
+          });
+          delete artifactToHero[currentArtifactId];
+        }
+
+        if (
+          currentArtifactId !== Number(requirement.artifactId)
+          || currentPearlId !== Number(requirement.pearlId)
+        ) {
+          try {
+            await sendApplyCommand("artifact_load", {
+              heroId: requirement.heroId,
+              itemId: requirement.artifactId,
+              pearlId: requirement.pearlId,
+            }, {
+              verifyApplied: () =>
+                verifyArtifactAppliedToHero(
+                  requirement.heroId,
+                  requirement.artifactId,
+                  requirement.pearlId,
+                ),
+            });
+            artifactToHero[requirement.artifactId] = requirement.heroId;
+          } catch (error) {
+            if (currentHolderId && currentHolderId !== requirement.heroId) {
+              await tryRestoreArtifactToHero(
+                currentHolderId,
+                requirement.artifactId,
+                rollbackPearlId || requirement.pearlId,
+                "final-fish-verify-load-failed",
+              );
+            }
+            if (
+              currentArtifactId
+              && currentArtifactId !== Number(requirement.artifactId)
+            ) {
+              await tryRestoreArtifactToHero(
+                requirement.heroId,
+                currentArtifactId,
+                targetRollbackPearlId,
+                "final-fish-verify-restore-target-artifact",
+              );
+            }
+            throw error;
+          }
+        }
+
+        if ((requirement.skillId || null) !== (currentSkillId || null)) {
+          if (!requirement.skillId) {
+            if (currentSkillId) {
+              await sendApplyCommand("pearl_unloadskill", {
+                pearlId: requirement.pearlId,
+              });
+            }
+          } else {
+            await sendApplyCommand("pearl_replaceskill", {
+              pearlId: requirement.pearlId,
+              skillId: requirement.skillId,
+            });
+          }
+        }
+      }
+
+      await waitApplyCommandDelay();
+    }
+
+    const finalData = await fetchLatestData();
+    return {
+      success: isTargetFishConfigMatched(
+        finalData.teamInfo || {},
+        finalData.heroes || {},
+        finalData.pearlMap || {},
+        finalData.artifactBooks || {},
+      ),
+      repaired: false,
+    };
   };
 
   try {
-    const targetHeroes = [...lineup.heroes];
-
+    setApplyProgressStage("正在读取当前阵容数据");
     let { heroes, teamInfo } = await fetchLatestData();
     let currentHeroes = getTeamHeroes(teamInfo);
 
@@ -1639,6 +3118,7 @@ const applyLineup = async (lineup) => {
     const currentHeroIds = new Set(currentHeroes.map((h) => h.heroId));
     const targetHeroIds = new Set(targetHeroes.map((h) => h.heroId));
 
+    setApplyProgressStage("正在整理武将站位");
     for (const targetHero of targetHeroes) {
       if (!targetHero.attachmentUid || targetHero.attachmentUid === -1)
         continue;
@@ -1652,45 +3132,43 @@ const applyLineup = async (lineup) => {
         if (!holderInTeam && !targetInTeam) {
           const emptySlot = currentHeroes.length < 5 ? currentHeroes.length : 0;
           try {
-            await tokenStore.sendMessageWithPromise(
-              tokenId,
-              "hero_gointobattle",
-              {
-                heroId: currentHolderId,
-                slot: emptySlot,
-              },
-            );
+            await sendApplyCommand("hero_gointobattle", {
+              heroId: currentHolderId,
+              slot: emptySlot,
+            });
           } catch (err) {
+            rethrowIfApplyMustAbort(err);
             continue;
           }
-          await delay(COMMAND_DELAY);
 
           try {
-            await tokenStore.sendMessageWithPromise(
-              tokenId,
-              "hero_gointobattle",
-              {
-                heroId: targetHero.heroId,
-                slot: emptySlot + 1,
-              },
-            );
-          } catch (err) {}
-          await delay(COMMAND_DELAY);
+            await sendApplyCommand("hero_gointobattle", {
+              heroId: targetHero.heroId,
+              slot: emptySlot + 1,
+            });
+          } catch (err) {
+            await sendApplyCommand("hero_gobackbattle", {
+              slot: emptySlot,
+            }).catch(() => {});
+            rethrowIfApplyMustAbort(err);
+          }
         }
 
         try {
-          await tokenStore.sendMessageWithPromise(tokenId, "hero_exchange", {
+          await sendApplyCommand("hero_exchange", {
             heroId: currentHolderId,
             targetHeroId: targetHero.heroId,
           });
-        } catch (err) {}
-        await delay(COMMAND_DELAY);
+        } catch (err) {
+          rethrowIfApplyMustAbort(err);
+        }
       }
     }
 
-    await delay(COMMAND_DELAY);
+    setApplyProgressStage("正在校验第一轮站位结果");
+    await waitApplyCommandDelay();
     const data1 = await fetchLatestData();
-    await delay(COMMAND_DELAY);
+    await waitApplyCommandDelay();
     heroes = data1.heroes;
     for (const [id, hero] of Object.entries(heroes)) {
       if (hero.attachmentUid && hero.attachmentUid !== -1) {
@@ -1701,70 +3179,68 @@ const applyLineup = async (lineup) => {
     currentHeroIds.clear();
     currentHeroes.forEach((h) => currentHeroIds.add(h.heroId));
 
+    setApplyProgressStage("正在下阵非目标武将");
     for (const hero of [...currentHeroes]) {
       if (!targetHeroIds.has(hero.heroId)) {
         try {
-          await tokenStore.sendMessageWithPromise(
-            tokenId,
-            "hero_gobackbattle",
-            {
-              slot: hero.position,
-            },
-          );
-        } catch (err) {}
-        await delay(COMMAND_DELAY);
+          await sendApplyCommand("hero_gobackbattle", {
+            slot: hero.position,
+          });
+        } catch (err) {
+          rethrowIfApplyMustAbort(err);
+        }
       }
     }
 
-    await delay(COMMAND_DELAY);
+    setApplyProgressStage("正在校验第二轮站位结果");
+    await waitApplyCommandDelay();
     const data2 = await fetchLatestData();
-    await delay(COMMAND_DELAY);
+    await waitApplyCommandDelay();
     currentHeroes = getTeamHeroes(data2.teamInfo);
 
+    setApplyProgressStage("正在补齐并修正目标阵容");
     for (const targetHero of targetHeroes) {
       const currentHero = currentHeroes.find(
         (h) => h.heroId === targetHero.heroId,
       );
       if (!currentHero) {
         try {
-          await tokenStore.sendMessageWithPromise(
-            tokenId,
-            "hero_gointobattle",
-            {
+          await sendApplyCommand("hero_gointobattle", {
+            heroId: targetHero.heroId,
+            slot: targetHero.position,
+          });
+        } catch (err) {
+          rethrowIfApplyMustAbort(err);
+        }
+      } else if (currentHero.position !== targetHero.position) {
+        const originalSlot = currentHero.position;
+        try {
+          await sendApplyCommand("hero_gobackbattle", {
+            slot: currentHero.position,
+          });
+          try {
+            await sendApplyCommand("hero_gointobattle", {
               heroId: targetHero.heroId,
               slot: targetHero.position,
-            },
-          );
-        } catch (err) {}
-        await delay(COMMAND_DELAY);
-      } else if (currentHero.position !== targetHero.position) {
-        try {
-          await tokenStore.sendMessageWithPromise(
-            tokenId,
-            "hero_gobackbattle",
-            {
-              slot: currentHero.position,
-            },
-          );
-          await delay(COMMAND_DELAY);
-          try {
-            await tokenStore.sendMessageWithPromise(
-              tokenId,
-              "hero_gointobattle",
-              {
-                heroId: targetHero.heroId,
-                slot: targetHero.position,
-              },
+            });
+          } catch (err) {
+            await tryRestoreHeroToSlot(
+              targetHero.heroId,
+              originalSlot,
+              "main-lineup-move-failed",
             );
-          } catch (err) {}
-          await delay(COMMAND_DELAY);
-        } catch (err) {}
-        await delay(COMMAND_DELAY);
+            rethrowIfApplyMustAbort(err);
+          }
+        } catch (err) {
+          rethrowIfApplyMustAbort(err);
+        }
+        await waitApplyCommandDelay();
       }
     }
 
     const hasLevelData = lineup.heroes.some((h) => h.level && h.level > 0);
     if (hasLevelData) {
+      setApplyProgressStage("正在同步武将等级");
       const levelData = await fetchLatestData();
       const currentHeroesData = levelData.heroes;
 
@@ -1774,6 +3250,7 @@ const applyLineup = async (lineup) => {
 
         const heroData = currentHeroesData[String(targetHero.heroId)];
         const currentLevel = heroData?.level || 1;
+        const currentOrder = heroData?.order || 0;
 
         if (currentLevel !== targetHero.level) {
           const result = await applyHeroLevel(
@@ -1781,11 +3258,16 @@ const applyLineup = async (lineup) => {
             targetHero.heroId,
             targetHero.level,
             currentLevel,
+            currentOrder,
+            waitApplyCommandDelay,
           );
 
           if (result.success) {
             levelApplied++;
           } else {
+            errors.push(
+              `${getHeroName(targetHero.heroId) || targetHero.heroId} 等级同步失败：${result.message}`,
+            );
           }
         }
       }
@@ -1795,14 +3277,9 @@ const applyLineup = async (lineup) => {
       }
     }
 
-    if (errors.length > 0) {
-      message.warning(`阵容已应用，但有部分错误:\n${errors.join("\n")}`);
-    } else {
-      message.success(`阵容 "${lineup.name}" 已应用`);
-    }
-
     const hasFishData = lineup.heroes.some((h) => h.pearlId);
     if (hasFishData) {
+      setApplyProgressStage("正在同步鱼灵配置");
       const fishData = await fetchLatestData();
       const currentHeroes = fishData.heroes;
       const pearlMap = fishData.pearlMap || {};
@@ -1825,35 +3302,80 @@ const applyLineup = async (lineup) => {
         if (!artifactId || artifactId === -1) continue;
 
         const currentHolderId = artifactToHero[artifactId];
+        const rollbackPearlId = getPearlIdByArtifactId(pearlMap, artifactId);
+        const currentHeroData = currentHeroes[String(targetHero.heroId)] || {};
+        const currentArtifactId = Number(currentHeroData?.artifactId || 0) || null;
+        const currentTeamHero =
+          fishData.teamInfo?.[targetHero.position]
+          || fishData.teamInfo?.[String(targetHero.position)]
+          || null;
+        const currentPearlId = Number(currentTeamHero?.pearlId || 0) || null;
+        const targetRollbackPearlId =
+          currentPearlId || getPearlIdByArtifactId(pearlMap, currentArtifactId);
 
         if (currentHolderId && currentHolderId !== targetHero.heroId) {
           try {
-            await tokenStore.sendMessageWithPromise(
-              tokenId,
-              "artifact_unload",
-              {
-                heroId: currentHolderId,
-              },
-            );
-          } catch (err) {}
-          await delay(COMMAND_DELAY);
+            await sendApplyCommand("artifact_unload", {
+              heroId: currentHolderId,
+            });
+            delete artifactToHero[artifactId];
+          } catch (err) {
+            rethrowIfApplyMustAbort(err);
+          }
+        }
+
+        if (currentArtifactId && currentArtifactId !== Number(artifactId)) {
+          try {
+            await sendApplyCommand("artifact_unload", {
+              heroId: targetHero.heroId,
+            });
+            delete artifactToHero[currentArtifactId];
+          } catch (err) {
+            rethrowIfApplyMustAbort(err);
+          }
         }
 
         try {
-          await tokenStore.sendMessageWithPromise(tokenId, "artifact_load", {
+          await sendApplyCommand("artifact_load", {
             heroId: targetHero.heroId,
             itemId: artifactId,
             pearlId: targetHero.pearlId,
+          }, {
+            verifyApplied: () =>
+              verifyArtifactAppliedToHero(
+                targetHero.heroId,
+                artifactId,
+                targetHero.pearlId,
+              ),
           });
+          artifactToHero[artifactId] = Number(targetHero.heroId);
           fishApplied++;
-        } catch (err) {}
-        await delay(COMMAND_DELAY);
+        } catch (err) {
+          if (currentHolderId && currentHolderId !== targetHero.heroId) {
+            await tryRestoreArtifactToHero(
+              currentHolderId,
+              artifactId,
+              rollbackPearlId || targetHero.pearlId,
+              "main-fish-load-failed",
+            );
+          }
+          if (currentArtifactId && currentArtifactId !== Number(artifactId)) {
+            await tryRestoreArtifactToHero(
+              targetHero.heroId,
+              currentArtifactId,
+              targetRollbackPearlId,
+              "main-fish-restore-target-artifact",
+            );
+          }
+          rethrowIfApplyMustAbort(err);
+        }
       }
 
       if (fishApplied > 0) {
         message.success(`已应用 ${fishApplied} 个鱼灵配置`);
       }
 
+      setApplyProgressStage("正在同步鱼珠技能");
       let skillApplied = 0;
       const skillData = await fetchLatestData();
       const latestPearlMap = skillData.pearlMap || {};
@@ -1877,17 +3399,14 @@ const applyLineup = async (lineup) => {
 
         if (!targetSkillId && currentSkillId) {
           try {
-            await tokenStore.sendMessageWithPromise(
-              tokenId,
-              "pearl_unloadskill",
-              {
-                pearlId: targetHero.pearlId,
-              },
-            );
+            await sendApplyCommand("pearl_unloadskill", {
+              pearlId: targetHero.pearlId,
+            });
             skillApplied++;
             processedPearlIds.add(targetHero.pearlId);
-          } catch (err) {}
-          await delay(COMMAND_DELAY);
+          } catch (err) {
+            rethrowIfApplyMustAbort(err);
+          }
           continue;
         }
 
@@ -1907,37 +3426,31 @@ const applyLineup = async (lineup) => {
             !processedPearlIds.has(exchangeTarget.pearlId)
           ) {
             try {
-              await tokenStore.sendMessageWithPromise(
-                tokenId,
-                "pearl_exchangeskill",
-                {
-                  pearlId1: targetHero.pearlId,
-                  pearlId2: exchangeTarget.pearlId,
-                },
-              );
+              await sendApplyCommand("pearl_exchangeskill", {
+                pearlId1: targetHero.pearlId,
+                pearlId2: exchangeTarget.pearlId,
+              });
               skillApplied += 2;
               processedPearlIds.add(targetHero.pearlId);
               processedPearlIds.add(exchangeTarget.pearlId);
-            } catch (err) {}
-            await delay(COMMAND_DELAY);
+            } catch (err) {
+              rethrowIfApplyMustAbort(err);
+            }
             continue;
           }
         }
 
         if (targetSkillId && !processedPearlIds.has(targetHero.pearlId)) {
           try {
-            await tokenStore.sendMessageWithPromise(
-              tokenId,
-              "pearl_replaceskill",
-              {
-                pearlId: targetHero.pearlId,
-                skillId: targetHero.skillId,
-              },
-            );
+            await sendApplyCommand("pearl_replaceskill", {
+              pearlId: targetHero.pearlId,
+              skillId: targetHero.skillId,
+            });
             skillApplied++;
             processedPearlIds.add(targetHero.pearlId);
-          } catch (err) {}
-          await delay(COMMAND_DELAY);
+          } catch (err) {
+            rethrowIfApplyMustAbort(err);
+          }
         }
       }
 
@@ -1950,9 +3463,11 @@ const applyLineup = async (lineup) => {
       lineup.legionResearch &&
       Object.keys(lineup.legionResearch).length > 0
     ) {
+      setApplyProgressStage("正在同步俱乐部科技");
       const syncResult = await syncLegionResearch(
         tokenId,
         lineup.legionResearch,
+        waitApplyCommandDelay,
       );
       if (syncResult.success) {
         if (syncResult.message !== "科技配置已匹配，无需调整") {
@@ -1963,8 +3478,8 @@ const applyLineup = async (lineup) => {
     }
 
     if (lineup.weaponId !== undefined && lineup.weaponId !== null) {
-      const currentPresetTeam = await tokenStore.sendMessageWithPromise(
-        tokenId,
+      setApplyProgressStage("正在同步默认玩具");
+      const currentPresetTeam = await sendApplyCommand(
         "presetteam_getinfo",
         {},
       );
@@ -1979,28 +3494,86 @@ const applyLineup = async (lineup) => {
 
       if (currentWeaponId !== lineup.weaponId) {
         try {
-          await tokenStore.sendMessageWithPromise(
-            tokenId,
-            "lordweapon_changedefaultweapon",
-            {
-              weaponId: lineup.weaponId,
-            },
-          );
+          await sendApplyCommand("lordweapon_changedefaultweapon", {
+            weaponId: lineup.weaponId,
+          });
           message.success(
             `玩具已切换为: ${weapon[lineup.weaponId] || lineup.weaponId}`,
           );
-        } catch (err) {}
-        await delay(COMMAND_DELAY);
+        } catch (err) {
+          rethrowIfApplyMustAbort(err);
+        }
       }
+    }
+
+    setApplyProgressStage("正在复核最终阵容");
+    const finalLineupCheck = await ensureFinalLineupMatches();
+    if (!finalLineupCheck.success) {
+      errors.push("最终阵容复核失败：当前上阵结果与已保存阵容仍不一致");
+    } else if (finalLineupCheck.repaired) {
+      message.success("最终阵容复核完成，已自动补正上阵结果");
+    }
+
+    const finalFishCheck = await ensureFinalFishArtifactsMatch();
+    if (!finalFishCheck.success) {
+      errors.push("最终鱼灵复核失败：当前鱼灵结果与已保存阵容仍不一致");
+    } else if (finalFishCheck.repaired) {
+      message.success("最终鱼灵复核完成，已自动补正鱼灵结果");
+    }
+
+    if (errors.length > 0) {
+      logApplyDiagnostic(
+        "apply-finished-with-warnings",
+        {
+          errors,
+          shouldRecordDuration,
+        },
+        "warn",
+      );
+      message.warning(`阵容已应用，但有部分错误:\n${errors.join("\n")}`);
+    } else {
+      logApplyDiagnostic("apply-finished-success", {
+        shouldRecordDuration,
+      });
+      message.success(`阵容 "${lineup.name}" 已应用`);
+    }
+
+    setApplyProgressStage("正在刷新阵容结果");
+    lastRefreshTime = 0;
+    await refreshTeamInfo();
+    shouldRecordDuration = true;
+  } catch (error) {
+    if (error?.__applyAbort) {
+      logApplyDiagnostic(
+        "apply-aborted",
+        {
+          abortCmd: error?.__applyAbortCmd || "",
+          errorMessage: error?.message || String(error),
+        },
+        "error",
+      );
     }
 
     lastRefreshTime = 0;
     await refreshTeamInfo();
-  } catch (error) {
+    logApplyDiagnostic(
+      "apply-failed",
+      {
+        errorMessage: error?.message || String(error),
+        errors,
+      },
+      "error",
+    );
     message.error(`应用阵容失败: ${error.message}`);
   } finally {
+    logApplyDiagnostic("apply-finally", {
+      recordDuration: shouldRecordDuration,
+      finalStage: applyProgressStage.value || "",
+    });
+    finishApplyProgress({ recordDuration: shouldRecordDuration });
     lineup.applying = false;
     state.value.isRunning = false;
+    releaseTokenOperationLock(tokenId, applyOperationLockId);
   }
 };
 
@@ -2236,7 +3809,7 @@ const switchTeam = async (teamId) => {
       teamId,
     });
 
-    await delay(500);
+    await delay(COMMAND_DELAY);
 
     currentTeamId.value = teamId;
     message.success(`已切换到阵容 ${teamId}`);
@@ -2251,10 +3824,20 @@ const switchTeam = async (teamId) => {
 };
 
 watch(
+  () => authStore.isAuthenticated,
+  (isAuthenticated, wasAuthenticated) => {
+    if (isAuthenticated && !wasAuthenticated && tokenStore.selectedToken) {
+      void pullSavedLineupsFromCloud(true);
+    }
+  },
+);
+
+watch(
   () => tokenStore.selectedToken,
-  (newToken, oldToken) => {
+  async (newToken, oldToken) => {
     if (newToken && newToken.id !== oldToken?.id) {
       loadSavedLineups();
+      await pullSavedLineupsFromCloud(true);
       currentTeamInfo.value = null;
       presetTeamData.value = null;
       allHeroesData.value = {};
@@ -2288,6 +3871,7 @@ watch(
 
 onMounted(() => {
   loadSavedLineups();
+  void pullSavedLineupsFromCloud(true);
 
   const token = tokenStore.selectedToken;
   if (token) {
@@ -2295,6 +3879,14 @@ onMounted(() => {
     if (status === "connected") {
       refreshTeamInfo();
     }
+  }
+});
+
+onBeforeUnmount(() => {
+  clearApplyProgressTimer();
+  if (savedLineupsCloudTimer) {
+    clearTimeout(savedLineupsCloudTimer);
+    savedLineupsCloudTimer = null;
   }
 });
 </script>
@@ -3067,6 +4659,98 @@ onMounted(() => {
   display: inline-block;
 }
 
+.apply-progress-modal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.apply-progress-head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.apply-progress-lineup {
+  font-size: var(--font-size-lg);
+  color: var(--text-primary);
+}
+
+.apply-progress-stage {
+  font-size: var(--font-size-sm);
+  color: var(--primary-color);
+}
+
+.apply-progress-stage--overdue {
+  color: var(--warning-color);
+}
+
+.apply-progress-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--spacing-sm);
+}
+
+.apply-progress-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--spacing-sm);
+  border-radius: var(--border-radius-medium);
+  background: var(--bg-tertiary);
+}
+
+.apply-progress-label {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+}
+
+.apply-progress-bar {
+  height: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(var(--primary-color-rgb, 0, 122, 255), 0.14);
+}
+
+.apply-progress-bar__fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--primary-color), var(--success-color));
+  transition: width 0.6s ease;
+}
+
+.apply-progress-bar__fill--overdue {
+  background: linear-gradient(90deg, var(--warning-color), var(--error-color));
+}
+
+.apply-progress-source {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+}
+
+.apply-progress-source--overdue {
+  color: var(--warning-color);
+}
+
+.apply-progress-warning {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--border-radius-medium);
+  background: rgba(255, 193, 7, 0.12);
+  color: var(--text-primary);
+}
+
+.apply-progress-warning strong {
+  color: var(--warning-color);
+}
+
+.apply-progress-overdue-tip {
+  color: var(--warning-color);
+}
+
 .tech-modal-content {
   display: flex;
   flex-direction: column;
@@ -3126,5 +4810,11 @@ onMounted(() => {
   font-size: var(--font-size-sm);
   text-align: center;
   padding: var(--spacing-lg);
+}
+
+@media (max-width: 640px) {
+  .apply-progress-stats {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

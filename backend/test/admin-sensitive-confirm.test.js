@@ -369,6 +369,27 @@ test("admin high-risk actions require password confirmation token", async (t) =>
   });
   assert.equal(createActivationAllowed.status, 200);
 
+  const createTrialActivationAllowed = await fetch(`${baseUrl}/api/v1/admin/activation-codes`, {
+    method: "POST",
+    headers: {
+      ...authHeaders({ userId: adminUser.id, username: adminUser.username }),
+      "x-admin-confirm-token": confirmPayload.data.token,
+    },
+    body: JSON.stringify({ count: 1, durationMonths: 0, saleAmountCents: 999 }),
+  });
+  assert.equal(createTrialActivationAllowed.status, 200);
+  const createTrialActivationPayload = await createTrialActivationAllowed.json();
+  const createdTrialActivationId = String(createTrialActivationPayload?.data?.[0]?.id || "");
+  assert.ok(createdTrialActivationId, "expected created trial activation code id");
+  const createdTrialActivationRows = query(
+    `SELECT duration_months as durationMonths, sale_amount_cents as saleAmountCents
+     FROM activation_codes
+     WHERE id = $id`,
+    { $id: createdTrialActivationId },
+  );
+  assert.equal(Number(createdTrialActivationRows[0]?.durationMonths), 0);
+  assert.equal(Number(createdTrialActivationRows[0]?.saleAmountCents), 0);
+
   const updatedRows = query(`SELECT is_admin as isAdmin FROM users WHERE id = $id`, { $id: targetUser.id });
   assert.equal(Number(updatedRows[0]?.isAdmin), 1);
 });

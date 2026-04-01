@@ -44,6 +44,16 @@
             <span class="app-shell__status-dot" :class="`is-${selectedTokenStatus}`"></span>
             <span>{{ selectedTokenStatusText }}</span>
           </div>
+          <div class="app-shell__version-list">
+            <div class="app-shell__version-row">
+              <span class="app-shell__version-label">前端版本</span>
+              <strong>{{ frontendVersionText }}</strong>
+            </div>
+            <div class="app-shell__version-row">
+              <span class="app-shell__version-label">后端版本</span>
+              <strong>{{ backendVersionText }}</strong>
+            </div>
+          </div>
         </div>
       </div>
     </n-layout-sider>
@@ -188,6 +198,7 @@
 </template>
 
 <script setup>
+import packageInfo from "../../package.json";
 import { selectedToken, useTokenStore } from "@/stores/tokenStore";
 import { useAuthStore } from "@/stores/auth";
 import ThemeToggle from "@/components/Common/ThemeToggle.vue";
@@ -239,9 +250,27 @@ const canAccessGameFeatures = computed(() => hasGameFeatureAccess(authStore.user
 const canOpenAdminCenter = computed(() => canAccessAdminCenter(authStore.user));
 const canOpenWorkbenchFeatures = computed(() => tokenStore.hasUsableWorkbenchToken);
 const unreadBadgeValue = computed(() => (unreadCount.value > 99 ? "99+" : unreadCount.value));
+const backendBuildInfo = ref(null);
+const hasLoadedBuildInfo = ref(false);
 const isSiderCollapsed = ref(
   typeof window !== "undefined" && window.localStorage.getItem("ui:sider-collapsed") === "true",
 );
+const frontendVersionText = computed(() => {
+  const version = String(
+    import.meta.env.VITE_APP_VERSION
+    || packageInfo?.version
+    || backendBuildInfo.value?.appVersion
+    || "",
+  ).trim();
+  return version ? `v${version}` : "未提供";
+});
+const backendVersionText = computed(() => {
+  const version = String(backendBuildInfo.value?.backendVersion || "").trim();
+  if (version) {
+    return `v${version}`;
+  }
+  return hasLoadedBuildInfo.value ? "未提供" : "读取中";
+});
 
 const selectedTokenStatus = computed(() => {
   if (!selectedToken.value) {
@@ -468,6 +497,19 @@ const fetchNotifications = async () => {
   }
 };
 
+const fetchBuildInfo = async () => {
+  try {
+    const res = await api.system.getVersion();
+    if (res?.success && res?.data && typeof res.data === "object") {
+      backendBuildInfo.value = res.data;
+    }
+  } catch {
+    backendBuildInfo.value = null;
+  } finally {
+    hasLoadedBuildInfo.value = true;
+  }
+};
+
 const handleNotifyPopover = (show) => {
   if (show) {
     fetchNotifications();
@@ -590,6 +632,7 @@ watch(
 );
 
 onMounted(() => {
+  fetchBuildInfo();
   if (authStore.isAuthenticated) {
     maybeShowMfaSuggestion();
     fetchNotifications();
@@ -718,6 +761,33 @@ onUnmounted(() => {
   gap: 8px;
   color: var(--text-secondary);
   font-size: 13px;
+}
+
+.app-shell__version-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 4px;
+  border-top: 1px solid rgba(63, 119, 173, 0.12);
+}
+
+.app-shell__version-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.app-shell__version-label {
+  color: var(--text-tertiary);
+}
+
+.app-shell__version-row strong {
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .app-shell__status-dot {

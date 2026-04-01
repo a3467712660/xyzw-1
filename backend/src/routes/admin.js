@@ -10,6 +10,11 @@ import { makeSensitiveAction } from "../middleware/sensitiveAction.js";
 import { nowIso, randomId } from "../db/sql.js";
 import { transaction } from "../db/client.js";
 import { env } from "../config/env.js";
+import {
+  isAllowedActivationDurationMonths,
+  isOneDayActivationDuration,
+  normalizeActivationDurationMonths,
+} from "../lib/activationCodeDuration.js";
 import { countBinFilesForUser } from "../services/binStorageService.js";
 import { validatePasswordStrengthAsync } from "../lib/passwordPolicy.js";
 import { recordAdminAudit } from "../services/adminAuditService.js";
@@ -93,8 +98,8 @@ const createInviteCodesBodySchema = z.object({
 const createActivationCodesBodySchema = z.object({
   count: z.coerce.number().int().min(1).max(100).optional().default(1),
   featureScope: z.enum([ACCESS_SCOPE_FULL, ACCESS_SCOPE_TASK_CONTROL_ONLY]).optional().default(ACCESS_SCOPE_FULL),
-  durationMonths: z.coerce.number().int().refine((value) => [1, 3, 6, 12].includes(value), {
-    message: "durationMonths must be one of 1/3/6/12",
+  durationMonths: z.coerce.number().int().refine((value) => isAllowedActivationDurationMonths(value), {
+    message: "durationMonths must be one of 0/1/3/6/12",
   }),
   saleAmountCents: z.coerce.number().int().min(0).max(10_000_000).optional().default(0),
 }).strict();
@@ -1095,10 +1100,12 @@ router.post(
   (req, res) => {
     const count = Number(req.body?.count) || 1;
     const featureScope = normalizeAccessScope(req.body?.featureScope);
-    const durationMonths = Number(req.body?.durationMonths) || 1;
-    const saleAmountCents = Math.max(0, Number(req.body?.saleAmountCents) || 0);
-    if (![1, 3, 6, 12].includes(durationMonths)) {
-      return res.status(400).json({ success: false, message: "激活时长仅支持 1/3/6/12 个月" });
+    const durationMonths = normalizeActivationDurationMonths(req.body?.durationMonths);
+    const saleAmountCents = isOneDayActivationDuration(durationMonths)
+      ? 0
+      : Math.max(0, Number(req.body?.saleAmountCents) || 0);
+    if (!isAllowedActivationDurationMonths(durationMonths)) {
+      return res.status(400).json({ success: false, message: "激活时长仅支持 1天/1/3/6/12 个月" });
     }
 
     const created = [];
