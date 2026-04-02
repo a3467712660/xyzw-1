@@ -43,7 +43,6 @@ const adminChildren = [
     meta: withRouteMeta({
       title: "阵容助手",
       requiresAuth: true,
-      requiresGameAccess: true,
       layout: "default",
     }),
   },
