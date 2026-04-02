@@ -140,6 +140,82 @@ test("status falls back to same account binding when the rescanned token has a n
   assert.equal(payload?.data?.accountIdentity, `${oldSessId}|${roleId}|${region}|${roleName}`);
 });
 
+test("status falls back to same role binding when rescanned token reports a different roleIndex", async (t) => {
+  const originalDbPath = env.dbPath;
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "xyzw-status-roleindex-test-"));
+  env.dbPath = path.join(tempDir, "status-roleindex.sqlite.bin");
+
+  await initDatabase();
+
+  const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const user = {
+    id: `status_roleindex_user_${suffix}`,
+    username: `status_roleindex_user_${suffix}`,
+    password: "Status1234!Aa",
+  };
+  const activationCodeId = `status_roleindex_code_${suffix}`;
+  const oldTokenId = `token_old_${suffix}`;
+  const newTokenId = `token_new_${suffix}`;
+  const roleId = "123456";
+  const roleName = "测试角色";
+  const region = "测试大区";
+
+  insertUser(user);
+  activationCodeRepository.create({
+    id: activationCodeId,
+    code: `ACTSTAT${suffix.replace(/[^a-zA-Z0-9]/g, "").slice(-8).toUpperCase()}`,
+    createdBy: user.id,
+    durationMonths: 1,
+    createdAt: nowIso(),
+  });
+  tokenActivationRepository.create({
+    id: `binding_roleindex_${suffix}`,
+    tokenId: oldTokenId,
+    roleId,
+    roleName,
+    region,
+    roleIndex: "0",
+    accountIdentity: `|${roleId}|${region}|${roleName}`,
+    accountSeed: `seed_${suffix}`,
+    accountSignature: `sig_${suffix}`,
+    userId: user.id,
+    activationCodeId,
+    boundAt: nowIso(),
+    expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    createdAt: nowIso(),
+  });
+
+  const server = await createServer();
+  t.after(async () => {
+    await new Promise((resolve) => server.close(resolve));
+    getDb().close();
+    env.dbPath = originalDbPath;
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  const response = await fetch(`${makeBaseUrl(server)}/api/v1/token-activations/status`, {
+    method: "POST",
+    headers: authHeaders({ userId: user.id, username: user.username }),
+    body: JSON.stringify({
+      tokenId: newTokenId,
+      roleId,
+      gameAccountId: roleId,
+      sessId: `sess-new-${suffix}`,
+      roleName,
+      region,
+      server: region,
+      roleIndex: "1",
+    }),
+  });
+
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.equal(payload?.data?.active, true);
+  assert.equal(payload?.data?.bound, true);
+  assert.equal(payload?.data?.roleIndex, "0");
+  assert.equal(payload?.data?.accountIdentity, `|${roleId}|${region}|${roleName}`);
+});
+
 test("one-day activation code can be used by regular users and expires in about one day", async (t) => {
   const originalDbPath = env.dbPath;
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "xyzw-one-day-activation-test-"));

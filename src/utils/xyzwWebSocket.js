@@ -1111,8 +1111,6 @@ export class XyzwWebSocketClient {
       nightmare_readyresp: "nightmare_readyfight",
       studyresp: "study_startgame",
       role_getroleinforesp: "role_getroleinfo",
-      legion_researchresp: "legion_research",
-      legion_resetresearchresp: "legion_resetresearch",
       hero_recruitresp: "hero_recruit",
       hero_exchangeresp: "hero_exchange",
       hero_calcpowerbyteamresp: "hero_calcpowerbyteam",
@@ -1199,7 +1197,6 @@ export class XyzwWebSocketClient {
       pearl_replaceskillresp: "pearl_replaceskill",
       pearl_exchangeskillresp: "pearl_exchangeskill",
       pearl_unloadskillresp: "pearl_unloadskill",
-      hero_rebirthresp: "hero_rebirth",
       activity_warorderclaimresp: "activity_recyclewarorderrewardclaim",
       bosstower_gethelprankresp: "bosstower_gethelprank",
       // 功法相关响应映射
@@ -1217,6 +1214,8 @@ export class XyzwWebSocketClient {
       task_claimweekrewardresp: "task_claimweekreward",
 
       // 同步响应映射（优先级低）
+
+      legion_researchresp: ["legion_research", "legion_resetresearch"],
       syncresp: [
         "system_mysharecallback",
         "task_claimdailypoint",
@@ -1243,6 +1242,7 @@ export class XyzwWebSocketClient {
         "system_signinreward",
         "dungeon_selecthero",
         "artifact_exchange",
+        "hero_rebirth",
       ],
     };
 
