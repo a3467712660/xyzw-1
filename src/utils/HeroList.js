@@ -1,4 +1,4 @@
-// 英雄字典
+//英雄字典
 export const HERO_DICT = {
   101: { name: "司马懿", type: "魏国", avatar: "/team/simayi.png" },
   102: { name: "郭嘉", type: "魏国", avatar: "/team/guojia.png" },
@@ -67,16 +67,6 @@ export const HERO_DICT = {
 
 export const LINEUP_RULES = [
   {
-    name: "俱乐部",
-    required: [120, 212],
-    colorProps: { color: "#13c2c2", textColor: "#fff" }, // 青色
-  },
-  {
-    name: "鲁肃吴",
-    required: [106, 111, 121],
-    colorProps: { color: "#f5222d", textColor: "#fff" }, // 红
-  },
-  {
     name: "吴国",
     required: [106, 111],
     colorProps: { color: "#f5222d", textColor: "#fff" }, // 红
@@ -87,20 +77,9 @@ export const LINEUP_RULES = [
     colorProps: { color: "#237804", textColor: "#fff" }, // 最深绿
   },
   {
-    name: "公孙毒",
-    required: [108, 120, 116],
-    colorProps: { color: "#722ed1", textColor: "#fff" }, // 紫
-  },
-  {
     name: "毒爆",
-    required: [108, 120],
+    required: [108, 112, 120],
     colorProps: { color: "#722ed1", textColor: "#fff" }, // 紫
-  },
-  {
-    name: "吕布华佗",
-    required: [107, 108],
-    forbidden: [118, 120],
-    colorProps: { color: "#f06f44ff", textColor: "#fff" }, // 深橙/红橙
   },
   {
     name: "吕赵",
@@ -146,7 +125,7 @@ export const LINEUP_RULES = [
 ];
 
 export const getLineupType = (heroList) => {
-  const ids = new Set(heroList.map((h) => Number.parseInt(h.heroId)));
+  const ids = new Set(heroList.map((h) => parseInt(h.heroId)));
   const has = (id) => ids.has(id);
 
   for (const rule of LINEUP_RULES) {
@@ -176,7 +155,7 @@ export const getLineupType = (heroList) => {
   return "其他";
 };
 
-// 鱼珠字典
+//鱼珠字典
 const PearlMap = {
   1033007: { name: "碎盾" },
   1033008: { name: "冥想" },
@@ -212,7 +191,6 @@ const FishMap = {
   1218: { name: "龙鱼·龙胆" },
   1219: { name: "龙鱼·国色" },
   1220: { name: "龙鱼·天公" },
-  1221: { name: "龙鱼·远见" },
 
   1301: { name: "月尾" },
   1302: { name: "焰神" },
@@ -263,9 +241,14 @@ const FishMap = {
   1116: { name: "公剑胆" },
   1117: { name: "母剑胆" },
   1118: { name: "璇玑" },
+  1119: { name: "公琴心" },
+  1120: { name: "母琴心" },
+  1121: { name: "回响" },
 };
 
-// 洗练颜色
+export { FishMap, PearlMap, color };
+
+//洗练颜色
 const color = {
   1: { color: "白色", value: "white" },
   2: { color: "绿色", value: "green" },
@@ -287,7 +270,7 @@ const weapon = {
   9: "止痒花露水",
 };
 
-export { FishMap, PearlMap, color, weapon };
+export { weapon };
 
 export const legacycolor = {
   1: { name: "虾米", value: "green" },
@@ -309,12 +292,12 @@ export const formatWeapon = (id) => {
  * @returns
  */
 export const HeroFillInfo = (obj) => {
-  const temp = {};
+  let temp = {};
   // 检查 obj 和 obj.heroes 是否存在
   if (obj && obj.heroes && typeof obj.heroes === "object") {
     Object.values(obj.heroes).forEach((hero) => {
       temp[hero.artifactId] = {
-        FishInfo: FishMap[(`${hero.artifactId}`).substring(0, 4)],
+        FishInfo: FishMap[(hero.artifactId + "").substring(0, 4)],
         artifactId: hero.artifactId,
       };
       // 获取鱼珠技能信息，先检查 appendSkill 是否存在
@@ -344,7 +327,6 @@ export const HeroFillInfo = (obj) => {
   }
   return temp;
 };
-
 
 export const LEGION_TECH_MAX_LEVEL = {
   101: 60,

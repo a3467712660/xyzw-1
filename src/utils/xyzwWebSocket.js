@@ -4,9 +4,8 @@
  */
 
 import { $CacheManager } from "@/stores/cache";
-import { sleep } from "@/utils/base";
-import { g_utils } from "./bonProtocol.js";
-import { gameLogger, wsLogger } from "./logger.js";
+import { bonProtocol, g_utils } from "./bonProtocol.js";
+import { wsLogger, gameLogger } from "./logger.js";
 
 /**
  * 错误码映射表
@@ -57,8 +56,7 @@ const CmdDebounceMap = {
 
 /** 为日志生成安全的 body 预览，避免控制台再次解析原始对象 */
 const formatBodyForLog = (body) => {
-  if (!body)
-    return "";
+  if (!body) return "";
 
   if (body instanceof Uint8Array) {
     return `[BON:${body.length}b]`;
@@ -70,7 +68,7 @@ const formatBodyForLog = (body) => {
 
   if (typeof body === "object") {
     const isNumericObject = Object.keys(body).every(
-      (key) => !Number.isNaN(Number.parseInt(key)),
+      (key) => !Number.isNaN(parseInt(key)),
     );
     if (isNumericObject) {
       return `[BON:Object:${Object.keys(body).length}]`;
@@ -135,8 +133,7 @@ export class CommandRegistry {
   /** 构造报文 */
   build(cmd, ack, seq, params) {
     const fn = this.commands.get(cmd);
-    if (!fn)
-      throw new Error(`Unknown cmd: ${cmd}`);
+    if (!fn) throw new Error(`Unknown cmd: ${cmd}`);
     return fn(ack, seq, params);
   }
 }
@@ -147,7 +144,7 @@ export function registerDefaultCommands(reg) {
     .registerHeartbeat()
     // 角色/系统
     .register("role_getroleinfo", {
-      clientVersion: "2.10.3-f10a39eaa0c409f4-wx",
+      clientVersion: "2.21.2-fa918e1997301834-wx",
       inviteUid: 0,
       platform: "hortor",
       platformExt: "mix",
@@ -167,17 +164,6 @@ export function registerDefaultCommands(reg) {
 
     // 好友/招募
     .register("friend_batch", { friendId: 0 })
-    // 关注列表探测（部分区服仅支持其中个别命令）
-    .register("friend_getlist")
-    .register("friend_getfriendlist")
-    .register("friend_getfollowlist")
-    .register("friend_getattentionlist")
-    .register("friend_getfocuslist")
-    .register("friend_getfanslist")
-    .register("friend_getsubscribelist")
-    .register("friend_getfollowerlist")
-    .register("friend_getrecommend")
-    .register("friend_getrolelist")
     .register("hero_recruit", {
       byClub: false,
       recruitNumber: 1,
@@ -193,7 +179,6 @@ export function registerDefaultCommands(reg) {
     .register("fight_startlevel") // 获取 battleVersion
     .register("arena_getareatarget", { refresh: false })
     .register("arena_getarearank")
-    .register("arena_getbattlerecord")
 
     // 商店
     .register("store_goodslist", { storeId: 1 })
@@ -226,6 +211,9 @@ export function registerDefaultCommands(reg) {
     .register("legion_claimpayloadtaskprogress")
     .register("saltroad_getwartype")
     .register("saltroad_getsaltroadwargrouprank")
+    .register("league_getbattlefield")
+    .register("league_getgroupopponent")
+    .register("legion_signup") // 盐场报名
 
     // 邮件
     .register("mail_getlist", { category: [0, 4, 5], lastId: 0, size: 60 })
@@ -290,9 +278,9 @@ export function registerDefaultCommands(reg) {
     .register("presetteam_getinfo")
     .register("presetteam_getinfo")
     .register("presetteam_setteam")
-    .register("team_setteam")
     .register("presetteam_saveteam", { teamId: 1 })
     .register("role_gettargetteam")
+    .register("hero_exchange")
     .register("hero_gointobattle")
     .register("hero_gobackbattle")
     .register("artifact_load")
@@ -301,50 +289,11 @@ export function registerDefaultCommands(reg) {
     .register("pearl_replaceskill")
     .register("pearl_exchangeskill")
     .register("pearl_unloadskill")
-    // 十殿试炼组队
-    .register("matchteam_create", {
-      custom: {},
-      param: 0,
-      setting: {
-        apply: 0,
-        applyList: [],
-        name: "",
-        notice: "",
-        secret: 1,
-      },
-      teamCfgId: 1,
-    })
-    .register("matchteam_getrandteamlist", { teamCfgId: 1 })
-    .register("matchteam_getteaminfo", { teamId: "" })
-    .register("matchteam_join", { teamId: "" })
-    .register("matchteam_setting", {
-      teamId: "",
-      setting: {
-        apply: 1,
-        applyList: [],
-        name: "",
-        notice: "",
-        secret: 1,
-      },
-    })
-    .register("matchteam_agree", { roleId: 0, teamId: "" })
-    .register("matchteam_dismiss", { teamId: "" })
-    .register("matchteam_openteam", { extParam: 0, teamId: "" })
-    .register("matchteam_leaderstop", { teamId: "" })
-    .register("matchteam_memberprepare", { teamId: "" })
-    .register("nightmare_setfighter", { roleId: 0, roomId: "" })
-    .register("nightmare_readyfight", { roleId: 0, roomId: "" })
-    .register("nightmare_fight", { roleId: 0, roomId: "" })
 
     // 武将升级相关
-    .register("hero_heroupgradelevel") // 武将升级
-    .register("hero_heroupgradeorder") // 武将进阶
-    .register("hero_rebirth") // 武将重生
-    .register("hero_calcpowerbyteam", {
-      battleTeam: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0 },
-      lordWeaponId: 8,
-    })
-    .register("hero_exchange", { heroId: 0, targetHeroId: 0 }) // 无损换将
+    .register("hero_heroupgradelevel") //武将升级
+    .register("hero_heroupgradeorder") //武将进阶
+    .register("hero_rebirth") //武将重新birth
 
     // 升星相关
     .register("hero_heroupgradestar")
@@ -369,6 +318,7 @@ export function registerDefaultCommands(reg) {
     .register("warguess_getrank")
     .register("warguess_startguess")
     .register("warguess_getguesscoinreward")
+    .register("legion_payloadsignup") // 蟠桃报名
 
     // 珍宝阁相关
     .register("collection_claimfreereward")
@@ -430,7 +380,7 @@ export function registerDefaultCommands(reg) {
     .register("towers_start")
     .register("towers_fight")
 
-    // 发送游戏内消息
+    //发送游戏内消息
     .register("system_sendchatmessage");
   registry.commands.set(
     "fight_startareaarena",
@@ -523,8 +473,7 @@ export class XyzwWebSocketClient {
       this._setupHeartbeat();
       // 启动消息队列处理
       this._processQueueLoop();
-      if (this.onConnect)
-        this.onConnect();
+      if (this.onConnect) this.onConnect();
     };
 
     this.socket.onmessage = (evt) => {
@@ -584,8 +533,8 @@ export class XyzwWebSocketClient {
 
               // 更新 ack 为服务端最新的 seq（若存在）
               const actualPacket = packet._raw || packet;
-              const incomingSeq
-                = typeof actualPacket?.seq === "number"
+              const incomingSeq =
+                typeof actualPacket?.seq === "number"
                   ? actualPacket.seq
                   : typeof packet?.seq === "number"
                     ? packet.seq
@@ -627,8 +576,8 @@ export class XyzwWebSocketClient {
           const actualPacket = packet._raw || packet;
 
           // 更新 ack 为服务端最新的 seq（若存在）
-          const incomingSeq
-            = typeof actualPacket.seq === "number"
+          const incomingSeq =
+            typeof actualPacket.seq === "number"
               ? actualPacket.seq
               : typeof packet.seq === "number"
                 ? packet.seq
@@ -691,8 +640,7 @@ export class XyzwWebSocketClient {
       });
       this.connected = false;
       this._clearTimers();
-      if (this.onDisconnect)
-        this.onDisconnect(evt);
+      if (this.onDisconnect) this.onDisconnect(evt);
       if (this.sendCache) {
         $CacheManager.delCache(this.url);
       }
@@ -702,8 +650,7 @@ export class XyzwWebSocketClient {
       wsLogger.error("WebSocket 错误:", error);
       this.connected = false;
       this._clearTimers();
-      if (this.onError)
-        this.onError(error);
+      if (this.onError) this.onError(error);
     };
   }
 
@@ -719,8 +666,7 @@ export class XyzwWebSocketClient {
 
   /** 判断是否需要解码body */
   shouldDecodeBody(body) {
-    if (!body)
-      return false;
+    if (!body) return false;
 
     // Uint8Array或Array格式
     if (body instanceof Uint8Array || Array.isArray(body)) {
@@ -731,7 +677,7 @@ export class XyzwWebSocketClient {
     if (typeof body === "object" && body.constructor === Object) {
       // 检查是否是数字键的对象（例如 {"0": 8, "1": 2, ...}）
       const keys = Object.keys(body);
-      return keys.length > 0 && keys.every((key) => !isNaN(Number.parseInt(key)));
+      return keys.length > 0 && keys.every((key) => !isNaN(parseInt(key)));
     }
 
     return false;
@@ -739,8 +685,7 @@ export class XyzwWebSocketClient {
 
   /** 转换body为Uint8Array */
   convertToUint8Array(body) {
-    if (!body)
-      return null;
+    if (!body) return null;
 
     if (body instanceof Uint8Array) {
       return body;
@@ -753,13 +698,13 @@ export class XyzwWebSocketClient {
     // 对象格式的数字数组转换为Uint8Array
     if (typeof body === "object" && body.constructor === Object) {
       const keys = Object.keys(body)
-        .map((k) => Number.parseInt(k))
+        .map((k) => parseInt(k))
         .sort((a, b) => a - b);
       if (keys.length > 0) {
         const maxIndex = Math.max(...keys);
         const arr = new Array(maxIndex + 1).fill(0);
         for (const [key, value] of Object.entries(body)) {
-          const index = Number.parseInt(key);
+          const index = parseInt(key);
           if (!isNaN(index) && typeof value === "number") {
             arr[index] = value;
           }
@@ -774,11 +719,9 @@ export class XyzwWebSocketClient {
 
   /** 尝试为日志解码BON体，成功返回对象 */
   decodeBodyForLog(body) {
-    if (!body)
-      return null;
+    if (!body) return null;
     const decoder = this.utils?.bon?.decode;
-    if (typeof decoder !== "function")
-      return null;
+    if (typeof decoder !== "function") return null;
 
     let bytes = null;
     if (body instanceof Uint8Array) {
@@ -789,8 +732,7 @@ export class XyzwWebSocketClient {
       bytes = this.convertToUint8Array(body);
     }
 
-    if (!bytes)
-      return null;
+    if (!bytes) return null;
 
     try {
       return decoder(bytes);
@@ -878,8 +820,8 @@ export class XyzwWebSocketClient {
     // 移除特定命令的控制台直出日志，统一用 wsLogger 控制
 
     // 统一在入队时分配 seq，避免与 Promise 版本竞争导致重复
-    const assignedSeq
-      = options.seq !== undefined
+    const assignedSeq =
+      options.seq !== undefined
         ? options.seq
         : cmd === "heart_beat"
           ? 0
@@ -978,18 +920,14 @@ export class XyzwWebSocketClient {
 
   /** 队列处理循环 */
   _processQueueLoop() {
-    if (this.sendQueueTimer)
-      clearInterval(this.sendQueueTimer);
+    if (this.sendQueueTimer) clearInterval(this.sendQueueTimer);
 
     this.sendQueueTimer = setInterval(async () => {
-      if (!this.sendQueue.length)
-        return;
-      if (!this.connected || this.socket?.readyState !== WebSocket.OPEN)
-        return;
+      if (!this.sendQueue.length) return;
+      if (!this.connected || this.socket?.readyState !== WebSocket.OPEN) return;
 
       const task = this.sendQueue.shift();
-      if (!task)
-        return;
+      if (!task) return;
 
       try {
         // 直接使用任务指定的 seq（已在入队时分配）
@@ -1053,8 +991,7 @@ export class XyzwWebSocketClient {
         }
 
         // 可选延时
-        if (task.sleep)
-          await sleep(task.sleep);
+        if (task.sleep) await sleep(task.sleep);
       } catch (error) {
         wsLogger.error(`发送消息失败: ${task.cmd}`, error);
       }
@@ -1069,8 +1006,8 @@ export class XyzwWebSocketClient {
       delete this.promises[packet.resp];
 
       // 获取响应数据，优先使用 rawData（ProtoMsg 自动解码），然后 decodedBody（手动解码），最后 body
-      const responseBody
-        = packet.rawData !== undefined
+      const responseBody =
+        packet.rawData !== undefined
           ? packet.rawData
           : packet.decodedBody !== undefined
             ? packet.decodedBody
@@ -1080,8 +1017,8 @@ export class XyzwWebSocketClient {
         promiseData.resolve(responseBody || packet);
       } else {
         // 获取错误描述
-        const errorDesc
-          = errorCodeMap[packet.code] || packet.hint || "未知错误";
+        const errorDesc =
+          errorCodeMap[packet.code] || packet.hint || "未知错误";
 
         promiseData.reject(
           new Error(`服务器错误: ${packet.code} - ${errorDesc}`),
@@ -1092,8 +1029,7 @@ export class XyzwWebSocketClient {
 
     // 兼容旧的基于cmd名称的匹配方式（保留为向后兼容）
     const cmd = packet.cmd;
-    if (!cmd)
-      return;
+    if (!cmd) return;
     const respCmdKey = typeof cmd === "string" ? cmd.toLowerCase() : cmd;
 
     // 命令到响应的映射 - 处理响应命令与原始命令不匹配的情况
@@ -1106,25 +1042,10 @@ export class XyzwWebSocketClient {
       legion_getarearankresp: "legion_getarearank",
       legionwar_getgoldmonthwarrankresp: "legionwar_getgoldmonthwarrank",
       nightmare_getroleinforesp: "nightmare_getroleinfo",
-      matchteam_memberprepareresp: "matchteam_memberprepare",
-      nightmare_readyfightresp: "nightmare_readyfight",
-      nightmare_readyresp: "nightmare_readyfight",
       studyresp: "study_startgame",
       role_getroleinforesp: "role_getroleinfo",
       hero_recruitresp: "hero_recruit",
-      hero_exchangeresp: "hero_exchange",
-      hero_calcpowerbyteamresp: "hero_calcpowerbyteam",
       friend_batchresp: "friend_batch",
-      friend_getlistresp: "friend_getlist",
-      friend_getfriendlistresp: "friend_getfriendlist",
-      friend_getfollowlistresp: "friend_getfollowlist",
-      friend_getattentionlistresp: "friend_getattentionlist",
-      friend_getfocuslistresp: "friend_getfocuslist",
-      friend_getfanslistresp: "friend_getfanslist",
-      friend_getsubscribelistresp: "friend_getsubscribelist",
-      friend_getfollowerlistresp: "friend_getfollowerlist",
-      friend_getrecommendresp: "friend_getrecommend",
-      friend_getrolelistresp: "friend_getrolelist",
       system_claimhanguprewardresp: "system_claimhangupreward",
       item_openboxresp: ["item_openbox", "item_batchclaimboxpointreward"],
       bottlehelper_claimresp: "bottlehelper_claim",
@@ -1137,7 +1058,6 @@ export class XyzwWebSocketClient {
       arena_startarearesp: "arena_startarea",
       arena_getareatargetresp: "arena_getareatarget",
       arena_getarearankresp: "arena_getarearank",
-      arena_getbattlerecordresp: "arena_getbattlerecord",
       presetteam_saveteamresp: "presetteam_saveteam",
       presetteam_getinforesp: "presetteam_getinfo",
       mail_claimallattachmentresp: "mail_claimallattachment",
@@ -1166,6 +1086,13 @@ export class XyzwWebSocketClient {
       warguess_getrankresp: "warguess_getrank",
       warguess_startguessresp: "warguess_startguess",
       warguess_getguesscoinrewardresp: "warguess_getguesscoinreward",
+      league_getbattlefieldresp: "league_getbattlefield",
+      league_getgroupopponentresp: "league_getgroupopponent",
+      legion_signupresp: "legion_signup",
+      legion_payloadsignupresp: "legion_payloadsignup",
+      pearl_replaceskillresp: "pearl_replaceskill",
+      pearl_exchangeskillresp: "pearl_exchangeskill",
+      pearl_unloadskillresp: "pearl_unloadskill",
       // 咸王宝库
       matchteam_getroleteaminforesp: "matchteam_getroleteaminfo",
       bosstower_getinforesp: "bosstower_getinfo",
@@ -1174,6 +1101,8 @@ export class XyzwWebSocketClient {
       discount_getdiscountinforesp: "discount_getdiscountinfo",
       // 升星相关响应映射
       hero_heroupgradestarresp: "hero_heroupgradestar",
+      hero_heroupgradelevelresp: "hero_heroupgradelevel",
+      hero_heroupgradeorderresp: "hero_heroupgradeorder",
       book_upgraderesp: "book_upgrade",
       book_claimpointrewardresp: "book_claimpointreward",
       // 军团信息
@@ -1189,15 +1118,8 @@ export class XyzwWebSocketClient {
       car_researchresp: "car_research",
       car_claimpartconsumerewardresp: "car_claimpartconsumereward",
       role_gettargetteamresp: "role_gettargetteam",
-      hero_gointobattleresp: "hero_gointobattle",
-      hero_gobackbattleresp: "hero_gobackbattle",
-      artifact_loadresp: "artifact_load",
-      artifact_unloadresp: "artifact_unload",
-      lordweapon_changedefaultweaponresp: "lordweapon_changedefaultweapon",
-      pearl_replaceskillresp: "pearl_replaceskill",
-      pearl_exchangeskillresp: "pearl_exchangeskill",
-      pearl_unloadskillresp: "pearl_unloadskill",
       activity_warorderclaimresp: "activity_recyclewarorderrewardclaim",
+      arena_getarearankresp: "arena_getarearank",
       bosstower_gethelprankresp: "bosstower_gethelprank",
       // 功法相关响应映射
       legacy_getinforesp: "legacy_getinfo",
@@ -1208,7 +1130,6 @@ export class XyzwWebSocketClient {
       towers_getinforesp: "towers_getinfo",
       towers_startresp: "towers_start",
       towers_fightresp: "towers_fight",
-      syncteamresp: "team_setteam",
       // 特殊响应映射 - 有些命令有独立响应，有些用同步响应
       task_claimdailyrewardresp: "task_claimdailyreward",
       task_claimweekrewardresp: "task_claimweekreward",
@@ -1220,17 +1141,9 @@ export class XyzwWebSocketClient {
         "system_mysharecallback",
         "task_claimdailypoint",
         "role_commitpassword",
-        "nightmare_readyfight",
-        "hero_exchange",
         "hero_gointobattle",
         "hero_gobackbattle",
-        "artifact_load",
-        "artifact_unload",
         "lordweapon_changedefaultweapon",
-        "pearl_replaceskill",
-        "pearl_exchangeskill",
-        "pearl_unloadskill",
-        "hero_rebirth",
       ],
       syncrewardresp: [
         "system_buygold",
@@ -1242,6 +1155,7 @@ export class XyzwWebSocketClient {
         "system_signinreward",
         "dungeon_selecthero",
         "artifact_exchange",
+        "hero_exchange",
         "hero_rebirth",
       ],
     };
@@ -1262,19 +1176,24 @@ export class XyzwWebSocketClient {
         delete this.promises[requestId];
 
         // 获取响应数据，优先使用 rawData（ProtoMsg 自动解码），然后 decodedBody（手动解码），最后 body
-        const responseBody
-          = packet.rawData !== undefined
+        const responseBody =
+          packet.rawData !== undefined
             ? packet.rawData
             : packet.decodedBody !== undefined
               ? packet.decodedBody
               : packet.body;
 
+        // 附加原始命令名到响应对象
+        if (responseBody && typeof responseBody === "object") {
+          responseBody._originalCmd = promiseData.originalCmd;
+        }
+
         if (packet.code === 0 || packet.code === undefined) {
           promiseData.resolve(responseBody || packet);
         } else {
           // 获取错误描述
-          const errorDesc
-            = errorCodeMap[packet.code] || packet.hint || "未知错误";
+          const errorDesc =
+            errorCodeMap[packet.code] || packet.hint || "未知错误";
 
           promiseData.reject(
             new Error(`服务器错误: ${packet.code} - ${errorDesc}`),
