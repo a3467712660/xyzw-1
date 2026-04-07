@@ -41,9 +41,10 @@ export const useAuthStore = defineStore("auth", () => {
 
   const ensureCsrfToken = async () => {
     try {
-      await api.auth.ensureCsrf();
+      return await api.auth.ensureCsrf();
     } catch {
       // ignore, request interceptor will attach token if cookie exists
+      return null;
     }
   };
 
@@ -221,7 +222,10 @@ export const useAuthStore = defineStore("auth", () => {
 
   const refreshAccessToken = async () => {
     try {
-      await ensureCsrfToken();
+      const csrfState = await ensureCsrfToken();
+      if (csrfState?.success && csrfState?.data?.hasRefreshTokenCookie === false) {
+        return false;
+      }
       const refreshed = await api.auth.refreshToken();
       if (!refreshed?.success) {
         return false;

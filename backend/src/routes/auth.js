@@ -1403,6 +1403,7 @@ router.get("/csrf", (req, res) => {
     data: {
       headerName: env.csrfHeaderName,
       token: req.csrfToken || null,
+      hasRefreshTokenCookie: Boolean(readRefreshTokenFromRequest(req)),
     },
   });
 });

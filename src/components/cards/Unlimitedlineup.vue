@@ -192,6 +192,21 @@
               <div class="apply-progress-stage">
                 {{ applyProgressStage || "正在准备" }}
               </div>
+              <div class="apply-progress-bar-wrap">
+                <div class="apply-progress-bar-top">
+                  <span>执行进度</span>
+                  <span>{{ applyProgressPercent }}%</span>
+                </div>
+                <n-progress
+                  type="line"
+                  :percentage="applyProgressPercent"
+                  :show-indicator="false"
+                  :processing="state.isRunning && !applyProgressOverdue"
+                  :status="applyProgressOverdue ? 'warning' : 'info'"
+                  :height="10"
+                  :border-radius="999"
+                />
+              </div>
               <div class="apply-progress-time-grid">
                 <div class="apply-progress-time-item">
                   <span class="label">预计总时长</span>
@@ -614,6 +629,10 @@
 import { ref, computed, onMounted, onUnmounted, watch, h } from "vue";
 import { useMessage, useDialog, NInput } from "naive-ui";
 import { useTokenStore } from "@/stores/tokenStore";
+import {
+  acquireTokenOperationLock,
+  releaseTokenOperationLock,
+} from "@/services/token/tokenOperationCoordination";
 import MyCard from "../Common/MyCard.vue";
 import {
   HERO_DICT,
@@ -733,6 +752,16 @@ const applyProgressOverdue = computed(
     ),
 );
 
+const applyProgressPercent = computed(() => {
+  if (!applyProgressEstimateMs.value) return 0;
+  const percent = Math.round(
+    (applyProgressElapsedMs.value / applyProgressEstimateMs.value) * 100,
+  );
+  return applyProgressOverdue.value
+    ? 99
+    : Math.min(95, Math.max(3, percent));
+});
+
 const applyProgressEstimatedText = computed(() =>
   formatDurationMs(applyProgressEstimateMs.value),
 );
@@ -809,15 +838,72 @@ const finishApplyProgress = () => {
   applyProgressNow.value = Date.now();
 };
 
+const isTooFastCommandError = (error) => {
+  const text = String(error?.message || error || "");
+  return text.includes("200400") || text.includes("操作太快") || text.includes("请稍后再试");
+};
+
+const isServerBusyCommandError = (error) => {
+  const text = String(error?.message || error || "");
+  return text.includes("200020") || text.includes("出了点小问题") || text.includes("重启游戏解决");
+};
+
+const sendRetriedGameCommand = async (
+  tokenId,
+  cmd,
+  params = {},
+  {
+    maxRetries = 4,
+    allowFailure = false,
+  } = {},
+) => {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await tokenStore.sendMessageWithPromise(tokenId, cmd, params);
+    } catch (error) {
+      const tooFast = isTooFastCommandError(error);
+      const serverBusy = isServerBusyCommandError(error);
+      if (!tooFast && !serverBusy) {
+        if (allowFailure) {
+          return null;
+        }
+        throw error;
+      }
+
+      console.warn(
+        `[LineupApplyDiag] command-retry cmd=${cmd} attempt=${attempt} error=${error?.message || String(error)} stage=${applyProgressStage.value || ""}`,
+      );
+
+      if (attempt >= maxRetries) {
+        if (allowFailure) {
+          return null;
+        }
+        throw error;
+      }
+
+      const retryDelayMs = tooFast ? 3000 * attempt : 10000;
+      setApplyProgressStage(
+        tooFast
+          ? `${cmd} 操作过快，等待 ${Math.ceil(retryDelayMs / 1000)} 秒后重试（${attempt}/${maxRetries}）`
+          : `${cmd} 被服务器拒绝，等待 ${Math.ceil(retryDelayMs / 1000)} 秒后重试（${attempt}/${maxRetries}）`,
+      );
+      await delay(retryDelayMs);
+    }
+  }
+
+  return null;
+};
+
 const syncLegionResearch = async (tokenId, targetResearch) => {
   if (!targetResearch || Object.keys(targetResearch).length === 0) {
     return { success: true, message: "无科技数据需要同步" };
   }
 
-  const roleInfo = await tokenStore.sendMessageWithPromise(
+  const roleInfo = await sendRetriedGameCommand(
     tokenId,
     "role_getroleinfo",
     {},
+    { maxRetries: 3 },
   );
   await delay(COMMAND_DELAY);
   const role = roleInfo?.role || roleInfo;
@@ -825,31 +911,27 @@ const syncLegionResearch = async (tokenId, targetResearch) => {
 
   const typesToReset = new Set();
   const typesToResetResearch = new Set();
+  const hasResearchDiff = (techIds) =>
+    techIds.some((techId) => {
+      const currentLevel = currentResearch[techId] || 0;
+      const targetLevel = targetResearch[techId] || 0;
+      return currentLevel !== targetLevel && (currentLevel > 0 || targetLevel > 0);
+    });
+  const needsResearchReset = (techIds) =>
+    techIds.some((techId) => {
+      const currentLevel = currentResearch[techId] || 0;
+      const targetLevel = targetResearch[techId] || 0;
+      return currentLevel > targetLevel;
+    });
 
   for (const type of [1, 2, 3, 4, 5, 6]) {
     const techIds = LEGION_TECH_RESET_TYPE_MAP[type];
-    for (const techId of techIds) {
-      const currentLevel = currentResearch[techId] || 0;
-      const targetLevel = targetResearch[techId] || 0;
-      if (
-        currentLevel !== targetLevel &&
-        (currentLevel > 0 || targetLevel > 0)
-      ) {
-        typesToResetResearch.add(type);
-        break;
-      }
+    if (needsResearchReset(techIds)) {
+      typesToResetResearch.add(type);
     }
     const techIds2 = LEGION_TECH_TYPE_MAP[type];
-    for (const techId of techIds2) {
-      const currentLevel = currentResearch[techId] || 0;
-      const targetLevel = targetResearch[techId] || 0;
-      if (
-        currentLevel !== targetLevel &&
-        (currentLevel > 0 || targetLevel > 0)
-      ) {
-        typesToReset.add(type);
-        break;
-      }
+    if (hasResearchDiff(techIds2)) {
+      typesToReset.add(type);
     }
   }
 
@@ -857,20 +939,23 @@ const syncLegionResearch = async (tokenId, targetResearch) => {
     return { success: true, message: "科技配置已匹配，无需调整" };
   }
 
-  const errors = [];
-
-  for (const type of typesToResetResearch) {
+  for (const type of [...typesToResetResearch].sort((a, b) => a - b)) {
     try {
-      await tokenStore.sendMessageWithPromise(tokenId, "legion_resetresearch", {
+      setApplyProgressStage(`正在重置${LEGION_TECH_TYPE_NAME[type] || `类型${type}`}科技`);
+      await sendRetriedGameCommand(tokenId, "legion_resetresearch", {
         advanced: false,
         type: type,
       });
-    } catch (err) {}
+    } catch (err) {
+      return {
+        success: false,
+        message: `${LEGION_TECH_TYPE_NAME[type] || `类型${type}`}科技重置失败：${err?.message || "服务器拒绝"}`,
+      };
+    }
     await delay(COMMAND_DELAY);
   }
 
   const sortedTypes = [...typesToReset].sort((a, b) => a - b);
-  console.log(sortedTypes);
 
   for (const type of sortedTypes) {
     const techIds2 = LEGION_TECH_TYPE_MAP[type];
@@ -881,7 +966,8 @@ const syncLegionResearch = async (tokenId, targetResearch) => {
         const isMax = targetLevel >= maxLevel;
         if (isMax) {
           try {
-            await tokenStore.sendMessageWithPromise(
+            setApplyProgressStage(`正在同步科技配置：${LEGION_TECH_NAME[techId] || techId}`);
+            await sendRetriedGameCommand(
               tokenId,
               "legion_research",
               {
@@ -889,12 +975,20 @@ const syncLegionResearch = async (tokenId, targetResearch) => {
                 researchId: techId,
               },
             );
-          } catch (err) {}
+          } catch (err) {
+            return {
+              success: false,
+              message: `${LEGION_TECH_NAME[techId] || techId}同步失败：${err?.message || "服务器拒绝"}`,
+            };
+          }
           await delay(COMMAND_DELAY);
         } else {
           for (let i = 0; i < targetLevel; i++) {
             try {
-              await tokenStore.sendMessageWithPromise(
+              setApplyProgressStage(
+                `正在同步科技配置：${LEGION_TECH_NAME[techId] || techId} (${i + 1}/${targetLevel})`,
+              );
+              await sendRetriedGameCommand(
                 tokenId,
                 "legion_research",
                 {
@@ -902,7 +996,12 @@ const syncLegionResearch = async (tokenId, targetResearch) => {
                   researchId: techId,
                 },
               );
-            } catch (err) {}
+            } catch (err) {
+              return {
+                success: false,
+                message: `${LEGION_TECH_NAME[techId] || techId}同步失败：${err?.message || "服务器拒绝"}`,
+              };
+            }
             await delay(COMMAND_DELAY);
           }
         }
@@ -1752,7 +1851,7 @@ const applyHeroLevel = async (
   if (actualCurrentLevel > targetLevel) {
     if (slot >= 0) {
       try {
-        await tokenStore.sendMessageWithPromise(tokenId, "hero_gobackbattle", {
+        await sendRetriedGameCommand(tokenId, "hero_gobackbattle", {
           slot,
         });
       } catch (err) {}
@@ -1760,7 +1859,7 @@ const applyHeroLevel = async (
     }
 
     try {
-      const result = await tokenStore.sendMessageWithPromise(
+      const result = await sendRetriedGameCommand(
         tokenId,
         "hero_rebirth",
         {
@@ -1782,7 +1881,7 @@ const applyHeroLevel = async (
 
     if (slot >= 0) {
       try {
-        await tokenStore.sendMessageWithPromise(tokenId, "hero_gointobattle", {
+        await sendRetriedGameCommand(tokenId, "hero_gointobattle", {
           heroId,
           slot,
         });
@@ -1794,7 +1893,7 @@ const applyHeroLevel = async (
   const expectedOrder = getOrder(actualCurrentLevel);
   if (actualCurrentOrder < expectedOrder) {
     try {
-      const result = await tokenStore.sendMessageWithPromise(
+      const result = await sendRetriedGameCommand(
         tokenId,
         "hero_heroupgradeorder",
         {
@@ -1831,7 +1930,7 @@ const applyHeroLevel = async (
     }
 
     try {
-      await tokenStore.sendMessageWithPromise(
+      await sendRetriedGameCommand(
         tokenId,
         "hero_heroupgradelevel",
         {
@@ -1845,7 +1944,7 @@ const applyHeroLevel = async (
 
     if (nextOrderLevel && actualCurrentLevel >= nextOrderLevel) {
       try {
-        const result = await tokenStore.sendMessageWithPromise(
+        const result = await sendRetriedGameCommand(
           tokenId,
           "hero_heroupgradeorder",
           {
@@ -1886,10 +1985,23 @@ const applyLineup = async (lineup) => {
     return;
   }
 
+  const lockResult = acquireTokenOperationLock(tokenId, "lineup-apply", {
+    lineupId: lineup.id || null,
+    lineupName: lineup.name || "",
+    teamId: Number(lineup.teamId || 0) || 0,
+  });
+  if (!lockResult.ok) {
+    message.warning("当前账号正在执行其他操作，请稍后再试");
+    return;
+  }
+  const applyOperationLockId = lockResult.lock.lockId;
+
   lineup.applying = true;
   state.value.isRunning = true;
   startApplyProgress(lineup);
   const errors = [];
+  let lastFetchLatestDataAt = 0;
+  const FETCH_LATEST_DATA_MIN_INTERVAL = 1800;
 
   const getTeamHeroes = (teamInfo) => {
     if (!teamInfo) return [];
@@ -1904,18 +2016,92 @@ const applyLineup = async (lineup) => {
       .sort((a, b) => a.position - b.position);
   };
 
+  const isTooFastError = (error) => {
+    const text = String(error?.message || error || "");
+    return text.includes("200400") || text.includes("操作太快") || text.includes("请稍后再试");
+  };
+
+  const isServerBusyError = (error) => {
+    const text = String(error?.message || error || "");
+    return text.includes("200020") || text.includes("出了点小问题") || text.includes("重启游戏解决");
+  };
+
+  const sendApplyReadCommand = async (cmd, params = {}, maxRetries = 3) => {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        return await tokenStore.sendMessageWithPromise(tokenId, cmd, params);
+      } catch (error) {
+        if (!isTooFastError(error) || attempt >= maxRetries) {
+          throw error;
+        }
+        const retryDelayMs = 2500 * attempt;
+        setApplyProgressStage(
+          `读取账号状态过快，等待 ${Math.ceil(retryDelayMs / 1000)} 秒后重试（${attempt}/${maxRetries}）`,
+        );
+        await delay(retryDelayMs);
+      }
+    }
+    throw new Error(`命令 ${cmd} 重试后仍未成功执行`);
+  };
+
+  const sendApplyActionCommand = async (
+    cmd,
+    params = {},
+    { maxRetries = 4, allowFailure = false } = {},
+  ) => {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        return await tokenStore.sendMessageWithPromise(tokenId, cmd, params);
+      } catch (error) {
+        const tooFast = isTooFastError(error);
+        const serverBusy = isServerBusyError(error);
+        if (!tooFast && !serverBusy) {
+          console.error(
+            `[LineupApplyDiag] command-failed cmd=${cmd} attempt=${attempt} error=${error?.message || String(error)} stage=${applyProgressStage.value || ""}`,
+          );
+          if (allowFailure) {
+            return null;
+          }
+          throw error;
+        }
+        console.warn(
+          `[LineupApplyDiag] command-retry cmd=${cmd} attempt=${attempt} error=${error?.message || String(error)} stage=${applyProgressStage.value || ""}`,
+        );
+        if (attempt >= maxRetries) {
+          console.error(
+            `[LineupApplyDiag] command-abort cmd=${cmd} attempt=${attempt} error=${error?.message || String(error)} stage=${applyProgressStage.value || ""}`,
+          );
+          if (allowFailure) {
+            return null;
+          }
+          throw error;
+        }
+        const retryDelayMs = tooFast ? 3000 * attempt : 10000;
+        setApplyProgressStage(
+          tooFast
+            ? `${cmd} 操作过快，等待 ${Math.ceil(retryDelayMs / 1000)} 秒后重试（${attempt}/${maxRetries}）`
+            : `${cmd} 被服务器拒绝，等待 ${Math.ceil(retryDelayMs / 1000)} 秒后重试（${attempt}/${maxRetries}）`,
+        );
+        await delay(retryDelayMs);
+      }
+    }
+    return null;
+  };
+
   const fetchLatestData = async (teamId = null) => {
-    const roleInfo = await tokenStore.sendMessageWithPromise(
-      tokenId,
-      "role_getroleinfo",
-      {},
+    const now = Date.now();
+    const waitMs = Math.max(
+      0,
+      FETCH_LATEST_DATA_MIN_INTERVAL - (now - lastFetchLatestDataAt),
     );
+    if (waitMs > 0) {
+      await delay(waitMs);
+    }
+
+    const roleInfo = await sendApplyReadCommand("role_getroleinfo", {});
+    lastFetchLatestDataAt = Date.now();
     await delay(COMMAND_DELAY);
-    const presetTeam = await tokenStore.sendMessageWithPromise(
-      tokenId,
-      "presetteam_getinfo",
-      {},
-    );
+    const presetTeam = await sendApplyReadCommand("presetteam_getinfo", {});
     await delay(COMMAND_DELAY);
     const heroes = roleInfo?.role?.heroes || roleInfo?.heroes || {};
     const pearlMapData = roleInfo?.role?.pearlMap || roleInfo?.pearlMap || {};
@@ -1942,19 +2128,333 @@ const applyLineup = async (lineup) => {
   try {
     setApplyProgressStage("正在读取当前阵容数据");
     const targetHeroes = [...lineup.heroes];
+    const targetHeroIds = new Set(targetHeroes.map((h) => Number(h.heroId)));
+    const targetByPosition = new Map(
+      targetHeroes.map((hero) => [Number(hero.position), hero]),
+    );
+
+    const buildAttachmentToHeroMap = (heroesData = {}) => {
+      const result = {};
+      for (const [id, hero] of Object.entries(heroesData)) {
+        if (hero?.attachmentUid && hero.attachmentUid !== -1) {
+          result[hero.attachmentUid] = Number(id);
+        }
+      }
+      return result;
+    };
+
+    const getLineupSlotCandidates = (heroesInTeam = []) => {
+      const positions = [
+        ...heroesInTeam.map((hero) => Number(hero.position)),
+        ...targetHeroes.map((hero) => Number(hero.position)),
+      ].filter((position) => Number.isFinite(position));
+      const slotBase = positions.some((position) => position === 0) ? 0 : 1;
+      return Array.from({ length: 5 }, (_, index) => slotBase + index);
+    };
+
+    const getArtifactIdForTargetHero = (
+      targetHero,
+      pearlMapData = {},
+      artifactBooksData = {},
+    ) => {
+      if (targetHero?.fishId != null) {
+        const book =
+          artifactBooksData[String(targetHero.fishId)] ||
+          artifactBooksData[targetHero.fishId] ||
+          null;
+        const artifactId = Number(book?.artifactId || 0) || null;
+        if (artifactId && artifactId !== -1) {
+          return artifactId;
+        }
+      }
+
+      if (targetHero?.pearlId) {
+        const pearlData =
+          pearlMapData[String(targetHero.pearlId)] ||
+          pearlMapData[targetHero.pearlId] ||
+          null;
+        const artifactId = Number(pearlData?.artifactId || 0) || null;
+        if (artifactId && artifactId !== -1) {
+          return artifactId;
+        }
+      }
+
+      return null;
+    };
+
+    const getPearlSkillId = (pearlMapData = {}, pearlId) => {
+      if (!pearlId) return null;
+      const pearlData =
+        pearlMapData[String(pearlId)] || pearlMapData[pearlId] || null;
+      return Number(pearlData?.skillId || 0) || null;
+    };
+
+    const isTargetLineupMatched = (teamHeroes = []) => {
+      if (teamHeroes.length !== targetHeroes.length) {
+        return false;
+      }
+      return targetHeroes.every((targetHero) => {
+        const currentHero = teamHeroes.find(
+          (hero) => Number(hero.position) === Number(targetHero.position),
+        );
+        return Number(currentHero?.heroId || 0) === Number(targetHero.heroId);
+      });
+    };
+
+    const isTargetFishMatched = (
+      teamInfoData = {},
+      heroesData = {},
+      pearlMapData = {},
+      artifactBooksData = {},
+    ) =>
+      targetHeroes.every((targetHero) => {
+        const expectedArtifactId = getArtifactIdForTargetHero(
+          targetHero,
+          pearlMapData,
+          artifactBooksData,
+        );
+        const teamHero =
+          teamInfoData?.[targetHero.position] ||
+          teamInfoData?.[String(targetHero.position)] ||
+          null;
+        if (Number(teamHero?.heroId || teamHero?.id || 0) !== Number(targetHero.heroId)) {
+          return false;
+        }
+        const heroData =
+          heroesData[String(targetHero.heroId)] || heroesData[targetHero.heroId] || {};
+        const currentArtifactId = Number(heroData?.artifactId || 0) || null;
+        if ((expectedArtifactId || null) !== (currentArtifactId || null)) {
+          return false;
+        }
+        const currentPearlId = Number(teamHero?.pearlId || 0) || null;
+        if ((Number(targetHero?.pearlId || 0) || null) !== (currentPearlId || null)) {
+          return false;
+        }
+        const currentSkillId = getPearlSkillId(pearlMapData, currentPearlId);
+        const targetSkillId = Number(targetHero?.skillId || 0) || null;
+        return (currentSkillId || null) === (targetSkillId || null);
+      });
+
+    const ensureFinalLineupMatches = async () => {
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        setApplyProgressStage(`正在复核最终阵容（${attempt}/2）`);
+        let latestData = await fetchLatestData();
+        let latestHeroes = getTeamHeroes(latestData.teamInfo);
+        if (isTargetLineupMatched(latestHeroes)) {
+          return { success: true, repaired: attempt > 1 };
+        }
+
+        for (const targetHero of targetHeroes) {
+          latestData = await fetchLatestData();
+          latestHeroes = getTeamHeroes(latestData.teamInfo);
+          const currentByPosition = new Map(
+            latestHeroes.map((hero) => [Number(hero.position), hero]),
+          );
+          const currentByHeroId = new Map(
+            latestHeroes.map((hero) => [Number(hero.heroId), hero]),
+          );
+          const heroAtTarget = currentByPosition.get(Number(targetHero.position)) || null;
+          const targetCurrentHero =
+            currentByHeroId.get(Number(targetHero.heroId)) || null;
+
+          if (Number(heroAtTarget?.heroId || 0) === Number(targetHero.heroId)) {
+            continue;
+          }
+
+          if (heroAtTarget && Number(heroAtTarget.heroId) !== Number(targetHero.heroId)) {
+            const exchanged = await sendApplyActionCommand(
+              "hero_exchange",
+              {
+                heroId: heroAtTarget.heroId,
+                targetHeroId: targetHero.heroId,
+              },
+              { allowFailure: true },
+            );
+            if (exchanged) {
+              await delay(COMMAND_DELAY);
+              continue;
+            }
+          }
+
+          if (targetCurrentHero && Number(targetCurrentHero.position) !== Number(targetHero.position)) {
+            await sendApplyActionCommand(
+              "hero_gobackbattle",
+              {
+                slot: targetCurrentHero.position,
+              },
+              { allowFailure: true },
+            );
+            await delay(COMMAND_DELAY);
+          }
+
+          await sendApplyActionCommand(
+            "hero_gointobattle",
+            {
+              heroId: targetHero.heroId,
+              slot: targetHero.position,
+            },
+            { allowFailure: true },
+          );
+          await delay(COMMAND_DELAY);
+        }
+
+        latestData = await fetchLatestData();
+        latestHeroes = getTeamHeroes(latestData.teamInfo);
+        if (isTargetLineupMatched(latestHeroes)) {
+          return { success: true, repaired: true };
+        }
+      }
+
+      return { success: false, repaired: false };
+    };
+
+    const ensureFinalFishArtifactsMatch = async () => {
+      const hasFishData = targetHeroes.some((hero) => hero.pearlId || hero.fishId);
+      if (!hasFishData) {
+        return { success: true, repaired: false };
+      }
+
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        setApplyProgressStage(`正在复核最终鱼灵（${attempt}/2）`);
+        let latestData = await fetchLatestData();
+        if (
+          isTargetFishMatched(
+            latestData.teamInfo || {},
+            latestData.heroes || {},
+            latestData.pearlMap || {},
+            latestData.artifactBooks || {},
+          )
+        ) {
+          return { success: true, repaired: attempt > 1 };
+        }
+
+        const latestHeroesData = latestData.heroes || {};
+        const latestPearlMap = latestData.pearlMap || {};
+        const latestArtifactBooks = latestData.artifactBooks || {};
+        const artifactToHero = {};
+        for (const [heroId, hero] of Object.entries(latestHeroesData)) {
+          if (hero?.artifactId && hero.artifactId !== -1) {
+            artifactToHero[Number(hero.artifactId)] = Number(heroId);
+          }
+        }
+
+        for (const targetHero of targetHeroes) {
+          const expectedArtifactId = getArtifactIdForTargetHero(
+            targetHero,
+            latestPearlMap,
+            latestArtifactBooks,
+          );
+          const currentHeroData =
+            latestHeroesData[String(targetHero.heroId)] ||
+            latestHeroesData[targetHero.heroId] ||
+            {};
+          const currentArtifactId = Number(currentHeroData?.artifactId || 0) || null;
+          const currentHolderId = expectedArtifactId
+            ? artifactToHero[expectedArtifactId]
+            : null;
+
+          if (!expectedArtifactId) {
+            if (currentArtifactId) {
+              await sendApplyActionCommand(
+                "artifact_unload",
+                {
+                  heroId: targetHero.heroId,
+                },
+                { allowFailure: true },
+              );
+              await delay(COMMAND_DELAY);
+            }
+          } else {
+            if (currentArtifactId && currentArtifactId !== Number(expectedArtifactId)) {
+              await sendApplyActionCommand(
+                "artifact_unload",
+                {
+                  heroId: targetHero.heroId,
+                },
+                { allowFailure: true },
+              );
+              await delay(COMMAND_DELAY);
+            }
+
+            if (currentHolderId && currentHolderId !== Number(targetHero.heroId)) {
+              await sendApplyActionCommand(
+                "artifact_unload",
+                {
+                  heroId: currentHolderId,
+                },
+                { allowFailure: true },
+              );
+              await delay(COMMAND_DELAY);
+            }
+
+            await sendApplyActionCommand(
+              "artifact_load",
+              {
+                heroId: targetHero.heroId,
+                itemId: expectedArtifactId,
+                pearlId: Number(targetHero.pearlId || 0) || 0,
+              },
+              { allowFailure: true },
+            );
+            await delay(COMMAND_DELAY);
+          }
+        }
+
+        latestData = await fetchLatestData();
+        const refreshedPearlMap = latestData.pearlMap || {};
+        for (const targetHero of targetHeroes) {
+          const pearlId = Number(targetHero.pearlId || 0) || null;
+          if (!pearlId) continue;
+          const currentSkillId = getPearlSkillId(refreshedPearlMap, pearlId);
+          const targetSkillId = Number(targetHero.skillId || 0) || null;
+          if ((currentSkillId || null) === (targetSkillId || null)) {
+            continue;
+          }
+
+          if (!targetSkillId) {
+            await sendApplyActionCommand(
+              "pearl_unloadskill",
+              {
+                pearlId,
+              },
+              { allowFailure: true },
+            );
+          } else {
+            await sendApplyActionCommand(
+              "pearl_replaceskill",
+              {
+                pearlId,
+                skillId: targetSkillId,
+              },
+              { allowFailure: true },
+            );
+          }
+          await delay(COMMAND_DELAY);
+        }
+
+        latestData = await fetchLatestData();
+        if (
+          isTargetFishMatched(
+            latestData.teamInfo || {},
+            latestData.heroes || {},
+            latestData.pearlMap || {},
+            latestData.artifactBooks || {},
+          )
+        ) {
+          return { success: true, repaired: true };
+        }
+      }
+
+      return { success: false, repaired: false };
+    };
 
     let { heroes, teamInfo } = await fetchLatestData();
     let currentHeroes = getTeamHeroes(teamInfo);
 
-    const attachmentToHero = {};
-    for (const [id, hero] of Object.entries(heroes)) {
-      if (hero.attachmentUid && hero.attachmentUid !== -1) {
-        attachmentToHero[hero.attachmentUid] = Number(id);
-      }
-    }
+    const attachmentToHero = buildAttachmentToHeroMap(heroes);
 
     const currentHeroIds = new Set(currentHeroes.map((h) => h.heroId));
-    const targetHeroIds = new Set(targetHeroes.map((h) => h.heroId));
+    const deferredAttachmentTargets = [];
 
     setApplyProgressStage("正在整理武将站位");
     for (const targetHero of targetHeroes) {
@@ -1968,40 +2468,56 @@ const applyLineup = async (lineup) => {
         const targetInTeam = currentHeroIds.has(targetHero.heroId);
 
         if (!holderInTeam && !targetInTeam) {
-          const emptySlot = currentHeroes.length < 5 ? currentHeroes.length : 0;
-          try {
-            await tokenStore.sendMessageWithPromise(
-              tokenId,
-              "hero_gointobattle",
-              {
-                heroId: currentHolderId,
-                slot: emptySlot,
-              },
-            );
-          } catch (err) {
+          const occupiedSlots = new Set(
+            currentHeroes.map((hero) => Number(hero.position)),
+          );
+          const emptySlots = getLineupSlotCandidates(currentHeroes).filter(
+            (slot) => !occupiedSlots.has(slot),
+          );
+          if (currentHeroes.length >= 4 || emptySlots.length < 2) {
+            deferredAttachmentTargets.push(targetHero);
+            continue;
+          }
+          const [holderTempSlot, targetTempSlot] = emptySlots;
+
+          const holderMoved = await sendApplyActionCommand(
+            "hero_gointobattle",
+            {
+              heroId: currentHolderId,
+              slot: holderTempSlot,
+            },
+            { allowFailure: true },
+          );
+          if (!holderMoved) {
+            deferredAttachmentTargets.push(targetHero);
             continue;
           }
           await delay(COMMAND_DELAY);
 
-          try {
-            await tokenStore.sendMessageWithPromise(
-              tokenId,
-              "hero_gointobattle",
-              {
-                heroId: targetHero.heroId,
-                slot: emptySlot + 1,
-              },
-            );
-          } catch (err) {}
+          await sendApplyActionCommand(
+            "hero_gointobattle",
+            {
+              heroId: targetHero.heroId,
+              slot: targetTempSlot,
+            },
+            { allowFailure: true },
+          );
           await delay(COMMAND_DELAY);
         }
 
-        try {
-          await tokenStore.sendMessageWithPromise(tokenId, "hero_exchange", {
+        if ((!holderInTeam && targetInTeam) || (holderInTeam && targetInTeam)) {
+          deferredAttachmentTargets.push(targetHero);
+          continue;
+        }
+
+        await sendApplyActionCommand(
+          "hero_exchange",
+          {
             heroId: currentHolderId,
             targetHeroId: targetHero.heroId,
-          });
-        } catch (err) {}
+          },
+          { allowFailure: true },
+        );
         await delay(COMMAND_DELAY);
       }
     }
@@ -2011,11 +2527,8 @@ const applyLineup = async (lineup) => {
     const data1 = await fetchLatestData();
     await delay(COMMAND_DELAY);
     heroes = data1.heroes;
-    for (const [id, hero] of Object.entries(heroes)) {
-      if (hero.attachmentUid && hero.attachmentUid !== -1) {
-        attachmentToHero[hero.attachmentUid] = Number(id);
-      }
-    }
+    const refreshedAttachmentToHero = buildAttachmentToHeroMap(heroes);
+    Object.assign(attachmentToHero, refreshedAttachmentToHero);
     currentHeroes = getTeamHeroes(data1.teamInfo);
     currentHeroIds.clear();
     currentHeroes.forEach((h) => currentHeroIds.add(h.heroId));
@@ -2023,15 +2536,13 @@ const applyLineup = async (lineup) => {
     setApplyProgressStage("正在下阵非目标武将");
     for (const hero of [...currentHeroes]) {
       if (!targetHeroIds.has(hero.heroId)) {
-        try {
-          await tokenStore.sendMessageWithPromise(
-            tokenId,
-            "hero_gobackbattle",
-            {
-              slot: hero.position,
-            },
-          );
-        } catch (err) {}
+        await sendApplyActionCommand(
+          "hero_gobackbattle",
+          {
+            slot: hero.position,
+          },
+          { allowFailure: true },
+        );
         await delay(COMMAND_DELAY);
       }
     }
@@ -2048,39 +2559,32 @@ const applyLineup = async (lineup) => {
         (h) => h.heroId === targetHero.heroId,
       );
       if (!currentHero) {
-        try {
-          await tokenStore.sendMessageWithPromise(
-            tokenId,
-            "hero_gointobattle",
-            {
-              heroId: targetHero.heroId,
-              slot: targetHero.position,
-            },
-          );
-        } catch (err) {}
+        await sendApplyActionCommand(
+          "hero_gointobattle",
+          {
+            heroId: targetHero.heroId,
+            slot: targetHero.position,
+          },
+          { allowFailure: true },
+        );
         await delay(COMMAND_DELAY);
       } else if (currentHero.position !== targetHero.position) {
-        try {
-          await tokenStore.sendMessageWithPromise(
-            tokenId,
-            "hero_gobackbattle",
-            {
-              slot: currentHero.position,
-            },
-          );
-          await delay(COMMAND_DELAY);
-          try {
-            await tokenStore.sendMessageWithPromise(
-              tokenId,
-              "hero_gointobattle",
-              {
-                heroId: targetHero.heroId,
-                slot: targetHero.position,
-              },
-            );
-          } catch (err) {}
-          await delay(COMMAND_DELAY);
-        } catch (err) {}
+        await sendApplyActionCommand(
+          "hero_gobackbattle",
+          {
+            slot: currentHero.position,
+          },
+          { allowFailure: true },
+        );
+        await delay(COMMAND_DELAY);
+        await sendApplyActionCommand(
+          "hero_gointobattle",
+          {
+            heroId: targetHero.heroId,
+            slot: targetHero.position,
+          },
+          { allowFailure: true },
+        );
         await delay(COMMAND_DELAY);
       }
     }
@@ -2119,12 +2623,6 @@ const applyLineup = async (lineup) => {
       if (levelApplied > 0) {
         message.success(`已应用 ${levelApplied} 个武将等级配置`);
       }
-    }
-
-    if (errors.length > 0) {
-      message.warning(`阵容已应用，但有部分错误:\n${errors.join("\n")}`);
-    } else {
-      message.success(`阵容 "${lineup.name}" 已应用`);
     }
 
     const hasFishData = lineup.heroes.some((h) => h.pearlId || h.fishId);
@@ -2176,26 +2674,28 @@ const applyLineup = async (lineup) => {
         }
 
         if (currentHolderId) {
-          try {
-            await tokenStore.sendMessageWithPromise(
-              tokenId,
-              "artifact_unload",
-              {
-                heroId: currentHolderId,
-              },
-            );
-          } catch (err) {}
+          await sendApplyActionCommand(
+            "artifact_unload",
+            {
+              heroId: currentHolderId,
+            },
+            { allowFailure: true },
+          );
           await delay(COMMAND_DELAY);
         }
 
-        try {
-          await tokenStore.sendMessageWithPromise(tokenId, "artifact_load", {
+        const applied = await sendApplyActionCommand(
+          "artifact_load",
+          {
             heroId: targetHero.heroId,
             itemId: artifactId,
             pearlId: pearlId,
-          });
+          },
+          { allowFailure: true },
+        );
+        if (applied) {
           fishApplied++;
-        } catch (err) {}
+        }
         await delay(COMMAND_DELAY);
       }
 
@@ -2222,17 +2722,17 @@ const applyLineup = async (lineup) => {
 
         if (!targetSkillId) {
           if (currentSkillId) {
-            try {
-              await tokenStore.sendMessageWithPromise(
-                tokenId,
-                "pearl_unloadskill",
-                {
-                  pearlId: pearlId,
-                },
-              );
+            const unloaded = await sendApplyActionCommand(
+              "pearl_unloadskill",
+              {
+                pearlId: pearlId,
+              },
+              { allowFailure: true },
+            );
+            if (unloaded) {
               skillApplied++;
               processedPearlIds.add(pearlId);
-            } catch (err) {}
+            }
             await delay(COMMAND_DELAY);
           }
           continue;
@@ -2249,39 +2749,73 @@ const applyLineup = async (lineup) => {
         });
 
         if (holderPearlId && !processedPearlIds.has(Number(holderPearlId))) {
-          try {
-            await tokenStore.sendMessageWithPromise(
-              tokenId,
-              "pearl_exchangeskill",
-              {
-                pearlId1: pearlId,
-                pearlId2: Number(holderPearlId),
-              },
-            );
+          const exchanged = await sendApplyActionCommand(
+            "pearl_exchangeskill",
+            {
+              pearlId1: pearlId,
+              pearlId2: Number(holderPearlId),
+            },
+            { allowFailure: true },
+          );
+          if (exchanged) {
             skillApplied += 2;
             processedPearlIds.add(pearlId);
             processedPearlIds.add(Number(holderPearlId));
-          } catch (err) {}
+          }
           await delay(COMMAND_DELAY);
         } else {
-          try {
-            await tokenStore.sendMessageWithPromise(
-              tokenId,
-              "pearl_replaceskill",
-              {
-                pearlId: pearlId,
-                skillId: targetSkillId,
-              },
-            );
+          const replaced = await sendApplyActionCommand(
+            "pearl_replaceskill",
+            {
+              pearlId: pearlId,
+              skillId: targetSkillId,
+            },
+            { allowFailure: true },
+          );
+          if (replaced) {
             skillApplied++;
             processedPearlIds.add(pearlId);
-          } catch (err) {}
+          }
           await delay(COMMAND_DELAY);
         }
       }
 
       if (skillApplied > 0) {
         message.success(`已切换 ${skillApplied} 个鱼珠技能`);
+      }
+    }
+
+    if (deferredAttachmentTargets.length > 0) {
+      setApplyProgressStage("正在补正延后处理的附件归属");
+      const attachmentData = await fetchLatestData();
+      const latestAttachmentToHero = buildAttachmentToHeroMap(
+        attachmentData.heroes || {},
+      );
+      const latestTeamHeroes = getTeamHeroes(attachmentData.teamInfo);
+      const latestHeroIdsInTeam = new Set(
+        latestTeamHeroes.map((hero) => Number(hero.heroId)),
+      );
+
+      for (const targetHero of deferredAttachmentTargets) {
+        const latestCurrentHolderId = latestAttachmentToHero[targetHero.attachmentUid];
+        if (!latestCurrentHolderId || latestCurrentHolderId === targetHero.heroId) {
+          continue;
+        }
+        if (
+          !latestHeroIdsInTeam.has(Number(targetHero.heroId))
+          || !latestHeroIdsInTeam.has(Number(latestCurrentHolderId))
+        ) {
+          continue;
+        }
+        await sendApplyActionCommand(
+          "hero_exchange",
+          {
+            heroId: latestCurrentHolderId,
+            targetHeroId: targetHero.heroId,
+          },
+          { allowFailure: true },
+        );
+        await delay(COMMAND_DELAY);
       }
     }
 
@@ -2299,6 +2833,7 @@ const applyLineup = async (lineup) => {
           message.success(syncResult.message);
         }
       } else {
+        message.warning(syncResult.message || "科技配置同步失败，已跳过");
       }
     }
 
@@ -2335,6 +2870,22 @@ const applyLineup = async (lineup) => {
       }
     }
 
+    const finalLineupCheck = await ensureFinalLineupMatches();
+    if (!finalLineupCheck.success) {
+      errors.push("最终阵容复核失败：当前上阵结果与已保存阵容不一致");
+    }
+
+    const finalFishCheck = await ensureFinalFishArtifactsMatch();
+    if (!finalFishCheck.success) {
+      errors.push("最终鱼灵复核失败：当前鱼灵结果与已保存阵容不一致");
+    }
+
+    if (errors.length > 0) {
+      message.warning(`阵容已应用，但有部分错误:\n${errors.join("\n")}`);
+    } else {
+      message.success(`阵容 "${lineup.name}" 已应用`);
+    }
+
     setApplyProgressStage("正在刷新阵容结果");
     lastRefreshTime = 0;
     await refreshTeamInfo();
@@ -2345,6 +2896,7 @@ const applyLineup = async (lineup) => {
     lineup.applying = false;
     state.value.isRunning = false;
     finishApplyProgress();
+    releaseTokenOperationLock(tokenId, applyOperationLockId);
   }
 };
 
@@ -2694,6 +3246,21 @@ onUnmounted(() => {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+}
+
+.apply-progress-bar-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.apply-progress-bar-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-weight: 600;
 }
 
 .apply-progress-time-item {

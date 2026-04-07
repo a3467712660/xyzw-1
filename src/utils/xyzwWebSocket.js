@@ -50,6 +50,10 @@ const errorCodeMap = {
 // 事件节流定义表，根据实际需要调整命令和节流时间
 const CmdDebounceMap = {
   role_getroleinfo: 1000,
+  tower_getinfo: 1000,
+  evotower_getinfo: 1000,
+  presetteam_getinfo: 1000,
+  legion_getinfo: 1000,
   system_claimhangupreward: 1000,
   system_getdatabundlever: 1000,
 };
@@ -1141,9 +1145,16 @@ export class XyzwWebSocketClient {
         "system_mysharecallback",
         "task_claimdailypoint",
         "role_commitpassword",
+        "hero_exchange",
         "hero_gointobattle",
         "hero_gobackbattle",
+        "artifact_load",
+        "artifact_unload",
+        "pearl_replaceskill",
+        "pearl_exchangeskill",
+        "pearl_unloadskill",
         "lordweapon_changedefaultweapon",
+        "hero_rebirth",
       ],
       syncrewardresp: [
         "system_buygold",
