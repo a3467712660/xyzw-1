@@ -110,7 +110,9 @@ class Cache {
         oldItem && oldItem.reslove.map((f) => f && f(data));
         newItem && newItem.reslove.map((f) => f && f(data));
       } catch (e) {
-        console.error(`${this.name}-${key}: the ajax request is failed : ${e}`);
+        if (conf?.logError !== false) {
+          console.error(`${this.name}-${key}: the ajax request is failed : ${e}`);
+        }
         oldItem && oldItem.reject.map((f) => f && f(data));
         newItem && newItem.reject.map((f) => f && f(data));
       }

@@ -140,6 +140,7 @@ import {
   hydrateResourceChangeStoreFromServer,
   importResourceChangeStore,
   loadResourceChangeEntryByRoleId,
+  loadResourceChangeEntryByRoleIds,
   saveResourceChangeEntry,
 } from "@/utils/resourceChangeStorage";
 
@@ -221,17 +222,37 @@ const createEmptyEntry = () => ({
 const entry = ref(createEmptyEntry());
 
 const role = computed(() => tokenStore.gameData?.roleInfo?.role || null);
-const roleId = computed(() => {
+const liveRoleId = computed(() => {
   const currentRole = role.value;
   if (!currentRole)
     return "";
   return String(currentRole.roleId || "");
 });
 
+const scopeRoleIds = computed(() => {
+  const selectedToken = tokenStore.selectedToken;
+  return Array.from(
+    new Set(
+      [
+        liveRoleId.value,
+        selectedToken?.activationRoleId,
+        selectedToken?.activationGameAccountId,
+        selectedToken?.roleId,
+      ]
+        .map((roleId) => String(roleId || "").trim())
+        .filter(Boolean),
+    ),
+  );
+});
+
+const scopeRoleId = computed(() => {
+  return scopeRoleIds.value[0] || "";
+});
+
 const scopeKey = computed(() => {
-  if (!roleId.value)
+  if (!scopeRoleId.value)
     return "";
-  return buildResourceChangeScopeKeyByRoleId(roleId.value);
+  return buildResourceChangeScopeKeyByRoleId(scopeRoleId.value);
 });
 
 const selectedRangeLabel = computed(() => {
@@ -501,13 +522,12 @@ const saveEntry = (payload) => {
 };
 
 const loadEntry = () => {
-  if (!scopeKey.value) {
+  if (!scopeRoleId.value) {
     entry.value = createEmptyEntry();
     hiddenChangeKeys.value = [];
     return;
   }
-
-  const stored = loadResourceChangeEntryByRoleId(roleId.value);
+  const stored = loadResourceChangeEntryByRoleIds(scopeRoleIds.value);
   if (!stored || typeof stored !== "object") {
     entry.value = createEmptyEntry();
     hiddenChangeKeys.value = [];
@@ -601,7 +621,7 @@ const recordOpenOnce = () => {
     return;
 
   const openedAt = sessionOpenedAt.value;
-  const previous = loadResourceChangeEntryByRoleId(roleId.value) || createEmptyEntry();
+  const previous = loadResourceChangeEntryByRoleIds(scopeRoleIds.value) || createEmptyEntry();
 
   const snapshot = collectSnapshot(role.value);
   const hasPreviousSnapshot = previous.snapshot && Object.keys(previous.snapshot).length > 0;
@@ -663,7 +683,7 @@ onMounted(async () => {
 });
 
 watch(
-  () => tokenId.value,
+  () => tokenStore.selectedToken?.id || "",
   async () => {
     await hydrateResourceChangeStoreFromServer();
     startSession();

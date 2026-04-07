@@ -1,5 +1,55 @@
 import type { ProtoMsg } from "@/utils/bonProtocol";
 
+const SKIPPED_MESSAGE_LOG_WINDOW_MS = 5000;
+const skippedMessageLogState = new Map<
+  string,
+  { lastLoggedAt: number; suppressedCount: number }
+>();
+
+const pruneSkippedMessageLogState = (now: number) => {
+  for (const [key, value] of skippedMessageLogState.entries()) {
+    if (now - value.lastLoggedAt > SKIPPED_MESSAGE_LOG_WINDOW_MS * 6) {
+      skippedMessageLogState.delete(key);
+    }
+  }
+};
+
+const takeSkippedMessageLogDecision = ({
+  tokenId,
+  cmd,
+  message,
+  now,
+}: {
+  tokenId: string;
+  cmd?: string;
+  message: string;
+  now: number;
+}) => {
+  pruneSkippedMessageLogState(now);
+  const normalizedCmd = String(cmd || "").trim().toLowerCase();
+  const normalizedMessage = String(message || "").trim();
+  const key = `${tokenId}::${normalizedCmd}::${normalizedMessage}`;
+  const previous = skippedMessageLogState.get(key);
+
+  if (!previous || now - previous.lastLoggedAt > SKIPPED_MESSAGE_LOG_WINDOW_MS) {
+    skippedMessageLogState.set(key, {
+      lastLoggedAt: now,
+      suppressedCount: 0,
+    });
+    return {
+      shouldLog: true,
+      suppressedCount: previous?.suppressedCount || 0,
+    };
+  }
+
+  previous.suppressedCount += 1;
+  skippedMessageLogState.set(key, previous);
+  return {
+    shouldLog: false,
+    suppressedCount: previous.suppressedCount,
+  };
+};
+
 interface RefLike<T> {
   value: T;
 }
@@ -56,13 +106,29 @@ export const handleGameMessageById = async ({
     }
 
     if (message.error) {
-      const errText = String(message.error).toLowerCase();
-      logger.warn(`消息处理跳过 [${tokenId}]:`, message.error);
-      onMessageSkipped?.(tokenId, {
-        message: String(message.error || ""),
-        cmd: message.cmd?.toLowerCase(),
-        timestamp: Date.now(),
+      const skippedMessage = String(message.error || "");
+      const skippedCmd = message.cmd?.toLowerCase();
+      const errText = skippedMessage.toLowerCase();
+      const now = Date.now();
+      const logDecision = takeSkippedMessageLogDecision({
+        tokenId,
+        cmd: skippedCmd,
+        message: skippedMessage,
+        now,
       });
+      if (logDecision.shouldLog) {
+        const repeatedSuffix = logDecision.suppressedCount > 0
+          ? ` (重复 ${logDecision.suppressedCount} 次)`
+          : "";
+        logger.warn(
+          `消息处理跳过 [${tokenId}]${skippedCmd ? ` [${skippedCmd}]` : ""}: ${skippedMessage}${repeatedSuffix}`,
+        );
+        onMessageSkipped?.(tokenId, {
+          message: skippedMessage,
+          cmd: skippedCmd,
+          timestamp: now,
+        });
+      }
 
       if (errText.includes("token") && errText.includes("expired")) {
         const connection = wsConnections.value[tokenId];

@@ -42,10 +42,6 @@ export function useGameFeatureActions({
 
     try {
       const tokenId = tokenStore.selectedToken.id;
-      tokenStore.sendMessage(tokenId, "role_getroleinfo");
-      tokenStore.sendMessage(tokenId, "tower_getinfo");
-      tokenStore.sendMessage(tokenId, "evotower_getinfo");
-      tokenStore.sendMessage(tokenId, "presetteam_getinfo");
       const res = await tokenStore.sendMessageWithPromise(
         tokenId,
         "fight_startlevel",

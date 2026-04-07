@@ -199,6 +199,19 @@ const updateLastActivity = () => {
   lastActivity.value = new Date().toLocaleString();
 };
 
+const runAfterFirstPaint = (task) => {
+  if (typeof window === "undefined") {
+    void task();
+    return;
+  }
+
+  window.requestAnimationFrame(() => {
+    window.setTimeout(() => {
+      void task();
+    }, 0);
+  });
+};
+
 const toggleConnection = async () => {
   await toggleGameFeatureConnection(connectionStatus.value);
   updateLastActivity();
@@ -212,12 +225,14 @@ onMounted(() => {
   }
   if (tokenStore.selectedToken) {
     const status = tokenStore.getWebSocketStatus(tokenStore.selectedToken.id);
-    if (status !== "connected") {
-      connectWebSocket();
-    } else {
-      initializeGameData();
-    }
     updateLastActivity();
+    runAfterFirstPaint(async () => {
+      if (status !== "connected") {
+        connectWebSocket();
+      } else {
+        await initializeGameData();
+      }
+    });
   }
 });
 

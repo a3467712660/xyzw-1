@@ -60,26 +60,45 @@
 
     <!-- 咸将塔状态 -->
     <TowerStatus
-      v-show="activeSection === 'daily' && isShowTowerStatus"
+      v-if="mountedSections.dailyExtras && isShowTowerStatus"
+      v-show="activeSection === 'daily'"
     ></TowerStatus>
 
     <!-- 怪异塔状态 -->
-    <WeirdTowerStatus v-show="activeSection === 'daily'"></WeirdTowerStatus>
+    <WeirdTowerStatus
+      v-if="mountedSections.dailyExtras"
+      v-show="activeSection === 'daily'"
+    ></WeirdTowerStatus>
 
     <!-- 盐罐机器人状态（提取组件） -->
-    <BottleHelperCard v-show="activeSection === 'daily'"></BottleHelperCard>
+    <BottleHelperCard
+      v-if="mountedSections.dailyExtras"
+      v-show="activeSection === 'daily'"
+    ></BottleHelperCard>
 
     <!-- 挂机状态（提取组件） -->
-    <HangUpStatusCard v-show="activeSection === 'daily'"></HangUpStatusCard>
+    <HangUpStatusCard
+      v-if="mountedSections.dailyExtras"
+      v-show="activeSection === 'daily'"
+    ></HangUpStatusCard>
 
     <!-- 宝箱助手（提取组件） -->
-    <BoxHelperCard v-show="activeSection === 'tools'"></BoxHelperCard>
+    <BoxHelperCard
+      v-if="mountedSections.tools"
+      v-show="activeSection === 'tools'"
+    ></BoxHelperCard>
 
     <!-- 钓鱼助手（提取组件） -->
-    <FishHelperCard v-show="activeSection === 'tools'"></FishHelperCard>
+    <FishHelperCard
+      v-if="mountedSections.tools"
+      v-show="activeSection === 'tools'"
+    ></FishHelperCard>
 
     <!-- 招募助手（提取组件） -->
-    <RecruitHelperCard v-show="activeSection === 'tools'"></RecruitHelperCard>
+    <RecruitHelperCard
+      v-if="mountedSections.tools"
+      v-show="activeSection === 'tools'"
+    ></RecruitHelperCard>
 
     <!-- 升星助手（提取组件） -->
     <StarUpgradeCard v-if="activeSection === 'tools'"></StarUpgradeCard>
@@ -202,15 +221,20 @@
     ></ClubCarKing>
 
     <!-- 月度任务进度（提取组件） -->
-    <MonthlyTasksCard v-show="activeSection === 'activity'"></MonthlyTasksCard>
+    <MonthlyTasksCard
+      v-if="mountedSections.activity"
+      v-show="activeSection === 'activity'"
+    ></MonthlyTasksCard>
 
     <!-- 咸鱼大冲关（提取组件） -->
     <StudyChallengeCard
+      v-if="mountedSections.activity"
       v-show="activeSection === 'activity'"
     ></StudyChallengeCard>
 
     <!-- 换皮闯关 -->
     <SkinChallengeCard
+      v-if="mountedSections.activity"
       v-show="activeSection === 'activity'"
     ></SkinChallengeCard>
 
@@ -471,6 +495,71 @@ const activeSection = ref("daily");
 const saltFieldSubTab = ref("warrank");
 const peachSubTab = ref("peach");
 const rankSubTab = ref("serverrank");
+const mountedSections = ref({
+  activity: false,
+  dailyExtras: false,
+  tools: false,
+});
+let deferredDailyExtrasHandle = null;
+let deferredDailyExtrasMode = "";
+
+const clearDeferredDailyExtrasMount = () => {
+  if (deferredDailyExtrasHandle == null || typeof window === "undefined")
+    return;
+
+  if (
+    deferredDailyExtrasMode === "idle"
+    && typeof window.cancelIdleCallback === "function"
+  ) {
+    window.cancelIdleCallback(deferredDailyExtrasHandle);
+  } else {
+    window.clearTimeout(deferredDailyExtrasHandle);
+  }
+
+  deferredDailyExtrasHandle = null;
+  deferredDailyExtrasMode = "";
+};
+
+const scheduleDailyExtrasMount = () => {
+  if (mountedSections.value.dailyExtras || deferredDailyExtrasHandle != null)
+    return;
+
+  const commitMount = () => {
+    deferredDailyExtrasHandle = null;
+    deferredDailyExtrasMode = "";
+    mountedSections.value.dailyExtras = true;
+  };
+
+  if (
+    typeof window !== "undefined"
+    && typeof window.requestIdleCallback === "function"
+  ) {
+    deferredDailyExtrasMode = "idle";
+    deferredDailyExtrasHandle = window.requestIdleCallback(commitMount, {
+      timeout: 400,
+    });
+    return;
+  }
+
+  if (typeof window !== "undefined") {
+    deferredDailyExtrasMode = "timeout";
+    deferredDailyExtrasHandle = window.setTimeout(commitMount, 120);
+    return;
+  }
+
+  commitMount();
+};
+
+const prepareSectionMount = (section) => {
+  if (section === "daily") {
+    scheduleDailyExtrasMount();
+    return;
+  }
+
+  if (section === "tools" || section === "activity") {
+    mountedSections.value[section] = true;
+  }
+};
 
 const bottleHelper = ref({
   isRunning: false,
@@ -633,6 +722,14 @@ watch(
   { immediate: true },
 );
 
+watch(
+  activeSection,
+  (section) => {
+    prepareSectionMount(section);
+  },
+  { immediate: true },
+);
+
 // 监听 WebSocket 连接状态（俱乐部信息）
 const hasFetchedLegionOnce = ref(false);
 watch(
@@ -673,6 +770,7 @@ onUnmounted(() => {
   if (timer) {
     clearInterval(timer);
   }
+  clearDeferredDailyExtrasMount();
 });
 </script>
 

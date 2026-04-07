@@ -49,7 +49,9 @@ const errorCodeMap = {
 
 // 事件节流定义表，根据实际需要调整命令和节流时间
 const CmdDebounceMap = {
-  role_getroleinfo: 1000,
+  activity_get: 1000,
+  towers_getinfo: 1000,
+  role_getroleinfo: 2500,
   tower_getinfo: 1000,
   evotower_getinfo: 1000,
   presetteam_getinfo: 1000,
@@ -182,6 +184,7 @@ export function registerDefaultCommands(reg) {
     .register("arena_startarea")
     .register("fight_startlevel") // 获取 battleVersion
     .register("arena_getareatarget", { refresh: false })
+    .register("arena_getbattlerecord")
     .register("arena_getarearank")
 
     // 商店
@@ -798,6 +801,7 @@ export class XyzwWebSocketClient {
           return await this.sendWithPromise(cmd, ...args);
         },
         {
+          logError: false,
           timeout: CmdDebounceMap[cmd],
         },
       );
@@ -1061,6 +1065,7 @@ export class XyzwWebSocketClient {
       fight_startareaarenaresp: "fight_startareaarena",
       arena_startarearesp: "arena_startarea",
       arena_getareatargetresp: "arena_getareatarget",
+      arena_getbattlerecordresp: "arena_getbattlerecord",
       arena_getarearankresp: "arena_getarearank",
       presetteam_saveteamresp: "presetteam_saveteam",
       presetteam_getinforesp: "presetteam_getinfo",

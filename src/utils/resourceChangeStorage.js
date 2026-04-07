@@ -96,6 +96,14 @@ const encryptEntry = (scopeKey, entry) => {
 };
 
 const normalizeRoleId = (roleId = "") => String(roleId || "").trim();
+const normalizeRoleIds = (roleIds = []) =>
+  Array.from(
+    new Set(
+      roleIds
+        .map((roleId) => normalizeRoleId(roleId))
+        .filter(Boolean),
+    ),
+  );
 
 export const buildResourceChangeScopeKeyByRoleId = (roleId = "") => {
   const normalizedRoleId = normalizeRoleId(roleId);
@@ -177,6 +185,18 @@ export const loadResourceChangeEntryByRoleId = (roleId = "") => {
   }
 
   return null;
+};
+
+export const loadResourceChangeEntryByRoleIds = (roleIds = []) => {
+  const normalizedRoleIds = normalizeRoleIds(roleIds);
+  if (normalizedRoleIds.length === 0)
+    return null;
+
+  const candidates = normalizedRoleIds
+    .map((roleId) => loadResourceChangeEntryByRoleId(roleId))
+    .filter((entry) => entry && typeof entry === "object");
+
+  return pickLatestEntry(candidates);
 };
 
 export const saveResourceChangeEntry = (scopeKey = "", entry = {}) => {

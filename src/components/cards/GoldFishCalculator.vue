@@ -127,6 +127,7 @@ import {
   buildResourceChangeScopeKeyByRoleId,
   hydrateResourceChangeStoreFromServer,
   loadResourceChangeEntryByRoleId,
+  loadResourceChangeEntryByRoleIds,
 } from "@/utils/resourceChangeStorage";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -175,23 +176,43 @@ const mainIconPath = `${import.meta.env.BASE_URL}icons/1733492491706148.png`;
 const selectedFestivalKey = ref("");
 
 const role = computed(() => tokenStore.gameData?.roleInfo?.role || null);
-const roleId = computed(() => {
+const liveRoleId = computed(() => {
   const currentRole = role.value;
   if (!currentRole)
     return "";
   return String(currentRole.roleId || "");
 });
 
+const scopeRoleIds = computed(() => {
+  const selectedToken = tokenStore.selectedToken;
+  return Array.from(
+    new Set(
+      [
+        liveRoleId.value,
+        selectedToken?.activationRoleId,
+        selectedToken?.activationGameAccountId,
+        selectedToken?.roleId,
+      ]
+        .map((roleId) => String(roleId || "").trim())
+        .filter(Boolean),
+    ),
+  );
+});
+
+const scopeRoleId = computed(() => {
+  return scopeRoleIds.value[0] || "";
+});
+
 const scopeKey = computed(() => {
-  if (!roleId.value)
+  if (!scopeRoleId.value)
     return "";
-  return buildResourceChangeScopeKeyByRoleId(roleId.value);
+  return buildResourceChangeScopeKeyByRoleId(scopeRoleId.value);
 });
 
 const scopeLabel = computed(() => {
   if (!tokenStore.selectedToken || !role.value)
     return "";
-  return `${tokenStore.selectedToken.name || tokenStore.selectedToken.id} / ${role.value.name || roleId.value}`;
+  return `${tokenStore.selectedToken.name || tokenStore.selectedToken.id} / ${role.value.name || liveRoleId.value}`;
 });
 
 const toDateAtLocalStart = (dateText) => {
@@ -372,7 +393,7 @@ const currentResources = computed(() => {
 const getRecentYearRecords = () => {
   if (!scopeKey.value)
     return [];
-  const data = loadResourceChangeEntryByRoleId(roleId.value);
+  const data = loadResourceChangeEntryByRoleIds(scopeRoleIds.value);
   if (!data || !Array.isArray(data.records))
     return [];
 
@@ -586,7 +607,7 @@ watch(
 );
 
 watch(
-  () => tokenId.value,
+  () => tokenStore.selectedToken?.id || "",
   async () => {
     await hydrateResourceChangeStoreFromServer();
     refreshRoleInfo();

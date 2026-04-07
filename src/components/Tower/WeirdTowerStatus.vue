@@ -643,6 +643,9 @@ const getTowerInfo = async () => {
   if (!tokenStore.selectedToken) {
     return;
   }
+  if (!isWeirdTowerActivityOpen.value) {
+    return;
+  }
 
   try {
     const tokenId = tokenStore.selectedToken.id;

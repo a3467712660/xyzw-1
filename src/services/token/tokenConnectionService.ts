@@ -7,6 +7,8 @@ interface LoggerLike {
 }
 
 const DEBOUNCED_READ_COMMANDS = new Set([
+  "activity_get",
+  "towers_getinfo",
   "role_getroleinfo",
   "tower_getinfo",
   "evotower_getinfo",
