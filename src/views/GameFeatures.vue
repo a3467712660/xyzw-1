@@ -1,125 +1,146 @@
 <template>
-  <div class="game-features-page app-page">
-    <PageHero
-      eyebrow="游戏工作区"
+  <div class="game-workbench-v2">
+    <GameCommandBar
+      :active-group-name="activeGroup?.label || ''"
+      :active-module-name="activeModuleMeta?.label || ''"
+      :connection-action-label="connectionActionLabel"
+      :connection-status-text="connectionStatusText"
+      :connection-tone="connectionPillTone"
       :description="selectedTokenDescription"
-      :title="t('gameFeatures.title')"
+      :eyebrow="t('gameFeatures.workbench.eyebrow')"
+      :inspector-action-label="t('gameFeatures.workbench.actions.openInspector')"
+      :is-connected="isConnected"
+      :show-inspector-button="isMobile"
+      :signals="commandSignals"
+      :title="t('gameFeatures.workbench.title')"
+      :token-action-label="t('gameFeatures.workbench.actions.tokenCenter')"
+      @go-tokens="goToTokens"
+      @open-inspector="showInspectorDrawer = true"
+      @toggle-connection="handleToggleConnection"
+    ></GameCommandBar>
+
+    <div class="game-workbench-v2__body">
+      <GameModuleRail
+        v-model="activeModule"
+        :dock-label="t('gameFeatures.workbench.dockLabel')"
+        :groups="moduleGroups"
+      ></GameModuleRail>
+
+      <GameStage
+        :eyebrow="t('gameFeatures.workbench.stage.eyebrow')"
+        :group-label="activeGroup?.label || ''"
+        :module-description="activeModuleMeta?.description || ''"
+        :module-name="activeModuleMeta?.label || t('gameFeatures.title')"
+        :status-class="connectionClass"
+        :status-label="t('gameFeatures.workbench.stage.telemetryLabel')"
+        :status-text="connectionStatusText"
+      >
+        <GameStatus
+          v-model:active-module="activeModule"
+          :show-identity-card="false"
+          :show-intel-panel="false"
+          :show-module-rail="false"
+        ></GameStatus>
+      </GameStage>
+
+      <GameInspector
+        v-if="!isMobile"
+        :connection-action-label="connectionActionLabel"
+        :connection-status-text="connectionStatusText"
+        :connection-tone="connectionPillTone"
+        :facts="inspectorFacts"
+        :facts-label="t('gameFeatures.workbench.inspector.factsLabel')"
+        :is-connected="isConnected"
+        :module-name="activeModuleMeta?.label || t('gameFeatures.title')"
+        :recommendation-detail="summaryCards[3].meta"
+        :recommendation-label="t('gameFeatures.workbench.inspector.recommendationLabel')"
+        :recommendation-title="summaryCards[3].value"
+        :show-token-button="true"
+        :subtitle="t('gameFeatures.workbench.inspector.subtitle')"
+        :title="t('gameFeatures.workbench.inspector.title')"
+        :token-action-label="t('gameFeatures.workbench.actions.tokenCenter')"
+        @go-tokens="goToTokens"
+        @toggle-connection="handleToggleConnection"
+      ></GameInspector>
+    </div>
+
+    <n-drawer
+      v-if="isMobile"
+      height="78vh"
+      placement="bottom"
+      v-model:show="showInspectorDrawer"
     >
-      <template #meta>
-        <div class="app-chip-row">
-          <span class="app-inline-stat">
-            <strong>{{ tokenStore.selectedToken?.name || t("gameFeatures.connection.notSelected") }}</strong>
-            当前角色
-          </span>
-          <span class="app-inline-stat">
-            <strong>{{ connectionStatusText }}</strong>
-            WebSocket
-          </span>
-          <span class="app-inline-stat">
-            <strong>{{ tokenStore.gameTokens.length }}</strong>
-            已导入角色
-          </span>
-          <span v-if="lastActivity" class="app-inline-stat">
-            <strong>{{ lastActivity }}</strong>
-            最近状态变更
-          </span>
-        </div>
-      </template>
-
-      <template #actions>
-        <PageToolbar class="game-features-page__actions">
-          <template #left>
-            <StatusPill :label="connectionStatusText" :tone="connectionPillTone">
-              <template #icon>
-                <n-icon>
-                  <CloudDone></CloudDone>
-                </n-icon>
-              </template>
-            </StatusPill>
-          </template>
-
-          <template #right>
-            <n-button
-              size="large"
-              :type="isConnected ? 'default' : 'primary'"
-              @click="toggleConnection"
-            >
-              {{
-                isConnected
-                  ? t("gameFeatures.connection.disconnect")
-                  : t("gameFeatures.connection.reconnect")
-              }}
-            </n-button>
-            <n-button
-              v-if="!tokenStore.selectedToken"
-              secondary
-              size="large"
-              type="primary"
-              @click="router.push('/tokens')"
-            >
-              前往 Token 管理
-            </n-button>
-          </template>
-        </PageToolbar>
-      </template>
-    </PageHero>
-
-    <SummaryGrid :items="summaryCards"></SummaryGrid>
-
-    <n-grid item-responsive responsive="screen" :x-gap="16" :y-gap="16">
-      <n-grid-item span="24">
-        <SectionCard compact class="game-features-panel" title="功能面板">
-          <GameStatus></GameStatus>
-        </SectionCard>
-      </n-grid-item>
-
-      <n-grid-item span="24">
-        <SectionCard class="connection-card" :title="t('gameFeatures.connection.title')">
-          <div class="status-list">
-            <div class="status-row">
-              <span>{{ t("gameFeatures.connection.websocketStatus") }}</span>
-              <strong :class="connectionClass">{{ connectionStatusText }}</strong>
-            </div>
-            <div class="status-row">
-              <span>{{ t("gameFeatures.connection.currentToken") }}</span>
-              <strong>{{ tokenStore.selectedToken?.name || t("gameFeatures.connection.notSelected") }}</strong>
-            </div>
-            <div class="status-row">
-              <span>角色服务器</span>
-              <strong>{{ tokenStore.selectedToken?.server || "待选择" }}</strong>
-            </div>
-            <div class="status-row">
-              <span>{{ t("gameFeatures.connection.lastActivity") }}</span>
-              <strong>{{ lastActivity || "暂无" }}</strong>
-            </div>
-          </div>
-        </SectionCard>
-      </n-grid-item>
-    </n-grid>
+      <n-drawer-content closable :title="t('gameFeatures.workbench.inspector.title')">
+        <GameInspector
+          :connection-action-label="connectionActionLabel"
+          :connection-status-text="connectionStatusText"
+          :connection-tone="connectionPillTone"
+          :facts="inspectorFacts"
+          :facts-label="t('gameFeatures.workbench.inspector.factsLabel')"
+          :is-connected="isConnected"
+          :module-name="activeModuleMeta?.label || t('gameFeatures.title')"
+          :recommendation-detail="summaryCards[3].meta"
+          :recommendation-label="t('gameFeatures.workbench.inspector.recommendationLabel')"
+          :recommendation-title="summaryCards[3].value"
+          :show-token-button="true"
+          :subtitle="t('gameFeatures.workbench.inspector.subtitle')"
+          :title="t('gameFeatures.workbench.inspector.title')"
+          :token-action-label="t('gameFeatures.workbench.actions.tokenCenter')"
+          @go-tokens="goToTokens"
+          @toggle-connection="handleToggleConnection"
+        ></GameInspector>
+      </n-drawer-content>
+    </n-drawer>
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, markRaw, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { useMessage } from "naive-ui/es";
 import { useI18n } from "vue-i18n";
+import {
+  DocumentText,
+  Flash,
+  Speedometer,
+} from "@vicons/ionicons5";
 import GameStatus from "@/components/GameStatus.vue";
-import PageHero from "@/components/workbench/PageHero.vue";
-import PageToolbar from "@/components/workbench/PageToolbar.vue";
-import SectionCard from "@/components/workbench/SectionCard.vue";
-import StatusPill from "@/components/workbench/StatusPill.vue";
-import SummaryGrid from "@/components/workbench/SummaryGrid.vue";
+import {
+  buildGameStatusModules,
+  findGameStatusModuleById,
+  GAME_STATUS_MODULE_IDS,
+} from "@/components/game-status/moduleMeta";
+import GameCommandBar from "@/components/game-workbench-v2/GameCommandBar.vue";
+import GameInspector from "@/components/game-workbench-v2/GameInspector.vue";
+import GameModuleRail from "@/components/game-workbench-v2/GameModuleRail.vue";
+import GameStage from "@/components/game-workbench-v2/GameStage.vue";
 import { useGameFeatureActions } from "@/composables/useGameFeatureActions";
+import { useResponsive } from "@/composables/useResponsive";
+import { useAuthStore } from "@/stores/auth";
 import { useTokenStore } from "@/stores/tokenStore";
-import { CloudDone } from "@vicons/ionicons5";
+import { hasGameFeatureAccess } from "@/utils/accessScope";
+
+const GROUP_ICONS = Object.freeze({
+  operations: markRaw(Speedometer),
+  battle: markRaw(Flash),
+  analysis: markRaw(DocumentText),
+});
+const GAME_WORKBENCH_ROUTE_CLASS = "route-game-workbench-v2-active";
 
 const router = useRouter();
 const message = useMessage();
 const tokenStore = useTokenStore();
+const authStore = useAuthStore();
 const { t } = useI18n();
+const { isMobile } = useResponsive();
 
+const activeModule = ref(GAME_STATUS_MODULE_IDS.daily);
 const lastActivity = ref(null);
+const showInspectorDrawer = ref(false);
+
+const canAccessRestrictedGameSections = computed(() =>
+  hasGameFeatureAccess(authStore.user),
+);
 
 const rawConnectionStatus = computed(() => {
   if (!tokenStore.selectedToken) {
@@ -213,6 +234,110 @@ const summaryCards = computed(() => [
   },
 ]);
 
+const commandSignals = computed(() => [
+  summaryCards.value[0],
+  summaryCards.value[1],
+  summaryCards.value[2],
+  {
+    label: t("gameFeatures.workbench.signals.lastActivity"),
+    value: lastActivity.value || t("gameFeatures.workbench.values.none"),
+    meta: t("gameFeatures.workbench.signals.lastActivityMeta"),
+  },
+]);
+
+const inspectorFacts = computed(() => [
+  {
+    label: t("gameFeatures.connection.currentToken"),
+    value: tokenStore.selectedToken?.name || t("gameFeatures.connection.notSelected"),
+    meta: t("gameFeatures.workbench.inspector.facts.currentTokenMeta"),
+  },
+  {
+    label: t("gameFeatures.workbench.inspector.serverLabel"),
+    value: tokenStore.selectedToken?.server || t("gameFeatures.workbench.values.pending"),
+    meta: t("gameFeatures.workbench.inspector.serverMeta"),
+  },
+  {
+    label: t("gameFeatures.connection.websocketStatus"),
+    value: connectionStatusText.value,
+    valueClass: connectionClass.value,
+    meta: summaryCards.value[1].meta,
+  },
+  {
+    label: t("gameFeatures.connection.lastActivity"),
+    value: lastActivity.value || t("gameFeatures.workbench.values.none"),
+    meta: t("gameFeatures.workbench.inspector.lastActivityMeta"),
+  },
+]);
+
+const modules = computed(() =>
+  buildGameStatusModules(t, {
+    canAccessRestrictedGameSections: canAccessRestrictedGameSections.value,
+  }),
+);
+
+const activeModuleMeta = computed(() =>
+  findGameStatusModuleById(modules.value, activeModule.value) || modules.value[0] || null,
+);
+
+const moduleGroups = computed(() => {
+  const moduleMap = new Map(modules.value.map((module) => [module.id, module]));
+  const groups = [
+    {
+      id: "operations",
+      label: t("gameFeatures.workbench.groups.operations.label"),
+      caption: t("gameFeatures.workbench.groups.operations.caption"),
+      icon: GROUP_ICONS.operations,
+      items: [
+        GAME_STATUS_MODULE_IDS.daily,
+        GAME_STATUS_MODULE_IDS.activity,
+        GAME_STATUS_MODULE_IDS.tools,
+      ],
+    },
+    {
+      id: "battle",
+      label: t("gameFeatures.workbench.groups.battle.label"),
+      caption: t("gameFeatures.workbench.groups.battle.caption"),
+      icon: GROUP_ICONS.battle,
+      items: [
+        GAME_STATUS_MODULE_IDS.legionOps,
+        GAME_STATUS_MODULE_IDS.pvp,
+      ],
+    },
+    {
+      id: "analysis",
+      label: t("gameFeatures.workbench.groups.analysis.label"),
+      caption: t("gameFeatures.workbench.groups.analysis.caption"),
+      icon: GROUP_ICONS.analysis,
+      items: [
+        GAME_STATUS_MODULE_IDS.dataAnalysis,
+      ],
+    },
+  ];
+
+  return groups
+    .map((group) => ({
+      ...group,
+      items: group.items.map((itemId) => moduleMap.get(itemId)).filter(Boolean),
+    }))
+    .filter((group) => group.items.length > 0);
+});
+
+const activeGroup = computed(() =>
+  moduleGroups.value.find((group) => group.items.some((item) => item.id === activeModule.value))
+  || moduleGroups.value[0]
+  || null,
+);
+
+const availableModuleIds = computed(() =>
+  moduleGroups.value.flatMap((group) => group.items.map((item) => item.id)),
+);
+
+const connectionActionLabel = computed(() =>
+  isConnected.value
+    ? t("gameFeatures.connection.disconnect")
+    : t("gameFeatures.connection.reconnect"),
+);
+
 const {
   connectWebSocket,
   initializeGameData,
@@ -224,8 +349,21 @@ const {
   tokenStore,
 });
 
+const goToTokens = () => {
+  router.push("/tokens");
+};
+
 const updateLastActivity = () => {
   lastActivity.value = new Date().toLocaleString();
+};
+
+const toggleWorkbenchRouteScope = (enabled) => {
+  if (typeof document === "undefined") {
+    return;
+  }
+
+  document.body.classList.toggle(GAME_WORKBENCH_ROUTE_CLASS, enabled);
+  document.getElementById("app")?.classList.toggle(GAME_WORKBENCH_ROUTE_CLASS, enabled);
 };
 
 const runAfterFirstPaint = (task) => {
@@ -241,12 +379,33 @@ const runAfterFirstPaint = (task) => {
   });
 };
 
-const toggleConnection = async () => {
+const handleToggleConnection = async () => {
   await toggleGameFeatureConnection(connectionStatus.value);
   updateLastActivity();
 };
 
+watch(
+  availableModuleIds,
+  (moduleIds) => {
+    if (!moduleIds.length) {
+      return;
+    }
+    if (!moduleIds.includes(activeModule.value)) {
+      activeModule.value = moduleIds[0];
+    }
+  },
+  { immediate: true },
+);
+
+watch(isMobile, (mobile) => {
+  if (!mobile) {
+    showInspectorDrawer.value = false;
+  }
+});
+
 onMounted(() => {
+  toggleWorkbenchRouteScope(true);
+
   if (!tokenStore.hasUsableWorkbenchToken) {
     message.warning("当前没有已激活且未过期的 Token，请先前往 Token 管理完成激活");
     router.replace("/tokens");
@@ -263,6 +422,10 @@ onMounted(() => {
       }
     });
   }
+});
+
+onUnmounted(() => {
+  toggleWorkbenchRouteScope(false);
 });
 
 watch(
@@ -303,86 +466,6 @@ watch(
 );
 </script>
 
-<style scoped lang="scss">
-.game-features-page {
-  min-height: 100dvh;
-  padding-bottom: calc(var(--spacing-md) + env(safe-area-inset-bottom));
-  animation: gf-fade-in 0.42s ease;
-}
-
-.game-features-page__actions {
-  align-items: flex-start;
-}
-
-.status-list {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.status-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: var(--spacing-md);
-  padding: 14px 0;
-  border-bottom: 1px solid var(--border-light);
-
-  &:last-child {
-    border-bottom: none;
-    padding-bottom: 0;
-  }
-
-  span {
-    color: var(--text-secondary);
-    font-size: var(--font-size-sm);
-  }
-
-  strong {
-    color: var(--text-primary);
-    text-align: right;
-    font-size: var(--font-size-sm);
-    font-family: var(--font-family-mono);
-    font-variant-numeric: tabular-nums;
-    word-break: break-word;
-  }
-}
-
-.status-connected {
-  color: var(--success-color) !important;
-}
-
-.status-connecting {
-  color: var(--primary-color) !important;
-}
-
-.status-idle {
-  color: var(--text-secondary) !important;
-}
-
-.status-disconnected {
-  color: var(--error-color) !important;
-}
-
-@media (max-width: 640px) {
-  .status-row {
-    flex-direction: column;
-    align-items: flex-start;
-
-    strong {
-      text-align: left;
-    }
-  }
-}
-
-@keyframes gf-fade-in {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
+<style lang="scss">
+@use "@/assets/styles/game-workbench-v2.scss";
 </style>

@@ -195,6 +195,67 @@
       "connected": "已连接",
       "disconnected": "未连接"
     },
+    "workbench": {
+      "eyebrow": "Mission Control",
+      "title": "游戏指挥舱",
+      "dockLabel": "模块导航",
+      "values": {
+        "none": "暂无",
+        "pending": "待选择"
+      },
+      "actions": {
+        "openInspector": "打开情报栏",
+        "tokenCenter": "Token 管理"
+      },
+      "signals": {
+        "lastActivity": "最近活动",
+        "lastActivityMeta": "连接状态变化会在这里留下时间戳"
+      },
+      "stage": {
+        "eyebrow": "主舞台",
+        "telemetryLabel": "实时链路"
+      },
+      "groups": {
+        "operations": {
+          "label": "作战中枢",
+          "caption": "日常、限时活动与工具的主执行面"
+        },
+        "battle": {
+          "label": "战区联动",
+          "caption": "军团与作战、PVP 对战集中切换"
+        },
+        "analysis": {
+          "label": "数据研判",
+          "caption": "数据分析与长链路观测位"
+        }
+      },
+      "modules": {
+        "daily": "查看日常编队、任务状态和基础挂机信息。",
+        "activity": "集中处理月度、活动与阶段性推进模块。",
+        "tools": "进入宝箱、钓鱼、招募、升星等重型工具位。",
+        "club": "查看俱乐部概况与协作类功能面板。",
+        "saltFieldGroup": "切换盐场主面板、周月战绩与地图战况。",
+        "peachGroup": "查看蟠桃园信息与对应战绩记录。",
+        "fightPvp": "进入切磋对战模块，处理即时对抗。",
+        "arenaPvp": "查看竞技场对抗面板和相关动作位。",
+        "tenHall": "进入十殿战斗面板与相关推演组件。",
+        "rankGroup": "切换区服榜、巅峰榜和多类排行榜视角。",
+        "resourceChanges": "追踪资源数据变化与波动记录。",
+        "goldFishCalc": "使用金鱼计算器做资源与数值估算。"
+      },
+      "inspector": {
+        "title": "右侧情报栏",
+        "subtitle": "保留连接判断、角色信息和建议动作，但改成指挥舱侧边情报视图。",
+        "recommendationLabel": "当前建议",
+        "factsLabel": "基础情报",
+        "serverLabel": "角色服务器",
+        "serverMeta": "角色当前绑定区服",
+        "lastActivityMeta": "最近一次状态变更时间",
+        "facts": {
+          "currentTokenMeta": "当前工作区锁定角色"
+        }
+      }
+    },
     "messages": {
       "selectTokenFirst": "请先选择 Token",
       "websocketNotConnected": "WebSocket 未连接，请先建立连接",
@@ -2029,6 +2090,82 @@
     }
   },
   "gameStatus": {
+    "navigation": {
+      "title": "模块导航",
+      "subtitle": "游戏功能模块",
+      "mobileButton": "切换模块",
+      "drawerTitle": "选择模块"
+    },
+    "stage": {
+      "title": "模块舞台",
+      "navLabel": "子区域",
+      "compactLabel": "当前子区域",
+      "mobileButton": "切换子区域",
+      "drawerTitle": "选择子区域"
+    },
+    "modules": {
+      "daily": {
+        "label": "日常",
+        "description": "集中查看阵容、任务、挂机与日常推进状态。"
+      },
+      "legionOps": {
+        "label": "军团与作战",
+        "description": "整合俱乐部、盐场与蟠桃园等协同作战区域。"
+      },
+      "activity": {
+        "label": "限时活动",
+        "description": "承接活动期内的月度任务、闯关与阶段推进面板。"
+      },
+      "tools": {
+        "label": "工具",
+        "description": "保留宝箱、钓鱼、招募、升星等重型工具位。"
+      },
+      "pvp": {
+        "label": "PVP 对战",
+        "description": "把切磋与竞技场放进同一条即时对战链路。"
+      },
+      "dataAnalysis": {
+        "label": "数据分析",
+        "description": "集中承载排行、资源波动、计算器与十殿分析面板。"
+      }
+    },
+    "moduleSections": {
+      "daily": "基础日常面板与挂机信息。",
+      "club": "军团概览、俱乐部信息与联动作战入口。",
+      "saltFieldGroup": "盐场主面板、战绩、地图与战况切换。",
+      "peachGroup": "蟠桃园信息与战绩记录。",
+      "activity": "限时活动与阶段挑战面板。",
+      "tools": "工具集合与辅助面板。",
+      "fightPvp": "切磋即时对战入口。",
+      "arenaPvp": "竞技场对抗与相关动作位。",
+      "rankGroup": "排行榜主视图与多榜单切换。",
+      "resourceChanges": "资源数据变化追踪。",
+      "goldFishCalc": "金鱼计算与资源估算。",
+      "tenHall": "十殿相关战斗与分析组件。"
+    },
+    "intel": {
+      "title": "侧边情报",
+      "subtitle": "身份牌和当前模块上下文会在这里集中呈现。",
+      "mobileButton": "查看情报",
+      "drawerTitle": "模块情报",
+      "facts": {
+        "currentModule": "当前模块",
+        "currentSection": "当前子区域",
+        "accessScope": "访问范围",
+        "accessFull": "完整权限",
+        "accessFullMeta": "可访问军团与作战相关模块",
+        "accessRestricted": "受限权限",
+        "accessRestrictedMeta": "军团与作战模块已隐藏",
+        "loadedPanels": "已预热面板",
+        "loadedPanelsMeta": "mountedSections 延迟挂载状态"
+      },
+      "loaded": {
+        "dailyExtras": "日常扩展",
+        "activity": "限时活动",
+        "tools": "工具模块",
+        "none": "尚未预热"
+      }
+    },
     "sections": {
       "daily": "日常",
       "club": "俱乐部",

@@ -1,376 +1,332 @@
 <template>
   <div
-    class="game-status-container"
+    class="game-status-shell"
     :class="{
-      'full-grid':
-        activeSection === 'fightPvp' ||
-        activeSection === 'arenaPvp' ||
-        activeSection === 'resourceChanges' ||
-        activeSection === 'goldFishCalc' ||
-        activeSection === 'tenHall',
-      'full-page-mode':
-        activeSection === 'saltFieldGroup' ||
-        activeSection === 'peachGroup' ||
-        activeSection === 'rankGroup',
-      'club-mode': activeSection === 'club',
+      'game-status-shell--no-rail': !showModuleRail,
+      'game-status-shell--no-intel': !showIntelPanel,
     }"
   >
-    <!-- 身份牌常驻（嵌入式，Tabs 上方） -->
-    <IdentityCard embedded></IdentityCard>
+    <GameStatusModuleRail
+      v-if="showModuleRail"
+      v-model="activeModule"
+      :drawer-title="t('gameStatus.navigation.drawerTitle')"
+      :mobile-button-label="t('gameStatus.navigation.mobileButton')"
+      :modules="modules"
+      :subtitle="t('gameStatus.navigation.subtitle')"
+      :title="t('gameStatus.navigation.title')"
+    ></GameStatusModuleRail>
 
-    <!-- 下方选卡分区切换（Tabs）：日常｜俱乐部｜活动 -->
-    <n-tabs
-      animated
-      class="section-tabs"
-      size="small"
-      type="line"
-      v-model:value="activeSection"
+    <GameStatusModuleStage
+      v-model="activeSection"
+      :compact-label="t('gameStatus.stage.compactLabel')"
+      :drawer-title="t('gameStatus.stage.drawerTitle')"
+      :embedded="isEmbeddedWorkbench"
+      :mobile-button-label="t('gameStatus.stage.mobileButton')"
+      :module="currentModule"
+      :nav-label="t('gameStatus.stage.navLabel')"
+      :sections="currentModule?.sections || []"
+      :show-header="!isEmbeddedWorkbench"
+      :title="t('gameStatus.stage.title')"
     >
-      <n-tab-pane name="daily" :tab="t('gameStatus.sections.daily')"></n-tab-pane>
-      <n-tab-pane
-        v-if="canAccessRestrictedGameSections"
-        name="club"
-        :tab="t('gameStatus.sections.club')"
-      ></n-tab-pane>
-      <n-tab-pane name="activity" :tab="t('gameStatus.sections.activity')"></n-tab-pane>
-      <n-tab-pane v-if="ENABLE_TOOLS_TAB" name="tools" :tab="t('gameStatus.sections.tools')"></n-tab-pane>
-      <n-tab-pane
-        v-if="canAccessRestrictedGameSections"
-        name="saltFieldGroup"
-        :tab="t('gameStatus.sections.saltField')"
-      ></n-tab-pane>
-      <n-tab-pane
-        v-if="canAccessRestrictedGameSections"
-        name="peachGroup"
-        :tab="t('gameStatus.sections.peachGroup')"
-      ></n-tab-pane>
-      <n-tab-pane name="rankGroup" :tab="t('gameStatus.sections.rankGroup')"></n-tab-pane>
-      <n-tab-pane name="fightPvp" :tab="t('gameStatus.sections.fightPvp')"></n-tab-pane>
-      <n-tab-pane name="arenaPvp" :tab="t('gameStatus.sections.arenaPvp')"></n-tab-pane>
-      <n-tab-pane name="resourceChanges" :tab="t('gameStatus.sections.resourceChanges')"></n-tab-pane>
-      <n-tab-pane name="goldFishCalc" :tab="t('gameStatus.sections.goldFishCalc')"></n-tab-pane>
-      <n-tab-pane name="tenHall" :tab="t('gameStatus.sections.tenHall')"></n-tab-pane>
-    </n-tabs>
+      <div
+        class="game-status-container"
+        :class="{
+          'full-grid':
+            activeSection === 'fightPvp'
+              || activeSection === 'arenaPvp'
+              || activeSection === 'resourceChanges'
+              || activeSection === 'goldFishCalc'
+              || activeSection === 'tenHall',
+          'full-page-mode':
+            activeSection === 'saltFieldGroup'
+              || activeSection === 'peachGroup'
+              || activeSection === 'rankGroup',
+          'club-mode': activeSection === 'club',
+        }"
+      >
+        <TeamFormation v-show="activeSection === 'daily'"></TeamFormation>
+        <DailyTaskStatus v-show="activeSection === 'daily'"></DailyTaskStatus>
 
-    <!-- 阵容（仅日常） -->
-    <TeamFormation v-show="activeSection === 'daily'"></TeamFormation>
+        <TowerStatus
+          v-if="mountedSections.dailyExtras && isShowTowerStatus"
+          v-show="activeSection === 'daily'"
+        ></TowerStatus>
+        <WeirdTowerStatus
+          v-if="mountedSections.dailyExtras"
+          v-show="activeSection === 'daily'"
+        ></WeirdTowerStatus>
+        <BottleHelperCard
+          v-if="mountedSections.dailyExtras"
+          v-show="activeSection === 'daily'"
+        ></BottleHelperCard>
+        <HangUpStatusCard
+          v-if="mountedSections.dailyExtras"
+          v-show="activeSection === 'daily'"
+        ></HangUpStatusCard>
 
-    <!-- 每日任务状态（仅日常） -->
-    <DailyTaskStatus v-show="activeSection === 'daily'"></DailyTaskStatus>
+        <BoxHelperCard
+          v-if="mountedSections.tools"
+          v-show="activeSection === 'tools'"
+        ></BoxHelperCard>
+        <FishHelperCard
+          v-if="mountedSections.tools"
+          v-show="activeSection === 'tools'"
+        ></FishHelperCard>
+        <RecruitHelperCard
+          v-if="mountedSections.tools"
+          v-show="activeSection === 'tools'"
+        ></RecruitHelperCard>
+        <StarUpgradeCard v-if="activeSection === 'tools'"></StarUpgradeCard>
+        <FightHelperCard v-if="activeSection === 'tools'"></FightHelperCard>
+        <DreamHelperCard v-if="activeSection === 'tools'"></DreamHelperCard>
+        <HeroUpgradeCard v-if="activeSection === 'tools'"></HeroUpgradeCard>
+        <RefineHelperCard v-if="activeSection === 'tools'"></RefineHelperCard>
+        <ConsumptionProgressCard
+          v-if="activeSection === 'tools'"
+        ></ConsumptionProgressCard>
+        <BossTower v-if="activeSection === 'tools'"></BossTower>
 
-    <!-- 咸将塔状态 -->
-    <TowerStatus
-      v-if="mountedSections.dailyExtras && isShowTowerStatus"
-      v-show="activeSection === 'daily'"
-    ></TowerStatus>
-
-    <!-- 怪异塔状态 -->
-    <WeirdTowerStatus
-      v-if="mountedSections.dailyExtras"
-      v-show="activeSection === 'daily'"
-    ></WeirdTowerStatus>
-
-    <!-- 盐罐机器人状态（提取组件） -->
-    <BottleHelperCard
-      v-if="mountedSections.dailyExtras"
-      v-show="activeSection === 'daily'"
-    ></BottleHelperCard>
-
-    <!-- 挂机状态（提取组件） -->
-    <HangUpStatusCard
-      v-if="mountedSections.dailyExtras"
-      v-show="activeSection === 'daily'"
-    ></HangUpStatusCard>
-
-    <!-- 宝箱助手（提取组件） -->
-    <BoxHelperCard
-      v-if="mountedSections.tools"
-      v-show="activeSection === 'tools'"
-    ></BoxHelperCard>
-
-    <!-- 钓鱼助手（提取组件） -->
-    <FishHelperCard
-      v-if="mountedSections.tools"
-      v-show="activeSection === 'tools'"
-    ></FishHelperCard>
-
-    <!-- 招募助手（提取组件） -->
-    <RecruitHelperCard
-      v-if="mountedSections.tools"
-      v-show="activeSection === 'tools'"
-    ></RecruitHelperCard>
-
-    <!-- 升星助手（提取组件） -->
-    <StarUpgradeCard v-if="activeSection === 'tools'"></StarUpgradeCard>
-
-    <!-- 竞技场助手（提取组件） -->
-    <FightHelperCard v-if="activeSection === 'tools'"></FightHelperCard>
-
-    <!-- 梦境助手（提取组件） -->
-    <DreamHelperCard v-if="activeSection === 'tools'"></DreamHelperCard>
-
-    <!-- 武将升级助手（提取组件） -->
-    <HeroUpgradeCard v-if="activeSection === 'tools'"></HeroUpgradeCard>
-
-    <!-- 洗练助手（提取组件） -->
-    <RefineHelperCard v-if="activeSection === 'tools'"></RefineHelperCard>
-
-    <!-- 消耗活动进度（提取组件） -->
-    <ConsumptionProgressCard
-      v-if="activeSection === 'tools'"
-    ></ConsumptionProgressCard>
-    <!-- 咸王宝库（提取组件） -->
-    <BossTower v-if="activeSection === 'tools'"></BossTower>
-    <!-- 俱乐部排位（暂时隐藏） -->
-    <div
-      v-if="ENABLE_LEGION_MATCH && activeSection === 'club'"
-      class="status-card legion-match"
-    >
-      <div class="card-header">
-        <img
-          class="status-icon"
-          src="/icons/1733492491706152.png"
-          :alt="t('gameStatus.legionMatch.iconAlt')"
+        <div
+          v-if="ENABLE_LEGION_MATCH && activeSection === 'club'"
+          class="status-card legion-match"
         >
-        <div class="status-info">
-          <h3>{{ t("gameStatus.legionMatch.title") }}</h3>
-          <p>{{ t("gameStatus.legionMatch.subtitle") }}</p>
+          <div class="card-header">
+            <img
+              class="status-icon"
+              src="/icons/1733492491706152.png"
+              :alt="t('gameStatus.legionMatch.iconAlt')"
+            >
+            <div class="status-info">
+              <h3>{{ t("gameStatus.legionMatch.title") }}</h3>
+              <p>{{ t("gameStatus.legionMatch.subtitle") }}</p>
+            </div>
+            <div class="status-badge" :class="{ active: legionMatch.isRegistered }">
+              <div class="status-dot"></div>
+              <span>{{
+                legionMatch.isRegistered
+                  ? t("gameStatus.legionMatch.statusRegistered")
+                  : t("gameStatus.legionMatch.statusNotRegistered")
+              }}</span>
+            </div>
+          </div>
+          <div class="card-content">
+            <p class="description">
+              {{ t("gameStatus.legionMatch.descriptionLine1") }}<br>
+              {{ t("gameStatus.legionMatch.descriptionLine2") }}
+            </p>
+            <button
+              class="action-button"
+              :disabled="legionMatch.isRegistered"
+              @click="registerLegionMatch"
+            >
+              {{
+                legionMatch.isRegistered
+                  ? t("gameStatus.legionMatch.actionRegistered")
+                  : t("gameStatus.legionMatch.actionRegister")
+              }}
+            </button>
+          </div>
         </div>
-        <div class="status-badge" :class="{ active: legionMatch.isRegistered }">
-          <div class="status-dot"></div>
-          <span>{{
-            legionMatch.isRegistered
-              ? t("gameStatus.legionMatch.statusRegistered")
-              : t("gameStatus.legionMatch.statusNotRegistered")
-          }}</span>
-        </div>
-      </div>
-      <div class="card-content">
-        <p class="description">
-          {{ t("gameStatus.legionMatch.descriptionLine1") }}<br>
-          {{ t("gameStatus.legionMatch.descriptionLine2") }}
-        </p>
-        <button
-          class="action-button"
-          :disabled="legionMatch.isRegistered"
-          @click="registerLegionMatch"
-        >
-          {{
-            legionMatch.isRegistered
-              ? t("gameStatus.legionMatch.actionRegistered")
-              : t("gameStatus.legionMatch.actionRegister")
-          }}
-        </button>
-      </div>
-    </div>
 
-    <!-- 俱乐部赛车（合并自俱乐部赛车 + 疯狂赛车） -->
-
-    <!-- 俱乐部签到（已迁移到俱乐部信息-概览，故隐藏原卡片） -->
-    <div
-      v-if="ENABLE_LEGION_SIGNIN_CARD && activeSection === 'club'"
-      class="status-card legion-signin"
-    >
-      <div class="card-header">
-        <img
-          class="status-icon"
-          src="/icons/1733492491706148.png"
-          :alt="t('gameStatus.legionSignin.iconAlt')"
+        <div
+          v-if="ENABLE_LEGION_SIGNIN_CARD && activeSection === 'club'"
+          class="status-card legion-signin"
         >
-        <div class="status-info">
-          <h3>{{ t("gameStatus.legionSignin.title") }}</h3>
-          <p>{{ t("gameStatus.legionSignin.subtitle") }}</p>
+          <div class="card-header">
+            <img
+              class="status-icon"
+              src="/icons/1733492491706148.png"
+              :alt="t('gameStatus.legionSignin.iconAlt')"
+            >
+            <div class="status-info">
+              <h3>{{ t("gameStatus.legionSignin.title") }}</h3>
+              <p>{{ t("gameStatus.legionSignin.subtitle") }}</p>
+            </div>
+            <div class="status-badge" :class="{ active: legionSignin.isSignedIn }">
+              <div class="status-dot"></div>
+              <span>{{
+                legionSignin.isSignedIn
+                  ? t("gameStatus.legionSignin.statusSigned")
+                  : t("gameStatus.legionSignin.statusPending")
+              }}</span>
+            </div>
+          </div>
+          <div class="card-content">
+            <p v-if="legionSignin.clubName" class="club-name">
+              {{ t("gameStatus.legionSignin.currentClub") }}<br>
+              <strong>{{ legionSignin.clubName }}</strong>
+            </p>
+            <p v-else class="description">{{ t("gameStatus.legionSignin.noClub") }}</p>
+            <div class="action-row">
+              <button
+                class="action-button"
+                :disabled="legionSignin.isSignedIn"
+                @click="signInLegion"
+              >
+                {{
+                  legionSignin.isSignedIn
+                    ? t("gameStatus.legionSignin.actionSigned")
+                    : t("gameStatus.legionSignin.actionSign")
+                }}
+              </button>
+            </div>
+          </div>
         </div>
-        <div class="status-badge" :class="{ active: legionSignin.isSignedIn }">
-          <div class="status-dot"></div>
-          <span>{{
-            legionSignin.isSignedIn
-              ? t("gameStatus.legionSignin.statusSigned")
-              : t("gameStatus.legionSignin.statusPending")
-          }}</span>
-        </div>
-      </div>
-      <div class="card-content">
-        <p v-if="legionSignin.clubName" class="club-name">
-          {{ t("gameStatus.legionSignin.currentClub") }}<br>
-          <strong>{{ legionSignin.clubName }}</strong>
-        </p>
-        <p v-else class="description">{{ t("gameStatus.legionSignin.noClub") }}</p>
-        <div class="action-row">
-          <button
-            class="action-button"
-            :disabled="legionSignin.isSignedIn"
-            @click="signInLegion"
+
+        <ClubInfo
+          v-if="canAccessRestrictedGameSections && activeSection === 'club'"
+        ></ClubInfo>
+        <ClubCarKing
+          v-if="canAccessRestrictedGameSections && activeSection === 'club'"
+        ></ClubCarKing>
+
+        <MonthlyTasksCard
+          v-if="mountedSections.activity"
+          v-show="activeSection === 'activity'"
+        ></MonthlyTasksCard>
+        <StudyChallengeCard
+          v-if="mountedSections.activity"
+          v-show="activeSection === 'activity'"
+        ></StudyChallengeCard>
+        <SkinChallengeCard
+          v-if="mountedSections.activity"
+          v-show="activeSection === 'activity'"
+        ></SkinChallengeCard>
+
+        <div
+          v-if="canAccessRestrictedGameSections && activeSection === 'saltFieldGroup'"
+          class="salt-field-group"
+        >
+          <div class="sub-nav sub-nav-center">
+            <n-tabs
+              animated
+              class="sub-tabs"
+              size="small"
+              type="segment"
+              v-model:value="saltFieldSubTab"
+            >
+              <n-tab-pane name="warrank" :tab="t('gameStatus.saltFieldTabs.warrank')"></n-tab-pane>
+              <n-tab-pane name="weekBattle" :tab="t('gameStatus.saltFieldTabs.weekBattle')"></n-tab-pane>
+              <n-tab-pane name="monthBattle" :tab="t('gameStatus.saltFieldTabs.monthBattle')"></n-tab-pane>
+              <n-tab-pane name="legionWarMap" :tab="t('gameStatus.saltFieldTabs.legionWarMap')"></n-tab-pane>
+              <n-tab-pane name="legionWarStatistics" :tab="t('gameStatus.saltFieldTabs.legionWarStatistics')"></n-tab-pane>
+            </n-tabs>
+          </div>
+
+          <div
+            v-if="saltFieldSubTab === 'weekBattle'"
+            class="warrank-full-container"
           >
-            {{
-              legionSignin.isSignedIn
-                ? t("gameStatus.legionSignin.actionSigned")
-                : t("gameStatus.legionSignin.actionSign")
-            }}
-          </button>
+            <ClubBattleRecords></ClubBattleRecords>
+          </div>
+          <div v-if="saltFieldSubTab === 'warrank'" class="warrank-full-container">
+            <ClubWarrank></ClubWarrank>
+          </div>
+          <div
+            v-if="saltFieldSubTab === 'monthBattle'"
+            class="warrank-full-container"
+          >
+            <ClubMonthBattleRecords></ClubMonthBattleRecords>
+          </div>
+          <div
+            v-if="saltFieldSubTab === 'legionWarMap'"
+            class="warrank-full-container"
+          >
+            <LegionWarMap></LegionWarMap>
+          </div>
+          <div
+            v-if="saltFieldSubTab === 'legionWarStatistics'"
+            class="warrank-full-container"
+          >
+            <LegionWarStatistics></LegionWarStatistics>
+          </div>
         </div>
-      </div>
-    </div>
 
-    <!-- 俱乐部信息与疯狂赛车（同级卡片，仅俱乐部分区） -->
-    <ClubInfo
-      v-if="canAccessRestrictedGameSections && activeSection === 'club'"
-    ></ClubInfo>
-    <ClubCarKing
-      v-if="canAccessRestrictedGameSections && activeSection === 'club'"
-    ></ClubCarKing>
-
-    <!-- 月度任务进度（提取组件） -->
-    <MonthlyTasksCard
-      v-if="mountedSections.activity"
-      v-show="activeSection === 'activity'"
-    ></MonthlyTasksCard>
-
-    <!-- 咸鱼大冲关（提取组件） -->
-    <StudyChallengeCard
-      v-if="mountedSections.activity"
-      v-show="activeSection === 'activity'"
-    ></StudyChallengeCard>
-
-    <!-- 换皮闯关 -->
-    <SkinChallengeCard
-      v-if="mountedSections.activity"
-      v-show="activeSection === 'activity'"
-    ></SkinChallengeCard>
-
-    <!-- 盐场分组（包含盐场、周战绩、月战绩） -->
-    <div
-      v-if="canAccessRestrictedGameSections && activeSection === 'saltFieldGroup'"
-      class="salt-field-group"
-    >
-      <div class="sub-nav sub-nav-center">
-        <n-tabs
-          animated
-          class="sub-tabs"
-          size="small"
-          type="segment"
-          v-model:value="saltFieldSubTab"
+        <div
+          v-if="canAccessRestrictedGameSections && activeSection === 'peachGroup'"
+          class="peach-group"
         >
-          <n-tab-pane name="warrank" :tab="t('gameStatus.saltFieldTabs.warrank')"></n-tab-pane>
-          <n-tab-pane name="weekBattle" :tab="t('gameStatus.saltFieldTabs.weekBattle')"></n-tab-pane>
-          <n-tab-pane name="monthBattle" :tab="t('gameStatus.saltFieldTabs.monthBattle')"></n-tab-pane>
-          <n-tab-pane name="legionWarMap" :tab="t('gameStatus.saltFieldTabs.legionWarMap')"></n-tab-pane>
-          <n-tab-pane name="legionWarStatistics" :tab="t('gameStatus.saltFieldTabs.legionWarStatistics')"></n-tab-pane>
-        </n-tabs>
-      </div>
+          <div class="sub-nav sub-nav-center">
+            <n-tabs
+              animated
+              class="sub-tabs"
+              size="small"
+              type="segment"
+              v-model:value="peachSubTab"
+            >
+              <n-tab-pane name="peach" :tab="t('gameStatus.peachTabs.peach')"></n-tab-pane>
+              <n-tab-pane name="peachBattle" :tab="t('gameStatus.peachTabs.peachBattle')"></n-tab-pane>
+            </n-tabs>
+          </div>
 
-      <div
-        v-if="saltFieldSubTab === 'weekBattle'"
-        class="warrank-full-container"
-      >
-        <ClubBattleRecords></ClubBattleRecords>
-      </div>
+          <div v-if="peachSubTab === 'peachBattle'" class="warrank-full-container">
+            <PeachBattleRecords></PeachBattleRecords>
+          </div>
+          <div v-if="peachSubTab === 'peach'" class="warrank-full-container">
+            <PeachInfo></PeachInfo>
+          </div>
+        </div>
 
-      <div v-if="saltFieldSubTab === 'warrank'" class="warrank-full-container">
-        <ClubWarrank></ClubWarrank>
-      </div>
+        <div v-if="activeSection === 'rankGroup'" class="rank-group">
+          <div class="sub-nav sub-nav-center">
+            <n-tabs
+              animated
+              class="sub-tabs"
+              size="small"
+              type="segment"
+              v-model:value="rankSubTab"
+            >
+              <n-tab-pane name="serverrank" :tab="t('gameStatus.rankTabs.serverrank')"></n-tab-pane>
+              <n-tab-pane name="toprank" :tab="t('gameStatus.rankTabs.toprank')"></n-tab-pane>
+              <n-tab-pane name="topclubrank" :tab="t('gameStatus.rankTabs.topclubrank')"></n-tab-pane>
+              <n-tab-pane name="goldclubrank" :tab="t('gameStatus.rankTabs.goldclubrank')"></n-tab-pane>
+              <n-tab-pane name="greatRouteRank" :tab="t('gameStatus.rankTabs.greatRouteRank')"></n-tab-pane>
+            </n-tabs>
+          </div>
 
-      <div
-        v-if="saltFieldSubTab === 'monthBattle'"
-        class="warrank-full-container"
-      >
-        <ClubMonthBattleRecords></ClubMonthBattleRecords>
-      </div>
+          <div v-if="rankSubTab === 'serverrank'" class="warrank-full-container">
+            <ServerRankList></ServerRankList>
+          </div>
+          <div v-if="rankSubTab === 'toprank'" class="warrank-full-container">
+            <TopRankList></TopRankList>
+          </div>
+          <div v-if="rankSubTab === 'topclubrank'" class="warrank-full-container">
+            <TopClubList></TopClubList>
+          </div>
+          <div v-if="rankSubTab === 'goldclubrank'" class="warrank-full-container">
+            <GoldClubList></GoldClubList>
+          </div>
+          <div
+            v-if="rankSubTab === 'greatRouteRank'"
+            class="warrank-full-container"
+          >
+            <GreatRouteRankList></GreatRouteRankList>
+          </div>
+        </div>
 
-      <div
-        v-if="saltFieldSubTab === 'legionWarMap'"
-        class="warrank-full-container"
-      >
-        <LegionWarMap></LegionWarMap>
+        <FightPvp v-if="activeSection === 'fightPvp'"></FightPvp>
+        <ArenaPvp v-if="activeSection === 'arenaPvp'"></ArenaPvp>
+        <ResourceDataChanges
+          v-if="activeSection === 'resourceChanges'"
+        ></ResourceDataChanges>
+        <GoldFishCalculator
+          v-if="activeSection === 'goldFishCalc'"
+        ></GoldFishCalculator>
+        <TenHallTeamBattleCard
+          v-if="activeSection === 'tenHall'"
+        ></TenHallTeamBattleCard>
       </div>
-      <div
-        v-if="saltFieldSubTab === 'legionWarStatistics'"
-        class="warrank-full-container"
-      >
-        <LegionWarStatistics></LegionWarStatistics>
-      </div>
-    </div>
+    </GameStatusModuleStage>
 
-    <!-- 蟠桃园分组 -->
-    <div
-      v-if="canAccessRestrictedGameSections && activeSection === 'peachGroup'"
-      class="peach-group"
-    >
-      <div class="sub-nav sub-nav-center">
-        <n-tabs
-          animated
-          class="sub-tabs"
-          size="small"
-          type="segment"
-          v-model:value="peachSubTab"
-        >
-          <n-tab-pane name="peach" :tab="t('gameStatus.peachTabs.peach')"></n-tab-pane>
-          <n-tab-pane name="peachBattle" :tab="t('gameStatus.peachTabs.peachBattle')"></n-tab-pane>
-        </n-tabs>
-      </div>
-
-      <div v-if="peachSubTab === 'peachBattle'" class="warrank-full-container">
-        <PeachBattleRecords></PeachBattleRecords>
-      </div>
-
-      <div v-if="peachSubTab === 'peach'" class="warrank-full-container">
-        <PeachInfo></PeachInfo>
-      </div>
-    </div>
-
-    <!-- 排行榜分组 -->
-    <div v-if="activeSection === 'rankGroup'" class="rank-group">
-      <div class="sub-nav sub-nav-center">
-        <n-tabs
-          animated
-          class="sub-tabs"
-          size="small"
-          type="segment"
-          v-model:value="rankSubTab"
-        >
-          <n-tab-pane name="serverrank" :tab="t('gameStatus.rankTabs.serverrank')"></n-tab-pane>
-          <n-tab-pane name="toprank" :tab="t('gameStatus.rankTabs.toprank')"></n-tab-pane>
-          <n-tab-pane name="topclubrank" :tab="t('gameStatus.rankTabs.topclubrank')"></n-tab-pane>
-          <n-tab-pane name="goldclubrank" :tab="t('gameStatus.rankTabs.goldclubrank')"></n-tab-pane>
-          <n-tab-pane name="greatRouteRank" :tab="t('gameStatus.rankTabs.greatRouteRank')"></n-tab-pane>
-        </n-tabs>
-      </div>
-
-      <div v-if="rankSubTab === 'serverrank'" class="warrank-full-container">
-        <ServerRankList></ServerRankList>
-      </div>
-
-      <div v-if="rankSubTab === 'toprank'" class="warrank-full-container">
-        <TopRankList></TopRankList>
-      </div>
-
-      <div v-if="rankSubTab === 'topclubrank'" class="warrank-full-container">
-        <TopClubList></TopClubList>
-      </div>
-
-      <div v-if="rankSubTab === 'goldclubrank'" class="warrank-full-container">
-        <GoldClubList></GoldClubList>
-      </div>
-
-      <div
-        v-if="rankSubTab === 'greatRouteRank'"
-        class="warrank-full-container"
-      >
-        <GreatRouteRankList></GreatRouteRankList>
-      </div>
-    </div>
-    <!-- 切磋（提取组件） -->
-    <FightPvp v-if="activeSection === 'fightPvp'"></FightPvp>
-    <ArenaPvp v-if="activeSection === 'arenaPvp'"></ArenaPvp>
-    <ResourceDataChanges
-      v-if="activeSection === 'resourceChanges'"
-    ></ResourceDataChanges>
-    <GoldFishCalculator
-      v-if="activeSection === 'goldFishCalc'"
-    ></GoldFishCalculator>
-    <TenHallTeamBattleCard
-      v-if="activeSection === 'tenHall'"
-    ></TenHallTeamBattleCard>
+    <GameStatusIntelPanel
+      v-if="showIntelPanel"
+      :drawer-title="t('gameStatus.intel.drawerTitle')"
+      :facts="intelFacts"
+      :mobile-button-label="t('gameStatus.intel.mobileButton')"
+      :show-identity-card="showIdentityCard"
+      :subtitle="t('gameStatus.intel.subtitle')"
+      :title="t('gameStatus.intel.title')"
+    ></GameStatusIntelPanel>
   </div>
 </template>
 
@@ -378,15 +334,48 @@
 import {
   computed,
   defineAsyncComponent,
+  defineEmits,
+  defineProps,
   onMounted,
   onUnmounted,
   ref,
   watch,
 } from "vue";
 import { useI18n } from "vue-i18n";
+import GameStatusIntelPanel from "@/components/game-status/GameStatusIntelPanel.vue";
+import GameStatusModuleRail from "@/components/game-status/GameStatusModuleRail.vue";
+import GameStatusModuleStage from "@/components/game-status/GameStatusModuleStage.vue";
+import {
+  buildGameStatusModules,
+  findGameStatusModuleById,
+  findGameStatusSectionMeta,
+  GAME_STATUS_MODULE_IDS,
+  getDefaultSectionForModule,
+} from "@/components/game-status/moduleMeta";
 import { useAuthStore } from "@/stores/auth";
 import { useTokenStore } from "@/stores/tokenStore";
 import { hasGameFeatureAccess } from "@/utils/accessScope";
+
+const props = defineProps({
+  activeModule: {
+    type: String,
+    default: null,
+  },
+  showModuleRail: {
+    type: Boolean,
+    default: true,
+  },
+  showIntelPanel: {
+    type: Boolean,
+    default: true,
+  },
+  showIdentityCard: {
+    type: Boolean,
+    default: true,
+  },
+});
+
+const emit = defineEmits(["update:activeModule"]);
 
 const BottleHelperCard = defineAsyncComponent(
   () => import("./cards/BottleHelperCard.vue"),
@@ -486,12 +475,13 @@ const LegionWarStatistics = defineAsyncComponent(
 const tokenStore = useTokenStore();
 const authStore = useAuthStore();
 const { t } = useI18n();
+
 const legionMatch = ref({
   isRegistered: false,
 });
 
-// 响应式数据
-const activeSection = ref("daily");
+const internalActiveModule = ref(GAME_STATUS_MODULE_IDS.daily);
+const moduleSectionState = ref({});
 const saltFieldSubTab = ref("warrank");
 const peachSubTab = ref("peach");
 const rankSubTab = ref("serverrank");
@@ -503,9 +493,144 @@ const mountedSections = ref({
 let deferredDailyExtrasHandle = null;
 let deferredDailyExtrasMode = "";
 
+const bottleHelper = ref({
+  isRunning: false,
+  remainingTime: 0,
+  stopTime: 0,
+});
+
+const hangUp = ref({
+  isActive: false,
+  remainingTime: 0,
+  elapsedTime: 0,
+  lastTime: 0,
+  hangUpTime: 0,
+  isExtending: false,
+  isClaiming: false,
+});
+
+const legionSignin = ref({
+  isSignedIn: false,
+  clubName: "",
+});
+
+const activeModule = computed({
+  get: () => props.activeModule ?? internalActiveModule.value,
+  set: (value) => {
+    if (props.activeModule == null) {
+      internalActiveModule.value = value;
+    }
+    emit("update:activeModule", value);
+  },
+});
+
+const canAccessRestrictedGameSections = computed(() =>
+  hasGameFeatureAccess(authStore.user),
+);
+
+const roleInfo = computed(() => tokenStore.gameData?.roleInfo || null);
+
+const modules = computed(() =>
+  buildGameStatusModules(t, {
+    canAccessRestrictedGameSections: canAccessRestrictedGameSections.value,
+    enableToolsTab: ENABLE_TOOLS_TAB,
+  }),
+);
+
+const currentModule = computed(() =>
+  findGameStatusModuleById(modules.value, activeModule.value) || modules.value[0] || null,
+);
+
+const activeSection = computed({
+  get: () => {
+    const module = currentModule.value;
+    if (!module) {
+      return "daily";
+    }
+
+    const savedSection = moduleSectionState.value[module.id];
+    if (module.sections.some((section) => section.id === savedSection)) {
+      return savedSection;
+    }
+
+    return getDefaultSectionForModule(module);
+  },
+  set: (value) => {
+    const module = currentModule.value;
+    if (!module || !module.sections.some((section) => section.id === value)) {
+      return;
+    }
+
+    moduleSectionState.value = {
+      ...moduleSectionState.value,
+      [module.id]: value,
+    };
+  },
+});
+
+const currentSectionMeta = computed(() =>
+  findGameStatusSectionMeta(currentModule.value, activeSection.value),
+);
+
+const isEmbeddedWorkbench = computed(() =>
+  !props.showModuleRail && !props.showIntelPanel,
+);
+
+const mountedSummary = computed(() => {
+  const labels = [];
+  if (mountedSections.value.dailyExtras) {
+    labels.push(t("gameStatus.intel.loaded.dailyExtras"));
+  }
+  if (mountedSections.value.activity) {
+    labels.push(t("gameStatus.intel.loaded.activity"));
+  }
+  if (mountedSections.value.tools) {
+    labels.push(t("gameStatus.intel.loaded.tools"));
+  }
+  return labels.length ? labels.join(" / ") : t("gameStatus.intel.loaded.none");
+});
+
+const intelFacts = computed(() => [
+  {
+    label: t("gameStatus.intel.facts.currentModule"),
+    value: currentModule.value?.label || "-",
+    meta: currentModule.value?.description || "",
+  },
+  {
+    label: t("gameStatus.intel.facts.currentSection"),
+    value: currentSectionMeta.value?.label || "-",
+    meta: currentSectionMeta.value?.description || "",
+  },
+  {
+    label: t("gameStatus.intel.facts.accessScope"),
+    value: canAccessRestrictedGameSections.value
+      ? t("gameStatus.intel.facts.accessFull")
+      : t("gameStatus.intel.facts.accessRestricted"),
+    meta: canAccessRestrictedGameSections.value
+      ? t("gameStatus.intel.facts.accessFullMeta")
+      : t("gameStatus.intel.facts.accessRestrictedMeta"),
+  },
+  {
+    label: t("gameStatus.intel.facts.loadedPanels"),
+    value: mountedSummary.value,
+    meta: t("gameStatus.intel.facts.loadedPanelsMeta"),
+  },
+]);
+
+const isShowTowerStatus = computed(() => {
+  const tower = roleInfo.value?.role?.tower;
+  const towerId = tower?.id;
+  const floor = Math.floor(towerId / 10) + 1;
+  if (floor > 450) {
+    return false;
+  }
+  return true;
+});
+
 const clearDeferredDailyExtrasMount = () => {
-  if (deferredDailyExtrasHandle == null || typeof window === "undefined")
+  if (deferredDailyExtrasHandle == null || typeof window === "undefined") {
     return;
+  }
 
   if (
     deferredDailyExtrasMode === "idle"
@@ -521,8 +646,9 @@ const clearDeferredDailyExtrasMount = () => {
 };
 
 const scheduleDailyExtrasMount = () => {
-  if (mountedSections.value.dailyExtras || deferredDailyExtrasHandle != null)
+  if (mountedSections.value.dailyExtras || deferredDailyExtrasHandle != null) {
     return;
+  }
 
   const commitMount = () => {
     deferredDailyExtrasHandle = null;
@@ -561,64 +687,23 @@ const prepareSectionMount = (section) => {
   }
 };
 
-const bottleHelper = ref({
-  isRunning: false,
-  remainingTime: 0,
-  stopTime: 0,
-});
-
-const hangUp = ref({
-  isActive: false,
-  remainingTime: 0,
-  elapsedTime: 0,
-  lastTime: 0,
-  hangUpTime: 0,
-  isExtending: false, // 加钟状态
-  isClaiming: false, // 领取奖励状态
-});
-
-const legionSignin = ref({
-  isSignedIn: false,
-  clubName: "",
-});
-
-// 计算属性
-const roleInfo = computed(() => {
-  return tokenStore.gameData?.roleInfo || null;
-});
-const canAccessRestrictedGameSections = computed(() =>
-  hasGameFeatureAccess(authStore.user),
-);
-const isShowTowerStatus = computed(() => {
-  const tower = roleInfo.value?.role?.tower;
-  const towerId = tower?.id;
-  const floor = Math.floor(towerId / 10) + 1;
-  if (floor > 450) {
-    return false;
-  }
-  return true;
-});
-
-// 更新数据
 const updateGameStatus = () => {
-  if (!roleInfo.value) return;
+  if (!roleInfo.value) {
+    return;
+  }
 
   const role = roleInfo.value.role;
 
-  // 更新盐罐机器人状态
   if (role.bottleHelpers) {
     const now = Date.now() / 1000;
     bottleHelper.value.stopTime = role.bottleHelpers.helperStopTime;
     bottleHelper.value.isRunning = role.bottleHelpers.helperStopTime > now;
-    // 确保剩余时间为整数秒
     bottleHelper.value.remainingTime = Math.max(
       0,
       Math.floor(role.bottleHelpers.helperStopTime - now),
     );
-    // 控制台精简，避免频繁刷屏
   }
 
-  // 更新挂机状态
   if (role.hangUp) {
     const now = Date.now() / 1000;
     hangUp.value.lastTime = role.hangUp.lastTime;
@@ -626,7 +711,6 @@ const updateGameStatus = () => {
 
     const elapsed = now - hangUp.value.lastTime;
     if (elapsed <= hangUp.value.hangUpTime) {
-      // 确保剩余时间为整数秒
       hangUp.value.remainingTime = Math.floor(
         hangUp.value.hangUpTime - elapsed,
       );
@@ -635,25 +719,20 @@ const updateGameStatus = () => {
       hangUp.value.remainingTime = 0;
       hangUp.value.isActive = false;
     }
-    // 确保已挂机时间为整数秒
     hangUp.value.elapsedTime = Math.floor(
       hangUp.value.hangUpTime - hangUp.value.remainingTime,
     );
-    // 控制台精简
   }
 
-  // 更新俱乐部排位状态
   if (role.statistics) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const todayTimestamp = today.getTime() / 1000;
 
     legionMatch.value.isRegistered =
-      Number(role.statistics["last:legion:match:sign:up:time"]) >
-      todayTimestamp;
+      Number(role.statistics["last:legion:match:sign:up:time"]) > todayTimestamp;
   }
 
-  // 更新俱乐部签到状态
   if (role.statisticsTime) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -664,12 +743,12 @@ const updateGameStatus = () => {
   }
 };
 
-// 定时器更新
 let timer = null;
 const startTimer = () => {
-  if (timer) clearInterval(timer);
+  if (timer) {
+    clearInterval(timer);
+  }
   timer = setInterval(() => {
-    // 更新盐罐机器人剩余时间
     if (bottleHelper.value.isRunning && bottleHelper.value.remainingTime > 0) {
       bottleHelper.value.remainingTime = Math.max(
         0,
@@ -680,7 +759,6 @@ const startTimer = () => {
       }
     }
 
-    // 更新挂机剩余时间
     if (hangUp.value.isActive && hangUp.value.remainingTime > 0) {
       hangUp.value.remainingTime = Math.max(0, hangUp.value.remainingTime - 1);
       hangUp.value.elapsedTime = hangUp.value.elapsedTime + 1;
@@ -691,16 +769,32 @@ const startTimer = () => {
   }, 1000);
 };
 
-// 功能开关：暂时隐藏俱乐部排位与旧签到卡片
 const ENABLE_LEGION_MATCH = false;
 const ENABLE_LEGION_SIGNIN_CARD = false;
-const ENABLE_TOOLS_TAB = true; // 工具分区开关
+const ENABLE_TOOLS_TAB = true;
 
-// 盐场战绩入口已移动至俱乐部信息模块
+watch(
+  modules,
+  (nextModules) => {
+    if (!nextModules.length) {
+      return;
+    }
 
-// 学习答题逻辑已移动到 StudyChallengeCard 组件
+    const nextState = { ...moduleSectionState.value };
+    nextModules.forEach((module) => {
+      if (!module.sections.some((section) => section.id === nextState[module.id])) {
+        nextState[module.id] = getDefaultSectionForModule(module);
+      }
+    });
+    moduleSectionState.value = nextState;
 
-// 监听角色信息变化
+    if (!nextModules.some((module) => module.id === activeModule.value)) {
+      activeModule.value = nextModules[0].id;
+    }
+  },
+  { immediate: true },
+);
+
 watch(
   roleInfo,
   (newValue) => {
@@ -712,11 +806,13 @@ watch(
 );
 
 watch(
-  [activeSection, canAccessRestrictedGameSections],
-  ([section, canAccess]) => {
-    if (canAccess) return;
-    if (section === "club" || section === "saltFieldGroup" || section === "peachGroup") {
-      activeSection.value = "daily";
+  [activeModule, canAccessRestrictedGameSections],
+  ([moduleId, canAccess]) => {
+    if (canAccess) {
+      return;
+    }
+    if (moduleId === GAME_STATUS_MODULE_IDS.legionOps) {
+      activeModule.value = GAME_STATUS_MODULE_IDS.daily;
     }
   },
   { immediate: true },
@@ -730,7 +826,6 @@ watch(
   { immediate: true },
 );
 
-// 监听 WebSocket 连接状态（俱乐部信息）
 const hasFetchedLegionOnce = ref(false);
 watch(
   () =>
@@ -748,16 +843,13 @@ watch(
   },
 );
 
-// 战绩加载逻辑现由俱乐部信息模块负责
-
-// 生命周期
 onMounted(() => {
   updateGameStatus();
   startTimer();
-  // 获取俱乐部信息
+
   if (
-    tokenStore.selectedToken &&
-    tokenStore.getWebSocketStatus(tokenStore.selectedToken.id) === "connected"
+    tokenStore.selectedToken
+    && tokenStore.getWebSocketStatus(tokenStore.selectedToken.id) === "connected"
   ) {
     const tokenId = tokenStore.selectedToken.id;
     tokenStore.sendMessage(tokenId, "legion_getinfo");
@@ -765,7 +857,6 @@ onMounted(() => {
   }
 });
 
-// 组件卸载时清理定时器
 onUnmounted(() => {
   if (timer) {
     clearInterval(timer);
@@ -775,6 +866,25 @@ onUnmounted(() => {
 </script>
 
 <style scoped lang="scss">
+.game-status-shell {
+  display: grid;
+  grid-template-columns: minmax(228px, 260px) minmax(0, 1fr) minmax(260px, 320px);
+  gap: 18px;
+  align-items: start;
+}
+
+.game-status-shell--no-rail {
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 320px);
+}
+
+.game-status-shell--no-intel {
+  grid-template-columns: minmax(228px, 260px) minmax(0, 1fr);
+}
+
+.game-status-shell--no-rail.game-status-shell--no-intel {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .sub-nav-center {
   padding: 8px;
   background: var(--n-color);
@@ -790,17 +900,14 @@ onUnmounted(() => {
   overflow-x: hidden;
   align-items: start;
 
-  // 超宽屏再扩到三列，避免在嵌入式面板里过早挤压
   @media (min-width: 1800px) {
     grid-template-columns: repeat(3, 1fr);
   }
 
-  // 中等桌面宽度收成单列，保证卡片内容完整展示
   @media (max-width: 1280px) {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  // 在较小屏幕上使用单列布局
   @media (max-width: 900px) {
     grid-template-columns: 1fr;
     gap: var(--spacing-md);
@@ -832,47 +939,6 @@ onUnmounted(() => {
     grid-template-columns: repeat(2, 1fr);
     max-width: 100% !important;
   }
-}
-
-.section-header {
-  grid-column: 1 / -1;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px var(--spacing-sm);
-}
-
-.identity-toggle {
-  padding: 6px 12px;
-  border: 1px solid var(--border-light);
-  border-radius: 999px;
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-  cursor: pointer;
-}
-
-.section-tabs {
-  margin: 0 var(--spacing-sm) var(--spacing-md) var(--spacing-sm);
-  grid-column: 1 / -1;
-  border-bottom: 1px solid var(--border-light);
-  overflow: auto;
-}
-
-.section-tabs :deep(.n-tabs-pane-wrapper) {
-  display: none;
-}
-
-.section-tabs :deep(.n-tabs-nav-scroll-wrapper) {
-  overflow-x: auto;
-  overflow-y: hidden;
-  -webkit-overflow-scrolling: touch;
-}
-
-.section-tabs :deep(.n-tabs-nav-scroll-content) {
-  display: inline-flex;
-  flex-wrap: nowrap;
-  min-width: max-content;
 }
 
 .sub-tabs :deep(.n-tabs-nav-scroll-wrapper) {
@@ -939,9 +1005,7 @@ onUnmounted(() => {
 .card-content {
   .time-display {
     font-size: 1.5rem;
-    /* text-2xl */
     font-weight: 700;
-    /* font-bold */
     color: var(--text-primary);
     text-align: center;
     margin-bottom: var(--spacing-md);
@@ -1035,17 +1099,29 @@ onUnmounted(() => {
   }
 }
 
-// 响应式设计
+@media (max-width: 1280px) {
+  .game-status-shell {
+    grid-template-columns: minmax(220px, 248px) minmax(0, 1fr);
+  }
+
+  .game-status-shell--no-rail {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .game-status-shell--no-intel {
+    grid-template-columns: minmax(220px, 248px) minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 959px) {
+  .game-status-shell,
+  .game-status-shell--no-rail,
+  .game-status-shell--no-intel {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 @media (max-width: 768px) {
-  .game-status-container {
-    grid-template-columns: 1fr;
-    padding: var(--spacing-sm);
-  }
-
-  .section-tabs {
-    margin: 0 0 var(--spacing-sm) 0;
-  }
-
   .sub-nav-center {
     justify-content: flex-start;
     overflow-x: auto;

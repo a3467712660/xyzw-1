@@ -195,6 +195,67 @@
       "connected": "Connected",
       "disconnected": "Disconnected"
     },
+    "workbench": {
+      "eyebrow": "Mission Control",
+      "title": "Game Mission Control",
+      "dockLabel": "Module Navigation",
+      "values": {
+        "none": "None",
+        "pending": "Pending"
+      },
+      "actions": {
+        "openInspector": "Open Intel",
+        "tokenCenter": "Token Center"
+      },
+      "signals": {
+        "lastActivity": "Last Activity",
+        "lastActivityMeta": "Connection changes leave a timestamp here"
+      },
+      "stage": {
+        "eyebrow": "Main Stage",
+        "telemetryLabel": "Realtime Link"
+      },
+      "groups": {
+        "operations": {
+          "label": "Operations Core",
+          "caption": "Daily, limited-time activity, and tool execution lanes"
+        },
+        "battle": {
+          "label": "Battle Network",
+          "caption": "Legion operations and PVP combat in one switchboard"
+        },
+        "analysis": {
+          "label": "Intel Analysis",
+          "caption": "Data analysis and long-chain observation lanes"
+        }
+      },
+      "modules": {
+        "daily": "Review daily formations, task progress, and base idle data.",
+        "activity": "Handle monthly events and staged progression modules in one lane.",
+        "tools": "Enter the heavy tool bay for box, fishing, recruit, and upgrade helpers.",
+        "club": "Inspect club status and collaboration-oriented panels.",
+        "saltFieldGroup": "Switch between salt field overview, battle records, maps, and war stats.",
+        "peachGroup": "Inspect peach garden info together with battle history.",
+        "fightPvp": "Enter the sparring lane for direct duel handling.",
+        "arenaPvp": "Inspect the arena duel surface and related action slots.",
+        "tenHall": "Open the Ten Hall battle surface and its simulation widgets.",
+        "rankGroup": "Switch among server, peak, guild, and other ranking views.",
+        "resourceChanges": "Track resource data changes and drift records.",
+        "goldFishCalc": "Use the gold fish calculator for resource and value estimation."
+      },
+      "inspector": {
+        "title": "Intel Sidebar",
+        "subtitle": "Keep connection judgment, role context, and next-step guidance in a mission-control side panel.",
+        "recommendationLabel": "Recommended Action",
+        "factsLabel": "Core Intel",
+        "serverLabel": "Role Server",
+        "serverMeta": "Current bound server for this role",
+        "lastActivityMeta": "Most recent status-change timestamp",
+        "facts": {
+          "currentTokenMeta": "Role currently locked into the workbench"
+        }
+      }
+    },
     "messages": {
       "selectTokenFirst": "Please select a token first",
       "websocketNotConnected": "WebSocket is not connected. Please establish the connection first.",
@@ -2053,6 +2114,82 @@
     }
   },
   "gameStatus": {
+    "navigation": {
+      "title": "Module Navigation",
+      "subtitle": "Game Feature Modules",
+      "mobileButton": "Switch Module",
+      "drawerTitle": "Select Module"
+    },
+    "stage": {
+      "title": "Module Stage",
+      "navLabel": "Sub Area",
+      "compactLabel": "Current Sub Area",
+      "mobileButton": "Switch Sub Area",
+      "drawerTitle": "Select Sub Area"
+    },
+    "modules": {
+      "daily": {
+        "label": "Daily",
+        "description": "Review formation, task, idle, and daily progression panels in one place."
+      },
+      "legionOps": {
+        "label": "Legion & Operations",
+        "description": "Bundle club, salt field, and peach garden into one coordinated battle lane."
+      },
+      "activity": {
+        "label": "Limited Activities",
+        "description": "Carry monthly tasks, event runs, and staged progression panels."
+      },
+      "tools": {
+        "label": "Tools",
+        "description": "Keep the heavy helper lane for box, fishing, recruit, and upgrade tools."
+      },
+      "pvp": {
+        "label": "PVP Combat",
+        "description": "Put sparring and arena into one direct battle workflow."
+      },
+      "dataAnalysis": {
+        "label": "Data Analysis",
+        "description": "Collect rankings, resource drift, calculators, and Ten Hall analysis in one module."
+      }
+    },
+    "moduleSections": {
+      "daily": "Core daily surfaces and idle information.",
+      "club": "Club overview, guild info, and linked operation entry points.",
+      "saltFieldGroup": "Salt field overview, records, map, and war status switching.",
+      "peachGroup": "Peach garden info and battle records.",
+      "activity": "Limited-time activity and staged challenge surfaces.",
+      "tools": "Tool collection and helper panels.",
+      "fightPvp": "Direct sparring battle entry.",
+      "arenaPvp": "Arena duel surface and related action slots.",
+      "rankGroup": "Ranking hub and multi-board switching.",
+      "resourceChanges": "Resource change tracking.",
+      "goldFishCalc": "Gold fish calculation and resource estimation.",
+      "tenHall": "Ten Hall battle and analysis widgets."
+    },
+    "intel": {
+      "title": "Intel Panel",
+      "subtitle": "Identity and current module context are gathered here.",
+      "mobileButton": "View Intel",
+      "drawerTitle": "Module Intel",
+      "facts": {
+        "currentModule": "Current Module",
+        "currentSection": "Current Sub Area",
+        "accessScope": "Access Scope",
+        "accessFull": "Full Access",
+        "accessFullMeta": "Legion and operation modules are available",
+        "accessRestricted": "Restricted Access",
+        "accessRestrictedMeta": "Legion and operation modules are hidden",
+        "loadedPanels": "Preloaded Panels",
+        "loadedPanelsMeta": "mountedSections deferred-mount status"
+      },
+      "loaded": {
+        "dailyExtras": "Daily Extras",
+        "activity": "Limited Activities",
+        "tools": "Tool Module",
+        "none": "Not preloaded"
+      }
+    },
     "sections": {
       "daily": "Daily",
       "club": "Club",
