@@ -10,12 +10,12 @@
       <span>{{ state.isRunning ? t("boxHelperCard.status.running") : t("boxHelperCard.status.stopped") }}</span>
     </template>
     <template #default>
-      <div class="total-points">
+      <div class="gwb2-mini-card__metric total-points">
         <span class="label">{{ t("boxHelperCard.labels.totalPoints") }}</span>
         <span class="value">{{ totalPoints }}</span>
       </div>
       <div class="container">
-        <div class="list">
+        <div class="gwb2-mini-card__list list">
           <div v-for="item in boxDataList" :key="item.type" class="item">
             <img :alt="item.type" :src="item.img">
             <div class="box-info">
@@ -24,14 +24,14 @@
             </div>
           </div>
         </div>
-        <div class="selects">
+        <div class="gwb2-mini-card__toolbar selects">
           <n-select v-model:value="type" :options="typeOptions"></n-select>
           <n-select v-model:value="number" :options="numberOptions"></n-select>
         </div>
       </div>
     </template>
     <template #action>
-      <a-button
+      <n-button
         block
         secondary
         size="small"
@@ -40,10 +40,10 @@
         @click="handleBoxHelper"
       >
         {{ state.isRunning ? t("boxHelperCard.status.running") : t("boxHelperCard.actions.open") }}
-      </a-button>
-      <a-button size="small" type="primary" @click="batchclaimboxpointreward">
+      </n-button>
+      <n-button size="small" type="primary" @click="batchclaimboxpointreward">
         {{ t("boxHelperCard.actions.claimPoints") }}
-      </a-button>
+      </n-button>
     </template>
   </MyCard>
 </template>

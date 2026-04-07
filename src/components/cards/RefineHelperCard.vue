@@ -13,7 +13,7 @@
     <template #default>
       <div class="refine-container">
         <!-- 工具栏 -->
-        <div class="toolbar">
+        <div class="gwb2-mini-card__toolbar toolbar">
           <n-button size="small" type="primary" @click="refreshHeroes">
             {{ t("refineHelperCard.actions.refreshHeroes") }}
           </n-button>
@@ -27,9 +27,9 @@
         <!-- 武将列表 -->
         <div class="hero-list-section">
           <h4>{{ t("refineHelperCard.labels.selectHero") }}</h4>
-          <div class="hero-list">
-            <div v-if="loading" class="loading">{{ t("refineHelperCard.states.loading") }}</div>
-            <div v-else-if="heroes.length === 0" class="empty">
+          <div class="gwb2-mini-card__list hero-list">
+            <div v-if="loading" class="gwb2-mini-card__empty loading">{{ t("refineHelperCard.states.loading") }}</div>
+            <div v-else-if="heroes.length === 0" class="gwb2-mini-card__empty empty">
               {{ t("refineHelperCard.states.emptyHeroes") }}
             </div>
             <div
@@ -60,7 +60,7 @@
         <!-- 装备列表 -->
         <div v-if="selectedHeroId" class="equip-section">
           <h4>{{ t("refineHelperCard.labels.selectEquip") }}</h4>
-          <div class="equip-tabs">
+          <div class="gwb2-mini-card__segmented equip-tabs">
             <div
               v-for="part in equipParts"
               :key="part.id"
@@ -77,7 +77,7 @@
         <!-- 洗练详情 -->
         <div v-if="selectedPart" class="refine-detail">
           <!-- 洗练统计 -->
-          <div class="stats">
+          <div class="gwb2-mini-card__metric stats">
             <div class="stat-item">
               <span class="stat-label">{{ t("refineHelperCard.labels.quenchTimes") }}</span>
               <span class="stat-value">{{ quenchTimes }}</span>
@@ -152,7 +152,7 @@
           </div>
 
           <!-- 操作按钮 -->
-          <div class="actions">
+          <div class="gwb2-mini-card__actions actions">
             <n-button
               size="small"
               type="primary"
@@ -194,7 +194,7 @@
           <div class="auto-section">
             <h4>{{ t("refineHelperCard.labels.autoSettings") }}</h4>
             <!-- 条件列表 -->
-            <div class="conditions-list">
+            <div class="gwb2-mini-card__list conditions-list">
               <div
                 v-for="(condition, index) in targetConditions"
                 :key="index"

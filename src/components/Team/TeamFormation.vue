@@ -1,6 +1,7 @@
 <template>
-  <div class="status-card team-formation-card">
-    <div class="card-header">
+  <div class="gwb2-mini-card team-formation-card">
+    <div class="gwb2-mini-card__surface">
+      <div class="gwb2-mini-card__toolbar team-formation-card__toolbar">
       <img
         alt="阵容"
         class="icon"
@@ -10,7 +11,7 @@
         <h3>阵容</h3>
         <p>当前使用的战斗阵容</p>
       </div>
-      <div class="team-selector">
+      <div class="gwb2-mini-card__segmented team-selector">
         <button
           v-for="teamId in availableTeams"
           :key="teamId"
@@ -42,10 +43,10 @@
           <span class="refresh-text">刷新</span>
         </button>
       </div>
-    </div>
+      </div>
 
-    <div class="card-content">
-      <div class="current-team-info">
+      <div class="gwb2-mini-card__body team-formation-card__body">
+      <div class="gwb2-mini-card__metric current-team-info">
         <span class="label">当前阵容</span>
         <span class="team-number">
           <template v-if="!loading">阵容 {{ currentTeam }}</template>
@@ -53,7 +54,7 @@
         </span>
       </div>
 
-      <div class="heroes-container">
+      <div class="gwb2-mini-card__list heroes-container">
         <div v-if="!loading" class="heroes-formation">
           <!-- 前排 2个 -->
           <div class="formation-row front-row">
@@ -99,12 +100,13 @@
           </div>
         </div>
 
-        <div v-if="!loading && !currentTeamHeroes.length" class="empty-team">
+        <div v-if="!loading && !currentTeamHeroes.length" class="gwb2-mini-card__empty empty-team">
           <p>暂无队伍信息</p>
         </div>
-        <div v-if="loading" class="empty-team">
+        <div v-if="loading" class="gwb2-mini-card__empty empty-team">
           <p>正在加载队伍信息…</p>
         </div>
+      </div>
       </div>
     </div>
   </div>
@@ -370,7 +372,7 @@ watch(
   min-height: 220px;
 }
 
-.card-header {
+.team-formation-card__toolbar {
   display: flex;
   align-items: flex-start;
   gap: var(--spacing-md);
@@ -488,19 +490,19 @@ watch(
   }
 }
 
-.card-content .current-team-info {
+.team-formation-card__body .current-team-info {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: var(--spacing-sm);
 }
 
-.card-content .label {
+.team-formation-card__body .label {
   font-size: var(--font-size-sm);
   color: var(--text-secondary);
 }
 
-.card-content .team-number {
+.team-formation-card__body .team-number {
   font-size: var(--font-size-lg);
   font-weight: var(--font-weight-bold);
   color: var(--text-primary);
@@ -587,7 +589,7 @@ watch(
     padding: 0 14px;
   }
 
-  .card-header {
+  .team-formation-card__toolbar {
     flex-direction: column;
     gap: var(--spacing-sm);
     text-align: center;

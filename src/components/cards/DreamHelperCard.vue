@@ -11,21 +11,23 @@
     </template>
     <template #default>
       <div class="dream-helper-content">
-        <div class="tabs">
-          <div
+        <div class="gwb2-mini-card__segmented tabs">
+          <button
             class="tab"
+            type="button"
             :class="{ active: activeTab === 'battle' }"
             @click="activeTab = 'battle'"
           >
             {{ t("dreamHelperCard.tabs.battle") }}
-          </div>
-          <div
+          </button>
+          <button
             class="tab"
+            type="button"
             :class="{ active: activeTab === 'buy' }"
             @click="activeTab = 'buy'"
           >
             {{ t("dreamHelperCard.tabs.buy") }}
-          </div>
+          </button>
         </div>
 
         <!-- 战斗模块 -->
@@ -36,31 +38,31 @@
               <div v-for="hero in teamHeroes" :key="hero.id" class="hero-item">
                 <div
                   class="hero-name"
-                  :style="{ borderLeftColor: getTypeColor(hero.type) }"
+                  :style="{ color: getTypeColor(hero.type) }"
                 >
                   {{ hero.name }}
                 </div>
-                <a-button
+                <n-button
                   size="small"
                   type="primary"
                   :class="{ 'stop-btn': continuousBattles[hero.id] }"
                   @click="toggleContinuousBattle(hero.id)"
                 >
                   {{ continuousBattles[hero.id] ? t("dreamHelperCard.actions.stop") : t("dreamHelperCard.actions.continuousBattle") }}
-                </a-button>
+                </n-button>
               </div>
             </div>
           </div>
-          <div class="team-actions">
-            <a-button size="small" type="primary" @click="getDefaultTeam">
+          <div class="gwb2-mini-card__actions team-actions">
+            <n-button size="small" type="primary" @click="getDefaultTeam">
               {{ t("dreamHelperCard.actions.getTeam") }}
-            </a-button>
-            <a-button size="small" type="primary" @click="selectDreamTeam">
+            </n-button>
+            <n-button size="small" type="primary" @click="selectDreamTeam">
               {{ t("dreamHelperCard.actions.selectLineup") }}
-            </a-button>
-            <a-button size="small" type="primary" @click="stopAllBattles">
+            </n-button>
+            <n-button size="small" type="primary" @click="stopAllBattles">
               {{ t("dreamHelperCard.actions.stopAll") }}
-            </a-button>
+            </n-button>
           </div>
         </div>
 
@@ -68,16 +70,16 @@
         <div v-if="activeTab === 'buy'" class="tab-content">
           <div class="merchant-info">
             <div class="merchant-title">{{ t("dreamHelperCard.labels.merchantList") }}</div>
-            <div class="merchant-actions">
-              <a-button size="small" type="primary" @click="refreshMerchantList">
+            <div class="gwb2-mini-card__actions merchant-actions">
+              <n-button size="small" type="primary" @click="refreshMerchantList">
                 {{ t("dreamHelperCard.actions.getItems") }}
-              </a-button>
-              <a-button size="small" type="primary" @click="buyAllGoldItems">
+              </n-button>
+              <n-button size="small" type="primary" @click="buyAllGoldItems">
                 {{ t("dreamHelperCard.actions.buyAllGold") }}
-              </a-button>
-              <a-button size="small" type="primary" @click="buyAllGoldFishItems">
+              </n-button>
+              <n-button size="small" type="primary" @click="buyAllGoldFishItems">
                 {{ t("dreamHelperCard.actions.buyAllGoldFish") }}
-              </a-button>
+              </n-button>
             </div>
           </div>
           <div v-if="merchantDataLoaded" class="merchant-items">
@@ -105,7 +107,7 @@
       </div>
     </template>
     <template #action>
-      <a-button
+      <n-button
         block
         secondary
         size="small"
@@ -114,7 +116,7 @@
         @click="startDreamHelper"
       >
         {{ isRunning ? t("dreamHelperCard.status.running") : t("dreamHelperCard.actions.start") }}
-      </a-button>
+      </n-button>
     </template>
   </MyCard>
 </template>
@@ -735,21 +737,22 @@ const startDreamHelper = async () => {
   .tabs {
     display: flex;
     margin-bottom: 10px;
-    background: var(--bg-tertiary);
-    border-radius: var(--border-radius-medium);
-    overflow: hidden;
+    gap: var(--spacing-xs);
 
     .tab {
       flex: 1;
       padding: 8px;
       text-align: center;
+      border: none;
+      border-radius: var(--border-radius-medium);
+      background: transparent;
+      color: var(--text-secondary);
       cursor: pointer;
       transition: all 0.2s;
       font-size: var(--font-size-sm);
 
       &.active {
-        background: var(--color-primary);
-        color: var(--text-light);
+        color: var(--text-primary);
       }
     }
   }
@@ -784,8 +787,10 @@ const startDreamHelper = async () => {
 
     .hero-name {
       padding: 4px 8px;
-      border-left: 3px solid #8b5cf6;
+      border-radius: 999px;
+      background: rgba(63, 119, 173, 0.08);
       font-size: var(--font-size-sm);
+      font-weight: var(--font-weight-medium);
     }
   }
 

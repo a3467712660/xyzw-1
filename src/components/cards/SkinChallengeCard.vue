@@ -14,7 +14,7 @@
       <!-- Badge content moved to default slot -->
     </template>
     <template #default>
-      <div class="header-info">
+      <div class="gwb2-mini-card__metric header-info">
         <span class="challenge-count">
           {{ t("skinChallengeCard.todayChallenge", { count: dailyFightNum }) }}
         </span>
@@ -32,7 +32,7 @@
       <div v-if="!isActivityValid" class="expired-mask">
         {{ t("skinChallengeCard.currentActivityEnded") }}
       </div>
-      <div class="boss-grid" :class="{ disabled: !isActivityValid }">
+      <div class="gwb2-mini-card__list boss-grid" :class="{ disabled: !isActivityValid }">
         <div
           v-for="type in 6"
           :key="type"
@@ -68,18 +68,20 @@
             </span>
           </div>
 
-          <button
+          <n-button
             class="challenge-btn"
+            size="small"
+            type="primary"
             :disabled="!canChallenge(type) || isFighting"
             @click="challengeSingle(type)"
           >
             {{ t("skinChallengeCard.actions.challenge") }}
-          </button>
+          </n-button>
         </div>
       </div>
 
-      <div class="action-row">
-        <button
+      <div class="gwb2-mini-card__actions action-row">
+        <n-button
           class="action-button secondary"
           :disabled="isFighting"
           @click="refreshInfo"
@@ -89,7 +91,7 @@
               ? t("skinChallengeCard.actions.refreshing")
               : t("skinChallengeCard.actions.refresh")
           }}
-        </button>
+        </n-button>
       </div>
     </template>
   </MyCard>
@@ -473,24 +475,7 @@ watch(
 }
 
 .challenge-btn {
-  background: var(--primary-color);
-  color: white;
-  border: none;
-  border-radius: var(--border-radius-small);
-  padding: 4px 12px;
-  font-size: var(--font-size-xs);
-  cursor: pointer;
-  transition: background var(--transition-fast);
-
-  &:disabled {
-    background: var(--bg-tertiary);
-    color: var(--text-tertiary);
-    cursor: not-allowed;
-  }
-
-  &:not(:disabled):hover {
-    background: var(--primary-color-hover);
-  }
+  width: 100%;
 }
 
 .action-row {
@@ -500,18 +485,7 @@ watch(
 }
 
 .action-button {
-  padding: var(--spacing-xs) var(--spacing-md);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-medium);
-  border: none;
-  border-radius: var(--border-radius-medium);
-  cursor: pointer;
-  background: var(--bg-tertiary);
-  color: var(--text-secondary);
-
-  &:hover {
-    background: var(--bg-secondary);
-  }
+  width: 100%;
 }
 
 @media (max-width: 640px) {

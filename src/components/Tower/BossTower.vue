@@ -10,10 +10,13 @@
       <h3>咸王功能</h3>
     </template>
     <template #default>
-      <div class="time-display">宝库当前层数：{{ currentTower }}</div>
+      <div class="gwb2-mini-card__metric boss-tower__metric">
+        <span class="metric-label">宝库当前层数</span>
+        <strong class="metric-value">{{ currentTower }}</strong>
+      </div>
     </template>
     <template #action>
-      <a-button
+      <n-button
         block
         secondary
         size="small"
@@ -21,7 +24,7 @@
         @click="extendbosstower"
       >
         宝库战斗
-      </a-button>
+      </n-button>
     </template>
   </MyCard>
 </template>
@@ -103,5 +106,21 @@ const extendbosstower = async () => {
 </script>
 
 <style scoped lang="scss">
-/* 按钮改用 Naive UI；time-display 样式由 MyCard 统一提供 */
+.boss-tower__metric {
+  align-items: center;
+}
+
+.metric-label {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.metric-value {
+  color: var(--text-primary);
+  font-family: var(--font-family-mono);
+  font-size: 1.35rem;
+  font-weight: 700;
+}
 </style>

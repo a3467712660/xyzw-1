@@ -5,19 +5,25 @@
     </template>
     <template #title>
       <h3>挂机时间</h3>
-      <p>已挂机：{{ formatTime(hangUp.elapsedTime) }}</p>
     </template>
     <template #badge>
       <span>{{ hangUp.isActive ? "挂机中" : "已完成" }}</span>
     </template>
     <template #default>
-      <div class="time-display">
-        {{ formatTime(hangUp.remainingTime) }}
+      <div class="gwb2-mini-card__metric hang-up__metric">
+        <div class="metric-block">
+          <span class="metric-label">已挂机</span>
+          <strong class="metric-value">{{ formatTime(hangUp.elapsedTime) }}</strong>
+        </div>
+        <div class="metric-block">
+          <span class="metric-label">剩余时间</span>
+          <strong class="metric-value time-display">{{ formatTime(hangUp.remainingTime) }}</strong>
+        </div>
       </div>
     </template>
     <template #action>
-      <button
-        class="action-button secondary"
+      <n-button
+        size="small"
         :disabled="hangUp.isExtending"
         @click="extendHangUp"
       >
@@ -25,9 +31,10 @@
           <i class="line-md:loading-loop"></i> 加钟中...
         </span>
         <span v-else>加钟</span>
-      </button>
-      <button
-        class="action-button primary"
+      </n-button>
+      <n-button
+        size="small"
+        type="primary"
         :disabled="hangUp.isClaiming"
         @click="claimHangUpReward"
       >
@@ -35,7 +42,7 @@
           <i class="line-md:loading-loop"></i> 领取中...
         </span>
         <span v-else>领取奖励</span>
-      </button>
+      </n-button>
     </template>
   </MyCard>
 </template>
@@ -178,5 +185,35 @@ const claimHangUpReward = async () => {
 </script>
 
 <style scoped lang="scss">
-/* 按钮改用 Naive UI；time-display 样式由 MyCard 统一提供 */
+.hang-up__metric {
+  align-items: stretch;
+}
+
+.metric-block {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.metric-label {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.metric-value {
+  color: var(--text-primary);
+  font-family: var(--font-family-mono);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+@media (max-width: 768px) {
+  .hang-up__metric {
+    flex-direction: column;
+  }
+}
 </style>

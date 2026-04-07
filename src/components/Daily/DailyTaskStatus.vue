@@ -1,49 +1,50 @@
 <template>
-  <div class="status-card daily-task">
-    <div class="card-header">
-      <img
-        alt="每日任务"
-        class="status-icon"
-        src="/icons/174023274867420.png"
-      >
-      <div class="status-info">
-        <h3>每日任务</h3>
-        <p>当前进度</p>
-      </div>
-      <div class="header-right">
-        <div
-          class="status-badge"
-          :class="{ completed: isFull }"
-          @click="showTaskDetails = true"
+  <div class="gwb2-mini-card daily-task">
+    <div class="gwb2-mini-card__surface">
+      <div class="gwb2-mini-card__toolbar daily-task__toolbar">
+        <img
+          alt="每日任务"
+          class="status-icon"
+          src="/icons/174023274867420.png"
         >
-          <div class="status-dot" :class="{ completed: isFull }"></div>
-          <span>任务详情</span>
+        <div class="status-info">
+          <h3>每日任务</h3>
+          <p>当前进度</p>
         </div>
-
-        <button
-          class="settings-gear"
-          title="任务设置"
-          @click="showSettings = true"
-        >
-          <svg
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.5"
-            viewBox="0 0 24 24"
+        <div class="header-right">
+          <div
+            class="gwb2-mini-card__chip"
+            :class="{ completed: isFull }"
+            @click="showTaskDetails = true"
           >
-            <path
-              d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.240.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z"
-            />
-            <path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-          </svg>
-        </button>
+            <div class="gwb2-mini-card__chip-dot" :class="{ completed: isFull }"></div>
+            <span>任务详情</span>
+          </div>
+
+          <button
+            class="settings-gear"
+            title="任务设置"
+            @click="showSettings = true"
+          >
+            <svg
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              viewBox="0 0 24 24"
+            >
+              <path
+                d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.240.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z"
+              />
+              <path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          </button>
+        </div>
       </div>
-    </div>
 
     <!-- 卡片内容区域（自适应填充高度，居中展示） -->
-    <div class="card-content">
+      <div class="gwb2-mini-card__body daily-task__body">
       <!-- 进度条 -->
-      <div class="progress-container">
+      <div class="gwb2-mini-card__metric progress-container">
         <n-progress
           rail-color="#f3f4f6"
           type="line"
@@ -59,9 +60,11 @@
     </div>
 
     <!-- 一键执行按钮 -->
-    <div class="card-actions">
-      <button
+    <div class="gwb2-mini-card__actions daily-task__actions">
+      <n-button
+        block
         class="action-button"
+        type="primary"
         :disabled="busy || !isConnected"
         @click="runDailyFix"
       >
@@ -76,7 +79,8 @@
         </span>
         <span v-else-if="!isConnected">WebSocket未连接</span>
         <span v-else>一键补差</span>
-      </button>
+      </n-button>
+    </div>
     </div>
 
     <!-- 任务设置模态框 -->
@@ -653,35 +657,21 @@ onBeforeUnmount(() => {
   max-width: 500px;
 }
 
-// 使用GameStatus中的统一卡片样式
 .daily-task {
-  border-left: 4px solid #f0a020; // 每日任务专用颜色
   display: flex;
   flex-direction: column;
   min-height: 240px; // 继续缩小整体高度
-  padding: var(--spacing-lg);
   gap: var(--spacing-md);
-
-  .status-badge {
-    &.completed {
-      background: rgba(16, 185, 129, 0.1);
-      color: var(--success-color);
-
-      .status-dot {
-        background: var(--success-color);
-      }
-    }
-  }
 }
 
-.card-header {
+.daily-task__toolbar {
   display: flex;
   align-items: flex-start;
   gap: var(--spacing-md);
   margin-bottom: var(--spacing-lg);
 }
 
-.daily-task .card-content {
+.daily-task__body {
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -696,12 +686,6 @@ onBeforeUnmount(() => {
   color: var(--text-secondary);
   font-size: var(--font-size-sm);
   text-align: center;
-}
-
-// 使用GameStatus中的统一按钮样式
-.card-actions {
-  margin-top: auto;
-  padding-top: var(--spacing-sm);
 }
 
 .status-icon {
@@ -741,29 +725,6 @@ onBeforeUnmount(() => {
     background: var(--primary-color);
     color: white;
     transform: rotate(90deg);
-  }
-}
-
-.action-button {
-  width: 100%;
-  padding: var(--spacing-sm) var(--spacing-md);
-  border: none;
-  border-radius: var(--border-radius-medium);
-  background: var(--primary-color);
-  color: white;
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-medium);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-
-  &:hover:not(:disabled) {
-    background: var(--primary-color-hover);
-  }
-
-  &:disabled {
-    background: #e5e7eb;
-    color: #9ca3af;
-    cursor: not-allowed;
   }
 }
 
@@ -947,11 +908,10 @@ onBeforeUnmount(() => {
 // 响应式设计
 @media (max-width: 768px) {
   .daily-task {
-    padding: var(--spacing-md);
     min-height: auto;
   }
 
-  .card-header {
+  .daily-task__toolbar {
     flex-wrap: wrap;
   }
 

@@ -1,130 +1,131 @@
 <template>
-  <div class="status-card consumption-progress">
-    <div class="card-header">
-      <div class="header-left">
-        <span class="icon">📊</span>
-        <span class="title">消耗活动进度</span>
-      </div>
-    </div>
-
-    <div class="item-header">
-      <div class="item-values">
-        <div class="current">
-          黄金道具数量:{{ ActivityGoldItem }}（还需: {{ remainingGoldNeeded }}）
-          获取率:{{ Math.floor((1 / goldRateUsed) * 1000) / 1000 }}
-        </div>
-        <div class="current">
-          普通道具已累计获取: {{ totalObtained }}(剩余:{{ ActivityItem }})
-        </div>
-        <div class="current">
-          还需普通道具(库存 {{ ActivityItem }} 已计入): {{ remainingOrdNeeded }}
-        </div>
-        <div class="current">
-          可行方案:
-          <a-button
-            size="small"
-            style="margin-left: 8px"
-            type="primary"
-            @click="showCombosModal = true"
-          >
-            查看所有可行方案
-          </a-button>
-        </div>
-        <div v-if="feasibleCombos.length === 0" class="current">
-          暂无可行组合或已满足目标
+  <div class="gwb2-mini-card consumption-progress">
+    <div class="gwb2-mini-card__surface">
+      <div class="gwb2-mini-card__toolbar consumption-progress__toolbar">
+        <div class="header-left">
+          <span class="icon">📊</span>
+          <span class="title">消耗活动进度</span>
         </div>
       </div>
-    </div>
-    <div class="setting-item">
-      <span class="label">使用数量:</span>
-      <n-input-number
-        size="small"
-        v-model:value="Activitynumber"
-        :min="1"
-        :step="1"
-      ></n-input-number>
-      <a-button
-        size="small"
-        type="primary"
-        :disabled="state.isRunning"
-        @click="OpenActivityItem"
-      >
-        打开普通道具
-      </a-button>
-    </div>
 
-    <div class="card-content">
-      <div v-if="!hasActivityData" class="empty-state">暂无活动数据</div>
-      <div v-else class="progress-list">
-        <div v-for="item in progressList" :key="item.id" class="progress-item">
-          <div class="item-header">
-            <span class="item-name">{{ item.name }}</span>
-            <span class="item-values">
-              <span class="current">{{ item.current }}</span>
-              <span class="separator">/</span>
-              <span class="target">{{ item.nextTarget }}</span>
-            </span>
+      <div class="gwb2-mini-card__metric item-header">
+        <div class="item-values">
+          <div class="current">
+            黄金道具数量:{{ ActivityGoldItem }}（还需: {{ remainingGoldNeeded }}）
+            获取率:{{ Math.floor((1 / goldRateUsed) * 1000) / 1000 }}
           </div>
-          <n-progress
-            rail-color="rgba(0, 0, 0, 0.06)"
-            type="line"
-            :color="item.isCompleted ? '#52c41a' : '#1890ff'"
-            :height="8"
-            :percentage="item.percentage"
-            :show-indicator="false"
-          ></n-progress>
-          <div class="item-footer">
-            <span v-if="!item.isCompleted" class="next-reward">
-              下一档: {{ item.nextTarget }} (还需
-              {{ item.nextTarget - item.current }})
-            </span>
-            <span v-else class="completed-text"> 已完成所有档位 </span>
-            <span v-if="item.obtainedItems > 0" class="obtained-items">
-              已获得道具: {{ item.obtainedItems }}
-            </span>
+          <div class="current">
+            普通道具已累计获取: {{ totalObtained }}(剩余:{{ ActivityItem }})
+          </div>
+          <div class="current">
+            还需普通道具(库存 {{ ActivityItem }} 已计入): {{ remainingOrdNeeded }}
+          </div>
+          <div class="current">
+            可行方案:
+            <n-button
+              size="small"
+              style="margin-left: 8px"
+              type="primary"
+              @click="showCombosModal = true"
+            >
+              查看所有可行方案
+            </n-button>
+          </div>
+          <div v-if="feasibleCombos.length === 0" class="current">
+            暂无可行组合或已满足目标
           </div>
         </div>
       </div>
-    </div>
-    <!-- 显示可行方案 -->
-    <a-modal
-      height="600px"
-      width="900px"
-      v-model:visible="showCombosModal"
-      :footer="false"
-    >
-      <template #title>
-        <h3>所有可行组合（按总普通道具升序）</h3>
-      </template>
-      <div class="cp-modal-scroll">
-        <div v-if="feasibleCombos.length === 0">暂无可行组合或已满足目标</div>
-        <div v-else>
-          <div
-            v-for="(combo, idx) in feasibleCombos"
-            :key="idx"
-            style="margin-bottom: 12px"
-          >
-            <div>
-              <strong>方案 {{ idx + 1 }} : {{ combo.totalOrd }}档</strong>
+      <div class="gwb2-mini-card__toolbar setting-item">
+        <span class="label">使用数量:</span>
+        <n-input-number
+          size="small"
+          v-model:value="Activitynumber"
+          :min="1"
+          :step="1"
+        ></n-input-number>
+        <n-button
+          size="small"
+          type="primary"
+          :disabled="state.isRunning"
+          @click="OpenActivityItem"
+        >
+          打开普通道具
+        </n-button>
+      </div>
+
+      <div class="gwb2-mini-card__body consumption-progress__body">
+        <div v-if="!hasActivityData" class="gwb2-mini-card__empty empty-state">暂无活动数据</div>
+        <div v-else class="gwb2-mini-card__list progress-list">
+          <div v-for="item in progressList" :key="item.id" class="progress-item">
+            <div class="item-header">
+              <span class="item-name">{{ item.name }}</span>
+              <span class="item-values">
+                <span class="current">{{ item.current }}</span>
+                <span class="separator">/</span>
+                <span class="target">{{ item.nextTarget }}</span>
+              </span>
             </div>
-            <ol>
-              <li
-                v-for="step in combo.combo"
-                :key="`${step.id}-${step.threshold}`"
-              >
-                {{ step.name }} -> 达到 {{ step.threshold }} (可得
-                {{ step.delta }} 普通道具, 还需消耗 {{ step.cost }})
-              </li>
-            </ol>
+            <n-progress
+              rail-color="rgba(0, 0, 0, 0.06)"
+              type="line"
+              :color="item.isCompleted ? '#52c41a' : '#1890ff'"
+              :height="8"
+              :percentage="item.percentage"
+              :show-indicator="false"
+            ></n-progress>
+            <div class="item-footer">
+              <span v-if="!item.isCompleted" class="next-reward">
+                下一档: {{ item.nextTarget }} (还需
+                {{ item.nextTarget - item.current }})
+              </span>
+              <span v-else class="completed-text"> 已完成所有档位 </span>
+              <span v-if="item.obtainedItems > 0" class="obtained-items">
+                已获得道具: {{ item.obtainedItems }}
+              </span>
+            </div>
           </div>
         </div>
       </div>
-      <template #footer>
-        <n-space align="center" justify="end">
-          <n-button @click="showCombosModal = false">关闭</n-button>
-        </n-space>
-      </template>
-    </a-modal>
+    <!-- 显示可行方案 -->
+      <n-modal
+        preset="card"
+        style="width:min(900px,calc(100vw - 32px))"
+        v-model:show="showCombosModal"
+      >
+        <template #header>
+          <h3>所有可行组合（按总普通道具升序）</h3>
+        </template>
+        <div class="cp-modal-scroll">
+          <div v-if="feasibleCombos.length === 0">暂无可行组合或已满足目标</div>
+          <div v-else>
+            <div
+              v-for="(combo, idx) in feasibleCombos"
+              :key="idx"
+              style="margin-bottom: 12px"
+            >
+              <div>
+                <strong>方案 {{ idx + 1 }} : {{ combo.totalOrd }}档</strong>
+              </div>
+              <ol>
+                <li
+                  v-for="step in combo.combo"
+                  :key="`${step.id}-${step.threshold}`"
+                >
+                  {{ step.name }} -> 达到 {{ step.threshold }} (可得
+                  {{ step.delta }} 普通道具, 还需消耗 {{ step.cost }})
+                </li>
+              </ol>
+            </div>
+          </div>
+        </div>
+        <template #footer>
+          <n-space align="center" justify="end">
+            <n-button @click="showCombosModal = false">关闭</n-button>
+          </n-space>
+        </template>
+      </n-modal>
+    </div>
   </div>
 </template>
 
@@ -663,17 +664,7 @@ const feasibleCombos = computed(() => {
 </script>
 
 <style scoped lang="scss">
-.status-card {
-  background: var(--bg-secondary);
-  border-radius: var(--radius-lg);
-  padding: var(--spacing-md);
-  border: 1px solid var(--border-light);
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-}
-
-.card-header {
+.consumption-progress__toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -695,7 +686,7 @@ const feasibleCombos = computed(() => {
   }
 }
 
-.card-content {
+.consumption-progress__body {
   flex: 1;
   display: flex;
   flex-direction: column;

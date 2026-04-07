@@ -10,18 +10,18 @@
       <span>{{ state.isRunning ? t("fightHelperCard.status.running") : t("fightHelperCard.status.stopped") }}</span>
     </template>
     <template #default>
-      <div class="total-points">
+      <div class="gwb2-mini-card__metric total-points">
         <span class="label">{{ t("fightHelperCard.labels.ticketCount") }}</span>
         <span class="value">{{ itemcount }}</span>
       </div>
       <div class="container">
-        <div class="selects">
+        <div class="gwb2-mini-card__toolbar selects">
           <n-select v-model:value="number" :options="numberOptions"></n-select>
         </div>
       </div>
     </template>
     <template #action>
-      <a-button
+      <n-button
         block
         secondary
         size="small"
@@ -30,7 +30,7 @@
         @click="handleFightHelper"
       >
         {{ state.isRunning ? t("fightHelperCard.status.running") : t("fightHelperCard.actions.start") }}
-      </a-button>
+      </n-button>
     </template>
   </MyCard>
 </template>

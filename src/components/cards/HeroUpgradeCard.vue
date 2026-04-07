@@ -11,7 +11,7 @@
       <span>{{ state.isRunning ? t("heroUpgradeCard.status.running") : t("heroUpgradeCard.status.stopped") }}</span>
     </template>
     <template #default>
-      <div class="settings">
+      <div class="gwb2-mini-card__toolbar settings">
         <span class="label">{{ t("heroUpgradeCard.labels.heroSelect") }}</span>
         <n-select
           v-model:value="HeroValue"
@@ -40,15 +40,15 @@
             ></n-select>
           </div>
           <div class="button-group">
-            <a-button
+            <n-button
               size="small"
               type="primary"
               :disabled="state.isRunning"
               @click="levelHeroUpgrade"
             >
               {{ t("heroUpgradeCard.actions.levelUpgrade") }}
-            </a-button>
-            <a-button
+            </n-button>
+            <n-button
               size="small"
               type="primary"
               :disabled="
@@ -58,7 +58,7 @@
               @click="orderHeroUpgrade"
             >
               {{ t("heroUpgradeCard.actions.orderUpgrade") }}
-            </a-button>
+            </n-button>
           </div>
         </div>
       </div>

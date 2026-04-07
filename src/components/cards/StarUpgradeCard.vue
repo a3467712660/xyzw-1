@@ -11,7 +11,7 @@
       <span>{{ state.isRunning ? t("starUpgradeCard.status.running") : t("starUpgradeCard.status.stopped") }}</span>
     </template>
     <template #default>
-      <div class="settings">
+      <div class="gwb2-mini-card__toolbar settings">
         <div class="setting-item">
           <span class="label">{{ t("starUpgradeCard.labels.delay") }}</span>
           <n-input-number
@@ -25,44 +25,44 @@
           <span>{{ t("starUpgradeCard.labels.heroCount", { count: heroIds.length }) }}</span>
         </div>
       </div>
-      <div class="progress-row">
+      <div class="gwb2-mini-card__metric progress-row">
         <n-progress type="line" :percentage="percent" :show-indicator="false"></n-progress>
         <span class="progress-text">{{ state.done }}/{{ state.total }} {{ percent }}%</span>
       </div>
     </template>
     <template #action>
       <div class="action-row">
-        <a-button
+        <n-button
           size="small"
           type="primary"
           :disabled="state.isRunning"
           @click="startHeroUpgrade"
         >
           {{ t("starUpgradeCard.actions.heroUpgrade") }}
-        </a-button>
-        <a-button
+        </n-button>
+        <n-button
           size="small"
           type="primary"
           :disabled="state.isRunning"
           @click="startBookUpgrade"
         >
           {{ t("starUpgradeCard.actions.bookUpgrade") }}
-        </a-button>
-        <a-button
+        </n-button>
+        <n-button
           size="small"
           type="primary"
           :disabled="state.isRunning"
           @click="startClaimRewards"
         >
           {{ t("starUpgradeCard.actions.claimRewards") }}
-        </a-button>
-        <a-button
+        </n-button>
+        <n-button
           size="small"
           :disabled="!state.isRunning"
           @click="stopRunning"
         >
           {{ t("starUpgradeCard.actions.stop") }}
-        </a-button>
+        </n-button>
       </div>
     </template>
   </MyCard>
@@ -489,6 +489,7 @@ const formatTime = (ts) => new Date(ts).toLocaleTimeString("zh-CN");
 }
 .action-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 .log-item.success {

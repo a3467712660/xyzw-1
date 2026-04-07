@@ -1,62 +1,59 @@
 <template>
-  <div class="status-card tower-status weird-tower">
-    <div class="card-header">
-      <img
-        class="status-icon"
-        src="/icons/1733492491706152.png"
-        :alt="t('weirdTowerStatus.iconAlt')"
-      >
-      <div class="status-info">
-        <h3>{{ t("weirdTowerStatus.title") }}</h3>
-        <p>{{ t("weirdTowerStatus.subtitle") }}</p>
+  <div class="gwb2-mini-card tower-status weird-tower">
+    <div class="gwb2-mini-card__surface">
+      <div class="gwb2-mini-card__toolbar weird-tower__toolbar">
+        <img
+          class="status-icon"
+          src="/icons/1733492491706152.png"
+          :alt="t('weirdTowerStatus.iconAlt')"
+        >
+        <div class="status-info">
+          <h3>{{ t("weirdTowerStatus.title") }}</h3>
+          <p>{{ t("weirdTowerStatus.subtitle") }}</p>
+        </div>
+        <div class="energy-display">
+          <img class="energy-icon" src="/icons/xiaoyugan.png" :alt="t('weirdTowerStatus.energyAlt')">
+          <span class="energy-count">{{ towerEnergy }}</span>
+        </div>
       </div>
-      <div class="energy-display">
-        <img class="energy-icon" src="/icons/xiaoyugan.png" :alt="t('weirdTowerStatus.energyAlt')">
-        <span class="energy-count">{{ towerEnergy }}</span>
-      </div>
-    </div>
 
-    <div class="card-content">
-      <div class="tower-floor">
+      <div class="gwb2-mini-card__metric tower-floor">
         <span class="label">{{ t("weirdTowerStatus.labels.currentFloor") }}</span>
         <span class="floor-number">{{ displayFloor }}</span>
       </div>
     </div>
 
-    <div class="card-actions">
-      <button
+    <div class="gwb2-mini-card__actions weird-tower__actions">
+      <n-button
         class="climb-button"
-        :class="[
-          {
-            active: canClimb,
-            disabled: !canClimb,
-          },
-        ]"
+        type="primary"
         :disabled="!canClimb"
         @click="startTowerClimb"
       >
         {{ isClimbing.value ? t("weirdTowerStatus.actions.climbing") : t("weirdTowerStatus.actions.startClimb") }}
-      </button>
+      </n-button>
 
       <!-- 停止批量爬塔按钮，仅批量时显示 -->
-      <button v-if="isClimbing" class="stop-button" @click="stopClimbing">{{ t("weirdTowerStatus.actions.stopClimb") }}</button>
+      <n-button v-if="isClimbing" secondary class="stop-button" type="warning" @click="stopClimbing">{{ t("weirdTowerStatus.actions.stopClimb") }}</n-button>
 
-      <button
+      <n-button
         v-if="!isClimbing && !isUsingItems && !isMerging"
         class="climb-button active"
+        type="primary"
         @click="startUseItems"
       >
         {{ t("weirdTowerStatus.actions.useItems") }}
-      </button>
-      <button v-if="isUsingItems" class="stop-button" @click="stopUsingItems">{{ t("weirdTowerStatus.actions.stopUsing") }}</button>
+      </n-button>
+      <n-button v-if="isUsingItems" secondary class="stop-button" type="warning" @click="stopUsingItems">{{ t("weirdTowerStatus.actions.stopUsing") }}</n-button>
 
-      <button
+      <n-button
         v-if="!isClimbing && !isUsingItems && !isMerging"
         class="climb-button active"
+        type="primary"
         @click="autoMergeItems"
       >
         {{ isMerging ? t("weirdTowerStatus.actions.merging") : t("weirdTowerStatus.actions.autoMerge") }}
-      </button>
+      </n-button>
     </div>
   </div>
 </template>
@@ -736,11 +733,9 @@ onMounted(() => {
 
 // 使用GameStatus中的统一卡片样式
 .weird-tower {
-  border-left: 4px solid #8b5cf6; // 怪异塔专用颜色
   display: flex;
   flex-direction: column;
   min-height: 240px; // 继续缩小整体高度
-  padding: var(--spacing-lg);
 }
 
 .status-icon {
@@ -750,7 +745,7 @@ onMounted(() => {
   flex-shrink: 0;
 }
 
-.card-header {
+.weird-tower__toolbar {
   display: flex;
   align-items: flex-start;
   gap: var(--spacing-md);
@@ -779,20 +774,11 @@ onMounted(() => {
   color: var(--text-primary);
 }
 
-.card-content {
-  background: var(--bg-tertiary);
-  border-radius: var(--border-radius-medium);
-  padding: var(--spacing-lg);
-  margin-bottom: var(--spacing-md);
-  flex: 1; // 占据可用空间，使上下分布更均衡
-  display: flex;
-  align-items: center; // 内容在中部更居中
-}
-
 .tower-floor {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding: var(--spacing-lg);
 
   .label {
     font-size: var(--font-size-sm);
@@ -807,43 +793,19 @@ onMounted(() => {
   }
 }
 
-.card-actions {
+.weird-tower__actions {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-sm);
-  margin-top: auto;
-  padding-top: var(--spacing-sm);
 }
 
 .climb-button {
   width: 100%;
-  padding: var(--spacing-sm) var(--spacing-md);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-medium);
-  border: none;
-  border-radius: var(--border-radius-medium);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-
-  &.active {
-    background: #8b5cf6;
-    color: white;
-
-    &:hover {
-      background: #7c3aed;
-    }
-  }
-
-  &.disabled {
-    background: var(--bg-secondary);
-    color: var(--text-tertiary);
-    cursor: not-allowed;
-  }
 }
 
 // 响应式设计
 @media (max-width: 768px) {
-  .card-header {
+  .weird-tower__toolbar {
     flex-direction: column;
     gap: var(--spacing-sm);
     text-align: center;

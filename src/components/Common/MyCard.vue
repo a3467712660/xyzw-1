@@ -1,278 +1,250 @@
 <template>
-  <div class="status-card">
-    <div class="card-header">
-      <div class="status-icon">
-        <slot name="icon"></slot>
+  <div
+    class="gwb2-mini-card"
+    :class="stateClasses"
+  >
+    <div class="gwb2-mini-card__surface">
+      <div class="gwb2-mini-card__toolbar">
+        <div class="gwb2-mini-card__toolbar-main">
+          <div
+            v-if="$slots.icon"
+            class="gwb2-mini-card__icon"
+          >
+            <slot name="icon"></slot>
+          </div>
+          <div class="gwb2-mini-card__title">
+            <slot name="title"></slot>
+          </div>
+        </div>
+
+        <div
+          v-if="$slots.badge || $slots.extra"
+          class="gwb2-mini-card__toolbar-side"
+        >
+          <div
+            v-if="$slots.badge"
+            class="gwb2-mini-card__chip"
+            :class="stateClasses"
+          >
+            <span class="gwb2-mini-card__chip-dot"></span>
+            <slot name="badge"></slot>
+          </div>
+          <div
+            v-if="$slots.extra"
+            class="gwb2-mini-card__toolbar-extra"
+          >
+            <slot name="extra"></slot>
+          </div>
+        </div>
       </div>
-      <div class="status-title">
-        <slot name="title"></slot>
+
+      <div class="gwb2-mini-card__body">
+        <slot name="default"></slot>
       </div>
-      <div class="status-badge" :class="statusClass">
-        <div class="status-dot"></div>
-        <slot name="badge"></slot>
-      </div>
-      <slot name="extra"></slot>
     </div>
-    <div class="card-content">
-      <slot name="default"></slot>
-    </div>
-    <div class="card-action" :class="statusClass">
+
+    <div
+      v-if="$slots.action"
+      class="gwb2-mini-card__actions"
+    >
       <slot name="action"></slot>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-declare type StatusKey = "active" | "weekly" | "energy" | "completed";
+import { computed } from "vue";
 
-defineProps<{
-  statusClass: StatusKey | Record<StatusKey, boolean>;
+type StatusKey = "active" | "weekly" | "energy" | "completed";
+
+const props = defineProps<{
+  statusClass: StatusKey | Record<StatusKey, boolean> | string;
 }>();
+
+const stateClasses = computed(() => {
+  const raw = props.statusClass;
+  if (!raw) {
+    return [];
+  }
+
+  if (typeof raw === "string") {
+    return raw
+      .split(/\s+/)
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .map((item) => `gwb2-mini-card--${item}`);
+  }
+
+  return Object.entries(raw)
+    .filter(([, enabled]) => Boolean(enabled))
+    .map(([name]) => `gwb2-mini-card--${name}`);
+});
 </script>
 
 <style lang="scss">
-.status-card {
-  background: var(--bg-primary);
-  border-radius: var(--border-radius-xl);
-  padding: var(--spacing-lg);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  transition: all var(--transition-normal);
-  min-height: 200px;
-
-  &:hover {
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
-    transform: translateY(-2px);
-  }
-
-  .active {
-    --bg-color: rgba(34, 197, 94, 0.1);
-    --font-color: var(--success-color);
-
-    --pr-color: var(--success-color);
-    --f-color: var(--success-color);
-
-    background: var(--bg-color);
-    color: var(--font-color);
-  }
-
-  .weekly {
-    --bg-color: rgba(59, 130, 246, 0.1);
-    --font-color: var(--info-color);
-
-    --pr-color: var(--info-color);
-    --f-color: var(--info-color);
-
-    background: var(--bg-color);
-    color: var(--font-color);
-  }
-
-  .energy {
-    --bg-color: rgba(245, 158, 11, 0.1);
-    --font-color: var(--warning-color);
-
-    --pr-color: var(--warning-color);
-    --f-color: var(--warning-color);
-
-    background: var(--bg-color);
-    color: var(--font-color);
-  }
-
-  .completed {
-    --bg-color: rgba(34, 197, 94, 0.1);
-    --font-color: var(--success-color);
-
-    --pr-color: var(--success-color);
-    --f-color: var(--success-color);
-
-    --bg-tertiary: var(--success-color);
-    --text-tertiary: rgba(255, 255, 255, 1);
-
-    background: var(--bg-color);
-    color: var(--font-color);
-  }
+.gwb2-mini-card {
+  --gwb2-mini-card-accent: var(--primary-color);
+  --gwb2-mini-card-accent-soft: rgba(63, 119, 173, 0.12);
+  display: flex;
+  min-height: 220px;
+  flex-direction: column;
+  gap: var(--spacing-md);
 }
 
-.card-header {
+.gwb2-mini-card--active {
+  --gwb2-mini-card-accent: var(--success-color);
+  --gwb2-mini-card-accent-soft: rgba(63, 143, 107, 0.14);
+}
+
+.gwb2-mini-card--weekly {
+  --gwb2-mini-card-accent: var(--info-color);
+  --gwb2-mini-card-accent-soft: rgba(75, 131, 184, 0.14);
+}
+
+.gwb2-mini-card--energy {
+  --gwb2-mini-card-accent: var(--warning-color);
+  --gwb2-mini-card-accent-soft: rgba(201, 149, 77, 0.14);
+}
+
+.gwb2-mini-card--completed {
+  --gwb2-mini-card-accent: var(--success-color);
+  --gwb2-mini-card-accent-soft: rgba(63, 143, 107, 0.16);
+}
+
+.gwb2-mini-card__surface {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.gwb2-mini-card__toolbar {
   display: flex;
   align-items: flex-start;
+  justify-content: space-between;
   gap: var(--spacing-md);
-  margin-bottom: var(--spacing-lg);
+}
 
-  .status-icon {
-    width: 32px;
-    height: 32px;
-    flex-shrink: 0;
+.gwb2-mini-card__toolbar-main {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.gwb2-mini-card__icon {
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+
+  > img,
+  > svg {
+    width: 100%;
+    height: 100%;
     object-fit: contain;
-
-    > img {
-      width: 32px;
-      height: 32px;
-      object-fit: contain;
-    }
-  }
-
-  .status-title {
-    flex: 1;
-
-    h3 {
-      font-size: var(--font-size-md);
-      font-weight: var(--font-weight-semibold);
-      color: var(--text-primary);
-      margin: 0 0 var(--spacing-xs) 0;
-    }
-
-    p {
-      font-size: var(--font-size-sm);
-      color: var(--text-secondary);
-      margin: 0;
-    }
-  }
-
-  .status-badge {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-xs);
-    padding: var(--spacing-xs) var(--spacing-sm);
-    border-radius: var(--border-radius-full);
-    font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-medium);
-    background: var(--bg-color);
-    color: var(--font-color);
-  }
-
-  .status-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: currentColor;
   }
 }
 
-.card-content {
+.gwb2-mini-card__title {
+  min-width: 0;
   flex: 1;
-  font-size: var(--font-size-sm);
-  color: var(--text-secondary);
 
   h3 {
+    margin: 0;
     font-size: var(--font-size-md);
     font-weight: var(--font-weight-semibold);
     color: var(--text-primary);
-    margin: 0 0 var(--spacing-xs) 0;
   }
 
   p {
-    margin: 0;
-  }
-
-  .description {
+    margin: 4px 0 0;
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
     line-height: 1.5;
   }
-
-  margin-bottom: var(--spacing-lg);
-
-  // .time-display {
-  //   font-size: 1.5rem;
-  //   /* text-2xl */
-  //   font-weight: 700;
-  //   /* font-bold */
-  //   color: var(--text-primary);
-  //   text-align: center;
-  //   margin-bottom: var(--spacing-md);
-  //   font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Consolas', monospace;
-  //   letter-spacing: 0.1em;
-  //   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
-  //   background: var(--bg-tertiary);
-  //   padding: 0.75rem 1rem;
-  //   border-radius: 0.5rem;
-  //   border: 1px solid var(--border-light);
-  //   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
-  //   transition: all 0.2s ease-in-out;
-
-  //   &:hover {
-  //     transform: translateY(-1px);
-  //     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.06);
-  //   }
-  // }
-
-  // .club-name {
-  //   color: var(--text-secondary);
-  //   font-size: var(--font-size-sm);
-  //   margin-bottom: var(--spacing-lg);
-
-  //   strong {
-  //     color: var(--text-primary);
-  //     font-weight: var(--font-weight-medium);
-  //   }
-  // }
-
-  // .tower-info {
-  //   display: flex;
-  //   justify-content: space-between;
-  //   align-items: center;
-  //   margin-bottom: var(--spacing-lg);
-
-  //   .label {
-  //     color: var(--text-secondary);
-  //     font-size: var(--font-size-sm);
-  //   }
-
-  //   .tower-level {
-  //     font-size: var(--font-size-lg);
-  //     font-weight: var(--font-weight-bold);
-  //     color: var(--text-primary);
-  //   }
-  // }
 }
 
-.card-action {
+.gwb2-mini-card__toolbar-side {
   display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.gwb2-mini-card__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: var(--gwb2-mini-card-accent-soft);
+  color: var(--gwb2-mini-card-accent);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+}
+
+.gwb2-mini-card__chip-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.gwb2-mini-card__toolbar-extra {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.gwb2-mini-card__body {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.gwb2-mini-card__actions {
+  display: flex;
+  align-items: stretch;
+  flex-wrap: wrap;
   gap: var(--spacing-sm);
 
-  > button {
-    cursor: pointer;
-
-    flex: 1;
-
-    width: 100%;
-    font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-medium);
-
-    padding: var(--spacing-sm) var(--spacing-md);
-    border-radius: var(--border-radius-medium);
-
-    color: var(--text-color);
-    background-color: var(--bg-color);
-
-    transition: all var(--transition-fast);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    &:disabled {
-      background: var(--bg-tertiary);
-      color: var(--text-tertiary);
-      cursor: not-allowed;
-    }
+  > * {
+    flex: 1 1 0;
+    min-height: 40px;
+    min-width: 120px;
   }
 }
 
 @media (max-width: 768px) {
-  .status-card {
-    padding: var(--spacing-md);
+  .gwb2-mini-card {
     min-height: auto;
   }
 
-  .card-header {
-    flex-wrap: wrap;
-    gap: var(--spacing-sm);
-    margin-bottom: var(--spacing-md);
+  .gwb2-mini-card__toolbar {
+    flex-direction: column;
+  }
 
-    .status-title {
-      min-width: 100px;
-    }
+  .gwb2-mini-card__toolbar-main,
+  .gwb2-mini-card__toolbar-side {
+    width: 100%;
+  }
 
-    .status-badge {
-      margin-left: auto;
-    }
+  .gwb2-mini-card__toolbar-side {
+    justify-content: space-between;
+  }
+
+  .gwb2-mini-card__actions > * {
+    flex-basis: 100%;
+    min-width: 100%;
   }
 }
 </style>

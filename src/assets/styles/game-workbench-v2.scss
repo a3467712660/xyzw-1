@@ -660,22 +660,22 @@
 }
 
 /* Route-scoped tactical console skin */
-.game-workbench-v2 .status-card {
+.game-workbench-v2 :is(.gwb2-mini-card, .status-card) {
   position: relative;
-  border: 1px solid var(--gwb2-console-border) !important;
-  border-radius: 18px !important;
+  border: 1px solid var(--gwb2-console-border);
+  border-radius: 18px;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.08), transparent 26%),
-    var(--gwb2-console-panel) !important;
+    var(--gwb2-console-panel);
   box-shadow:
     var(--gwb2-console-shadow),
-    var(--gwb2-console-emboss) !important;
-  backdrop-filter: none !important;
+    var(--gwb2-console-emboss);
+  backdrop-filter: none;
   overflow: hidden;
-  transform: none !important;
+  transform: none;
 }
 
-.game-workbench-v2 .status-card::before {
+.game-workbench-v2 :is(.gwb2-mini-card, .status-card)::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -688,30 +688,36 @@
   opacity: 0.42;
 }
 
-.game-workbench-v2 .status-card:hover {
+.game-workbench-v2 :is(.gwb2-mini-card, .status-card):hover {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.08), transparent 26%),
-    var(--gwb2-console-panel-hover) !important;
+    var(--gwb2-console-panel-hover);
   box-shadow:
     var(--gwb2-console-shadow-strong),
-    var(--gwb2-console-emboss) !important;
-  transform: none !important;
+    var(--gwb2-console-emboss);
+  transform: none;
 }
 
+.game-workbench-v2 .gwb2-mini-card {
+  min-height: 220px;
+}
+
+.game-workbench-v2 .gwb2-mini-card__surface {
+  background: transparent;
+}
+
+.game-workbench-v2 .gwb2-mini-card__toolbar,
 .game-workbench-v2 .status-card .card-header {
   position: relative;
   z-index: 1;
   align-items: center;
   gap: 12px;
-  margin-bottom: 14px !important;
+  margin-bottom: 14px;
   padding-bottom: 14px;
   border-bottom: 1px solid var(--gwb2-console-divider);
 }
 
-.game-workbench-v2 .status-card .card-header .status-icon,
-.game-workbench-v2 .status-card .card-header .icon,
-.game-workbench-v2 .status-card .card-header img.status-icon,
-.game-workbench-v2 .status-card .card-header img.icon {
+.game-workbench-v2 :is(.gwb2-mini-card__icon, .status-card .card-header .status-icon, .status-card .card-header .icon, .status-card .card-header img.status-icon, .status-card .card-header img.icon) {
   display: inline-flex;
   width: 40px;
   height: 40px;
@@ -726,6 +732,7 @@
   object-fit: contain;
 }
 
+.game-workbench-v2 .gwb2-mini-card__title h3,
 .game-workbench-v2 .status-card .card-header :is(.status-info, .status-title, .info) h3 {
   margin: 0;
   color: var(--text-primary);
@@ -734,6 +741,7 @@
   letter-spacing: 0.01em;
 }
 
+.game-workbench-v2 .gwb2-mini-card__title p,
 .game-workbench-v2 .status-card .card-header :is(.status-info, .status-title, .info) p {
   margin: 4px 0 0;
   color: var(--text-secondary);
@@ -741,20 +749,21 @@
   line-height: 1.55;
 }
 
+.game-workbench-v2 .gwb2-mini-card__chip,
 .game-workbench-v2 .status-card .status-badge {
   min-height: 28px;
-  padding: 0 10px !important;
+  padding: 0 10px;
   border: 1px solid rgba(78, 94, 116, 0.14);
-  border-radius: 10px !important;
-  background: var(--gwb2-console-panel-muted) !important;
+  border-radius: 10px;
+  background: var(--gwb2-console-panel-muted);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
   color: var(--text-secondary);
-  font-size: 12px !important;
-  font-weight: 600 !important;
+  font-size: 12px;
+  font-weight: 600;
   letter-spacing: 0.02em;
 }
 
-.game-workbench-v2 .status-card .status-badge :is(.status-dot, .dot) {
+.game-workbench-v2 :is(.gwb2-mini-card__chip-dot, .status-card .status-badge :is(.status-dot, .dot)) {
   width: 6px;
   height: 6px;
   border-radius: 999px;
@@ -762,6 +771,10 @@
   box-shadow: 0 0 0 4px color-mix(in srgb, currentColor 18%, transparent);
 }
 
+.game-workbench-v2 .gwb2-mini-card--active .gwb2-mini-card__chip,
+.game-workbench-v2 .gwb2-mini-card--completed .gwb2-mini-card__chip,
+.game-workbench-v2 .gwb2-mini-card--energy .gwb2-mini-card__chip,
+.game-workbench-v2 .gwb2-mini-card--weekly .gwb2-mini-card__chip,
 .game-workbench-v2 .status-card .status-badge.active,
 .game-workbench-v2 .status-card .status-badge.completed,
 .game-workbench-v2 .status-card .status-badge.energy,
@@ -769,14 +782,57 @@
   border-color: color-mix(in srgb, currentColor 26%, transparent);
 }
 
+.game-workbench-v2 .gwb2-mini-card__body,
 .game-workbench-v2 .status-card .card-content {
   position: relative;
   z-index: 1;
   color: var(--text-secondary);
   line-height: 1.6;
-  margin-bottom: 0 !important;
+  margin-bottom: 0;
 }
 
+.game-workbench-v2 .gwb2-mini-card__metric {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid rgba(78, 94, 116, 0.1);
+  border-radius: 14px;
+  background: rgba(214, 223, 232, 0.34);
+}
+
+.game-workbench-v2 .gwb2-mini-card__list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid rgba(78, 94, 116, 0.1);
+  border-radius: 14px;
+  background: rgba(214, 223, 232, 0.28);
+}
+
+.game-workbench-v2 .gwb2-mini-card__segmented {
+  display: flex;
+  gap: 8px;
+  padding: 6px;
+  border: 1px solid rgba(78, 94, 116, 0.12);
+  border-radius: 14px;
+  background: rgba(214, 223, 232, 0.32);
+}
+
+.game-workbench-v2 .gwb2-mini-card__empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 88px;
+  color: var(--text-tertiary);
+  border: 1px dashed rgba(78, 94, 116, 0.18);
+  border-radius: 14px;
+  background: rgba(214, 223, 232, 0.18);
+}
+
+.game-workbench-v2 .gwb2-mini-card__actions,
 .game-workbench-v2 .status-card .card-action,
 .game-workbench-v2 .status-card .card-actions {
   position: relative;
@@ -787,16 +843,17 @@
   margin-top: 14px;
   padding-top: 14px;
   border-top: 1px solid var(--gwb2-console-divider);
-  background: transparent !important;
+  background: transparent;
 }
 
+.game-workbench-v2 .gwb2-mini-card__actions > *,
 .game-workbench-v2 .status-card .action-button,
 .game-workbench-v2 .status-card .card-action > button,
 .game-workbench-v2 .status-card .card-actions > button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 38px;
+  min-height: 40px;
   padding: 0 14px;
   border: 1px solid rgba(78, 94, 116, 0.16);
   border-radius: 12px;
@@ -811,6 +868,7 @@
     color var(--transition-fast);
 }
 
+.game-workbench-v2 .gwb2-mini-card__actions > *:hover,
 .game-workbench-v2 .status-card .action-button:hover,
 .game-workbench-v2 .status-card .card-action > button:hover,
 .game-workbench-v2 .status-card .card-actions > button:hover {
@@ -819,6 +877,7 @@
     rgba(228, 235, 242, 0.96);
 }
 
+.game-workbench-v2 .gwb2-mini-card__actions > *:disabled,
 .game-workbench-v2 .status-card .action-button:disabled,
 .game-workbench-v2 .status-card .card-action > button:disabled,
 .game-workbench-v2 .status-card .card-actions > button:disabled {
@@ -826,9 +885,63 @@
   cursor: not-allowed;
 }
 
-.game-workbench-v2 .status-card :is(.summary-grid, .action-section, .history-section, .task-list, .settings-content) {
+.game-workbench-v2 .gwb2-mini-card__actions > :is(.n-button, .n-button-group, .n-dropdown) {
+  width: 100%;
+}
+
+.game-workbench-v2 .gwb2-mini-card__actions > .n-button-group {
+  align-items: stretch;
+  min-height: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.game-workbench-v2 .gwb2-mini-card__actions > .n-button-group:hover {
+  background: transparent;
+}
+
+.game-workbench-v2 .gwb2-mini-card__actions > .n-button,
+.game-workbench-v2 .gwb2-mini-card__actions > .n-button-group .n-button,
+.game-workbench-v2 .gwb2-mini-card__actions > .n-dropdown .n-button {
+  min-height: 40px;
+}
+
+.game-workbench-v2 .gwb2-mini-card__actions > .n-button-group .n-button:first-child {
+  flex: 1 1 auto;
+}
+
+.game-workbench-v2 .gwb2-mini-card__actions > .n-button-group .n-dropdown {
+  flex: 0 0 auto;
+}
+
+.game-workbench-v2 :is(.gwb2-mini-card, .status-card) :is(.summary-grid, .action-section, .history-section, .task-list, .settings-content) {
   position: relative;
   z-index: 1;
+}
+
+@media (max-width: 768px) {
+  .game-workbench-v2 .gwb2-mini-card__actions > *,
+  .game-workbench-v2 .gwb2-mini-card__actions > :is(.n-button, .n-button-group, .n-dropdown) {
+    min-width: 100%;
+    width: 100%;
+  }
+
+  .game-workbench-v2 .gwb2-mini-card__actions > .n-button-group {
+    width: 100%;
+  }
+}
+
+.game-workbench-v2 .gwb2-mini-card .time-display {
+  width: 100%;
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-align: center;
+  font-family: var(--font-family-mono);
+  letter-spacing: 0.08em;
 }
 
 .game-workbench-v2 .n-tabs,
@@ -925,6 +1038,80 @@
 .route-game-workbench-v2-active .n-modal .n-button.n-button--disabled {
   opacity: 0.56;
   box-shadow: none;
+}
+
+.game-workbench-v2 .n-base-selection,
+.route-game-workbench-v2-active .n-modal .n-base-selection {
+  border-radius: 12px;
+  background: rgba(224, 232, 239, 0.84);
+  border: 1px solid rgba(78, 94, 116, 0.16);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+.game-workbench-v2 .n-base-selection:hover,
+.route-game-workbench-v2-active .n-modal .n-base-selection:hover {
+  border-color: rgba(78, 94, 116, 0.22);
+  background: rgba(231, 238, 244, 0.96);
+}
+
+.game-workbench-v2 .n-input-number,
+.route-game-workbench-v2-active .n-modal .n-input-number {
+  border-radius: 12px;
+  background: rgba(224, 232, 239, 0.84);
+  border: 1px solid rgba(78, 94, 116, 0.16);
+}
+
+.game-workbench-v2 .n-input-number .n-input-number-input,
+.route-game-workbench-v2-active .n-modal .n-input-number .n-input-number-input {
+  color: var(--text-primary);
+}
+
+.game-workbench-v2 .n-switch,
+.route-game-workbench-v2-active .n-modal .n-switch {
+  --n-button-color: rgba(196, 208, 220, 0.82);
+  --n-button-color-active: color-mix(in srgb, var(--primary-color) 72%, #2b4158);
+  --n-rail-color-active: color-mix(in srgb, var(--primary-color) 72%, #2b4158);
+  --n-button-box-shadow: none;
+}
+
+.game-workbench-v2 .n-progress .n-progress-graph-line-rail,
+.route-game-workbench-v2-active .n-modal .n-progress .n-progress-graph-line-rail {
+  background: rgba(199, 210, 220, 0.72);
+}
+
+.game-workbench-v2 .n-progress .n-progress-graph-line-fill,
+.route-game-workbench-v2-active .n-modal .n-progress .n-progress-graph-line-fill {
+  border-radius: 999px;
+}
+
+.game-workbench-v2 .n-tag,
+.route-game-workbench-v2-active .n-modal .n-tag {
+  border-radius: 10px;
+  border: 1px solid rgba(78, 94, 116, 0.16);
+  box-shadow: none;
+  letter-spacing: 0.02em;
+}
+
+.game-workbench-v2 .n-dropdown-menu,
+.route-game-workbench-v2-active .n-dropdown-menu {
+  border: 1px solid var(--gwb2-console-border);
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), transparent 24%),
+    var(--gwb2-console-panel-strong);
+  box-shadow:
+    var(--gwb2-console-shadow-strong),
+    var(--gwb2-console-emboss);
+}
+
+.game-workbench-v2 .n-dropdown-option,
+.route-game-workbench-v2-active .n-dropdown-option {
+  border-radius: 10px;
+}
+
+.game-workbench-v2 .n-dropdown-option:hover,
+.route-game-workbench-v2-active .n-dropdown-option:hover {
+  background: rgba(214, 223, 232, 0.42);
 }
 
 .game-workbench-v2 .n-data-table,

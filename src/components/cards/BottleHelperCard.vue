@@ -11,12 +11,13 @@
       <span>{{ state.isRunning ? t("bottleHelperCard.status.running") : t("bottleHelperCard.status.stopped") }}</span>
     </template>
     <template #default>
-      <div class="time-display">
-        {{ formatTime(state.remainingTime) }}
+      <div class="gwb2-mini-card__metric bottle-helper__metric">
+        <span class="metric-label">{{ t("bottleHelperCard.subtitle") }}</span>
+        <strong class="metric-value time-display">{{ formatTime(state.remainingTime) }}</strong>
       </div>
     </template>
     <template #action>
-      <a-button
+      <n-button
         block
         secondary
         size="small"
@@ -24,7 +25,7 @@
         @click="handleBottleHelper"
       >
         {{ state.isRunning ? t("bottleHelperCard.actions.restart") : t("bottleHelperCard.actions.start") }}
-      </a-button>
+      </n-button>
     </template>
   </MyCard>
 </template>
@@ -108,5 +109,18 @@ const handleBottleHelper = () => {
 </script>
 
 <style scoped lang="scss">
-/* 样式遵循全局变量；time-display 样式由 MyCard 统一提供 */
+.bottle-helper__metric {
+  align-items: center;
+}
+
+.metric-label {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.metric-value {
+  flex: 1;
+}
 </style>

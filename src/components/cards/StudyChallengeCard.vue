@@ -14,43 +14,47 @@
       <span>{{ t("studyChallengeCard.badge") }}</span>
     </template>
     <template #default>
+      <div class="gwb2-mini-card__metric study-metric">
+        <span class="study-metric__state">{{ weeklyStatusText }}</span>
+        <strong class="study-metric__value">{{ currentStageText }}</strong>
+      </div>
       <p class="description">{{ t("studyChallengeCard.description") }}</p>
     </template>
     <template #action>
-      <a-button v-if="!study.thisWeek" status="primary" @click="startStudy">
+      <n-button v-if="!study.thisWeek" type="primary" @click="startStudy">
         {{ t("studyChallengeCard.actions.start") }}
-      </a-button>
-      <a-button
+      </n-button>
+      <n-button
         v-if="!study.thisWeek && study.status === 'starting'"
-        status="warning"
+        type="warning"
         :disabled="true"
       >
         {{ t("studyChallengeCard.status.starting") }}
-      </a-button>
-      <a-button
+      </n-button>
+      <n-button
         v-if="!study.thisWeek && study.status === 'answering'"
-        status="warning"
+        type="warning"
         :disabled="true"
       >
         {{ t("studyChallengeCard.status.answering") }}
-      </a-button>
-      <a-button
+      </n-button>
+      <n-button
         v-if="!study.thisWeek && study.status === 'claiming_rewards'"
-        status="warning"
+        type="warning"
         :disabled="true"
       >
         {{ t("studyChallengeCard.status.claimingRewards") }}
-      </a-button>
-      <a-button
+      </n-button>
+      <n-button
         v-if="!study.thisWeek && study.status === 'completed'"
-        status="warning"
+        type="warning"
         :disabled="true"
       >
         {{ t("studyChallengeCard.status.completed") }}
-      </a-button>
-      <a-button v-if="study.thisWeek" status="success" :disabled="true">
+      </n-button>
+      <n-button v-if="study.thisWeek" type="success" :disabled="true">
         {{ t("studyChallengeCard.status.doneThisWeek") }}
-      </a-button>
+      </n-button>
     </template>
   </MyCard>
 </template>
@@ -70,6 +74,23 @@ const tokenStore = useTokenStore();
 const message = useMessage();
 const { t } = useI18n();
 const study = computed(() => tokenStore.gameData.studyStatus);
+
+const currentStageText = computed(() => {
+  if (study.value?.thisWeek) return t("studyChallengeCard.status.doneThisWeek");
+  if (study.value?.status === "starting") return t("studyChallengeCard.status.starting");
+  if (study.value?.status === "answering") return t("studyChallengeCard.status.answering");
+  if (study.value?.status === "claiming_rewards") return t("studyChallengeCard.status.claimingRewards");
+  if (study.value?.status === "completed" || study.value?.isCompleted) {
+    return t("studyChallengeCard.status.completed");
+  }
+  return t("studyChallengeCard.subtitle");
+});
+
+const weeklyStatusText = computed(() => {
+  return study.value?.thisWeek
+    ? t("studyChallengeCard.status.doneThisWeek")
+    : t("studyChallengeCard.badge");
+});
 
 const startStudy = async () => {
   if (!tokenStore.selectedToken || study.value.thisWeek) return;
@@ -115,3 +136,40 @@ const startStudy = async () => {
   }
 };
 </script>
+
+<style scoped lang="scss">
+.study-metric {
+  align-items: stretch;
+}
+
+.study-metric__state,
+.study-metric__value {
+  min-width: 0;
+}
+
+.study-metric__state {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+}
+
+.study-metric__value {
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  text-align: right;
+}
+
+.description {
+  margin: 0;
+}
+
+@media (max-width: 768px) {
+  .study-metric {
+    flex-direction: column;
+  }
+
+  .study-metric__value {
+    text-align: left;
+  }
+}
+</style>

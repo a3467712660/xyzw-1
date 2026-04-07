@@ -11,7 +11,14 @@
     </template>
     <template #default>
       <div class="container">
-        <div class="list">
+        <div class="gwb2-mini-card__metric helper-metric">
+          <div class="metric-copy">
+            <span class="metric-label">{{ t("recruitHelperCard.resourceName") }}</span>
+            <strong class="metric-value">{{ t("recruitHelperCard.count", { count: number }) }}</strong>
+          </div>
+          <span class="metric-summary">{{ t("recruitHelperCard.count", { count: totalRecruitTokens }) }}</span>
+        </div>
+        <div class="gwb2-mini-card__list list">
           <div v-for="item in dataList" :key="item.type" class="item">
             <img :alt="item.type" :src="item.img">
             <div class="box-info">
@@ -20,13 +27,13 @@
             </div>
           </div>
         </div>
-        <div class="selects">
+        <div class="gwb2-mini-card__toolbar selects">
           <n-select v-model:value="number" :options="numberOptions"></n-select>
         </div>
       </div>
     </template>
     <template #action>
-      <a-button
+      <n-button
         block
         secondary
         size="small"
@@ -35,7 +42,7 @@
         @click="handleHelper"
       >
         {{ state.isRunning ? t("recruitHelperCard.status.running") : t("recruitHelperCard.actions.start") }}
-      </a-button>
+      </n-button>
     </template>
   </MyCard>
 </template>
@@ -76,6 +83,10 @@ const numberOptions = [
   { label: "400", value: 400 },
 ];
 
+const totalRecruitTokens = computed(() =>
+  dataList.value.reduce((sum, item) => sum + Number(item.count || 0), 0),
+);
+
 const state = ref({
   isRunning: false,
 });
@@ -114,9 +125,38 @@ const handleHelper = async () => {
 
 <style scoped lang="scss">
 .container {
-  padding: 10px 0;
   display: flex;
   flex-direction: column;
+  gap: 12px;
+
+  .helper-metric {
+    align-items: stretch;
+  }
+
+  .metric-copy {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .metric-label {
+    color: var(--text-tertiary);
+    font-size: var(--font-size-xs);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .metric-value {
+    color: var(--text-primary);
+    font-weight: var(--font-weight-semibold);
+  }
+
+  .metric-summary {
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+    text-align: right;
+  }
 
   .list {
     display: flex;
@@ -155,7 +195,19 @@ const handleHelper = async () => {
     display: flex;
     align-items: center;
     gap: 12px;
-    margin-top: 12px;
+  }
+
+  @media (max-width: 768px) {
+    .helper-metric,
+    .list,
+    .selects {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .metric-summary {
+      text-align: left;
+    }
   }
 }
 </style>

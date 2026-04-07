@@ -12,72 +12,88 @@
       <span v-else>{{ t("monthlyTasksCard.badge.lastDay") }}</span>
     </template>
     <template #default>
-      <div class="monthly-row">
-        <div class="row-title">{{ t("monthlyTasksCard.rows.fish") }}</div>
+      <div class="gwb2-mini-card__metric monthly-row">
+        <div class="monthly-row__copy">
+          <div class="row-title">{{ t("monthlyTasksCard.rows.fish") }}</div>
+          <div class="row-subtitle">{{ t("monthlyTasksCard.actions.fishTopUp") }}</div>
+        </div>
         <div class="row-value">
-          {{ fishNum }} / {{ FISH_TARGET }}（{{ fishPercent }}%）
+          <strong>{{ fishNum }} / {{ FISH_TARGET }}</strong>
+          <span class="row-ratio">{{ fishPercent }}%</span>
         </div>
       </div>
-      <div class="monthly-row">
-        <div class="row-title">{{ t("monthlyTasksCard.rows.arena") }}</div>
+      <div class="gwb2-mini-card__metric monthly-row">
+        <div class="monthly-row__copy">
+          <div class="row-title">{{ t("monthlyTasksCard.rows.arena") }}</div>
+          <div class="row-subtitle">{{ t("monthlyTasksCard.actions.arenaTopUp") }}</div>
+        </div>
         <div class="row-value">
-          {{ arenaNum }} / {{ ARENA_TARGET }}（{{ arenaPercent }}%）
+          <strong>{{ arenaNum }} / {{ ARENA_TARGET }}</strong>
+          <span class="row-ratio">{{ arenaPercent }}%</span>
           <span
-v-if="!isArenaActivityOpen"
-class="status-indicator closed"
-            >{{ t("monthlyTasksCard.rows.arenaClosed") }}</span
+            v-if="!isArenaActivityOpen"
+            class="status-indicator closed"
           >
+            {{ t("monthlyTasksCard.rows.arenaClosed") }}
+          </span>
         </div>
-      </div>
-      <div class="action-row">
-        <button
-          class="action-button secondary"
-          :disabled="monthLoading || fishToppingUp || arenaToppingUp"
-          @click="fetchMonthlyActivity"
-        >
-          {{ monthLoading ? t("monthlyTasksCard.actions.refreshing") : t("monthlyTasksCard.actions.refresh") }}
-        </button>
-
-        <n-button-group>
-          <n-button
-            class="action-button"
-            :disabled="monthLoading || fishToppingUp"
-            @click="topUpMonthly('fish')"
-          >
-            {{ fishToppingUp ? t("monthlyTasksCard.actions.toppingUp") : t("monthlyTasksCard.actions.fishTopUp") }}
-          </n-button>
-          <n-dropdown
-            trigger="click"
-            :options="fishMoreOptions"
-            @select="onFishMoreSelect"
-          >
-            <n-button :disabled="monthLoading || fishToppingUp">▾</n-button>
-          </n-dropdown>
-        </n-button-group>
-
-        <n-button-group>
-          <n-button
-            class="action-button"
-            :disabled="monthLoading || arenaToppingUp || !isArenaActivityOpen"
-            @click="topUpMonthly('arena')"
-          >
-            {{ arenaToppingUp ? t("monthlyTasksCard.actions.toppingUp") : t("monthlyTasksCard.actions.arenaTopUp") }}
-          </n-button>
-          <n-dropdown
-            trigger="click"
-            :options="arenaMoreOptions"
-            @select="onArenaMoreSelect"
-          >
-            <n-button
-              :disabled="monthLoading || arenaToppingUp || !isArenaActivityOpen"
-              >▾</n-button
-            >
-          </n-dropdown>
-        </n-button-group>
       </div>
       <p class="description muted">
         {{ t("monthlyTasksCard.description", { fishTarget: FISH_TARGET, arenaTarget: ARENA_TARGET }) }}
       </p>
+    </template>
+    <template #action>
+      <n-button
+        size="small"
+        :disabled="monthLoading || fishToppingUp || arenaToppingUp"
+        @click="fetchMonthlyActivity"
+      >
+        {{ monthLoading ? t("monthlyTasksCard.actions.refreshing") : t("monthlyTasksCard.actions.refresh") }}
+      </n-button>
+
+      <n-button-group class="monthly-action-group">
+        <n-button
+          size="small"
+          :disabled="monthLoading || fishToppingUp"
+          @click="topUpMonthly('fish')"
+        >
+          {{ fishToppingUp ? t("monthlyTasksCard.actions.toppingUp") : t("monthlyTasksCard.actions.fishTopUp") }}
+        </n-button>
+        <n-dropdown
+          trigger="click"
+          :options="fishMoreOptions"
+          @select="onFishMoreSelect"
+        >
+          <n-button
+            size="small"
+            :disabled="monthLoading || fishToppingUp"
+          >
+            ▾
+          </n-button>
+        </n-dropdown>
+      </n-button-group>
+
+      <n-button-group class="monthly-action-group">
+        <n-button
+          size="small"
+          :disabled="monthLoading || arenaToppingUp || !isArenaActivityOpen"
+          @click="topUpMonthly('arena')"
+        >
+          {{ arenaToppingUp ? t("monthlyTasksCard.actions.toppingUp") : t("monthlyTasksCard.actions.arenaTopUp") }}
+        </n-button>
+        <n-dropdown
+          trigger="click"
+          :options="arenaMoreOptions"
+          @select="onArenaMoreSelect"
+        >
+          <n-button
+            size="small"
+            :disabled="monthLoading || arenaToppingUp || !isArenaActivityOpen"
+          >
+            ▾
+          </n-button>
+        </n-dropdown>
+      </n-button-group>
     </template>
   </MyCard>
 </template>
@@ -206,58 +222,83 @@ defineExpose({ fetchMonthlyActivity });
 <style scoped lang="scss">
 .monthly-row {
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  margin-bottom: var(--spacing-xs);
-  font-size: var(--font-size-sm);
+  gap: var(--spacing-md);
 }
-.description.muted {
-  color: var(--text-tertiary);
-  margin-top: var(--spacing-sm);
-}
-.action-row {
+
+.monthly-row__copy {
   display: flex;
-  gap: var(--spacing-sm);
-  .action-button {
-    flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.row-title {
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.row-subtitle {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.row-value {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  text-align: right;
+
+  strong {
+    color: var(--text-primary);
+    font-family: var(--font-family-mono);
+    font-size: 1rem;
   }
 }
 
-.action-button {
-  width: 100%;
-  padding: var(--spacing-sm) var(--spacing-md);
-  border: none;
-  border-radius: var(--border-radius-medium);
+.row-ratio {
+  color: var(--text-secondary);
   font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-medium);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  background: var(--primary-color);
-  color: #fff;
-  &:hover:not(:disabled) {
-    background: var(--primary-color-hover);
-    transform: translateY(-1px);
-  }
-  &:disabled {
-    background: var(--bg-tertiary);
-    color: var(--text-tertiary);
-    cursor: not-allowed;
-  }
-  &.secondary {
-    background: var(--secondary-color);
-    &:hover:not(:disabled) {
-      background: var(--secondary-color-hover);
-    }
-  }
+}
+
+.description.muted {
+  color: var(--text-tertiary);
+  margin: 0;
+}
+
+.monthly-action-group {
+  width: 100%;
+}
+
+.monthly-action-group :deep(.n-button-group) {
+  width: 100%;
 }
 
 .status-indicator {
   font-size: var(--font-size-xs);
-  margin-left: var(--spacing-xs);
+  margin-left: 0;
   &.open {
     color: var(--success-color, #059669);
   }
   &.closed {
     color: var(--error-color, #dc2626);
+  }
+}
+
+@media (max-width: 768px) {
+  .monthly-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .row-value {
+    justify-content: flex-start;
+    text-align: left;
   }
 }
 </style>
