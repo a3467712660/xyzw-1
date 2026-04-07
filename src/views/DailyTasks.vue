@@ -1,12 +1,11 @@
 <template>
   <div class="daily-tasks-page app-page">
-    <section class="app-page__hero">
-      <div class="app-page__hero-copy">
-        <span class="app-page__eyebrow">日常任务</span>
-        <h1 class="app-page__title">{{ t("dailyTasks.title") }}</h1>
-        <p class="app-page__description">
-          {{ heroDescription }}
-        </p>
+    <PageHero
+      eyebrow="日常任务"
+      :description="heroDescription"
+      :title="t('dailyTasks.title')"
+    >
+      <template #meta>
         <div class="app-chip-row">
           <span class="app-inline-stat">
             <strong>{{ selectedRole?.name || "未选择" }}</strong>
@@ -25,54 +24,49 @@
             自动任务
           </span>
         </div>
-      </div>
+      </template>
 
-      <div class="app-page__actions">
-        <n-button
-          size="large"
-          type="primary"
-          :loading="isRefreshing"
-          @click="refreshTasks"
-        >
-          <template #icon>
-            <n-icon>
-              <Refresh></Refresh>
-            </n-icon>
+      <template #actions>
+        <PageToolbar class="daily-tasks-hero-toolbar">
+          <template #right>
+            <n-button
+              size="large"
+              type="primary"
+              :loading="isRefreshing"
+              @click="refreshTasks"
+            >
+              <template #icon>
+                <n-icon>
+                  <Refresh></Refresh>
+                </n-icon>
+              </template>
+              {{ t("dailyTasks.actions.refresh") }}
+            </n-button>
+
+            <n-dropdown :options="bulkActionOptions" @select="handleBulkAction">
+              <n-button size="large">
+                {{ t("dailyTasks.actions.bulk") }}
+                <template #icon>
+                  <n-icon>
+                    <ChevronDown></ChevronDown>
+                  </n-icon>
+                </template>
+              </n-button>
+            </n-dropdown>
           </template>
-          {{ t("dailyTasks.actions.refresh") }}
-        </n-button>
+        </PageToolbar>
+      </template>
+    </PageHero>
 
-        <n-dropdown :options="bulkActionOptions" @select="handleBulkAction">
-          <n-button size="large">
-            {{ t("dailyTasks.actions.bulk") }}
-            <template #icon>
-              <n-icon>
-                <ChevronDown></ChevronDown>
-              </n-icon>
-            </template>
-          </n-button>
-        </n-dropdown>
-      </div>
-    </section>
-
-    <div class="app-page__summary">
-      <article v-for="card in summaryCards" :key="card.label" class="app-summary-card">
-        <span class="app-summary-card__label">{{ card.label }}</span>
-        <strong class="app-summary-card__value">{{ card.value }}</strong>
-        <span class="app-summary-card__meta">{{ card.meta }}</span>
-      </article>
-    </div>
+    <SummaryGrid :items="summaryCards"></SummaryGrid>
 
     <n-grid item-responsive responsive="screen" :x-gap="16" :y-gap="16">
       <n-grid-item span="24 l:16">
-        <section class="app-section-card task-role-card">
-          <div class="section-head">
-            <div>
-              <h2>角色与执行范围</h2>
-              <p>桌面端把角色选择和统计放在同一行，手机端自动拆成单列。</p>
-            </div>
-          </div>
-
+        <SectionCard
+          class="task-role-card"
+          description="桌面端把角色选择和统计放在同一行，手机端自动拆成单列。"
+          title="角色与执行范围"
+        >
           <div class="role-selector-shell">
             <div class="selector-group">
               <span class="selector-label">{{ t("dailyTasks.labels.selectRole") }}</span>
@@ -100,71 +94,68 @@
               </div>
             </div>
           </div>
-        </section>
+        </SectionCard>
       </n-grid-item>
 
       <n-grid-item span="24 l:8">
-        <section class="app-section-card task-tip-card">
-          <div class="section-head">
-            <div>
-              <h2>本页改造重点</h2>
-              <p>不碰任务接口和执行逻辑，只整理页面结构和移动端阅读顺序。</p>
-            </div>
-          </div>
-
+        <SectionCard
+          class="task-tip-card"
+          description="不碰任务接口和执行逻辑，只整理页面结构和移动端阅读顺序。"
+          title="本页改造重点"
+        >
           <ol class="tips-list">
             <li>首屏固定成“角色选择 → 筛选 → 任务列表”的顺序，避免在手机上来回找入口。</li>
             <li>统计信息抽成摘要卡，桌面端一眼看到进度，移动端仍可自然下滑查看。</li>
             <li>任务卡本身保持原逻辑，继续复用已有执行、配置和日志能力。</li>
           </ol>
-        </section>
+        </SectionCard>
       </n-grid-item>
     </n-grid>
 
-    <section class="app-section-card filter-card">
-      <div class="section-head section-head--compact">
-        <div>
-          <h2>任务筛选</h2>
-          <p>统一收口到一排工具栏，移动端自动换行。</p>
-        </div>
-      </div>
-
-      <div class="filter-bar-shell">
-        <n-radio-group
-          v-model:value="currentFilter"
-          @update:value="onFilterChange"
-        >
-          <n-radio-button value="all">{{ t("dailyTasks.filters.all") }}</n-radio-button>
-          <n-radio-button value="pending">{{ t("dailyTasks.filters.pending") }}</n-radio-button>
-          <n-radio-button value="completed">{{ t("dailyTasks.filters.completed") }}</n-radio-button>
-          <n-radio-button value="auto">{{ t("dailyTasks.filters.auto") }}</n-radio-button>
-        </n-radio-group>
-
-        <div class="search-box">
-          <n-input
-            clearable
-            v-model:value="searchKeyword"
-            :placeholder="t('dailyTasks.placeholders.search')"
-            @update:value="onSearch"
+    <SectionCard
+      compact
+      class="filter-card"
+      description="统一收口到一排工具栏，移动端自动换行。"
+      title="任务筛选"
+    >
+      <PageToolbar class="daily-tasks-filter-toolbar">
+        <template #left>
+          <n-radio-group
+            v-model:value="currentFilter"
+            @update:value="onFilterChange"
           >
-            <template #prefix>
-              <n-icon>
-                <Search></Search>
-              </n-icon>
-            </template>
-          </n-input>
-        </div>
-      </div>
-    </section>
+            <n-radio-button value="all">{{ t("dailyTasks.filters.all") }}</n-radio-button>
+            <n-radio-button value="pending">{{ t("dailyTasks.filters.pending") }}</n-radio-button>
+            <n-radio-button value="completed">{{ t("dailyTasks.filters.completed") }}</n-radio-button>
+            <n-radio-button value="auto">{{ t("dailyTasks.filters.auto") }}</n-radio-button>
+          </n-radio-group>
+        </template>
 
-    <section class="app-section-card tasks-card">
-      <div class="section-head section-head--compact">
-        <div>
-          <h2>任务列表</h2>
-          <p>保持功能卡逻辑不变，只统一页面外层容器和间距。</p>
-        </div>
-      </div>
+        <template #right>
+          <div class="search-box">
+            <n-input
+              clearable
+              v-model:value="searchKeyword"
+              :placeholder="t('dailyTasks.placeholders.search')"
+              @update:value="onSearch"
+            >
+              <template #prefix>
+                <n-icon>
+                  <Search></Search>
+                </n-icon>
+              </template>
+            </n-input>
+          </div>
+        </template>
+      </PageToolbar>
+    </SectionCard>
 
+    <SectionCard
+      compact
+      class="tasks-card"
+      description="保持功能卡逻辑不变，只统一页面外层容器和间距。"
+      title="任务列表"
+    >
       <div v-if="filteredTasks.length" class="tasks-grid">
         <DailyTaskCard
           v-for="task in filteredTasks"
@@ -184,7 +175,7 @@
             </n-icon>
           </template>
           <template #extra>
-            <n-button type="primary" @click="refreshTasks">
+            <n-button size="large" type="primary" @click="refreshTasks">
               {{ t("dailyTasks.actions.refresh") }}
             </n-button>
           </template>
@@ -196,7 +187,7 @@
           <template #description>{{ t("dailyTasks.loading") }}</template>
         </n-spin>
       </div>
-    </section>
+    </SectionCard>
   </div>
 </template>
 
@@ -207,6 +198,10 @@ import { useRouter } from "vue-router";
 import { useDialog, useMessage } from "naive-ui/es";
 import api from "@/api";
 import DailyTaskCard from "@/components/Daily/DailyTaskCard.vue";
+import PageHero from "@/components/workbench/PageHero.vue";
+import PageToolbar from "@/components/workbench/PageToolbar.vue";
+import SectionCard from "@/components/workbench/SectionCard.vue";
+import SummaryGrid from "@/components/workbench/SummaryGrid.vue";
 import { ChevronDown, Cube, Refresh, Search } from "@vicons/ionicons5";
 import { useGameRolesStore } from "@/stores/gameRoles";
 import { useAuthStore } from "@/stores/auth";
@@ -642,37 +637,6 @@ watch(
   animation: daily-fade-in 0.42s ease;
 }
 
-.task-role-card,
-.task-tip-card,
-.filter-card,
-.tasks-card {
-  padding: clamp(18px, 2vw, 24px);
-}
-
-.section-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: var(--spacing-md);
-  margin-bottom: var(--spacing-lg);
-
-  h2 {
-    margin: 0 0 6px;
-    font-size: var(--font-size-xl);
-    color: var(--text-primary);
-  }
-
-  p {
-    margin: 0;
-    color: var(--text-secondary);
-    line-height: 1.6;
-  }
-}
-
-.section-head--compact {
-  margin-bottom: var(--spacing-md);
-}
-
 .role-selector-shell {
   display: flex;
   justify-content: space-between;
@@ -743,17 +707,19 @@ watch(
   line-height: 1.6;
 }
 
-.filter-bar-shell {
-  display: flex;
-  justify-content: space-between;
+.daily-tasks-filter-toolbar {
   align-items: center;
-  gap: var(--spacing-lg);
+}
+
+.daily-tasks-filter-toolbar :deep(.n-radio-group) {
+  display: flex;
   flex-wrap: wrap;
+  gap: var(--spacing-sm);
+  max-width: 100%;
 }
 
 .search-box {
   width: min(100%, 320px);
-  margin-left: auto;
 }
 
 .tasks-grid {
@@ -782,37 +748,28 @@ watch(
 }
 
 @media (max-width: 959px) {
-  .task-role-card,
-  .task-tip-card,
-  .filter-card,
-  .tasks-card {
-    padding: var(--spacing-lg);
-  }
-
-  .role-selector-shell,
-  .filter-bar-shell {
+  .role-selector-shell {
     align-items: stretch;
   }
 
   .search-box {
     width: 100%;
-    margin-left: 0;
   }
 }
 
 @media (max-width: 640px) {
-  .daily-tasks-page :deep(.n-button) {
-    min-height: 40px;
-  }
-
   .role-stats-grid {
     grid-template-columns: 1fr;
     width: 100%;
   }
 
-  .filter-bar-shell {
-    flex-direction: column;
-    align-items: stretch;
+  .daily-tasks-filter-toolbar :deep(.n-radio-group) {
+    width: 100%;
+  }
+
+  .daily-tasks-filter-toolbar :deep(.n-radio-button) {
+    flex: 1 1 calc(50% - var(--spacing-sm));
+    min-width: 120px;
   }
 
   .tasks-grid {

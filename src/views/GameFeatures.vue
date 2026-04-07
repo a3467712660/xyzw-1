@@ -1,12 +1,11 @@
 <template>
   <div class="game-features-page app-page">
-    <section class="app-page__hero">
-      <div class="app-page__hero-copy">
-        <span class="app-page__eyebrow">游戏工作区</span>
-        <h1 class="app-page__title">{{ t("gameFeatures.title") }}</h1>
-        <p class="app-page__description">
-          {{ selectedTokenDescription }}
-        </p>
+    <PageHero
+      eyebrow="游戏工作区"
+      :description="selectedTokenDescription"
+      :title="t('gameFeatures.title')"
+    >
+      <template #meta>
         <div class="app-chip-row">
           <span class="app-inline-stat">
             <strong>{{ tokenStore.selectedToken?.name || t("gameFeatures.connection.notSelected") }}</strong>
@@ -25,66 +24,57 @@
             最近状态变更
           </span>
         </div>
-      </div>
+      </template>
 
-      <div class="app-page__actions game-features-page__actions">
-        <div class="connection-pill" :class="connectionStatus">
-          <n-icon>
-            <CloudDone></CloudDone>
-          </n-icon>
-          <span>{{ connectionStatusText }}</span>
-        </div>
-        <n-button
-          size="large"
-          :type="isConnected ? 'default' : 'primary'"
-          @click="toggleConnection"
-        >
-          {{
-            isConnected
-              ? t("gameFeatures.connection.disconnect")
-              : t("gameFeatures.connection.reconnect")
-          }}
-        </n-button>
-        <n-button
-          v-if="!tokenStore.selectedToken"
-          secondary
-          size="large"
-          type="primary"
-          @click="router.push('/tokens')"
-        >
-          前往 Token 管理
-        </n-button>
-      </div>
-    </section>
+      <template #actions>
+        <PageToolbar class="game-features-page__actions">
+          <template #left>
+            <StatusPill :label="connectionStatusText" :tone="connectionPillTone">
+              <template #icon>
+                <n-icon>
+                  <CloudDone></CloudDone>
+                </n-icon>
+              </template>
+            </StatusPill>
+          </template>
 
-    <div class="app-page__summary">
-      <article v-for="card in summaryCards" :key="card.label" class="app-summary-card">
-        <span class="app-summary-card__label">{{ card.label }}</span>
-        <strong class="app-summary-card__value">{{ card.value }}</strong>
-        <span class="app-summary-card__meta">{{ card.meta }}</span>
-      </article>
-    </div>
+          <template #right>
+            <n-button
+              size="large"
+              :type="isConnected ? 'default' : 'primary'"
+              @click="toggleConnection"
+            >
+              {{
+                isConnected
+                  ? t("gameFeatures.connection.disconnect")
+                  : t("gameFeatures.connection.reconnect")
+              }}
+            </n-button>
+            <n-button
+              v-if="!tokenStore.selectedToken"
+              secondary
+              size="large"
+              type="primary"
+              @click="router.push('/tokens')"
+            >
+              前往 Token 管理
+            </n-button>
+          </template>
+        </PageToolbar>
+      </template>
+    </PageHero>
+
+    <SummaryGrid :items="summaryCards"></SummaryGrid>
 
     <n-grid item-responsive responsive="screen" :x-gap="16" :y-gap="16">
       <n-grid-item span="24">
-        <section class="app-section-card game-features-panel">
-          <div class="section-head">
-            <div>
-              <h2>功能面板</h2>
-            </div>
-          </div>
+        <SectionCard compact class="game-features-panel" title="功能面板">
           <GameStatus></GameStatus>
-        </section>
+        </SectionCard>
       </n-grid-item>
 
       <n-grid-item span="24">
-        <section class="app-section-card connection-card">
-          <div class="section-head">
-            <div>
-              <h2>{{ t("gameFeatures.connection.title") }}</h2>
-            </div>
-          </div>
-
+        <SectionCard class="connection-card" :title="t('gameFeatures.connection.title')">
           <div class="status-list">
             <div class="status-row">
               <span>{{ t("gameFeatures.connection.websocketStatus") }}</span>
@@ -103,8 +93,7 @@
               <strong>{{ lastActivity || "暂无" }}</strong>
             </div>
           </div>
-        </section>
-
+        </SectionCard>
       </n-grid-item>
     </n-grid>
   </div>
@@ -116,6 +105,11 @@ import { useRouter } from "vue-router";
 import { useMessage } from "naive-ui/es";
 import { useI18n } from "vue-i18n";
 import GameStatus from "@/components/GameStatus.vue";
+import PageHero from "@/components/workbench/PageHero.vue";
+import PageToolbar from "@/components/workbench/PageToolbar.vue";
+import SectionCard from "@/components/workbench/SectionCard.vue";
+import StatusPill from "@/components/workbench/StatusPill.vue";
+import SummaryGrid from "@/components/workbench/SummaryGrid.vue";
 import { useGameFeatureActions } from "@/composables/useGameFeatureActions";
 import { useTokenStore } from "@/stores/tokenStore";
 import { CloudDone } from "@vicons/ionicons5";
@@ -127,31 +121,66 @@ const { t } = useI18n();
 
 const lastActivity = ref(null);
 
+const rawConnectionStatus = computed(() => {
+  if (!tokenStore.selectedToken) {
+    return "idle";
+  }
+  return tokenStore.getWebSocketStatus(tokenStore.selectedToken.id) || "disconnected";
+});
+
 const connectionStatus = computed(() => {
   if (!tokenStore.selectedToken) {
     return "disconnected";
   }
-  const status = tokenStore.getWebSocketStatus(tokenStore.selectedToken.id);
-  return status === "connected" ? "connected" : "disconnected";
+  return rawConnectionStatus.value === "connected" ? "connected" : "disconnected";
 });
 
 const connectionStatusText = computed(() => {
   if (!tokenStore.selectedToken) {
     return t("gameFeatures.connection.notSelected");
   }
-  const status = tokenStore.getWebSocketStatus(tokenStore.selectedToken.id);
-  return status === "connected"
-    ? t("gameFeatures.connection.connected")
-    : t("gameFeatures.connection.disconnected");
+
+  switch (rawConnectionStatus.value) {
+    case "connected":
+      return t("gameFeatures.connection.connected");
+    case "connecting":
+      return "连接中";
+    case "error":
+      return "连接异常";
+    default:
+      return t("gameFeatures.connection.disconnected");
+  }
 });
 
 const connectionClass = computed(() => {
-  return connectionStatus.value === "connected"
-    ? "status-connected"
-    : "status-disconnected";
+  switch (rawConnectionStatus.value) {
+    case "connected":
+      return "status-connected";
+    case "connecting":
+      return "status-connecting";
+    case "error":
+      return "status-disconnected";
+    default:
+      return "status-idle";
+  }
 });
 
 const isConnected = computed(() => connectionStatus.value === "connected");
+
+const connectionPillTone = computed(() => {
+  switch (rawConnectionStatus.value) {
+    case "connected":
+      return "success";
+    case "connecting":
+      return "info";
+    case "error":
+      return "error";
+    case "idle":
+      return "warning";
+    default:
+      return "default";
+  }
+});
 
 const selectedTokenDescription = computed(() => {
   if (!tokenStore.selectedToken) {
@@ -285,60 +314,6 @@ watch(
   align-items: flex-start;
 }
 
-.game-features-panel,
-.connection-card,
-.tips-card {
-  padding: clamp(18px, 2vw, 24px);
-}
-
-.game-features-panel {
-  padding: clamp(12px, 1.4vw, 18px);
-}
-
-.section-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: var(--spacing-md);
-  margin-bottom: var(--spacing-lg);
-
-  h2 {
-    margin: 0 0 6px;
-    font-size: var(--font-size-xl);
-    color: var(--text-primary);
-  }
-
-  p {
-    margin: 0;
-    color: var(--text-secondary);
-    line-height: 1.6;
-  }
-}
-
-.connection-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-xs);
-  padding: 10px 14px;
-  border-radius: 999px;
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-semibold);
-  border: 1px solid transparent;
-  background: rgba(32, 128, 240, 0.08);
-
-  &.connected {
-    color: var(--success-color);
-    background: rgba(24, 160, 88, 0.1);
-    border-color: rgba(24, 160, 88, 0.24);
-  }
-
-  &.disconnected {
-    color: var(--error-color);
-    background: rgba(208, 48, 80, 0.1);
-    border-color: rgba(208, 48, 80, 0.24);
-  }
-}
-
 .status-list {
   display: flex;
   flex-direction: column;
@@ -377,40 +352,19 @@ watch(
   color: var(--success-color) !important;
 }
 
+.status-connecting {
+  color: var(--primary-color) !important;
+}
+
+.status-idle {
+  color: var(--text-secondary) !important;
+}
+
 .status-disconnected {
   color: var(--error-color) !important;
 }
 
-.tips-card {
-  margin-top: 16px;
-}
-
-.tips-list {
-  margin: 0;
-  padding-left: 18px;
-  color: var(--text-secondary);
-  display: grid;
-  gap: 10px;
-  line-height: 1.6;
-}
-
-@media (max-width: 959px) {
-  .game-features-panel,
-  .connection-card,
-  .tips-card {
-    padding: var(--spacing-lg);
-  }
-
-  .tips-card {
-    margin-top: 0;
-  }
-}
-
 @media (max-width: 640px) {
-  .game-features-page :deep(.n-button) {
-    min-height: 40px;
-  }
-
   .status-row {
     flex-direction: column;
     align-items: flex-start;

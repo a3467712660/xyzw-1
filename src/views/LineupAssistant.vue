@@ -1,12 +1,11 @@
 <template>
   <div class="lineup-assistant-page app-page">
-    <section class="app-page__hero">
-      <div class="app-page__hero-copy">
-        <span class="app-page__eyebrow">阵容助手</span>
-        <h1 class="app-page__title">独立阵容管理界面</h1>
-        <p class="app-page__description">
-          {{ selectedTokenDescription }}
-        </p>
+    <PageHero
+      eyebrow="阵容助手"
+      title="独立阵容管理界面"
+      :description="selectedTokenDescription"
+    >
+      <template #meta>
         <div class="app-chip-row">
           <span class="app-inline-stat">
             <strong>{{ tokenStore.selectedToken?.name || "未选择" }}</strong>
@@ -25,54 +24,62 @@
             服务器
           </span>
         </div>
-      </div>
+      </template>
 
-      <div class="app-page__actions lineup-assistant-page__actions">
-        <n-button
-          size="large"
-          type="primary"
-          @click="handleToggleConnection"
-        >
-          <template #icon>
-            <n-icon>
-              <CloudDone></CloudDone>
-            </n-icon>
+      <template #actions>
+        <PageToolbar class="lineup-assistant-page__actions">
+          <template #left>
+            <StatusPill :label="connectionStatusText" :tone="connectionPillTone">
+              <template #icon>
+                <NIcon>
+                  <CloudDone></CloudDone>
+                </NIcon>
+              </template>
+            </StatusPill>
           </template>
-          {{ isConnected ? "断开连接" : "连接 / 重连" }}
-        </n-button>
 
-        <n-button
-          size="large"
-          :disabled="!tokenStore.selectedToken"
-          @click="refreshWorkbenchContext"
-        >
-          <template #icon>
-            <n-icon>
-              <Refresh></Refresh>
-            </n-icon>
+          <template #right>
+            <n-button
+              size="large"
+              type="primary"
+              @click="handleToggleConnection"
+            >
+              <template #icon>
+                <NIcon>
+                  <CloudDone></CloudDone>
+                </NIcon>
+              </template>
+              {{ isConnected ? "断开连接" : "连接 / 重连" }}
+            </n-button>
+
+            <n-button
+              size="large"
+              :disabled="!tokenStore.selectedToken"
+              @click="refreshWorkbenchContext"
+            >
+              <template #icon>
+                <NIcon>
+                  <Refresh></Refresh>
+                </NIcon>
+              </template>
+              刷新基础数据
+            </n-button>
+
+            <n-button
+              v-if="!tokenStore.selectedToken"
+              secondary
+              size="large"
+              type="primary"
+              @click="router.push('/tokens')"
+            >
+              前往 Token 管理
+            </n-button>
           </template>
-          刷新基础数据
-        </n-button>
+        </PageToolbar>
+      </template>
+    </PageHero>
 
-        <n-button
-          v-if="!tokenStore.selectedToken"
-          secondary
-          size="large"
-          type="primary"
-          @click="router.push('/tokens')"
-        >
-          前往 Token 管理
-        </n-button>
-      </div>
-    </section>
-
-    <div class="app-page__summary">
-      <article v-for="card in summaryCards" :key="card.label" class="app-summary-card">
-        <span class="app-summary-card__label">{{ card.label }}</span>
-        <strong class="app-summary-card__value">{{ card.value }}</strong>
-        <span class="app-summary-card__meta">{{ card.meta }}</span>
-      </article>
-    </div>
+    <SummaryGrid :items="summaryCards"></SummaryGrid>
 
     <n-alert
       v-if="!tokenStore.selectedToken"
@@ -114,6 +121,10 @@ import { useI18n } from "vue-i18n";
 import { NIcon, useMessage } from "naive-ui/es";
 import { CloudDone, Refresh } from "@vicons/ionicons5";
 import Unlimitedlineup from "@/components/cards/Unlimitedlineup.vue";
+import PageHero from "@/components/workbench/PageHero.vue";
+import PageToolbar from "@/components/workbench/PageToolbar.vue";
+import StatusPill from "@/components/workbench/StatusPill.vue";
+import SummaryGrid from "@/components/workbench/SummaryGrid.vue";
 import { useGameFeatureActions } from "@/composables/useGameFeatureActions";
 import { useTokenStore } from "@/stores/tokenStore";
 
@@ -147,6 +158,19 @@ const connectionStatusText = computed(() => {
 });
 
 const isConnected = computed(() => connectionStatus.value === "connected");
+
+const connectionPillTone = computed(() => {
+  switch (connectionStatus.value) {
+    case "connected":
+      return "success";
+    case "connecting":
+      return "info";
+    case "error":
+      return "error";
+    default:
+      return tokenStore.selectedToken ? "default" : "warning";
+  }
+});
 
 const selectedTokenDescription = computed(() => {
   if (!tokenStore.selectedToken) {
@@ -275,11 +299,5 @@ watch(connectionStatus, (status, oldStatus) => {
 
 .lineup-assistant-page :deep(.lineup-saver) {
   min-height: auto;
-}
-
-@media (max-width: 768px) {
-  .lineup-assistant-page__actions {
-    width: 100%;
-  }
 }
 </style>
