@@ -96,6 +96,20 @@ export const handleGameMessageById = async ({
   logger,
 }: HandleGameMessageDeps) => {
   try {
+    const markFatalConnection = (fatalMessage: string, cmd?: string) => {
+      const normalizedMessage = String(fatalMessage || "连接已失效").trim() || "连接已失效";
+      const connection = wsConnections.value[tokenId];
+      if (connection) {
+        connection.status = "error";
+        connection.lastError = {
+          timestamp: new Date().toISOString(),
+          error: normalizedMessage,
+        };
+      }
+
+      logger.error(`检测到致命消息 [${tokenId}]${cmd ? ` [${cmd}]` : ""}: ${normalizedMessage}`);
+    };
+
     if (!message) {
       logger.warn(`消息处理跳过 [${tokenId}]: 无效消息`);
       onMessageSkipped?.(tokenId, {
@@ -130,6 +144,10 @@ export const handleGameMessageById = async ({
         });
       }
 
+      if (skippedCmd === "_sys/fatal" || errText.includes("other login")) {
+        markFatalConnection(skippedMessage, skippedCmd);
+      }
+
       if (errText.includes("token") && errText.includes("expired")) {
         const connection = wsConnections.value[tokenId];
         if (connection) {
@@ -153,6 +171,23 @@ export const handleGameMessageById = async ({
 
     const cmd = message.cmd?.toLowerCase();
     const body = message.getData();
+
+    if (cmd === "_sys/fatal") {
+      const fatalMessage = String(
+        body?.error
+        || body?.message
+        || body?.msg
+        || message.error
+        || "连接已失效",
+      ).trim() || "连接已失效";
+      markFatalConnection(fatalMessage, cmd);
+      onMessageSkipped?.(tokenId, {
+        message: fatalMessage,
+        cmd,
+        timestamp: Date.now(),
+      });
+      return;
+    }
 
     if (cmd === "role_getroleinforesp" || cmd === "role_getroleinfo") {
       syncRandomSeedFromStatistics(tokenId, body, client);

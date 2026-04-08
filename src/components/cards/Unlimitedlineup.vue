@@ -187,7 +187,7 @@
               应用过程中请勿关闭页面或重复点击
             </div>
           </div>
-          <n-spin :show="state.isRunning">
+          <n-spin :show="applyProgressSpinning">
             <div class="apply-progress-body">
               <div class="apply-progress-stage">
                 {{ applyProgressStage || "正在准备" }}
@@ -201,8 +201,8 @@
                   type="line"
                   :percentage="applyProgressPercent"
                   :show-indicator="false"
-                  :processing="state.isRunning && !applyProgressOverdue"
-                  :status="applyProgressOverdue ? 'warning' : 'info'"
+                  :processing="applyProgressSpinning && !applyProgressOverdue"
+                  :status="applyProgressStatus"
                   :height="10"
                   :border-radius="999"
                 />
@@ -227,6 +227,83 @@
               </div>
               <div class="apply-progress-tip" v-if="applyProgressOverdue">
                 已超过预计时间，仍在继续执行，请保持前台等待完成
+              </div>
+              <div v-if="applyDebugMode" class="apply-debug-panel">
+                <div class="apply-debug-header-row">
+                  <div class="apply-debug-title">
+                    分步调试
+                    <span v-if="applyDebugLineupName">· {{ applyDebugLineupName }}</span>
+                  </div>
+                  <div class="apply-debug-state">
+                    {{
+                      applyDebugFinished
+                        ? "已结束"
+                        : applyDebugPaused
+                          ? "等待执行下一步"
+                          : "执行中"
+                    }}
+                  </div>
+                </div>
+                <div class="apply-debug-step-list">
+                  <div
+                    v-for="step in applyDebugSteps"
+                    :key="step.key"
+                    class="apply-debug-step"
+                    :class="`is-${step.status}`"
+                  >
+                    <div class="apply-debug-step-main">
+                      <span class="apply-debug-step-index">{{ step.order }}</span>
+                      <span class="apply-debug-step-label">{{ step.label }}</span>
+                      <span class="apply-debug-step-status">
+                        {{ formatApplyDebugStepStatus(step.status) }}
+                      </span>
+                    </div>
+                    <div v-if="step.detail" class="apply-debug-step-detail">
+                      {{ step.detail }}
+                    </div>
+                    <div
+                      v-if="Array.isArray(step.commands) && step.commands.length > 0"
+                      class="apply-debug-step-commands"
+                    >
+                      <div class="apply-debug-step-commands-title">本步骤命令</div>
+                      <div class="apply-debug-step-command-list">
+                        <span
+                          v-for="(command, commandIndex) in step.commands"
+                          :key="`${step.key}-${commandIndex}-${command}`"
+                          class="apply-debug-step-command"
+                        >
+                          {{ command }}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="apply-debug-actions">
+                  <n-button
+                    v-if="!applyDebugFinished"
+                    type="primary"
+                    size="small"
+                    :disabled="!applyDebugPaused"
+                    @click="continueApplyDebug"
+                  >
+                    执行下一步
+                  </n-button>
+                  <n-button
+                    v-if="!applyDebugFinished"
+                    size="small"
+                    @click="abortApplyDebug"
+                  >
+                    中止调试
+                  </n-button>
+                  <n-button
+                    v-else
+                    type="primary"
+                    size="small"
+                    @click="closeApplyDebugPanel"
+                  >
+                    关闭
+                  </n-button>
+                </div>
               </div>
             </div>
           </n-spin>
@@ -260,6 +337,13 @@
               </div>
             </div>
             <div class="team-tabs-right">
+              <n-button
+                size="tiny"
+                :loading="lineupCloudSyncing || lineupCloudLoading"
+                @click="syncSavedLineupsCloudNow"
+              >
+                上传到服务器
+              </n-button>
               <n-button size="tiny" @click="exportLineups"> 导出 </n-button>
               <n-upload
                 :show-file-list="false"
@@ -329,6 +413,17 @@
                     :disabled="lineup.teamId !== currentTeamId"
                   >
                     应用
+                  </n-button>
+                  <n-button
+                    type="warning"
+                    size="tiny"
+                    @click.stop="
+                      startDebugApply(lineup);
+                      savedLineupsModalVisible = false;
+                    "
+                    :disabled="lineup.teamId !== currentTeamId"
+                  >
+                    调试
                   </n-button>
                 </div>
               </div>
@@ -626,8 +721,11 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch, h } from "vue";
-import { useMessage, useDialog, NInput } from "naive-ui";
+import { computed, h, onMounted, onUnmounted, ref, watch } from "vue";
+import { NInput, useDialog, useMessage } from "naive-ui";
+import api from "@/api";
+import { useAuthStore } from "@/stores/auth";
+import { $emit } from "@/stores/events";
 import { useTokenStore } from "@/stores/tokenStore";
 import {
   acquireTokenOperationLock,
@@ -635,20 +733,21 @@ import {
 } from "@/services/token/tokenOperationCoordination";
 import MyCard from "../Common/MyCard.vue";
 import {
-  HERO_DICT,
   FishMap,
-  PearlMap,
+  HERO_DICT,
   LEGION_TECH_MAX_LEVEL,
-  LEGION_TECH_TYPE_MAP,
   LEGION_TECH_RESET_TYPE_MAP,
-  LEGION_TECH_TYPE_NAME,
-  LEGION_TECH_NAME,
+  LEGION_TECH_TYPE_MAP,
   getTechType,
-  weapon,
+  LEGION_TECH_NAME,
+  LEGION_TECH_TYPE_NAME,
+  PearlMap,
   color,
+  weapon,
 } from "@/utils/HeroList.js";
 
 const tokenStore = useTokenStore();
+const authStore = useAuthStore();
 const message = useMessage();
 const dialog = useDialog();
 
@@ -699,6 +798,28 @@ const applyProgressStartedAt = ref(0);
 const applyProgressEstimateMs = ref(0);
 const applyProgressNow = ref(Date.now());
 let applyProgressTimer = null;
+const applyDebugMode = ref(false);
+const applyDebugPaused = ref(false);
+const applyDebugFinished = ref(false);
+const applyDebugLineupName = ref("");
+const applyDebugSteps = ref([]);
+const applyDebugCurrentStepKey = ref("");
+let applyDebugResolver = null;
+let applyDebugRejecter = null;
+
+const APPLY_DEBUG_ABORT_ERROR_CODE = "LINEUP_DEBUG_ABORT";
+const APPLY_DEBUG_STAGE_DEFS = [
+  { key: "read_current_snapshot", label: "读取当前角色快照" },
+  { key: "read_saved_lineup", label: "读取已保存阵容快照" },
+  { key: "equipment_exchange", label: "按装备洗练无损换将" },
+  { key: "lineup_attachment", label: "整理站位" },
+  { key: "equipment_exchange_review", label: "站位后复查装备洗练" },
+  { key: "lineup_attachment_review", label: "补完后再次整理站位" },
+  { key: "level_sync", label: "同步等级" },
+  { key: "fish_pearl_sync", label: "同步鱼灵与鱼珠技能" },
+  { key: "tail_sync", label: "同步科技与玩具" },
+  { key: "final_review_refresh", label: "复核并刷新界面" },
+];
 
 const refineModalVisible = ref(false);
 const refineModalLoading = ref(false);
@@ -721,8 +842,542 @@ const selectedTechData = ref(null);
 
 const draggedHeroId = ref(null);
 const dragOverPosition = ref(null);
+const lineupCloudLoading = ref(false);
+const lineupCloudSyncing = ref(false);
 
 const STORAGE_KEY = "saved_lineups";
+const APPLY_METRICS_STORAGE_KEY_PREFIX = "saved_lineup_apply_metrics_v1";
+const LINEUP_STORE_VERSION = 2;
+const LINEUP_CLOUD_PREF_PREFIX = "lineup.saved";
+let lineupCloudTimer = null;
+let savedLineupsLoadSeq = 0;
+
+const toNullableNumber = (value) => {
+  if (value === null || value === undefined || value === "") return null;
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+};
+
+const getLineupItemUpdatedAt = (lineup) => {
+  const ts = Number(lineup?.updatedAt || lineup?.savedAt || 0);
+  return Number.isFinite(ts) && ts > 0 ? ts : 0;
+};
+
+const getLineupCollectionUpdatedAt = (lineups = []) =>
+  lineups.reduce(
+    (max, lineup) => Math.max(max, getLineupItemUpdatedAt(lineup)),
+    0,
+  );
+
+const getSelectedTokenId = () => String(tokenStore.selectedToken?.id || "").trim();
+
+const getLineupStorageKey = (tokenId = getSelectedTokenId()) =>
+  tokenId ? `${STORAGE_KEY}_${tokenId}` : "";
+
+const getLineupCloudPrefKey = (tokenId = getSelectedTokenId()) =>
+  tokenId ? `${LINEUP_CLOUD_PREF_PREFIX}:${tokenId}` : "";
+
+const getApplyMetricsStorageKey = (tokenId = getSelectedTokenId()) =>
+  tokenId ? `${APPLY_METRICS_STORAGE_KEY_PREFIX}_${tokenId}` : "";
+
+const normalizeApplyDurationMetrics = (rawValue) => {
+  if (!rawValue || typeof rawValue !== "object") {
+    return {};
+  }
+
+  const normalized = {};
+  for (const [lineupId, durations] of Object.entries(rawValue)) {
+    const key = String(lineupId || "").trim();
+    if (!key || !Array.isArray(durations)) continue;
+    const cleaned = durations
+      .map((value) => Number(value))
+      .filter((value) => Number.isFinite(value) && value > 0)
+      .slice(-10);
+    if (cleaned.length > 0) {
+      normalized[key] = cleaned;
+    }
+  }
+
+  return normalized;
+};
+
+const readApplyDurationMetrics = (tokenId = getSelectedTokenId()) => {
+  const storageKey = getApplyMetricsStorageKey(tokenId);
+  if (!storageKey) return {};
+
+  try {
+    const rawValue = localStorage.getItem(storageKey);
+    if (!rawValue) return {};
+    return normalizeApplyDurationMetrics(JSON.parse(rawValue));
+  } catch (error) {
+    console.warn("读取阵容应用耗时历史失败，已回退为空:", error?.message || error);
+    return {};
+  }
+};
+
+const writeApplyDurationMetrics = (tokenId, metrics) => {
+  const storageKey = getApplyMetricsStorageKey(tokenId);
+  if (!storageKey) return;
+  localStorage.setItem(
+    storageKey,
+    JSON.stringify(normalizeApplyDurationMetrics(metrics)),
+  );
+};
+
+const getAverageApplyDurationMs = (lineupId, tokenId = getSelectedTokenId()) => {
+  const key = String(lineupId || "").trim();
+  if (!key) return 0;
+  const metrics = readApplyDurationMetrics(tokenId);
+  const durations = metrics[key] || [];
+  if (!Array.isArray(durations) || durations.length === 0) return 0;
+  const total = durations.reduce((sum, value) => sum + Number(value || 0), 0);
+  return Math.round(total / durations.length);
+};
+
+const recordApplyDurationMetric = (
+  lineupId,
+  durationMs,
+  tokenId = getSelectedTokenId(),
+) => {
+  const key = String(lineupId || "").trim();
+  const duration = Number(durationMs);
+  if (!key || !Number.isFinite(duration) || duration <= 0 || !tokenId) return;
+
+  const metrics = readApplyDurationMetrics(tokenId);
+  const nextDurations = [...(metrics[key] || []), duration].slice(-10);
+  metrics[key] = nextDurations;
+  writeApplyDurationMetrics(tokenId, metrics);
+};
+
+const parseEquipmentQuenchMap = (quenchMap) => {
+  const normalizedMap = normalizeEquipmentQuenchMap(quenchMap);
+  if (!normalizedMap) return [];
+
+  return Object.entries(normalizedMap)
+    .sort(([left], [right]) => Number(left) - Number(right))
+    .map(([slotId, slot]) => ({
+      slotId: Number(slotId),
+      attrId: toNullableNumber(slot.attrId),
+      attrNum: toNullableNumber(slot.attrNum) ?? 0,
+      colorId: toNullableNumber(slot.colorId) ?? 0,
+      isLocked: Boolean(slot.isLocked),
+    }));
+};
+
+const getEquipmentQuenchCollectionScore = (slots) => {
+  if (!Array.isArray(slots) || slots.length === 0) return 0;
+  const colorScore = slots.filter((slot) => (toNullableNumber(slot.colorId) ?? 0) > 0).length;
+  return colorScore * 10 + slots.length;
+};
+
+const normalizeEquipmentQuenchSlot = (slot) => {
+  if (!slot || typeof slot !== "object") return null;
+
+  const attrId = toNullableNumber(slot.attrId);
+  const attrNum = toNullableNumber(slot.attrNum) ?? 0;
+  const colorId = toNullableNumber(slot.colorId) ?? 0;
+  const isLocked = Boolean(slot.isLocked || slot.locked);
+
+  if (attrId == null && attrNum <= 0 && colorId <= 0 && !isLocked) {
+    return null;
+  }
+
+  return {
+    attrId,
+    attrNum,
+    colorId,
+    isLocked,
+  };
+};
+
+const normalizeEquipmentQuenchMap = (quenchMap) => {
+  if (!quenchMap || typeof quenchMap !== "object") return null;
+
+  const normalized = {};
+  for (const [slotId, slot] of Object.entries(quenchMap)) {
+    const normalizedSlot = normalizeEquipmentQuenchSlot(slot);
+    if (!normalizedSlot) continue;
+    normalized[String(slotId)] = normalizedSlot;
+  }
+
+  return Object.keys(normalized).length > 0 ? normalized : null;
+};
+
+const getEffectiveEquipmentQuenchMap = (equip) => {
+  if (!equip || typeof equip !== "object") return null;
+
+  const primary = normalizeEquipmentQuenchMap(equip.quenches);
+  const secondary = normalizeEquipmentQuenchMap(equip.quenches2);
+  const curQuenchId = Number(equip.curQuenchId || 0);
+
+  if (curQuenchId === 2 && secondary) return secondary;
+  if ((curQuenchId === 1 || curQuenchId === 0) && primary) return primary;
+  if (primary && !secondary) return primary;
+  if (secondary && !primary) return secondary;
+  if (!primary && !secondary) return null;
+
+  const primarySlots = parseEquipmentQuenchMap(primary);
+  const secondarySlots = parseEquipmentQuenchMap(secondary);
+  return getEquipmentQuenchCollectionScore(primarySlots)
+    >= getEquipmentQuenchCollectionScore(secondarySlots)
+    ? primary
+    : secondary;
+};
+
+const normalizeHeroEquipmentSnapshot = (equipment) => {
+  if (!equipment || typeof equipment !== "object") return null;
+
+  const normalized = {};
+  for (const [partId, part] of Object.entries(equipment)) {
+    if (!part || typeof part !== "object") continue;
+
+    const normalizedPart = {};
+    const level = toNullableNumber(part.level) ?? 0;
+    const quenchTimes = toNullableNumber(part.quenchTimes) ?? 0;
+    const quenchAttackExt = toNullableNumber(part.quenchAttackExt) ?? 0;
+    const quenchDefenseExt = toNullableNumber(part.quenchDefenseExt) ?? 0;
+    const quenchHpExt = toNullableNumber(part.quenchHpExt) ?? 0;
+    const quenches = getEffectiveEquipmentQuenchMap(part);
+
+    if (level > 0) normalizedPart.level = level;
+    if (quenchTimes > 0) normalizedPart.quenchTimes = quenchTimes;
+    if (quenchAttackExt > 0) normalizedPart.quenchAttackExt = quenchAttackExt;
+    if (quenchDefenseExt > 0) normalizedPart.quenchDefenseExt = quenchDefenseExt;
+    if (quenchHpExt > 0) normalizedPart.quenchHpExt = quenchHpExt;
+    if (quenches) normalizedPart.quenches = quenches;
+
+    if (Object.keys(normalizedPart).length > 0) {
+      normalized[String(partId)] = normalizedPart;
+    }
+  }
+
+  return Object.keys(normalized).length > 0 ? normalized : null;
+};
+
+const getEquipmentQuenchColorLevel = (quench) => {
+  const normalizeColorText = (value) => {
+    const text = String(value || "").trim().toLowerCase();
+    if (text === "red" || text === "红色" || text === "红") return 6;
+    if (text === "orange" || text === "橙色" || text === "橙") return 5;
+    if (text === "purple" || text === "紫色" || text === "紫") return 4;
+    if (text === "blue" || text === "蓝色" || text === "蓝") return 3;
+    if (text === "green" || text === "绿色" || text === "绿") return 2;
+    if (text === "white" || text === "白色" || text === "白") return 1;
+    return 0;
+  };
+
+  const numericLevel = Number(quench?.colorId ?? quench?.color ?? 0);
+  if (Number.isFinite(numericLevel) && numericLevel > 0) {
+    return numericLevel;
+  }
+
+  return normalizeColorText(quench?.colorId ?? quench?.color ?? "");
+};
+
+const detectEquipmentPalette = (levels) => {
+  const normalized = (levels || [])
+    .map((item) => Number(item))
+    .filter((item) => Number.isFinite(item) && item > 0);
+  const hasLevel5 = normalized.includes(5);
+  const hasLevel7OrAbove = normalized.some((item) => item >= 7);
+
+  if (!hasLevel5 && hasLevel7OrAbove) {
+    return { orangeLevel: 6, redThreshold: 7 };
+  }
+
+  return { orangeLevel: 5, redThreshold: 6 };
+};
+
+const getEquipmentSnapshotPalette = (equipmentSnapshot) => {
+  const levels = [];
+  for (const part of Object.values(equipmentSnapshot || {})) {
+    for (const slot of parseEquipmentQuenchMap(part?.quenches)) {
+      const level = getEquipmentQuenchColorLevel(slot);
+      if (level > 0) {
+        levels.push(level);
+      }
+    }
+  }
+  return detectEquipmentPalette(levels);
+};
+
+const getEquipmentPartStats = (part, palette) => {
+  const slots = parseEquipmentQuenchMap(part?.quenches);
+  const coloredCount = slots.filter((slot) => getEquipmentQuenchColorLevel(slot) > 0).length;
+  const redCount = slots.filter(
+    (slot) => getEquipmentQuenchColorLevel(slot) >= palette.redThreshold,
+  ).length;
+  const orangeCount = slots.filter(
+    (slot) => getEquipmentQuenchColorLevel(slot) === palette.orangeLevel,
+  ).length;
+  const bonusValue =
+    (toNullableNumber(part?.quenchAttackExt) ?? 0)
+    + (toNullableNumber(part?.quenchDefenseExt) ?? 0)
+    + (toNullableNumber(part?.quenchHpExt) ?? 0);
+
+  return {
+    redCount,
+    orangeCount,
+    coloredCount,
+    bonusValue,
+  };
+};
+
+const getEquipmentMatchScore = (targetEquipment, currentEquipment) => {
+  const normalizedTarget = normalizeHeroEquipmentSnapshot(targetEquipment);
+  const normalizedCurrent = normalizeHeroEquipmentSnapshot(currentEquipment);
+
+  if (!normalizedTarget || !normalizedCurrent) {
+    return {
+      exact: false,
+      redHit: 0,
+      orangeHit: 0,
+      coloredHit: 0,
+      bonusDiff: Number.POSITIVE_INFINITY,
+      hasSignal: false,
+    };
+  }
+
+  if (JSON.stringify(normalizedTarget) === JSON.stringify(normalizedCurrent)) {
+    return {
+      exact: true,
+      redHit: Number.MAX_SAFE_INTEGER,
+      orangeHit: Number.MAX_SAFE_INTEGER,
+      coloredHit: Number.MAX_SAFE_INTEGER,
+      bonusDiff: 0,
+      hasSignal: true,
+    };
+  }
+
+  const targetPalette = getEquipmentSnapshotPalette(normalizedTarget);
+  const currentPalette = getEquipmentSnapshotPalette(normalizedCurrent);
+  const partIds = new Set([
+    ...Object.keys(normalizedTarget || {}),
+    ...Object.keys(normalizedCurrent || {}),
+  ]);
+
+  let redHit = 0;
+  let orangeHit = 0;
+  let coloredHit = 0;
+  let bonusDiff = 0;
+
+  for (const partId of partIds) {
+    const targetPartStats = getEquipmentPartStats(
+      normalizedTarget?.[partId],
+      targetPalette,
+    );
+    const currentPartStats = getEquipmentPartStats(
+      normalizedCurrent?.[partId],
+      currentPalette,
+    );
+
+    redHit += Math.min(targetPartStats.redCount, currentPartStats.redCount);
+    orangeHit += Math.min(targetPartStats.orangeCount, currentPartStats.orangeCount);
+    coloredHit += Math.min(targetPartStats.coloredCount, currentPartStats.coloredCount);
+    bonusDiff += Math.abs(targetPartStats.bonusValue - currentPartStats.bonusValue);
+  }
+
+  return {
+    exact: false,
+    redHit,
+    orangeHit,
+    coloredHit,
+    bonusDiff,
+    hasSignal:
+      redHit > 0
+      || orangeHit > 0
+      || coloredHit > 0
+      || Number.isFinite(bonusDiff),
+  };
+};
+
+const normalizeSavedHero = (hero, index = 0) => {
+  if (!hero || typeof hero !== "object") return null;
+  const heroId = Number(hero.heroId || 0);
+  if (!heroId) return null;
+  return {
+    ...hero,
+    position: toNullableNumber(hero.position) ?? index,
+    heroId,
+    level: toNullableNumber(hero.level),
+    attachmentUid: toNullableNumber(hero.attachmentUid),
+    fishId: toNullableNumber(hero.fishId),
+    pearlId: toNullableNumber(hero.pearlId),
+    skillId: toNullableNumber(hero.skillId),
+    power: toNullableNumber(hero.power),
+    attack: toNullableNumber(hero.attack),
+    hp: toNullableNumber(hero.hp),
+    speed: toNullableNumber(hero.speed),
+    slotMap:
+      hero.slotMap && typeof hero.slotMap === "object" ? hero.slotMap : null,
+    equipment: normalizeHeroEquipmentSnapshot(hero.equipment),
+  };
+};
+
+const normalizeSavedLineup = (lineup, index = 0) => {
+  if (!lineup || typeof lineup !== "object") return null;
+  const teamId = Number(lineup.teamId || 0) || 1;
+  const heroes = Array.isArray(lineup.heroes)
+    ? lineup.heroes
+        .map((hero, heroIndex) => normalizeSavedHero(hero, heroIndex))
+        .filter(Boolean)
+    : [];
+  const name = String(lineup.name || "").trim() || `阵容${teamId}-${index + 1}`;
+  return {
+    ...lineup,
+    id: String(lineup.id || generateLineupId()),
+    name,
+    heroes,
+    teamId,
+    savedAt: getLineupItemUpdatedAt(lineup) || Date.now(),
+    updatedAt: getLineupItemUpdatedAt(lineup) || Date.now(),
+    applying: false,
+    legionResearch:
+      lineup.legionResearch && typeof lineup.legionResearch === "object"
+        ? lineup.legionResearch
+        : {},
+    weaponId:
+      lineup.weaponId === undefined ? null : toNullableNumber(lineup.weaponId),
+  };
+};
+
+const normalizeSavedLineups = (lineups) =>
+  (Array.isArray(lineups) ? lineups : [])
+    .map((lineup, index) => normalizeSavedLineup(lineup, index))
+    .filter(Boolean)
+    .sort((a, b) => getLineupItemUpdatedAt(b) - getLineupItemUpdatedAt(a));
+
+const normalizeSavedLineupStore = (rawValue) => {
+  const rawLineups = Array.isArray(rawValue)
+    ? rawValue
+    : Array.isArray(rawValue?.lineups)
+      ? rawValue.lineups
+      : [];
+  const lineups = normalizeSavedLineups(rawLineups);
+  const fallbackUpdatedAt = getLineupCollectionUpdatedAt(lineups);
+  const rawUpdatedAt = Number(rawValue?.updatedAt || rawValue?.savedAt || 0);
+  const updatedAt =
+    Number.isFinite(rawUpdatedAt) && rawUpdatedAt > 0
+      ? rawUpdatedAt
+      : fallbackUpdatedAt;
+  return {
+    version: Number(rawValue?.version || LINEUP_STORE_VERSION) || LINEUP_STORE_VERSION,
+    updatedAt,
+    lineups,
+  };
+};
+
+const buildSavedLineupStore = (
+  lineups = savedLineups.value,
+  updatedAt = Date.now(),
+) => ({
+  version: LINEUP_STORE_VERSION,
+  updatedAt: Number(updatedAt) > 0 ? Number(updatedAt) : Date.now(),
+  lineups: normalizeSavedLineups(lineups),
+});
+
+const mergeSavedLineupStores = (localStore, remoteStore) => {
+  const mergedById = new Map();
+  for (const lineup of [...(localStore?.lineups || []), ...(remoteStore?.lineups || [])]) {
+    const key = String(lineup?.id || "");
+    if (!key) continue;
+    const normalized = normalizeSavedLineup(lineup);
+    const previous = mergedById.get(key);
+    if (!previous || getLineupItemUpdatedAt(normalized) >= getLineupItemUpdatedAt(previous)) {
+      mergedById.set(key, normalized);
+    }
+  }
+  return buildSavedLineupStore(
+    Array.from(mergedById.values()),
+    Math.max(
+      Number(localStore?.updatedAt || 0),
+      Number(remoteStore?.updatedAt || 0),
+      getLineupCollectionUpdatedAt(Array.from(mergedById.values())),
+    ),
+  );
+};
+
+const writeSavedLineupStoreToLocal = (tokenId, store) => {
+  const storageKey = getLineupStorageKey(tokenId);
+  if (!storageKey) return;
+  localStorage.setItem(storageKey, JSON.stringify(normalizeSavedLineupStore(store)));
+};
+
+const readSavedLineupStoreFromLocal = (tokenId) => {
+  const storageKey = getLineupStorageKey(tokenId);
+  if (!storageKey) return buildSavedLineupStore([], 0);
+  try {
+    const data = localStorage.getItem(storageKey);
+    if (!data) return buildSavedLineupStore([], 0);
+    return normalizeSavedLineupStore(JSON.parse(data));
+  } catch (error) {
+    console.warn("读取本地已保存阵容失败，已回退为空列表:", error?.message || error);
+    return buildSavedLineupStore([], 0);
+  }
+};
+
+const readSavedLineupStoreFromCloud = async (tokenId) => {
+  const prefKey = getLineupCloudPrefKey(tokenId);
+  if (!prefKey) return buildSavedLineupStore([], 0);
+  const res = await api.user.getPreference(prefKey);
+  const rawValue = res?.data?.value;
+  if (rawValue == null) return buildSavedLineupStore([], 0);
+  const parsed = typeof rawValue === "string" ? JSON.parse(rawValue) : rawValue;
+  return normalizeSavedLineupStore(parsed);
+};
+
+const pushSavedLineupsToCloud = async (
+  tokenId = getSelectedTokenId(),
+  store = buildSavedLineupStore(savedLineups.value),
+) => {
+  if (!authStore.isAuthenticated || !tokenId) return false;
+  await api.user.setPreference(getLineupCloudPrefKey(tokenId), store);
+  return true;
+};
+
+const applySavedLineupStore = (store, tokenId = getSelectedTokenId()) => {
+  const normalizedStore = normalizeSavedLineupStore(store);
+  savedLineups.value = normalizedStore.lineups;
+  if (tokenId) {
+    writeSavedLineupStoreToLocal(tokenId, normalizedStore);
+  }
+  return normalizedStore;
+};
+
+const scheduleSavedLineupsCloudSync = (
+  tokenId = getSelectedTokenId(),
+  store = buildSavedLineupStore(savedLineups.value),
+) => {
+  if (!authStore.isAuthenticated || !tokenId) return;
+  if (lineupCloudTimer) {
+    clearTimeout(lineupCloudTimer);
+  }
+  const payload = normalizeSavedLineupStore(store);
+  lineupCloudTimer = setTimeout(async () => {
+    lineupCloudTimer = null;
+    if (tokenId !== getSelectedTokenId()) return;
+    lineupCloudSyncing.value = true;
+    try {
+      await pushSavedLineupsToCloud(tokenId, payload);
+    } catch (error) {
+      console.warn("同步已保存阵容到服务器失败:", error?.message || error);
+    } finally {
+      lineupCloudSyncing.value = false;
+    }
+  }, 300);
+};
+
+const persistSavedLineups = ({ updatedAt = Date.now(), syncCloud = true } = {}) => {
+  const tokenId = getSelectedTokenId();
+  if (!tokenId) return buildSavedLineupStore([], 0);
+  const store = buildSavedLineupStore(savedLineups.value, updatedAt);
+  savedLineups.value = store.lineups;
+  writeSavedLineupStoreToLocal(tokenId, store);
+  if (syncCloud) {
+    scheduleSavedLineupsCloudSync(tokenId, store);
+  }
+  return store;
+};
 
 const formatDurationMs = (ms) => {
   const totalSeconds = Math.max(0, Math.round((Number(ms) || 0) / 1000));
@@ -750,6 +1405,14 @@ const applyProgressOverdue = computed(
       applyProgressEstimateMs.value
       && applyProgressElapsedMs.value > applyProgressEstimateMs.value,
     ),
+);
+
+const applyProgressSpinning = computed(() =>
+  state.value.isRunning && !(applyDebugMode.value && applyDebugPaused.value),
+);
+
+const applyProgressStatus = computed(() =>
+  applyProgressOverdue.value ? "warning" : "success",
 );
 
 const applyProgressPercent = computed(() => {
@@ -790,22 +1453,34 @@ const applyProgressFinishText = computed(() => {
   });
 });
 
-const estimateApplyDurationMs = (lineup) => {
+const estimateApplyDurationMsByShape = (lineup) => {
   const heroCount = Array.isArray(lineup?.heroes) ? lineup.heroes.length : 0;
   const hasLevelData = lineup?.heroes?.some((hero) => hero.level && hero.level > 0);
   const hasFishData = lineup?.heroes?.some((hero) => hero.pearlId || hero.fishId);
+  const hasEquipmentData = lineup?.heroes?.some(
+    (hero) => hero?.equipment && Object.keys(hero.equipment).length > 0,
+  );
   const hasTechData =
     lineup?.legionResearch && Object.keys(lineup.legionResearch).length > 0;
   const hasWeaponData = lineup?.weaponId !== undefined && lineup?.weaponId !== null;
 
   let commandCount = 8;
   commandCount += heroCount * 3;
+  if (hasEquipmentData) commandCount += heroCount * 2;
   if (hasLevelData) commandCount += heroCount * 3;
   if (hasFishData) commandCount += heroCount * 3;
   if (hasTechData) commandCount += 16;
   if (hasWeaponData) commandCount += 2;
 
   return Math.max(20000, commandCount * 1200);
+};
+
+const estimateApplyDurationMs = (lineup) => {
+  const historyAvg = getAverageApplyDurationMs(lineup?.id);
+  if (historyAvg > 0) {
+    return historyAvg;
+  }
+  return estimateApplyDurationMsByShape(lineup);
 };
 
 const startApplyProgress = (lineup) => {
@@ -826,10 +1501,142 @@ const setApplyProgressStage = (stage) => {
   applyProgressStage.value = stage || "正在处理中";
 };
 
-const finishApplyProgress = () => {
+const createDebugAbortError = () => {
+  const error = new Error("已手动中止调试");
+  error.code = APPLY_DEBUG_ABORT_ERROR_CODE;
+  return error;
+};
+
+const resetApplyDebugSession = ({ clearSteps = true } = {}) => {
+  applyDebugMode.value = false;
+  applyDebugPaused.value = false;
+  applyDebugFinished.value = false;
+  applyDebugLineupName.value = "";
+  applyDebugCurrentStepKey.value = "";
+  applyDebugResolver = null;
+  applyDebugRejecter = null;
+  if (clearSteps) {
+    applyDebugSteps.value = [];
+  }
+};
+
+const initApplyDebugSession = (lineup) => {
+  applyDebugMode.value = true;
+  applyDebugPaused.value = false;
+  applyDebugFinished.value = false;
+  applyDebugLineupName.value = String(lineup?.name || "").trim();
+  applyDebugSteps.value = APPLY_DEBUG_STAGE_DEFS.map((item, index) => ({
+    ...item,
+    order: index + 1,
+    status: "pending",
+    detail: "",
+    commands: [],
+  }));
+};
+
+const setApplyDebugStep = (stepKey, patch) => {
+  applyDebugSteps.value = applyDebugSteps.value.map((step) =>
+    step.key === stepKey ? { ...step, ...patch } : step,
+  );
+};
+
+const formatApplyDebugStepStatus = (status) => {
+  switch (status) {
+    case "waiting":
+      return "等待执行";
+    case "running":
+      return "执行中";
+    case "success":
+      return "已完成";
+    case "error":
+      return "失败";
+    default:
+      return "未开始";
+  }
+};
+
+const normalizeApplyDebugDetail = (detail) => {
+  if (!detail) return "";
+  if (typeof detail === "string") return detail;
+  if (typeof detail === "object" && typeof detail.detail === "string") {
+    return detail.detail;
+  }
+  return "";
+};
+
+const formatApplyDebugCommand = (cmd, attempt = 1) =>
+  attempt > 1 ? `${cmd}（第${attempt}次）` : String(cmd || "");
+
+const appendApplyDebugCommand = (stepKey, cmd, attempt = 1) => {
+  if (!stepKey || !cmd) return;
+  const nextCommand = formatApplyDebugCommand(cmd, attempt);
+  applyDebugSteps.value = applyDebugSteps.value.map((step) =>
+    step.key === stepKey
+      ? {
+          ...step,
+          commands: [...(Array.isArray(step.commands) ? step.commands : []), nextCommand],
+        }
+      : step,
+  );
+};
+
+const pauseBeforeApplyDebugStep = async (stepKey, stageLabel) => {
+  if (!applyDebugMode.value) return;
+
+  setApplyDebugStep(stepKey, {
+    status: "waiting",
+    detail: "",
+  });
+  applyDebugPaused.value = true;
+  setApplyProgressStage(`调试暂停：${stageLabel}`);
+
+  await new Promise((resolve, reject) => {
+    applyDebugResolver = resolve;
+    applyDebugRejecter = reject;
+  });
+
+  applyDebugResolver = null;
+  applyDebugRejecter = null;
+  applyDebugPaused.value = false;
+  setApplyDebugStep(stepKey, { status: "running" });
+};
+
+const continueApplyDebug = () => {
+  if (!applyDebugResolver) return;
+  const resolve = applyDebugResolver;
+  applyDebugResolver = null;
+  applyDebugRejecter = null;
+  resolve();
+};
+
+const abortApplyDebug = () => {
+  const error = createDebugAbortError();
+  if (applyDebugRejecter) {
+    const reject = applyDebugRejecter;
+    applyDebugResolver = null;
+    applyDebugRejecter = null;
+    applyDebugPaused.value = false;
+    reject(error);
+    return;
+  }
+
+  applyDebugFinished.value = true;
+  setApplyProgressStage("已中止调试");
+};
+
+const closeApplyDebugPanel = () => {
+  finishApplyProgress();
+  resetApplyDebugSession();
+};
+
+const finishApplyProgress = ({ keepVisible = false } = {}) => {
   if (applyProgressTimer) {
     clearInterval(applyProgressTimer);
     applyProgressTimer = null;
+  }
+  if (keepVisible) {
+    applyProgressNow.value = Date.now();
+    return;
   }
   applyProgressVisible.value = false;
   applyProgressStage.value = "";
@@ -848,6 +1655,45 @@ const isServerBusyCommandError = (error) => {
   return text.includes("200020") || text.includes("出了点小问题") || text.includes("重启游戏解决");
 };
 
+const isDisconnectedCommandError = (error) => {
+  const text = String(error?.message || error || "");
+  return text.includes("WebSocket未连接") || text.includes("连接已失效");
+};
+
+const recoverApplyConnection = async (tokenId) => {
+  if (tokenStore.getWebSocketStatus(tokenId) === "connected") {
+    return true;
+  }
+
+  setApplyProgressStage("连接已断开，5 秒后尝试重新连接");
+  await delay(5000);
+
+  if (tokenStore.getWebSocketStatus(tokenId) === "connected") {
+    return true;
+  }
+
+  const token =
+    tokenStore.gameTokens.find((item) => item.id === tokenId)
+    || (tokenStore.selectedToken?.id === tokenId ? tokenStore.selectedToken : null);
+  if (!token?.token) {
+    throw new Error("连接已失效，且无法获取角色凭证进行重连");
+  }
+
+  setApplyProgressStage("正在重新连接角色");
+  await tokenStore.createWebSocketConnection(tokenId, token.token, token.wsUrl || null);
+
+  const deadline = Date.now() + 15000;
+  while (Date.now() < deadline) {
+    const status = tokenStore.getWebSocketStatus(tokenId);
+    if (status === "connected") {
+      return true;
+    }
+    await delay(250);
+  }
+
+  throw new Error("重新连接超时，请手动重连角色后再试");
+};
+
 const sendRetriedGameCommand = async (
   tokenId,
   cmd,
@@ -858,9 +1704,23 @@ const sendRetriedGameCommand = async (
   } = {},
 ) => {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    if (tokenStore.getWebSocketStatus(tokenId) !== "connected") {
+      await recoverApplyConnection(tokenId);
+    }
+    appendApplyDebugCommand(applyDebugCurrentStepKey.value, cmd, attempt);
     try {
       return await tokenStore.sendMessageWithPromise(tokenId, cmd, params);
     } catch (error) {
+      if (isDisconnectedCommandError(error)) {
+        if (attempt >= maxRetries) {
+          if (allowFailure) {
+            return null;
+          }
+          throw error;
+        }
+        await recoverApplyConnection(tokenId);
+        continue;
+      }
       const tooFast = isTooFastCommandError(error);
       const serverBusy = isServerBusyCommandError(error);
       if (!tooFast && !serverBusy) {
@@ -1543,32 +2403,84 @@ const onDrop = (event, targetHero) => {
   draggedHeroId.value = null;
 };
 
-const loadSavedLineups = () => {
+const loadSavedLineups = async ({ silent = true } = {}) => {
+  let currentSeq = 0;
   try {
-    const token = tokenStore.selectedToken;
-    if (!token) return;
-    const key = `${STORAGE_KEY}_${token.id}`;
-    const data = localStorage.getItem(key);
-    if (data) {
-      savedLineups.value = JSON.parse(data);
-    } else {
+    const tokenId = getSelectedTokenId();
+    savedLineupsLoadSeq += 1;
+    currentSeq = savedLineupsLoadSeq;
+
+    if (!tokenId) {
       savedLineups.value = [];
+      return;
+    }
+
+    const localStore = readSavedLineupStoreFromLocal(tokenId);
+    savedLineups.value = localStore.lineups;
+
+    if (!authStore.isAuthenticated) {
+      return;
+    }
+
+    lineupCloudLoading.value = true;
+    const remoteStore = await readSavedLineupStoreFromCloud(tokenId);
+    if (currentSeq !== savedLineupsLoadSeq || tokenId !== getSelectedTokenId()) {
+      return;
+    }
+
+    let resolvedStore = localStore;
+    let shouldPushLocal = false;
+
+    if (remoteStore.lineups.length === 0) {
+      shouldPushLocal = localStore.lineups.length > 0;
+    } else if (localStore.lineups.length === 0) {
+      resolvedStore = remoteStore;
+    } else if (remoteStore.updatedAt > localStore.updatedAt) {
+      resolvedStore = remoteStore;
+    } else if (localStore.updatedAt > remoteStore.updatedAt) {
+      shouldPushLocal = true;
+    } else {
+      resolvedStore = mergeSavedLineupStores(localStore, remoteStore);
+      shouldPushLocal =
+        JSON.stringify(resolvedStore.lineups) !== JSON.stringify(remoteStore.lineups);
+    }
+
+    const localChanged =
+      JSON.stringify(resolvedStore.lineups) !== JSON.stringify(localStore.lineups)
+      || Number(resolvedStore.updatedAt || 0) !== Number(localStore.updatedAt || 0);
+
+    if (localChanged) {
+      applySavedLineupStore(resolvedStore, tokenId);
+      if (!silent && remoteStore.updatedAt >= localStore.updatedAt) {
+        message.success("已从服务器同步已保存阵容");
+      }
+    }
+
+    if (shouldPushLocal) {
+      await pushSavedLineupsToCloud(tokenId, resolvedStore);
     }
   } catch (e) {
     console.error("加载保存的阵容失败:", e);
-    savedLineups.value = [];
+    if (!getSelectedTokenId()) {
+      savedLineups.value = [];
+    }
+    if (!silent) {
+      message.error(`读取服务器阵容失败: ${e?.message || e}`);
+    }
+  } finally {
+    if (currentSeq === 0 || currentSeq === savedLineupsLoadSeq) {
+      lineupCloudLoading.value = false;
+    }
   }
 };
 
-const saveLineupsToStorage = () => {
+const saveLineupsToStorage = (options = {}) => {
   try {
-    const token = tokenStore.selectedToken;
-    if (!token) return;
-    const key = `${STORAGE_KEY}_${token.id}`;
-    localStorage.setItem(key, JSON.stringify(savedLineups.value));
+    return persistSavedLineups(options);
   } catch (e) {
     console.error("保存阵容到缓存失败:", e);
     message.error("保存阵容失败");
+    return buildSavedLineupStore(savedLineups.value);
   }
 };
 
@@ -1753,19 +2665,21 @@ const saveCurrentLineup = async () => {
       const pearlId = teamHeroInfo?.pearlId || null;
       const pearlData = pearlMap[pearlId];
       const slotMap = pearlData?.slotMap || null;
+      const equipment = normalizeHeroEquipmentSnapshot(heroData?.equipment);
       return {
         position: hero.position,
         heroId: hero.heroId,
         level: teamHeroInfo?.level || null,
         attachmentUid: hero.attachmentUid || null,
         fishId: fishId || null,
-        pearlId: pearlId,
+        pearlId,
         skillId: pearlData?.skillId || null,
-        slotMap: slotMap,
+        slotMap,
         power: heroData?.power || null,
         attack: heroData?.attack || null,
         hp: heroData?.hp || null,
         speed: heroData?.speed || null,
+        equipment,
       };
     });
 
@@ -1775,9 +2689,10 @@ const saveCurrentLineup = async () => {
       heroes: heroesData,
       teamId: currentTeamId.value,
       savedAt: Date.now(),
+      updatedAt: Date.now(),
       applying: false,
-      legionResearch: legionResearch,
-      weaponId: weaponId,
+      legionResearch,
+      weaponId,
     });
 
     saveLineupsToStorage();
@@ -1964,12 +2879,14 @@ const applyHeroLevel = async (
   return { success: true, message: `等级已升至 ${actualCurrentLevel}` };
 };
 
-const applyLineup = async (lineup) => {
+const applyLineup = async (lineup, options = {}) => {
   const token = tokenStore.selectedToken;
   if (!token) {
     message.warning("请先选择Token");
     return;
   }
+
+  const debugMode = Boolean(options?.debug);
 
   const tokenId = token.id;
   const status = tokenStore.getWebSocketStatus(tokenId);
@@ -1998,10 +2915,16 @@ const applyLineup = async (lineup) => {
 
   lineup.applying = true;
   state.value.isRunning = true;
+  if (debugMode) {
+    initApplyDebugSession(lineup);
+  } else {
+    resetApplyDebugSession();
+  }
   startApplyProgress(lineup);
   const errors = [];
   let lastFetchLatestDataAt = 0;
   const FETCH_LATEST_DATA_MIN_INTERVAL = 1800;
+  let liveBattleTeamCache = null;
 
   const getTeamHeroes = (teamInfo) => {
     if (!teamInfo) return [];
@@ -2016,6 +2939,66 @@ const applyLineup = async (lineup) => {
       .sort((a, b) => a.position - b.position);
   };
 
+  const buildTeamHeroesFromSyncResp = (roleData = {}) => {
+    const battleTeam = roleData?.battleTeam || {};
+    const heroesData = roleData?.heroes || {};
+    const teamHeroes = Object.entries(battleTeam)
+      .map(([slot, hero]) => {
+        const heroId = Number(hero?.heroId || hero?.id || 0) || null;
+        if (!heroId) return null;
+        const heroData =
+          heroesData[String(heroId)] || heroesData[heroId] || {};
+        return {
+          position: Number(heroData?.battleTeamSlot ?? slot) || Number(slot),
+          heroId,
+          artifactId: hero?.artifactId || heroData?.artifactId || null,
+          attachmentUid: hero?.attachmentUid || heroData?.attachmentUid || null,
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.position - b.position);
+
+    return teamHeroes.length > 0 ? teamHeroes : null;
+  };
+
+  const seedLiveBattleTeamCache = (teamInfo = {}) => {
+    if (liveBattleTeamCache?.heroes?.length) {
+      return;
+    }
+    const teamHeroes = getTeamHeroes(teamInfo);
+    if (teamHeroes.length > 0) {
+      liveBattleTeamCache = {
+        heroes: teamHeroes,
+        updatedAt: Date.now(),
+        source: "snapshot",
+      };
+    }
+  };
+
+  const getPositionAwareTeamHeroes = (teamInfo = {}) => {
+    if (liveBattleTeamCache?.heroes?.length) {
+      return liveBattleTeamCache.heroes
+        .map((hero) => ({ ...hero }))
+        .sort((a, b) => a.position - b.position);
+    }
+    return getTeamHeroes(teamInfo);
+  };
+
+  const handleApplySyncResp = (session) => {
+    if (session?.tokenId !== tokenId) {
+      return;
+    }
+    const syncedHeroes = buildTeamHeroesFromSyncResp(session?.body?.role || {});
+    if (!syncedHeroes) {
+      return;
+    }
+    liveBattleTeamCache = {
+      heroes: syncedHeroes,
+      updatedAt: Number(session?.body?.time || Date.now()) || Date.now(),
+      source: "syncresp",
+    };
+  };
+
   const isTooFastError = (error) => {
     const text = String(error?.message || error || "");
     return text.includes("200400") || text.includes("操作太快") || text.includes("请稍后再试");
@@ -2026,15 +3009,34 @@ const applyLineup = async (lineup) => {
     return text.includes("200020") || text.includes("出了点小问题") || text.includes("重启游戏解决");
   };
 
-  const sendApplyReadCommand = async (cmd, params = {}, maxRetries = 3) => {
+  const isBenignApplyNoopError = (cmd, error) => {
+    const text = String(error?.message || error || "");
+    if (cmd === "artifact_unload" && text.includes("400150")) {
+      return true;
+    }
+    return false;
+  };
+
+  const sendApplyReadCommand = async (cmd, params = {}, maxRetries = 2) => {
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      if (tokenStore.getWebSocketStatus(tokenId) !== "connected") {
+        await recoverApplyConnection(tokenId);
+      }
+      appendApplyDebugCommand(applyDebugCurrentStepKey.value, cmd, attempt);
       try {
         return await tokenStore.sendMessageWithPromise(tokenId, cmd, params);
       } catch (error) {
+        if (isDisconnectedCommandError(error)) {
+          if (attempt >= maxRetries) {
+            throw error;
+          }
+          await recoverApplyConnection(tokenId);
+          continue;
+        }
         if (!isTooFastError(error) || attempt >= maxRetries) {
           throw error;
         }
-        const retryDelayMs = 2500 * attempt;
+        const retryDelayMs = 5000;
         setApplyProgressStage(
           `读取账号状态过快，等待 ${Math.ceil(retryDelayMs / 1000)} 秒后重试（${attempt}/${maxRetries}）`,
         );
@@ -2047,12 +3049,32 @@ const applyLineup = async (lineup) => {
   const sendApplyActionCommand = async (
     cmd,
     params = {},
-    { maxRetries = 4, allowFailure = false } = {},
+    { maxRetries = 2, allowFailure = false } = {},
   ) => {
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      if (tokenStore.getWebSocketStatus(tokenId) !== "connected") {
+        await recoverApplyConnection(tokenId);
+      }
+      appendApplyDebugCommand(applyDebugCurrentStepKey.value, cmd, attempt);
       try {
         return await tokenStore.sendMessageWithPromise(tokenId, cmd, params);
       } catch (error) {
+        if (isDisconnectedCommandError(error)) {
+          if (attempt >= maxRetries) {
+            if (allowFailure) {
+              return null;
+            }
+            throw error;
+          }
+          await recoverApplyConnection(tokenId);
+          continue;
+        }
+        if (isBenignApplyNoopError(cmd, error)) {
+          console.warn(
+            `[LineupApplyDiag] command-noop cmd=${cmd} attempt=${attempt} error=${error?.message || String(error)} stage=${applyProgressStage.value || ""}`,
+          );
+          return { ignored: true };
+        }
         const tooFast = isTooFastError(error);
         const serverBusy = isServerBusyError(error);
         if (!tooFast && !serverBusy) {
@@ -2076,7 +3098,7 @@ const applyLineup = async (lineup) => {
           }
           throw error;
         }
-        const retryDelayMs = tooFast ? 3000 * attempt : 10000;
+        const retryDelayMs = 5000;
         setApplyProgressStage(
           tooFast
             ? `${cmd} 操作过快，等待 ${Math.ceil(retryDelayMs / 1000)} 秒后重试（${attempt}/${maxRetries}）`
@@ -2112,6 +3134,7 @@ const applyLineup = async (lineup) => {
     const team =
       presetTeam?.presetTeamInfo?.presetTeamInfo?.[targetTeamId] ||
       presetTeam?.presetTeamInfo?.presetTeamInfo?.[String(targetTeamId)];
+    seedLiveBattleTeamCache(team?.teamInfo || {});
     return {
       heroes,
       teamInfo: team?.teamInfo || {},
@@ -2125,22 +3148,52 @@ const applyLineup = async (lineup) => {
     return msg.includes("200020");
   };
 
+  $emit.on("syncresp", handleApplySyncResp);
+
   try {
-    setApplyProgressStage("正在读取当前阵容数据");
     const targetHeroes = [...lineup.heroes];
     const targetHeroIds = new Set(targetHeroes.map((h) => Number(h.heroId)));
     const targetByPosition = new Map(
       targetHeroes.map((hero) => [Number(hero.position), hero]),
     );
 
-    const buildAttachmentToHeroMap = (heroesData = {}) => {
-      const result = {};
-      for (const [id, hero] of Object.entries(heroesData)) {
-        if (hero?.attachmentUid && hero.attachmentUid !== -1) {
-          result[hero.attachmentUid] = Number(id);
-        }
+    const runApplyStage = async (stepKey, stageLabel, runner) => {
+      await pauseBeforeApplyDebugStep(stepKey, stageLabel);
+      if (applyDebugMode.value) {
+        applyDebugCurrentStepKey.value = stepKey;
+        setApplyDebugStep(stepKey, {
+          status: "running",
+          detail: "",
+          commands: [],
+        });
       }
-      return result;
+
+      try {
+        if (stepKey !== "read_current_snapshot") {
+          setApplyProgressStage(`${stageLabel}：正在查看当前阵容`);
+          await syncLatestSnapshot();
+        }
+        setApplyProgressStage(stageLabel);
+        const result = await runner();
+        if (applyDebugMode.value) {
+          setApplyDebugStep(stepKey, {
+            status: "success",
+            detail: normalizeApplyDebugDetail(result),
+          });
+          applyDebugCurrentStepKey.value = "";
+        }
+        return result;
+      } catch (error) {
+        if (applyDebugMode.value) {
+          setApplyDebugStep(stepKey, {
+            status: "error",
+            detail: error?.message || String(error),
+          });
+          applyDebugFinished.value = true;
+          applyDebugCurrentStepKey.value = "";
+        }
+        throw error;
+      }
     };
 
     const getLineupSlotCandidates = (heroesInTeam = []) => {
@@ -2189,6 +3242,71 @@ const applyLineup = async (lineup) => {
       return Number(pearlData?.skillId || 0) || null;
     };
 
+    const findPearlSkillHolderId = (
+      pearlMapData = {},
+      skillId,
+      currentPearlId = null,
+    ) => {
+      const targetSkillId = Number(skillId || 0) || null;
+      const excludedPearlId = Number(currentPearlId || 0) || null;
+      if (!targetSkillId) return null;
+
+      for (const [pearlId, pearlData] of Object.entries(pearlMapData || {})) {
+        const numericPearlId = Number(pearlId || 0) || null;
+        if (!numericPearlId || numericPearlId === excludedPearlId) {
+          continue;
+        }
+        const currentSkillId = Number(pearlData?.skillId || 0) || null;
+        if (currentSkillId === targetSkillId) {
+          return numericPearlId;
+        }
+      }
+
+      return null;
+    };
+
+    const buildArtifactToHeroMap = (heroesData = {}, teamInfoData = {}) => {
+      const result = {};
+
+      for (const teamHero of Object.values(teamInfoData || {})) {
+        const heroId = Number(teamHero?.heroId || teamHero?.id || 0) || null;
+        const artifactId = Number(teamHero?.artifactId || 0) || null;
+        if (heroId && artifactId && artifactId !== -1) {
+          result[artifactId] = heroId;
+        }
+      }
+
+      for (const [heroId, hero] of Object.entries(heroesData || {})) {
+        const numericHeroId = Number(heroId || 0) || null;
+        const artifactId = Number(hero?.artifactId || 0) || null;
+        if (numericHeroId && artifactId && artifactId !== -1 && !result[artifactId]) {
+          result[artifactId] = numericHeroId;
+        }
+      }
+
+      return result;
+    };
+
+    const getCurrentArtifactIdForTargetHero = (
+      targetHero,
+      heroesData = {},
+      teamInfoData = {},
+    ) => {
+      if (!targetHero?.heroId) return null;
+
+      const teamHero =
+        teamInfoData?.[targetHero.position] ||
+        teamInfoData?.[String(targetHero.position)] ||
+        null;
+      if (Number(teamHero?.heroId || teamHero?.id || 0) === Number(targetHero.heroId)) {
+        return Number(teamHero?.artifactId || 0) || null;
+      }
+
+      const heroData =
+        heroesData[String(targetHero.heroId)] || heroesData[targetHero.heroId] || {};
+      return Number(heroData?.artifactId || 0) || null;
+    };
+
     const isTargetLineupMatched = (teamHeroes = []) => {
       if (teamHeroes.length !== targetHeroes.length) {
         return false;
@@ -2220,9 +3338,11 @@ const applyLineup = async (lineup) => {
         if (Number(teamHero?.heroId || teamHero?.id || 0) !== Number(targetHero.heroId)) {
           return false;
         }
-        const heroData =
-          heroesData[String(targetHero.heroId)] || heroesData[targetHero.heroId] || {};
-        const currentArtifactId = Number(heroData?.artifactId || 0) || null;
+        const currentArtifactId = getCurrentArtifactIdForTargetHero(
+          targetHero,
+          heroesData,
+          teamInfoData,
+        );
         if ((expectedArtifactId || null) !== (currentArtifactId || null)) {
           return false;
         }
@@ -2235,18 +3355,362 @@ const applyLineup = async (lineup) => {
         return (currentSkillId || null) === (targetSkillId || null);
       });
 
+    const doesTargetHeroExpectFish = (targetHero) =>
+      Boolean(
+        Number(targetHero?.fishId || 0) || Number(targetHero?.pearlId || 0),
+      );
+
+    const getEquipmentReview = (heroesData = {}) => {
+      const mismatched = [];
+
+      for (const targetHero of targetHeroes) {
+        const targetEquipment = normalizeHeroEquipmentSnapshot(targetHero?.equipment);
+        if (!targetEquipment) {
+          continue;
+        }
+
+        const heroData =
+          heroesData[String(targetHero.heroId)] || heroesData[targetHero.heroId] || {};
+        const currentEquipment = normalizeHeroEquipmentSnapshot(heroData?.equipment);
+
+        if (JSON.stringify(currentEquipment) !== JSON.stringify(targetEquipment)) {
+          mismatched.push({
+            heroId: Number(targetHero.heroId),
+            heroName: getHeroName(targetHero.heroId) || `武将${targetHero.heroId}`,
+          });
+        }
+      }
+
+      return {
+        success: mismatched.length === 0,
+        mismatched,
+      };
+    };
+
+    const findBestEquipmentHolderForTarget = (
+      targetHero,
+      heroesData = {},
+      teamInfoData = {},
+    ) => {
+      const targetEquipment = normalizeHeroEquipmentSnapshot(targetHero?.equipment);
+      if (!targetEquipment) {
+        return null;
+      }
+
+      const teamHeroIds = new Set(
+        getTeamHeroes(teamInfoData).map((hero) => Number(hero.heroId)),
+      );
+      const candidates = [];
+
+      for (const [heroId, heroData] of Object.entries(heroesData)) {
+        const candidateHeroId = Number(heroId);
+        if (!candidateHeroId) continue;
+        if (candidateHeroId === Number(targetHero.heroId)) continue;
+
+        const score = getEquipmentMatchScore(targetEquipment, heroData?.equipment);
+        if (!score.hasSignal) continue;
+
+        candidates.push({
+          ...score,
+          heroId: candidateHeroId,
+          inTeam: teamHeroIds.has(candidateHeroId),
+        });
+      }
+
+      candidates.sort((left, right) => {
+        if (left.exact !== right.exact) {
+          return left.exact ? -1 : 1;
+        }
+        if (left.redHit !== right.redHit) {
+          return right.redHit - left.redHit;
+        }
+        if (left.orangeHit !== right.orangeHit) {
+          return right.orangeHit - left.orangeHit;
+        }
+        if (left.coloredHit !== right.coloredHit) {
+          return right.coloredHit - left.coloredHit;
+        }
+        if (left.bonusDiff !== right.bonusDiff) {
+          return left.bonusDiff - right.bonusDiff;
+        }
+        if (left.inTeam !== right.inTeam) {
+          return left.inTeam ? -1 : 1;
+        }
+        return left.heroId - right.heroId;
+      });
+
+      return candidates[0] || null;
+    };
+
+    const exchangeHeroesLosslessly = async (
+      sourceHeroId,
+      targetHeroId,
+      teamInfoData = {},
+    ) => {
+      if (!sourceHeroId || !targetHeroId || Number(sourceHeroId) === Number(targetHeroId)) {
+        return false;
+      }
+
+      const directExchange = await sendApplyActionCommand(
+        "hero_exchange",
+        {
+          heroId: sourceHeroId,
+          targetHeroId,
+        },
+        { allowFailure: true },
+      );
+      if (directExchange) {
+        await delay(COMMAND_DELAY);
+        return true;
+      }
+
+      const teamHeroes = getTeamHeroes(teamInfoData);
+      const teamHeroIds = new Set(teamHeroes.map((hero) => Number(hero.heroId)));
+      if (teamHeroIds.has(Number(sourceHeroId)) || teamHeroIds.has(Number(targetHeroId))) {
+        return false;
+      }
+
+      const occupiedSlots = new Set(teamHeroes.map((hero) => Number(hero.position)));
+      const emptySlots = getLineupSlotCandidates(teamHeroes).filter(
+        (slot) => !occupiedSlots.has(slot),
+      );
+      if (teamHeroes.length >= 4 || emptySlots.length < 2) {
+        return false;
+      }
+
+      const [sourceTempSlot, targetTempSlot] = emptySlots;
+      const sourceMoved = await sendApplyActionCommand(
+        "hero_gointobattle",
+        {
+          heroId: sourceHeroId,
+          slot: sourceTempSlot,
+        },
+        { allowFailure: true },
+      );
+      if (!sourceMoved) {
+        return false;
+      }
+      await delay(COMMAND_DELAY);
+
+      const targetMoved = await sendApplyActionCommand(
+        "hero_gointobattle",
+        {
+          heroId: targetHeroId,
+          slot: targetTempSlot,
+        },
+        { allowFailure: true },
+      );
+      if (!targetMoved) {
+        return false;
+      }
+      await delay(COMMAND_DELAY);
+
+      const exchanged = await sendApplyActionCommand(
+        "hero_exchange",
+        {
+          heroId: sourceHeroId,
+          targetHeroId,
+        },
+        { allowFailure: true },
+      );
+      if (!exchanged) {
+        return false;
+      }
+
+      await delay(COMMAND_DELAY);
+      return true;
+    };
+
+    const syncLatestSnapshot = async () => {
+      const latestData = await fetchLatestData();
+      heroes = latestData.heroes || {};
+      teamInfo = latestData.teamInfo || {};
+      currentHeroes = getPositionAwareTeamHeroes(teamInfo);
+      return latestData;
+    };
+
+    const runEquipmentExchangePass = async ({
+      stageLabel = "按装备洗练无损换将",
+      successMessagePrefix = "已按装备洗练无损切换",
+      skipMessage = "该阵容未保存装备洗练，跳过此步",
+      initialReview = null,
+    } = {}) => {
+      if (!hasEquipmentData) {
+        return skipMessage;
+      }
+
+      const beforeData = initialReview?.data || await syncLatestSnapshot();
+      const beforeReview = initialReview?.review || getEquipmentReview(beforeData.heroes || {});
+      if (beforeReview.success) {
+        return "装备洗练已匹配，无需调整";
+      }
+
+      let equipmentExchangeCount = 0;
+
+      for (const targetHero of targetHeroes) {
+        const targetEquipment = normalizeHeroEquipmentSnapshot(targetHero?.equipment);
+        if (!targetEquipment) {
+          continue;
+        }
+
+        setApplyProgressStage(
+          `${stageLabel}：正在分析 ${getHeroName(targetHero.heroId) || `武将${targetHero.heroId}`}`,
+        );
+
+        const latestData = await fetchLatestData();
+        const latestHeroesData = latestData.heroes || {};
+        const latestTeamInfo = latestData.teamInfo || {};
+        const currentHeroData =
+          latestHeroesData[String(targetHero.heroId)] ||
+          latestHeroesData[targetHero.heroId] ||
+          {};
+        const currentScore = getEquipmentMatchScore(
+          targetEquipment,
+          currentHeroData?.equipment,
+        );
+        if (currentScore.exact) {
+          continue;
+        }
+
+        const candidate = findBestEquipmentHolderForTarget(
+          targetHero,
+          latestHeroesData,
+          latestTeamInfo,
+        );
+        if (!candidate || Number(candidate.heroId) === Number(targetHero.heroId)) {
+          continue;
+        }
+
+        const exchanged = await exchangeHeroesLosslessly(
+          candidate.heroId,
+          targetHero.heroId,
+          latestTeamInfo,
+        );
+        if (exchanged) {
+          equipmentExchangeCount++;
+        }
+      }
+
+      if (equipmentExchangeCount > 0) {
+        message.success(`${successMessagePrefix} ${equipmentExchangeCount} 名武将`);
+      }
+
+      const afterData = await syncLatestSnapshot();
+      const afterReview = getEquipmentReview(afterData.heroes || {});
+      if (afterReview.success) {
+        return equipmentExchangeCount > 0
+          ? `已无损切换 ${equipmentExchangeCount} 名武将`
+          : "装备洗练已匹配，无需调整";
+      }
+
+      return equipmentExchangeCount > 0
+        ? `已无损切换 ${equipmentExchangeCount} 名武将，仍有 ${afterReview.mismatched.length} 名武将存在装备差异`
+        : `检测到 ${afterReview.mismatched.length} 名武将存在装备差异，未找到更合适的换将目标`;
+    };
+
+    const runLineupPositionPass = async ({
+      progressLabel = "正在按目标站位切换武将",
+      successSummary = "已整理站位",
+      unchangedSummary = "站位已匹配，无需调整",
+    } = {}) => {
+      setApplyProgressStage("正在校验第一轮站位结果");
+      await syncLatestSnapshot();
+
+      setApplyProgressStage(progressLabel);
+      let directMoveCount = 0;
+      let positionedCount = 0;
+      const orderedTargetHeroes = Array.from(targetByPosition.values()).sort(
+        (left, right) => Number(left.position) - Number(right.position),
+      );
+
+      for (const targetHero of orderedTargetHeroes) {
+        await syncLatestSnapshot();
+
+        const heroAtTargetSlot = currentHeroes.find(
+          (hero) => Number(hero.position) === Number(targetHero.position),
+        );
+        const currentTargetHero = currentHeroes.find(
+          (hero) => Number(hero.heroId) === Number(targetHero.heroId),
+        );
+
+        if (Number(heroAtTargetSlot?.heroId || 0) === Number(targetHero.heroId)) {
+          continue;
+        }
+
+        if (heroAtTargetSlot) {
+          const moved = await sendApplyActionCommand(
+            "hero_gointobattle",
+            {
+              heroId: targetHero.heroId,
+              slot: targetHero.position,
+            },
+            { allowFailure: true },
+          );
+          if (moved) {
+            directMoveCount++;
+          }
+          await delay(COMMAND_DELAY);
+          continue;
+        }
+
+        if (!currentTargetHero) {
+          const moved = await sendApplyActionCommand(
+            "hero_gointobattle",
+            {
+              heroId: targetHero.heroId,
+              slot: targetHero.position,
+            },
+            { allowFailure: true },
+          );
+          if (moved) {
+            positionedCount++;
+          }
+          await delay(COMMAND_DELAY);
+          continue;
+        }
+
+        if (Number(currentTargetHero.position) !== Number(targetHero.position)) {
+          const removed = await sendApplyActionCommand(
+            "hero_gobackbattle",
+            {
+              slot: currentTargetHero.position,
+            },
+            { allowFailure: true },
+          );
+          await delay(COMMAND_DELAY);
+          const moved = await sendApplyActionCommand(
+            "hero_gointobattle",
+            {
+              heroId: targetHero.heroId,
+              slot: targetHero.position,
+            },
+            { allowFailure: true },
+          );
+          if (removed || moved) {
+            positionedCount++;
+          }
+          await delay(COMMAND_DELAY);
+        }
+      }
+
+      await syncLatestSnapshot();
+      return directMoveCount > 0 || positionedCount > 0
+        ? `${successSummary}：直接到位 ${directMoveCount} 名，补位或修正 ${positionedCount} 名`
+        : unchangedSummary;
+    };
+
     const ensureFinalLineupMatches = async () => {
       for (let attempt = 1; attempt <= 2; attempt++) {
         setApplyProgressStage(`正在复核最终阵容（${attempt}/2）`);
         let latestData = await fetchLatestData();
-        let latestHeroes = getTeamHeroes(latestData.teamInfo);
+        let latestHeroes = getPositionAwareTeamHeroes(latestData.teamInfo);
         if (isTargetLineupMatched(latestHeroes)) {
           return { success: true, repaired: attempt > 1 };
         }
 
         for (const targetHero of targetHeroes) {
           latestData = await fetchLatestData();
-          latestHeroes = getTeamHeroes(latestData.teamInfo);
+          latestHeroes = getPositionAwareTeamHeroes(latestData.teamInfo);
           const currentByPosition = new Map(
             latestHeroes.map((hero) => [Number(hero.position), hero]),
           );
@@ -2299,7 +3763,7 @@ const applyLineup = async (lineup) => {
         }
 
         latestData = await fetchLatestData();
-        latestHeroes = getTeamHeroes(latestData.teamInfo);
+        latestHeroes = getPositionAwareTeamHeroes(latestData.teamInfo);
         if (isTargetLineupMatched(latestHeroes)) {
           return { success: true, repaired: true };
         }
@@ -2331,12 +3795,12 @@ const applyLineup = async (lineup) => {
         const latestHeroesData = latestData.heroes || {};
         const latestPearlMap = latestData.pearlMap || {};
         const latestArtifactBooks = latestData.artifactBooks || {};
-        const artifactToHero = {};
-        for (const [heroId, hero] of Object.entries(latestHeroesData)) {
-          if (hero?.artifactId && hero.artifactId !== -1) {
-            artifactToHero[Number(hero.artifactId)] = Number(heroId);
-          }
-        }
+        const artifactToHero = buildArtifactToHeroMap(
+          {},
+          latestData.teamInfo || {},
+        );
+        const noopClearedTargetHeroIds = new Set();
+        const noopReleasedArtifactIds = new Set();
 
         for (const targetHero of targetHeroes) {
           const expectedArtifactId = getArtifactIdForTargetHero(
@@ -2348,12 +3812,19 @@ const applyLineup = async (lineup) => {
             latestHeroesData[String(targetHero.heroId)] ||
             latestHeroesData[targetHero.heroId] ||
             {};
-          const currentArtifactId = Number(currentHeroData?.artifactId || 0) || null;
+          const currentArtifactId = getCurrentArtifactIdForTargetHero(
+            targetHero,
+            latestHeroesData,
+            latestData.teamInfo || {},
+          );
           const currentHolderId = expectedArtifactId
             ? artifactToHero[expectedArtifactId]
             : null;
 
           if (!expectedArtifactId) {
+            if (doesTargetHeroExpectFish(targetHero)) {
+              continue;
+            }
             if (currentArtifactId) {
               await sendApplyActionCommand(
                 "artifact_unload",
@@ -2365,26 +3836,88 @@ const applyLineup = async (lineup) => {
               await delay(COMMAND_DELAY);
             }
           } else {
-            if (currentArtifactId && currentArtifactId !== Number(expectedArtifactId)) {
-              await sendApplyActionCommand(
+            const targetHasCurrentArtifact =
+              currentArtifactId && currentArtifactId !== Number(expectedArtifactId);
+            const holderNeedsRelease =
+              currentHolderId && currentHolderId !== Number(targetHero.heroId);
+
+            if (targetHasCurrentArtifact) {
+              const unloaded = await sendApplyActionCommand(
                 "artifact_unload",
                 {
                   heroId: targetHero.heroId,
                 },
                 { allowFailure: true },
               );
+              if (unloaded?.ignored) {
+                noopClearedTargetHeroIds.add(Number(targetHero.heroId));
+              }
+              if (!unloaded) {
+                const verifyData = await fetchLatestData();
+                const verifyCurrentArtifactId = getCurrentArtifactIdForTargetHero(
+                  targetHero,
+                  verifyData.heroes || {},
+                  verifyData.teamInfo || {},
+                );
+                if (
+                  verifyCurrentArtifactId
+                  && verifyCurrentArtifactId !== Number(expectedArtifactId)
+                ) {
+                  continue;
+                }
+              }
               await delay(COMMAND_DELAY);
             }
 
-            if (currentHolderId && currentHolderId !== Number(targetHero.heroId)) {
-              await sendApplyActionCommand(
+            if (holderNeedsRelease) {
+              const unloaded = await sendApplyActionCommand(
                 "artifact_unload",
                 {
                   heroId: currentHolderId,
                 },
                 { allowFailure: true },
               );
+              if (unloaded?.ignored && expectedArtifactId) {
+                noopReleasedArtifactIds.add(Number(expectedArtifactId));
+              }
+              if (!unloaded) {
+                const verifyData = await fetchLatestData();
+                const verifyHolderId = buildArtifactToHeroMap(
+                  {},
+                  verifyData.teamInfo || {},
+                )[expectedArtifactId];
+                if (verifyHolderId && verifyHolderId !== Number(targetHero.heroId)) {
+                  continue;
+                }
+              }
               await delay(COMMAND_DELAY);
+            }
+
+            if (targetHasCurrentArtifact || holderNeedsRelease) {
+              const verifyData = await fetchLatestData();
+              const verifyCurrentArtifactId = getCurrentArtifactIdForTargetHero(
+                targetHero,
+                verifyData.heroes || {},
+                verifyData.teamInfo || {},
+              );
+              const verifyHolderId = buildArtifactToHeroMap(
+                {},
+                verifyData.teamInfo || {},
+              )[expectedArtifactId];
+              const stillTargetOccupied =
+                verifyCurrentArtifactId
+                && verifyCurrentArtifactId !== Number(expectedArtifactId)
+                && !noopClearedTargetHeroIds.has(Number(targetHero.heroId));
+              const stillHeldByOther =
+                verifyHolderId
+                && verifyHolderId !== Number(targetHero.heroId)
+                && !noopReleasedArtifactIds.has(Number(expectedArtifactId));
+              if (
+                stillTargetOccupied
+                || stillHeldByOther
+              ) {
+                continue;
+              }
             }
 
             await sendApplyActionCommand(
@@ -2393,6 +3926,7 @@ const applyLineup = async (lineup) => {
                 heroId: targetHero.heroId,
                 itemId: expectedArtifactId,
                 pearlId: Number(targetHero.pearlId || 0) || 0,
+                targetHeroId: -1,
               },
               { allowFailure: true },
             );
@@ -2411,7 +3945,25 @@ const applyLineup = async (lineup) => {
             continue;
           }
 
-          if (!targetSkillId) {
+          const holderPearlId = findPearlSkillHolderId(
+            refreshedPearlMap,
+            targetSkillId,
+            pearlId,
+          );
+          if (holderPearlId) {
+            await sendApplyActionCommand(
+              "pearl_exchangeskill",
+              {
+                pearlId1: pearlId,
+                pearlId2: holderPearlId,
+              },
+              { allowFailure: true },
+            );
+            await delay(COMMAND_DELAY);
+            continue;
+          }
+
+          if (currentSkillId) {
             await sendApplyActionCommand(
               "pearl_unloadskill",
               {
@@ -2419,7 +3971,9 @@ const applyLineup = async (lineup) => {
               },
               { allowFailure: true },
             );
-          } else {
+            await delay(COMMAND_DELAY);
+          }
+          if (targetSkillId) {
             await sendApplyActionCommand(
               "pearl_replaceskill",
               {
@@ -2428,8 +3982,8 @@ const applyLineup = async (lineup) => {
               },
               { allowFailure: true },
             );
+            await delay(COMMAND_DELAY);
           }
-          await delay(COMMAND_DELAY);
         }
 
         latestData = await fetchLatestData();
@@ -2448,150 +4002,69 @@ const applyLineup = async (lineup) => {
       return { success: false, repaired: false };
     };
 
-    let { heroes, teamInfo } = await fetchLatestData();
-    let currentHeroes = getTeamHeroes(teamInfo);
+    let heroes = {};
+    let teamInfo = {};
+    let currentHeroes = [];
+    await runApplyStage("read_current_snapshot", "读取当前角色快照", async () => {
+      const initialData = await fetchLatestData();
+      heroes = initialData.heroes || {};
+      teamInfo = initialData.teamInfo || {};
+      currentHeroes = getPositionAwareTeamHeroes(teamInfo);
+      return `当前阵容共 ${currentHeroes.length} 名武将`;
+    });
+    await runApplyStage("read_saved_lineup", "读取已保存阵容快照", async () => (
+      `已加载目标阵容 ${targetHeroes.length} 名武将`
+    ));
+    const hasEquipmentData = targetHeroes.some(
+      (hero) => hero?.equipment && Object.keys(hero.equipment).length > 0,
+    );
 
-    const attachmentToHero = buildAttachmentToHeroMap(heroes);
+    await runApplyStage("equipment_exchange", "按装备洗练无损换将", async () => {
+      return runEquipmentExchangePass({
+        stageLabel: "按装备洗练无损换将",
+        successMessagePrefix: "已按装备洗练无损切换",
+      });
+    });
 
-    const currentHeroIds = new Set(currentHeroes.map((h) => h.heroId));
-    const deferredAttachmentTargets = [];
+    await runApplyStage("lineup_attachment", "整理站位", async () => {
+      return runLineupPositionPass({
+        progressLabel: "正在按目标站位切换武将",
+        successSummary: "已整理站位",
+        unchangedSummary: "站位已匹配，无需调整",
+      });
+    });
 
-    setApplyProgressStage("正在整理武将站位");
-    for (const targetHero of targetHeroes) {
-      if (!targetHero.attachmentUid || targetHero.attachmentUid === -1)
-        continue;
-
-      const currentHolderId = attachmentToHero[targetHero.attachmentUid];
-
-      if (currentHolderId && currentHolderId !== targetHero.heroId) {
-        const holderInTeam = currentHeroIds.has(currentHolderId);
-        const targetInTeam = currentHeroIds.has(targetHero.heroId);
-
-        if (!holderInTeam && !targetInTeam) {
-          const occupiedSlots = new Set(
-            currentHeroes.map((hero) => Number(hero.position)),
-          );
-          const emptySlots = getLineupSlotCandidates(currentHeroes).filter(
-            (slot) => !occupiedSlots.has(slot),
-          );
-          if (currentHeroes.length >= 4 || emptySlots.length < 2) {
-            deferredAttachmentTargets.push(targetHero);
-            continue;
-          }
-          const [holderTempSlot, targetTempSlot] = emptySlots;
-
-          const holderMoved = await sendApplyActionCommand(
-            "hero_gointobattle",
-            {
-              heroId: currentHolderId,
-              slot: holderTempSlot,
-            },
-            { allowFailure: true },
-          );
-          if (!holderMoved) {
-            deferredAttachmentTargets.push(targetHero);
-            continue;
-          }
-          await delay(COMMAND_DELAY);
-
-          await sendApplyActionCommand(
-            "hero_gointobattle",
-            {
-              heroId: targetHero.heroId,
-              slot: targetTempSlot,
-            },
-            { allowFailure: true },
-          );
-          await delay(COMMAND_DELAY);
-        }
-
-        if ((!holderInTeam && targetInTeam) || (holderInTeam && targetInTeam)) {
-          deferredAttachmentTargets.push(targetHero);
-          continue;
-        }
-
-        await sendApplyActionCommand(
-          "hero_exchange",
-          {
-            heroId: currentHolderId,
-            targetHeroId: targetHero.heroId,
-          },
-          { allowFailure: true },
-        );
-        await delay(COMMAND_DELAY);
+    await runApplyStage("equipment_exchange_review", "站位后复查装备洗练", async () => {
+      const reviewData = await syncLatestSnapshot();
+      const review = getEquipmentReview(reviewData.heroes || {});
+      if (review.success) {
+        return "站位整理后装备洗练无差异，跳过再次无损换将";
       }
-    }
 
-    setApplyProgressStage("正在校验第一轮站位结果");
-    await delay(COMMAND_DELAY);
-    const data1 = await fetchLatestData();
-    await delay(COMMAND_DELAY);
-    heroes = data1.heroes;
-    const refreshedAttachmentToHero = buildAttachmentToHeroMap(heroes);
-    Object.assign(attachmentToHero, refreshedAttachmentToHero);
-    currentHeroes = getTeamHeroes(data1.teamInfo);
-    currentHeroIds.clear();
-    currentHeroes.forEach((h) => currentHeroIds.add(h.heroId));
+      return runEquipmentExchangePass({
+        stageLabel: "站位后复查装备洗练",
+        successMessagePrefix: "站位整理后再次无损切换",
+        initialReview: {
+          data: reviewData,
+          review,
+        },
+      });
+    });
 
-    setApplyProgressStage("正在下阵非目标武将");
-    for (const hero of [...currentHeroes]) {
-      if (!targetHeroIds.has(hero.heroId)) {
-        await sendApplyActionCommand(
-          "hero_gobackbattle",
-          {
-            slot: hero.position,
-          },
-          { allowFailure: true },
-        );
-        await delay(COMMAND_DELAY);
-      }
-    }
-
-    setApplyProgressStage("正在校验第二轮站位结果");
-    await delay(COMMAND_DELAY);
-    const data2 = await fetchLatestData();
-    await delay(COMMAND_DELAY);
-    currentHeroes = getTeamHeroes(data2.teamInfo);
-
-    setApplyProgressStage("正在补齐并修正目标阵容");
-    for (const targetHero of targetHeroes) {
-      const currentHero = currentHeroes.find(
-        (h) => h.heroId === targetHero.heroId,
-      );
-      if (!currentHero) {
-        await sendApplyActionCommand(
-          "hero_gointobattle",
-          {
-            heroId: targetHero.heroId,
-            slot: targetHero.position,
-          },
-          { allowFailure: true },
-        );
-        await delay(COMMAND_DELAY);
-      } else if (currentHero.position !== targetHero.position) {
-        await sendApplyActionCommand(
-          "hero_gobackbattle",
-          {
-            slot: currentHero.position,
-          },
-          { allowFailure: true },
-        );
-        await delay(COMMAND_DELAY);
-        await sendApplyActionCommand(
-          "hero_gointobattle",
-          {
-            heroId: targetHero.heroId,
-            slot: targetHero.position,
-          },
-          { allowFailure: true },
-        );
-        await delay(COMMAND_DELAY);
-      }
-    }
+    await runApplyStage("lineup_attachment_review", "补完后再次整理站位", async () => (
+      runLineupPositionPass({
+        progressLabel: "正在补完后再次按目标站位切换武将",
+        successSummary: "补完后再次整理站位完成",
+        unchangedSummary: "补完后站位已匹配，无需再次调整",
+      })
+    ));
 
     const hasLevelData = lineup.heroes.some((h) => h.level && h.level > 0);
-    if (hasLevelData) {
-      setApplyProgressStage("正在同步武将等级");
+    await runApplyStage("level_sync", "同步等级", async () => {
+      if (!hasLevelData) {
+        return "该阵容未保存等级，跳过此步";
+      }
+
       const levelData = await fetchLatestData();
       const currentHeroesData = levelData.heroes;
 
@@ -2615,7 +4088,6 @@ const applyLineup = async (lineup) => {
 
           if (result.success) {
             levelApplied++;
-          } else {
           }
         }
       }
@@ -2623,22 +4095,37 @@ const applyLineup = async (lineup) => {
       if (levelApplied > 0) {
         message.success(`已应用 ${levelApplied} 个武将等级配置`);
       }
-    }
+
+      return levelApplied > 0
+        ? `已同步 ${levelApplied} 名武将等级`
+        : "等级已匹配，无需调整";
+    });
 
     const hasFishData = lineup.heroes.some((h) => h.pearlId || h.fishId);
-    if (hasFishData) {
-      setApplyProgressStage("正在同步鱼灵配置");
-      const fishData = await fetchLatestData();
+    await runApplyStage("fish_pearl_sync", "同步鱼灵与鱼珠技能", async () => {
+      if (!hasFishData) {
+        return "该阵容未保存鱼灵或鱼珠，跳过此步";
+      }
+
+      const lineupDataBeforeFishSync = await fetchLatestData();
+      const lineupMatchedBeforeFishSync = isTargetLineupMatched(
+        getPositionAwareTeamHeroes(lineupDataBeforeFishSync.teamInfo),
+      );
+      if (!lineupMatchedBeforeFishSync) {
+        return "当前站位仍未匹配，已跳过鱼灵与鱼珠技能同步";
+      }
+
+      const fishData = lineupDataBeforeFishSync;
       const currentHeroes = fishData.heroes;
       const pearlMap = fishData.pearlMap || {};
       const artifactBooks = fishData.artifactBooks || {};
 
-      const artifactToHero = {};
-      for (const [heroId, hero] of Object.entries(currentHeroes)) {
-        if (hero.artifactId && hero.artifactId !== -1) {
-          artifactToHero[hero.artifactId] = Number(heroId);
-        }
-      }
+      const artifactToHero = buildArtifactToHeroMap(
+        {},
+        fishData.teamInfo || {},
+      );
+      const noopClearedTargetHeroIds = new Set();
+      const noopReleasedArtifactIds = new Set();
 
       const fishToArtifact = {};
       for (const [fishId, book] of Object.entries(artifactBooks)) {
@@ -2652,7 +4139,7 @@ const applyLineup = async (lineup) => {
         if (!targetHero.fishId && !targetHero.pearlId) continue;
 
         let artifactId = null;
-        let pearlId = targetHero.pearlId || 0;
+        const pearlId = targetHero.pearlId || 0;
 
         if (targetHero.fishId) {
           artifactId = fishToArtifact[targetHero.fishId];
@@ -2667,21 +4154,96 @@ const applyLineup = async (lineup) => {
 
         if (!artifactId) continue;
 
+        const currentArtifactId = getCurrentArtifactIdForTargetHero(
+          targetHero,
+          currentHeroes,
+          fishData.teamInfo || {},
+        );
         const currentHolderId = artifactToHero[artifactId];
 
         if (currentHolderId === targetHero.heroId) {
           continue;
         }
 
-        if (currentHolderId) {
-          await sendApplyActionCommand(
+        const targetHasCurrentArtifact =
+          currentArtifactId && currentArtifactId !== Number(artifactId);
+        const holderNeedsRelease =
+          currentHolderId && currentHolderId !== Number(targetHero.heroId);
+
+        if (targetHasCurrentArtifact) {
+          const unloaded = await sendApplyActionCommand(
+            "artifact_unload",
+            {
+              heroId: targetHero.heroId,
+            },
+            { allowFailure: true },
+          );
+          if (unloaded?.ignored) {
+            noopClearedTargetHeroIds.add(Number(targetHero.heroId));
+          }
+          if (!unloaded) {
+            const verifyData = await fetchLatestData();
+            const verifyCurrentArtifactId = getCurrentArtifactIdForTargetHero(
+              targetHero,
+              verifyData.heroes || {},
+              verifyData.teamInfo || {},
+            );
+            if (verifyCurrentArtifactId && verifyCurrentArtifactId !== Number(artifactId)) {
+              continue;
+            }
+          }
+          await delay(COMMAND_DELAY);
+        }
+
+        if (holderNeedsRelease) {
+          const unloaded = await sendApplyActionCommand(
             "artifact_unload",
             {
               heroId: currentHolderId,
             },
             { allowFailure: true },
           );
+          if (unloaded?.ignored && artifactId) {
+            noopReleasedArtifactIds.add(Number(artifactId));
+          }
+          if (!unloaded) {
+            const verifyData = await fetchLatestData();
+            const verifyHolderId = buildArtifactToHeroMap(
+              {},
+              verifyData.teamInfo || {},
+            )[artifactId];
+            if (verifyHolderId && verifyHolderId !== Number(targetHero.heroId)) {
+              continue;
+            }
+          }
           await delay(COMMAND_DELAY);
+        }
+
+        if (targetHasCurrentArtifact || holderNeedsRelease) {
+          const verifyData = await fetchLatestData();
+          const verifyCurrentArtifactId = getCurrentArtifactIdForTargetHero(
+            targetHero,
+            verifyData.heroes || {},
+            verifyData.teamInfo || {},
+          );
+          const verifyHolderId = buildArtifactToHeroMap(
+            {},
+            verifyData.teamInfo || {},
+          )[artifactId];
+          if (
+            (
+              verifyCurrentArtifactId
+              && verifyCurrentArtifactId !== Number(artifactId)
+              && !noopClearedTargetHeroIds.has(Number(targetHero.heroId))
+            )
+            || (
+              verifyHolderId
+              && verifyHolderId !== Number(targetHero.heroId)
+              && !noopReleasedArtifactIds.has(Number(artifactId))
+            )
+          ) {
+            continue;
+          }
         }
 
         const applied = await sendApplyActionCommand(
@@ -2689,7 +4251,8 @@ const applyLineup = async (lineup) => {
           {
             heroId: targetHero.heroId,
             itemId: artifactId,
-            pearlId: pearlId,
+            pearlId,
+            targetHeroId: -1,
           },
           { allowFailure: true },
         );
@@ -2720,182 +4283,207 @@ const applyLineup = async (lineup) => {
         const currentSkillId = currentPearlData?.skillId || null;
         const targetSkillId = targetHero?.skillId || null;
 
-        if (!targetSkillId) {
-          if (currentSkillId) {
-            const unloaded = await sendApplyActionCommand(
-              "pearl_unloadskill",
-              {
-                pearlId: pearlId,
-              },
-              { allowFailure: true },
-            );
-            if (unloaded) {
-              skillApplied++;
-              processedPearlIds.add(pearlId);
-            }
-            await delay(COMMAND_DELAY);
-          }
-          continue;
-        }
-
         if (currentSkillId === targetSkillId) {
           continue;
         }
 
-        const holderPearlId = Object.keys(latestPearlMap).find((pid) => {
-          if (Number(pid) === pearlId) return false;
-          const data = latestPearlMap[pid];
-          return data?.skillId === targetSkillId;
-        });
-
-        if (holderPearlId && !processedPearlIds.has(Number(holderPearlId))) {
+        const holderPearlId = findPearlSkillHolderId(
+          latestPearlMap,
+          targetSkillId,
+          pearlId,
+        );
+        if (holderPearlId) {
           const exchanged = await sendApplyActionCommand(
             "pearl_exchangeskill",
             {
               pearlId1: pearlId,
-              pearlId2: Number(holderPearlId),
+              pearlId2: holderPearlId,
             },
             { allowFailure: true },
           );
           if (exchanged) {
             skillApplied += 2;
             processedPearlIds.add(pearlId);
-            processedPearlIds.add(Number(holderPearlId));
+            processedPearlIds.add(holderPearlId);
           }
           await delay(COMMAND_DELAY);
-        } else {
-          const replaced = await sendApplyActionCommand(
-            "pearl_replaceskill",
+          continue;
+        }
+
+        if (currentSkillId) {
+          const unloaded = await sendApplyActionCommand(
+            "pearl_unloadskill",
             {
-              pearlId: pearlId,
-              skillId: targetSkillId,
+              pearlId,
             },
             { allowFailure: true },
           );
-          if (replaced) {
+          if (unloaded) {
             skillApplied++;
-            processedPearlIds.add(pearlId);
           }
           await delay(COMMAND_DELAY);
         }
+
+        if (!targetSkillId) {
+          processedPearlIds.add(pearlId);
+          continue;
+        }
+
+        const replaced = await sendApplyActionCommand(
+          "pearl_replaceskill",
+          {
+            pearlId,
+            skillId: targetSkillId,
+          },
+          { allowFailure: true },
+        );
+        if (replaced) {
+          skillApplied++;
+          processedPearlIds.add(pearlId);
+        }
+        await delay(COMMAND_DELAY);
       }
 
       if (skillApplied > 0) {
         message.success(`已切换 ${skillApplied} 个鱼珠技能`);
       }
-    }
+      return fishApplied > 0 || skillApplied > 0
+        ? `已同步 ${fishApplied} 个鱼灵、${skillApplied} 个鱼珠技能`
+        : "鱼灵与鱼珠技能已匹配";
+    });
 
-    if (deferredAttachmentTargets.length > 0) {
-      setApplyProgressStage("正在补正延后处理的附件归属");
-      const attachmentData = await fetchLatestData();
-      const latestAttachmentToHero = buildAttachmentToHeroMap(
-        attachmentData.heroes || {},
-      );
-      const latestTeamHeroes = getTeamHeroes(attachmentData.teamInfo);
-      const latestHeroIdsInTeam = new Set(
-        latestTeamHeroes.map((hero) => Number(hero.heroId)),
-      );
-
-      for (const targetHero of deferredAttachmentTargets) {
-        const latestCurrentHolderId = latestAttachmentToHero[targetHero.attachmentUid];
-        if (!latestCurrentHolderId || latestCurrentHolderId === targetHero.heroId) {
-          continue;
-        }
-        if (
-          !latestHeroIdsInTeam.has(Number(targetHero.heroId))
-          || !latestHeroIdsInTeam.has(Number(latestCurrentHolderId))
-        ) {
-          continue;
-        }
-        await sendApplyActionCommand(
-          "hero_exchange",
-          {
-            heroId: latestCurrentHolderId,
-            targetHeroId: targetHero.heroId,
-          },
-          { allowFailure: true },
+    await runApplyStage("tail_sync", "同步科技与玩具", async () => {
+      if (
+        lineup.legionResearch &&
+        Object.keys(lineup.legionResearch).length > 0
+      ) {
+        setApplyProgressStage("正在同步科技配置");
+        const syncResult = await syncLegionResearch(
+          tokenId,
+          lineup.legionResearch,
         );
-        await delay(COMMAND_DELAY);
-      }
-    }
-
-    if (
-      lineup.legionResearch &&
-      Object.keys(lineup.legionResearch).length > 0
-    ) {
-      setApplyProgressStage("正在同步科技配置");
-      const syncResult = await syncLegionResearch(
-        tokenId,
-        lineup.legionResearch,
-      );
-      if (syncResult.success) {
-        if (syncResult.message !== "科技配置已匹配，无需调整") {
-          message.success(syncResult.message);
+        if (syncResult.success) {
+          if (syncResult.message !== "科技配置已匹配，无需调整") {
+            message.success(syncResult.message);
+          }
+        } else {
+          message.warning(syncResult.message || "科技配置同步失败，已跳过");
         }
+      }
+
+      if (lineup.weaponId !== undefined && lineup.weaponId !== null) {
+        setApplyProgressStage("正在同步玩具配置");
+        const currentPresetTeam = await tokenStore.sendMessageWithPromise(
+          tokenId,
+          "presetteam_getinfo",
+          {},
+        );
+        const currentPresetInfo =
+          currentPresetTeam?.presetTeamInfo?.presetTeamInfo ||
+          currentPresetTeam?.presetTeamInfo ||
+          {};
+        const currentTeamData =
+          currentPresetInfo[currentTeamId.value] ||
+          currentPresetInfo[String(currentTeamId.value)];
+        const currentWeaponId = currentTeamData?.weapon?.weaponId || null;
+
+        if (currentWeaponId !== lineup.weaponId) {
+          try {
+            await tokenStore.sendMessageWithPromise(
+              tokenId,
+              "lordweapon_changedefaultweapon",
+              {
+                weaponId: lineup.weaponId,
+              },
+            );
+            message.success(
+              `玩具已切换为: ${weapon[lineup.weaponId] || lineup.weaponId}`,
+            );
+          } catch (err) {}
+          await delay(COMMAND_DELAY);
+        }
+      }
+
+      return "科技与玩具同步已完成";
+    });
+
+    await runApplyStage("final_review_refresh", "复核并刷新界面", async () => {
+      if (hasEquipmentData) {
+        setApplyProgressStage("正在复核装备洗练");
+        await fetchLatestData();
+      }
+
+      const finalLineupCheck = await ensureFinalLineupMatches();
+      if (!finalLineupCheck.success) {
+        errors.push("最终阵容复核失败：当前上阵结果与已保存阵容不一致");
+      }
+
+      if (finalLineupCheck.success) {
+        const finalFishCheck = await ensureFinalFishArtifactsMatch();
+        if (!finalFishCheck.success) {
+          errors.push("最终鱼灵复核失败：当前鱼灵结果与已保存阵容不一致");
+        }
+      } else if (hasFishData) {
+        errors.push("最终阵容未对齐，已跳过最终鱼灵复核以避免误卸鱼灵");
+      }
+
+      if (hasEquipmentData) {
+        const finalEquipmentData = await fetchLatestData();
+        const finalEquipmentCheck = getEquipmentReview(finalEquipmentData.heroes || {});
+        if (!finalEquipmentCheck.success) {
+          const previewNames = finalEquipmentCheck.mismatched
+            .map((item) => item.heroName)
+            .slice(0, 3)
+            .join("、");
+          const summary = finalEquipmentCheck.mismatched.length > 3
+            ? `${previewNames} 等 ${finalEquipmentCheck.mismatched.length} 名武将`
+            : previewNames;
+          errors.push(
+            `最终装备洗练复核失败：${summary} 的装备洗练与已保存阵容不一致，请手动处理`,
+          );
+        }
+      }
+
+      if (errors.length > 0) {
+        message.warning(`阵容已应用，但有部分错误:\n${errors.join("\n")}`);
       } else {
-        message.warning(syncResult.message || "科技配置同步失败，已跳过");
+        message.success(`阵容 "${lineup.name}" 已应用`);
       }
-    }
 
-    if (lineup.weaponId !== undefined && lineup.weaponId !== null) {
-      setApplyProgressStage("正在同步玩具配置");
-      const currentPresetTeam = await tokenStore.sendMessageWithPromise(
+      setApplyProgressStage("正在刷新阵容结果");
+      lastRefreshTime = 0;
+      await refreshTeamInfo();
+      recordApplyDurationMetric(
+        lineup.id,
+        Date.now() - applyProgressStartedAt.value,
         tokenId,
-        "presetteam_getinfo",
-        {},
       );
-      const currentPresetInfo =
-        currentPresetTeam?.presetTeamInfo?.presetTeamInfo ||
-        currentPresetTeam?.presetTeamInfo ||
-        {};
-      const currentTeamData =
-        currentPresetInfo[currentTeamId.value] ||
-        currentPresetInfo[String(currentTeamId.value)];
-      const currentWeaponId = currentTeamData?.weapon?.weaponId || null;
 
-      if (currentWeaponId !== lineup.weaponId) {
-        try {
-          await tokenStore.sendMessageWithPromise(
-            tokenId,
-            "lordweapon_changedefaultweapon",
-            {
-              weaponId: lineup.weaponId,
-            },
-          );
-          message.success(
-            `玩具已切换为: ${weapon[lineup.weaponId] || lineup.weaponId}`,
-          );
-        } catch (err) {}
-        await delay(COMMAND_DELAY);
-      }
-    }
-
-    const finalLineupCheck = await ensureFinalLineupMatches();
-    if (!finalLineupCheck.success) {
-      errors.push("最终阵容复核失败：当前上阵结果与已保存阵容不一致");
-    }
-
-    const finalFishCheck = await ensureFinalFishArtifactsMatch();
-    if (!finalFishCheck.success) {
-      errors.push("最终鱼灵复核失败：当前鱼灵结果与已保存阵容不一致");
-    }
-
-    if (errors.length > 0) {
-      message.warning(`阵容已应用，但有部分错误:\n${errors.join("\n")}`);
-    } else {
-      message.success(`阵容 "${lineup.name}" 已应用`);
-    }
-
-    setApplyProgressStage("正在刷新阵容结果");
-    lastRefreshTime = 0;
-    await refreshTeamInfo();
+      return errors.length > 0
+        ? `检测到 ${errors.length} 个待人工确认问题`
+        : "所有复核已通过";
+    });
   } catch (error) {
-    setApplyProgressStage("应用阵容失败");
-    message.error(`应用阵容失败: ${error.message}`);
+    if (error?.code === APPLY_DEBUG_ABORT_ERROR_CODE) {
+      applyDebugFinished.value = true;
+      setApplyProgressStage("已中止调试");
+      message.warning("已中止分步调试");
+    } else {
+      setApplyProgressStage("应用阵容失败");
+      message.error(`应用阵容失败: ${error.message}`);
+    }
   } finally {
+    $emit.off("syncresp", handleApplySyncResp);
     lineup.applying = false;
     state.value.isRunning = false;
-    finishApplyProgress();
+    if (applyDebugMode.value) {
+      applyDebugPaused.value = false;
+      applyDebugFinished.value = true;
+      finishApplyProgress({ keepVisible: true });
+    } else {
+      finishApplyProgress();
+      resetApplyDebugSession();
+    }
     releaseTokenOperationLock(tokenId, applyOperationLockId);
   }
 };
@@ -2903,6 +4491,10 @@ const applyLineup = async (lineup) => {
 const showTechModal = (lineup) => {
   selectedTechData.value = lineup.legionResearch || null;
   techModalVisible.value = true;
+};
+
+const startDebugApply = (lineup) => {
+  void applyLineup(lineup, { debug: true });
 };
 
 const renameLineup = (index) => {
@@ -2923,7 +4515,7 @@ const renameLineup = (index) => {
     onPositiveClick: () => {
       if (newName && newName.trim()) {
         savedLineups.value[index].name = newName.trim();
-        saveLineupsToStorage();
+        saveLineupsToStorage({ updatedAt: Date.now() });
         message.success("阵容名称已更新");
       }
     },
@@ -2938,10 +4530,41 @@ const deleteLineup = (index) => {
     negativeText: "取消",
     onPositiveClick: () => {
       savedLineups.value.splice(index, 1);
-      saveLineupsToStorage();
+      saveLineupsToStorage({ updatedAt: Date.now() });
       message.success("阵容已删除");
     },
   });
+};
+
+const syncSavedLineupsCloudNow = async () => {
+  const tokenId = getSelectedTokenId();
+  if (!tokenId) {
+    message.warning("请先选择Token");
+    return;
+  }
+  if (!authStore.isAuthenticated) {
+    message.warning("请先登录账号后再上传到服务器");
+    return;
+  }
+
+  if (lineupCloudTimer) {
+    clearTimeout(lineupCloudTimer);
+    lineupCloudTimer = null;
+  }
+
+  lineupCloudSyncing.value = true;
+  try {
+    const store = persistSavedLineups({
+      updatedAt: Date.now(),
+      syncCloud: false,
+    });
+    await pushSavedLineupsToCloud(tokenId, store);
+    message.success("已将已保存阵容上传到服务器");
+  } catch (error) {
+    message.error(`上传到服务器失败: ${error?.message || error}`);
+  } finally {
+    lineupCloudSyncing.value = false;
+  }
 };
 
 const exportLineups = async () => {
@@ -2973,7 +4596,7 @@ const exportLineups = async () => {
     }
 
     const exportData = {
-      roleId: roleId,
+      roleId,
       exportTime: Date.now(),
       lineups: savedLineups.value,
     };
@@ -3040,6 +4663,7 @@ const importLineups = async ({ file }) => {
                 ...lineup,
                 id: lineup.id || generateLineupId(),
                 savedAt: Date.now(),
+                updatedAt: Date.now(),
                 applying: false,
               });
             }
@@ -3060,19 +4684,20 @@ const importLineups = async ({ file }) => {
                     savedLineups.value[index] = {
                       ...dupLineup,
                       savedAt: Date.now(),
+                      updatedAt: Date.now(),
                       applying: false,
                     };
                   }
                 }
                 savedLineups.value = [...savedLineups.value, ...newLineups];
-                saveLineupsToStorage();
+                saveLineupsToStorage({ updatedAt: Date.now() });
                 message.success(
                   `已导入 ${newLineups.length + duplicateLineups.length} 个阵容`,
                 );
               },
               onNegativeClick: () => {
                 savedLineups.value = [...savedLineups.value, ...newLineups];
-                saveLineupsToStorage();
+                saveLineupsToStorage({ updatedAt: Date.now() });
                 message.success(
                   `已导入 ${newLineups.length} 个阵容，跳过 ${duplicateLineups.length} 个重复`,
                 );
@@ -3080,7 +4705,7 @@ const importLineups = async ({ file }) => {
             });
           } else {
             savedLineups.value = [...savedLineups.value, ...newLineups];
-            saveLineupsToStorage();
+            saveLineupsToStorage({ updatedAt: Date.now() });
             message.success(`已导入 ${newLineups.length} 个阵容`);
           }
         };
@@ -3148,9 +4773,13 @@ const switchTeam = async (teamId) => {
 
 watch(
   () => tokenStore.selectedToken,
-  (newToken, oldToken) => {
+  async (newToken, oldToken) => {
     if (newToken && newToken.id !== oldToken?.id) {
-      loadSavedLineups();
+      if (lineupCloudTimer) {
+        clearTimeout(lineupCloudTimer);
+        lineupCloudTimer = null;
+      }
+      await loadSavedLineups();
       currentTeamInfo.value = null;
       presetTeamData.value = null;
       allHeroesData.value = {};
@@ -3160,6 +4789,15 @@ watch(
       if (status === "connected") {
         refreshTeamInfo();
       }
+    }
+  },
+);
+
+watch(
+  () => authStore.isAuthenticated,
+  async (isAuthenticated, wasAuthenticated) => {
+    if (isAuthenticated && !wasAuthenticated && tokenStore.selectedToken) {
+      await loadSavedLineups();
     }
   },
 );
@@ -3195,7 +4833,12 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  if (lineupCloudTimer) {
+    clearTimeout(lineupCloudTimer);
+    lineupCloudTimer = null;
+  }
   finishApplyProgress();
+  resetApplyDebugSession();
 });
 </script>
 
@@ -3286,6 +4929,158 @@ onUnmounted(() => {
 .apply-progress-tip {
   font-size: 12px;
   color: var(--warning-color);
+}
+
+.apply-debug-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.04);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.apply-debug-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.apply-debug-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.apply-debug-state {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.apply-debug-step-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 240px;
+  overflow: auto;
+}
+
+.apply-debug-step {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--bg-primary);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.apply-debug-step.is-waiting {
+  border-color: rgba(250, 173, 20, 0.28);
+  background: rgba(250, 173, 20, 0.08);
+}
+
+.apply-debug-step.is-running {
+  border-color: rgba(24, 144, 255, 0.28);
+  background: rgba(24, 144, 255, 0.08);
+  box-shadow: 0 0 0 1px rgba(24, 144, 255, 0.12);
+}
+
+.apply-debug-step.is-running::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 4px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #1890ff 0%, #36cfc9 100%);
+}
+
+.apply-debug-step.is-success {
+  border-color: rgba(82, 196, 26, 0.24);
+  background: rgba(82, 196, 26, 0.08);
+}
+
+.apply-debug-step.is-error {
+  border-color: rgba(255, 77, 79, 0.24);
+  background: rgba(255, 77, 79, 0.08);
+}
+
+.apply-debug-step-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.apply-debug-step-index {
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.08);
+  color: var(--text-primary);
+  font-size: 11px;
+  font-weight: 700;
+  flex: 0 0 auto;
+}
+
+.apply-debug-step-label {
+  flex: 1;
+  font-size: 13px;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.apply-debug-step-status {
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.apply-debug-step-detail {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.apply-debug-step-commands {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.apply-debug-step-commands-title {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.apply-debug-step-command-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.apply-debug-step-command {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.06);
+  color: var(--text-primary);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.apply-debug-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
 }
 
 .lineup-container {
