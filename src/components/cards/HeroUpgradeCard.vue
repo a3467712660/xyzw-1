@@ -19,11 +19,13 @@
           @update:value="handleUpdateValue"
         ></n-select>
       </div>
-    </template>
-    <template #action>
-      <div v-if="HeroItem != null" class="action-row">
+      <div v-if="HeroItem != null" class="gwb2-mini-card__metric hero-summary">
         <div class="hero-item">
           <img :alt="HeroItem.name" :src="HeroItem.avatar">
+          <div class="hero-meta">
+            <strong>{{ HeroItem.name }}</strong>
+            <span>{{ t("heroUpgradeCard.subtitle") }}</span>
+          </div>
         </div>
         <div class="hero-property">
           <div class="current-property">
@@ -31,37 +33,40 @@
             <div>{{ t("heroUpgradeCard.labels.speed", { value: HeroItem.speed }) }}</div>
           </div>
         </div>
-        <div class="button-area">
-          <div class="input-area">
-            <span class="label">{{ t("heroUpgradeCard.labels.levelUpgrade") }}</span>
-            <n-select
-              v-model:value="levelNum"
-              :options="levelOptions"
-            ></n-select>
-          </div>
-          <div class="button-group">
-            <n-button
-              size="small"
-              type="primary"
-              :disabled="state.isRunning"
-              @click="levelHeroUpgrade"
-            >
-              {{ t("heroUpgradeCard.actions.levelUpgrade") }}
-            </n-button>
-            <n-button
-              size="small"
-              type="primary"
-              :disabled="
-                state.isRunning
-                  || judgeLevelupgrade(HeroItem.level, 1, HeroItem.order) == false
-              "
-              @click="orderHeroUpgrade"
-            >
-              {{ t("heroUpgradeCard.actions.orderUpgrade") }}
-            </n-button>
-          </div>
-        </div>
       </div>
+      <div v-if="HeroItem != null" class="gwb2-mini-card__toolbar upgrade-settings">
+        <span class="label">{{ t("heroUpgradeCard.labels.levelUpgrade") }}</span>
+        <n-select
+          v-model:value="levelNum"
+          :options="levelOptions"
+        ></n-select>
+      </div>
+      <div v-else class="gwb2-mini-card__empty hero-empty">
+        {{ t("heroUpgradeCard.labels.heroSelect") }}
+      </div>
+    </template>
+    <template #action>
+      <n-button
+        v-if="HeroItem != null"
+        size="small"
+        type="primary"
+        :disabled="state.isRunning"
+        @click="levelHeroUpgrade"
+      >
+        {{ t("heroUpgradeCard.actions.levelUpgrade") }}
+      </n-button>
+      <n-button
+        v-if="HeroItem != null"
+        size="small"
+        type="primary"
+        :disabled="
+          state.isRunning
+            || judgeLevelupgrade(HeroItem.level, 1, HeroItem.order) == false
+        "
+        @click="orderHeroUpgrade"
+      >
+        {{ t("heroUpgradeCard.actions.orderUpgrade") }}
+      </n-button>
     </template>
   </MyCard>
 </template>
@@ -345,53 +350,86 @@ const judgeLevelupgrade = (level, levelNum, order) => {
   display: flex;
   align-items: center;
   justify-content: flex-start;
+  flex-wrap: wrap;
   gap: var(--spacing-sm);
-  margin-bottom: var(--spacing-md);
 
   .label {
     flex-shrink: 0;
   }
 }
 
-.action-row {
-  margin: auto;
-  width: 100%;
-}
 .hero-item {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: var(--spacing-md);
+  gap: var(--spacing-sm);
+  min-width: 0;
 }
+
+.hero-item > img {
+  width: 52px;
+  height: 52px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  border: 1px solid rgba(78, 94, 116, 0.14);
+}
+
+.hero-meta {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hero-meta strong {
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+}
+
+.hero-meta span {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+}
+
+.hero-summary {
+  align-items: stretch;
+}
+
 .hero-property {
   display: flex;
-  gap: var(--spacing-md);
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.current-property {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.upgrade-settings {
+  justify-content: flex-start;
+  gap: var(--spacing-sm);
+}
+
+.hero-empty {
+  min-height: 96px;
   align-items: center;
   justify-content: center;
-
-  .current-property {
-    display: flex;
-    flex-direction: column;
-    gap: var(--spacing-md);
-  }
+  color: var(--text-tertiary);
 }
-.button-area {
-  .input-area {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--spacing-md);
-    margin: var(--spacing-sm);
-    .label {
-      flex-shrink: 0;
-    }
+
+@media (max-width: 768px) {
+  .hero-summary {
+    flex-direction: column;
   }
-  .button-group {
-    button {
-      width: 100%;
-      margin-top: var(--spacing-sm);
-    }
+
+  .hero-property {
+    justify-content: flex-start;
   }
 }
 </style>

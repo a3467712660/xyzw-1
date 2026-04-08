@@ -2,111 +2,122 @@
   <div class="gwb2-mini-card team-formation-card">
     <div class="gwb2-mini-card__surface">
       <div class="gwb2-mini-card__toolbar team-formation-card__toolbar">
-      <img
-        alt="阵容"
-        class="icon"
-        src="/icons/Ob7pyorzmHiJcbab2c25af264d0758b527bc1b61cc3b.png"
-      >
-      <div class="info">
-        <h3>阵容</h3>
-        <p>当前使用的战斗阵容</p>
-      </div>
-      <div class="gwb2-mini-card__segmented team-selector">
-        <button
-          v-for="teamId in availableTeams"
-          :key="teamId"
-          class="team-button"
-          :class="[{ active: currentTeam === teamId }]"
-          :disabled="loading || switching"
-          @click="selectTeam(teamId)"
-        >
-          {{ teamId }}
-        </button>
-        <button
-          class="refresh-button"
-          title="刷新队伍数据"
-          :disabled="loading"
-          @click="refreshTeamData(true)"
-        >
-          <svg
-            class="refresh-icon"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            viewBox="0 0 24 24"
+        <div class="gwb2-mini-card__toolbar-main">
+          <img
+            alt="阵容"
+            class="icon"
+            src="/icons/Ob7pyorzmHiJcbab2c25af264d0758b527bc1b61cc3b.png"
           >
-            <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
-            <path d="M21 3v5h-5" />
-            <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
-            <path d="M3 21v-5h5" />
-          </svg>
-          <span class="refresh-text">刷新</span>
-        </button>
-      </div>
+          <div class="info">
+            <h3>阵容</h3>
+            <p>当前使用的战斗阵容</p>
+          </div>
+        </div>
+        <div class="gwb2-mini-card__toolbar-side team-formation-card__controls">
+          <div class="gwb2-mini-card__segmented team-selector">
+            <button
+              v-for="teamId in availableTeams"
+              :key="teamId"
+              class="team-segment"
+              type="button"
+              :aria-pressed="currentTeam === teamId"
+              :class="{ active: currentTeam === teamId }"
+              :disabled="loading || switching"
+              @click="selectTeam(teamId)"
+            >
+              {{ teamId }}
+            </button>
+          </div>
+          <n-button
+            quaternary
+            class="refresh-button"
+            size="small"
+            title="刷新队伍数据"
+            :disabled="loading"
+            @click="refreshTeamData(true)"
+          >
+            <template #icon>
+              <svg
+                class="refresh-icon"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+              >
+                <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+                <path d="M21 3v5h-5" />
+                <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+                <path d="M3 21v-5h5" />
+              </svg>
+            </template>
+            <span class="refresh-text">刷新</span>
+          </n-button>
+        </div>
       </div>
 
       <div class="gwb2-mini-card__body team-formation-card__body">
-      <div class="gwb2-mini-card__metric current-team-info">
-        <span class="label">当前阵容</span>
-        <span class="team-number">
-          <template v-if="!loading">阵容 {{ currentTeam }}</template>
-          <template v-else>加载中…</template>
-        </span>
-      </div>
-
-      <div class="gwb2-mini-card__list heroes-container">
-        <div v-if="!loading" class="heroes-formation">
-          <!-- 前排 2个 -->
-          <div class="formation-row front-row">
-            <div
-              v-for="hero in currentTeamHeroes.slice(0, 2)"
-              :key="hero.id || hero.name"
-              class="hero-item"
-            >
-              <div class="hero-circle">
-                <img
-                  v-if="hero.avatar"
-                  class="hero-avatar"
-                  :alt="hero.name"
-                  :src="hero.avatar"
-                >
-                <div v-else class="hero-placeholder">
-                  {{ hero.name?.substring(0, 2) || "?" }}
-                </div>
-              </div>
-              <span class="hero-name">{{ hero.name || "未知" }}</span>
-            </div>
-          </div>
-          <!-- 后排 3个 -->
-          <div class="formation-row back-row">
-            <div
-              v-for="hero in currentTeamHeroes.slice(2)"
-              :key="hero.id || hero.name"
-              class="hero-item"
-            >
-              <div class="hero-circle">
-                <img
-                  v-if="hero.avatar"
-                  class="hero-avatar"
-                  :alt="hero.name"
-                  :src="hero.avatar"
-                >
-                <div v-else class="hero-placeholder">
-                  {{ hero.name?.substring(0, 2) || "?" }}
-                </div>
-              </div>
-              <span class="hero-name">{{ hero.name || "未知" }}</span>
-            </div>
-          </div>
+        <div class="gwb2-mini-card__metric current-team-info">
+          <span class="label">当前阵容</span>
+          <span class="team-number">
+            <template v-if="!loading">阵容 {{ currentTeam }}</template>
+            <template v-else>加载中…</template>
+          </span>
         </div>
 
-        <div v-if="!loading && !currentTeamHeroes.length" class="gwb2-mini-card__empty empty-team">
-          <p>暂无队伍信息</p>
+        <div class="gwb2-mini-card__list heroes-container">
+          <div v-if="!loading" class="heroes-formation">
+            <!-- 前排 2个 -->
+            <div class="formation-row front-row">
+              <div
+                v-for="hero in currentTeamHeroes.slice(0, 2)"
+                :key="hero.id || hero.name"
+                class="hero-item"
+              >
+                <div class="hero-circle">
+                  <img
+                    v-if="hero.avatar"
+                    class="hero-avatar"
+                    :alt="hero.name"
+                    :src="hero.avatar"
+                  >
+                  <div v-else class="hero-placeholder">
+                    {{ hero.name?.substring(0, 2) || "?" }}
+                  </div>
+                </div>
+                <span class="hero-name">{{ hero.name || "未知" }}</span>
+              </div>
+            </div>
+
+            <!-- 后排 3个 -->
+            <div class="formation-row back-row">
+              <div
+                v-for="hero in currentTeamHeroes.slice(2)"
+                :key="hero.id || hero.name"
+                class="hero-item"
+              >
+                <div class="hero-circle">
+                  <img
+                    v-if="hero.avatar"
+                    class="hero-avatar"
+                    :alt="hero.name"
+                    :src="hero.avatar"
+                  >
+                  <div v-else class="hero-placeholder">
+                    {{ hero.name?.substring(0, 2) || "?" }}
+                  </div>
+                </div>
+                <span class="hero-name">{{ hero.name || "未知" }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="!loading && !currentTeamHeroes.length" class="gwb2-mini-card__empty empty-team">
+            <p>暂无队伍信息</p>
+          </div>
+          <div v-if="loading" class="gwb2-mini-card__empty empty-team">
+            <p>正在加载队伍信息…</p>
+          </div>
         </div>
-        <div v-if="loading" class="gwb2-mini-card__empty empty-team">
-          <p>正在加载队伍信息…</p>
-        </div>
-      </div>
       </div>
     </div>
   </div>
@@ -398,72 +409,20 @@ watch(
   font-size: var(--font-size-sm);
 }
 
-.team-selector {
-  display: flex;
-  gap: var(--spacing-xs);
-}
-
-.team-button {
-  width: 32px;
-  height: 32px;
-  border: none;
-  border-radius: 50%;
-  background: var(--bg-tertiary);
-  color: var(--text-secondary);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-medium);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-
-.team-button:hover {
-  background: var(--bg-secondary);
-}
-
-.team-button.active {
-  background: var(--primary-color);
-  color: white;
-}
-
-.team-button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
 .refresh-button {
-  display: flex;
-  align-items: center;
   gap: 6px;
-  height: 32px;
-  padding: 0 12px;
-  border: 1px solid var(--border-color, #e5e7eb);
-  border-radius: 8px;
-  background: var(--bg-primary, #ffffff);
-  color: var(--text-secondary, #6b7280);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all var(--transition-fast, 0.15s ease);
 }
 
-.refresh-button:hover {
-  background: var(--bg-secondary, #f9fafb);
-  border-color: var(--border-hover, #d1d5db);
-  color: var(--text-primary, #374151);
-  transform: translateY(-1px);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+.team-formation-card__controls {
+  gap: 12px;
 }
 
-.refresh-button:active {
-  transform: translateY(0);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+.team-selector {
+  flex-wrap: wrap;
 }
 
-.refresh-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  transform: none;
-  box-shadow: none;
+.team-segment {
+  min-width: 42px;
 }
 
 .refresh-icon {
@@ -494,7 +453,6 @@ watch(
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: var(--spacing-sm);
 }
 
 .team-formation-card__body .label {
@@ -509,9 +467,6 @@ watch(
 }
 
 .heroes-container {
-  background: var(--bg-tertiary);
-  border-radius: var(--border-radius-medium);
-  padding: var(--spacing-sm);
   min-height: 60px;
   display: flex;
   align-items: center;
@@ -544,13 +499,15 @@ watch(
 .hero-circle {
   width: 40px;
   height: 40px;
-  border-radius: 50%;
-  background: var(--bg-primary);
+  border-radius: 12px;
+  border: 1px solid rgba(78, 94, 116, 0.14);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(214, 224, 234, 0.18)),
+    rgba(240, 245, 249, 0.9);
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
 .hero-avatar {
@@ -579,11 +536,6 @@ watch(
 }
 
 @media (max-width: 768px) {
-  .team-button {
-    width: 40px;
-    height: 40px;
-  }
-
   .refresh-button {
     min-height: 40px;
     padding: 0 14px;
@@ -597,9 +549,7 @@ watch(
   }
 
   .team-selector {
-    justify-content: center;
-    flex-wrap: wrap;
-    gap: var(--spacing-xs);
+    width: 100%;
   }
 
   .heroes-container {

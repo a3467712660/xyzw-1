@@ -21,52 +21,55 @@
             :step="100"
           ></n-input-number>
         </div>
-        <div class="status-row">
+        <div class="gwb2-mini-card__chip status-row">
+          <span class="gwb2-mini-card__chip-dot"></span>
           <span>{{ t("starUpgradeCard.labels.heroCount", { count: heroIds.length }) }}</span>
         </div>
       </div>
       <div class="gwb2-mini-card__metric progress-row">
+        <div class="progress-copy">
+          <span class="progress-label">{{ t("starUpgradeCard.subtitle") }}</span>
+          <span class="progress-text">{{ state.done }}/{{ state.total }} {{ percent }}%</span>
+        </div>
         <n-progress type="line" :percentage="percent" :show-indicator="false"></n-progress>
-        <span class="progress-text">{{ state.done }}/{{ state.total }} {{ percent }}%</span>
       </div>
     </template>
     <template #action>
-      <div class="action-row">
-        <n-button
-          size="small"
-          type="primary"
-          :disabled="state.isRunning"
-          @click="startHeroUpgrade"
-        >
-          {{ t("starUpgradeCard.actions.heroUpgrade") }}
-        </n-button>
-        <n-button
-          size="small"
-          type="primary"
-          :disabled="state.isRunning"
-          @click="startBookUpgrade"
-        >
-          {{ t("starUpgradeCard.actions.bookUpgrade") }}
-        </n-button>
-        <n-button
-          size="small"
-          type="primary"
-          :disabled="state.isRunning"
-          @click="startClaimRewards"
-        >
-          {{ t("starUpgradeCard.actions.claimRewards") }}
-        </n-button>
-        <n-button
-          size="small"
-          :disabled="!state.isRunning"
-          @click="stopRunning"
-        >
-          {{ t("starUpgradeCard.actions.stop") }}
-        </n-button>
-      </div>
+      <n-button
+        size="small"
+        type="primary"
+        :disabled="state.isRunning"
+        @click="startHeroUpgrade"
+      >
+        {{ t("starUpgradeCard.actions.heroUpgrade") }}
+      </n-button>
+      <n-button
+        size="small"
+        type="primary"
+        :disabled="state.isRunning"
+        @click="startBookUpgrade"
+      >
+        {{ t("starUpgradeCard.actions.bookUpgrade") }}
+      </n-button>
+      <n-button
+        size="small"
+        type="primary"
+        :disabled="state.isRunning"
+        @click="startClaimRewards"
+      >
+        {{ t("starUpgradeCard.actions.claimRewards") }}
+      </n-button>
+      <n-button
+        size="small"
+        :disabled="!state.isRunning"
+        @click="stopRunning"
+      >
+        {{ t("starUpgradeCard.actions.stop") }}
+      </n-button>
     </template>
   </MyCard>
   <n-modal
+    class="star-upgrade__modal"
     preset="dialog"
     v-model:show="state.showConfirm"
     :content="t('starUpgradeCard.confirm.content')"
@@ -448,9 +451,9 @@ const formatTime = (ts) => new Date(ts).toLocaleTimeString("zh-CN");
 .settings {
   display: flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
   gap: var(--spacing-sm);
-  margin-bottom: var(--spacing-md);
 }
 .setting-item {
   display: flex;
@@ -461,21 +464,31 @@ const formatTime = (ts) => new Date(ts).toLocaleTimeString("zh-CN");
   width: 110px;
 }
 .status-row {
-  display: flex;
-  gap: var(--spacing-lg);
+  flex: 0 0 auto;
 }
 .progress-row {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: stretch;
   gap: var(--spacing-sm);
-  flex-wrap: nowrap;
 }
-.progress-row .n-progress {
-  flex: 1;
+.progress-copy {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+}
+.progress-label {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 .progress-text {
-  color: var(--text-secondary);
+  color: var(--text-primary);
   font-size: var(--font-size-sm);
+  font-family: var(--font-family-mono);
+  font-weight: 700;
   white-space: nowrap;
 }
 .log-container {
@@ -485,11 +498,6 @@ const formatTime = (ts) => new Date(ts).toLocaleTimeString("zh-CN");
 }
 .log-item {
   display: flex;
-  gap: 8px;
-}
-.action-row {
-  display: flex;
-  flex-wrap: wrap;
   gap: 8px;
 }
 .log-item.success {
@@ -504,5 +512,12 @@ const formatTime = (ts) => new Date(ts).toLocaleTimeString("zh-CN");
 }
 .msg {
   color: var(--text-secondary);
+}
+
+@media (max-width: 768px) {
+  .progress-copy {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
 </style>

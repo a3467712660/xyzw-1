@@ -34,7 +34,7 @@
         <div v-if="activeTab === 'battle'" class="tab-content">
           <div v-if="teamHeroes.length > 0" class="team-info">
             <div class="team-title">{{ t("dreamHelperCard.labels.currentTeam") }}</div>
-            <div class="team-list">
+            <div class="gwb2-mini-card__list team-list">
               <div v-for="hero in teamHeroes" :key="hero.id" class="hero-item">
                 <div
                   class="hero-name"
@@ -44,8 +44,7 @@
                 </div>
                 <n-button
                   size="small"
-                  type="primary"
-                  :class="{ 'stop-btn': continuousBattles[hero.id] }"
+                  :type="continuousBattles[hero.id] ? 'warning' : 'primary'"
                   @click="toggleContinuousBattle(hero.id)"
                 >
                   {{ continuousBattles[hero.id] ? t("dreamHelperCard.actions.stop") : t("dreamHelperCard.actions.continuousBattle") }}
@@ -82,7 +81,7 @@
               </n-button>
             </div>
           </div>
-          <div v-if="merchantDataLoaded" class="merchant-items">
+          <div v-if="merchantDataLoaded" class="gwb2-mini-card__list merchant-items">
             <div
               v-for="(items, merchantId) in merchantData"
               :key="merchantId"
@@ -732,42 +731,29 @@ const startDreamHelper = async () => {
 
 <style scoped lang="scss">
 .dream-helper-content {
-  padding: 10px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 
   .tabs {
-    display: flex;
-    margin-bottom: 10px;
-    gap: var(--spacing-xs);
-
     .tab {
       flex: 1;
-      padding: 8px;
-      text-align: center;
-      border: none;
-      border-radius: var(--border-radius-medium);
-      background: transparent;
-      color: var(--text-secondary);
-      cursor: pointer;
-      transition: all 0.2s;
-      font-size: var(--font-size-sm);
-
-      &.active {
-        color: var(--text-primary);
-      }
     }
   }
 
   .tab-content {
-    padding: 10px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
   }
 
   .team-info {
-    margin-bottom: 15px;
-
     .team-title {
       font-size: var(--font-size-sm);
-      color: var(--text-secondary);
+      color: var(--text-tertiary);
       margin-bottom: 8px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
     }
 
     .team-list {
@@ -780,14 +766,18 @@ const startDreamHelper = async () => {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 6px;
-      background: var(--bg-tertiary);
-      border-radius: var(--border-radius-small);
+      gap: 12px;
+      padding: 6px 0;
+      border-bottom: 1px solid rgba(78, 94, 116, 0.1);
+    }
+
+    .hero-item:last-child {
+      border-bottom: none;
     }
 
     .hero-name {
       padding: 4px 8px;
-      border-radius: 999px;
+      border-radius: 10px;
       background: rgba(63, 119, 173, 0.08);
       font-size: var(--font-size-sm);
       font-weight: var(--font-weight-medium);
@@ -795,42 +785,34 @@ const startDreamHelper = async () => {
   }
 
   .team-actions {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 15px;
+    margin-top: 0;
   }
 
   .merchant-info {
-    margin-bottom: 15px;
-
     .merchant-title {
       font-size: var(--font-size-sm);
-      color: var(--text-secondary);
+      color: var(--text-tertiary);
       margin-bottom: 8px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
     }
 
     .merchant-actions {
-      display: flex;
-      gap: 8px;
-      margin-bottom: 10px;
+      margin-top: 0;
     }
   }
 
-  .merchant-items {
+  .merchant-section {
     display: flex;
     flex-direction: column;
-    gap: 12px;
-  }
-
-  .merchant-section {
-    background: var(--bg-tertiary);
-    border-radius: var(--border-radius-small);
-    padding: 8px;
+    gap: 8px;
+    padding: 6px 0;
+    border-bottom: 1px solid rgba(78, 94, 116, 0.1);
 
     .merchant-name {
       font-size: var(--font-size-sm);
-      font-weight: var(--font-weight-semibold);
-      margin-bottom: 6px;
+      font-weight: 700;
+      color: var(--text-primary);
     }
 
     .items-list {
@@ -843,19 +825,24 @@ const startDreamHelper = async () => {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 4px;
-      background: var(--bg-primary);
-      border-radius: var(--border-radius-xs);
+      padding: 4px 0;
     }
 
     .item-name {
       font-size: var(--font-size-xs);
     }
   }
+
+  .merchant-section:last-child {
+    border-bottom: none;
+  }
 }
 
-.stop-btn {
-  background-color: var(--color-danger) !important;
-  border-color: var(--color-danger) !important;
+@media (max-width: 768px) {
+  .dream-helper-content .hero-item,
+  .dream-helper-content .merchant-section .item {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }
 </style>

@@ -88,34 +88,44 @@
 
         <div
           v-if="ENABLE_LEGION_MATCH && activeSection === 'club'"
-          class="status-card legion-match"
+          class="gwb2-mini-card legion-match-card"
+          :class="{ 'gwb2-mini-card--active': legionMatch.isRegistered }"
         >
-          <div class="card-header">
-            <img
-              class="status-icon"
-              src="/icons/1733492491706152.png"
-              :alt="t('gameStatus.legionMatch.iconAlt')"
-            >
-            <div class="status-info">
-              <h3>{{ t("gameStatus.legionMatch.title") }}</h3>
-              <p>{{ t("gameStatus.legionMatch.subtitle") }}</p>
+          <div class="gwb2-mini-card__surface">
+            <div class="gwb2-mini-card__toolbar">
+              <div class="gwb2-mini-card__toolbar-main">
+                <img
+                  class="status-icon"
+                  src="/icons/1733492491706152.png"
+                  :alt="t('gameStatus.legionMatch.iconAlt')"
+                >
+                <div class="status-info">
+                  <h3>{{ t("gameStatus.legionMatch.title") }}</h3>
+                  <p>{{ t("gameStatus.legionMatch.subtitle") }}</p>
+                </div>
+              </div>
+              <div class="gwb2-mini-card__toolbar-side">
+                <div class="gwb2-mini-card__chip legion-card__chip">
+                  <div class="gwb2-mini-card__chip-dot"></div>
+                  <span>{{
+                    legionMatch.isRegistered
+                      ? t("gameStatus.legionMatch.statusRegistered")
+                      : t("gameStatus.legionMatch.statusNotRegistered")
+                  }}</span>
+                </div>
+              </div>
             </div>
-            <div class="status-badge" :class="{ active: legionMatch.isRegistered }">
-              <div class="status-dot"></div>
-              <span>{{
-                legionMatch.isRegistered
-                  ? t("gameStatus.legionMatch.statusRegistered")
-                  : t("gameStatus.legionMatch.statusNotRegistered")
-              }}</span>
+
+            <div class="gwb2-mini-card__list legion-card__body">
+              <p class="description">
+                {{ t("gameStatus.legionMatch.descriptionLine1") }}<br>
+                {{ t("gameStatus.legionMatch.descriptionLine2") }}
+              </p>
             </div>
           </div>
-          <div class="card-content">
-            <p class="description">
-              {{ t("gameStatus.legionMatch.descriptionLine1") }}<br>
-              {{ t("gameStatus.legionMatch.descriptionLine2") }}
-            </p>
-            <button
-              class="action-button"
+          <div class="gwb2-mini-card__actions legion-card__actions">
+            <n-button
+              type="primary"
               :disabled="legionMatch.isRegistered"
               @click="registerLegionMatch"
             >
@@ -124,52 +134,66 @@
                   ? t("gameStatus.legionMatch.actionRegistered")
                   : t("gameStatus.legionMatch.actionRegister")
               }}
-            </button>
+            </n-button>
           </div>
         </div>
 
         <div
           v-if="ENABLE_LEGION_SIGNIN_CARD && activeSection === 'club'"
-          class="status-card legion-signin"
+          class="gwb2-mini-card legion-signin-card"
+          :class="{ 'gwb2-mini-card--active': legionSignin.isSignedIn }"
         >
-          <div class="card-header">
-            <img
-              class="status-icon"
-              src="/icons/1733492491706148.png"
-              :alt="t('gameStatus.legionSignin.iconAlt')"
-            >
-            <div class="status-info">
-              <h3>{{ t("gameStatus.legionSignin.title") }}</h3>
-              <p>{{ t("gameStatus.legionSignin.subtitle") }}</p>
+          <div class="gwb2-mini-card__surface">
+            <div class="gwb2-mini-card__toolbar">
+              <div class="gwb2-mini-card__toolbar-main">
+                <img
+                  class="status-icon"
+                  src="/icons/1733492491706148.png"
+                  :alt="t('gameStatus.legionSignin.iconAlt')"
+                >
+                <div class="status-info">
+                  <h3>{{ t("gameStatus.legionSignin.title") }}</h3>
+                  <p>{{ t("gameStatus.legionSignin.subtitle") }}</p>
+                </div>
+              </div>
+              <div class="gwb2-mini-card__toolbar-side">
+                <div class="gwb2-mini-card__chip legion-card__chip">
+                  <div class="gwb2-mini-card__chip-dot"></div>
+                  <span>{{
+                    legionSignin.isSignedIn
+                      ? t("gameStatus.legionSignin.statusSigned")
+                      : t("gameStatus.legionSignin.statusPending")
+                  }}</span>
+                </div>
+              </div>
             </div>
-            <div class="status-badge" :class="{ active: legionSignin.isSignedIn }">
-              <div class="status-dot"></div>
-              <span>{{
-                legionSignin.isSignedIn
-                  ? t("gameStatus.legionSignin.statusSigned")
-                  : t("gameStatus.legionSignin.statusPending")
-              }}</span>
+
+            <div
+              v-if="legionSignin.clubName"
+              class="gwb2-mini-card__metric legion-card__metric"
+            >
+              <span class="metric-label">{{ t("gameStatus.legionSignin.currentClub") }}</span>
+              <strong class="metric-value">{{ legionSignin.clubName }}</strong>
+            </div>
+            <div
+              v-else
+              class="gwb2-mini-card__empty legion-card__empty"
+            >
+              <p class="description">{{ t("gameStatus.legionSignin.noClub") }}</p>
             </div>
           </div>
-          <div class="card-content">
-            <p v-if="legionSignin.clubName" class="club-name">
-              {{ t("gameStatus.legionSignin.currentClub") }}<br>
-              <strong>{{ legionSignin.clubName }}</strong>
-            </p>
-            <p v-else class="description">{{ t("gameStatus.legionSignin.noClub") }}</p>
-            <div class="action-row">
-              <button
-                class="action-button"
-                :disabled="legionSignin.isSignedIn"
-                @click="signInLegion"
-              >
-                {{
-                  legionSignin.isSignedIn
-                    ? t("gameStatus.legionSignin.actionSigned")
-                    : t("gameStatus.legionSignin.actionSign")
-                }}
-              </button>
-            </div>
+          <div class="gwb2-mini-card__actions legion-card__actions">
+            <n-button
+              type="primary"
+              :disabled="legionSignin.isSignedIn"
+              @click="signInLegion"
+            >
+              {{
+                legionSignin.isSignedIn
+                  ? t("gameStatus.legionSignin.actionSigned")
+                  : t("gameStatus.legionSignin.actionSign")
+              }}
+            </n-button>
           </div>
         </div>
 
@@ -1002,78 +1026,35 @@ onUnmounted(() => {
   object-fit: contain;
 }
 
-.card-content {
-  .time-display {
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: var(--text-primary);
-    text-align: center;
-    margin-bottom: var(--spacing-md);
-    font-family:
-      "SF Mono", "Monaco", "Inconsolata", "Roboto Mono", "Consolas", monospace;
-    letter-spacing: 0.1em;
-    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
-    background: var(--bg-tertiary);
-    padding: 0.75rem 1rem;
-    border-radius: 0.5rem;
-    border: 1px solid var(--border-light);
-    box-shadow:
-      0 1px 3px rgba(0, 0, 0, 0.1),
-      0 1px 2px rgba(0, 0, 0, 0.06);
-    transition: all 0.2s ease-in-out;
-
-    &:hover {
-      transform: translateY(-1px);
-      box-shadow:
-        0 4px 6px rgba(0, 0, 0, 0.1),
-        0 2px 4px rgba(0, 0, 0, 0.06);
-    }
-  }
-
-  .description {
-    color: var(--text-secondary);
-    font-size: var(--font-size-sm);
-    line-height: 1.5;
-    margin-bottom: var(--spacing-lg);
-  }
-
-  .club-name {
-    color: var(--text-secondary);
-    font-size: var(--font-size-sm);
-    margin-bottom: var(--spacing-lg);
-
-    strong {
-      color: var(--text-primary);
-      font-weight: var(--font-weight-medium);
-    }
-  }
-
-  .tower-info {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: var(--spacing-lg);
-
-    .label {
-      color: var(--text-secondary);
-      font-size: var(--font-size-sm);
-    }
-
-    .tower-level {
-      font-size: var(--font-size-lg);
-      font-weight: var(--font-weight-bold);
-      color: var(--text-primary);
-    }
-  }
+.legion-card__body,
+.legion-card__empty {
+  min-height: 96px;
 }
 
-.action-row {
-  display: flex;
-  gap: var(--spacing-sm);
+.legion-card__body .description,
+.legion-card__empty .description {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: 1.6;
+}
 
-  .action-button {
-    flex: 1;
-  }
+.legion-card__metric {
+  align-items: stretch;
+}
+
+.legion-card__metric .metric-label {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.legion-card__metric .metric-value {
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  text-align: right;
 }
 
 .loading-text {
@@ -1128,22 +1109,12 @@ onUnmounted(() => {
     -webkit-overflow-scrolling: touch;
   }
 
-  .status-card {
-    padding: var(--spacing-md);
+  .legion-card__metric {
+    flex-direction: column;
   }
 
-  .card-header {
-    flex-wrap: wrap;
-    gap: var(--spacing-sm);
-
-    .status-info {
-      flex: 1;
-      min-width: 120px;
-    }
-
-    .status-badge {
-      margin-left: auto;
-    }
+  .legion-card__metric .metric-value {
+    text-align: left;
   }
 }
 </style>

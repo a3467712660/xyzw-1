@@ -88,13 +88,13 @@
             </div>
           </div>
 
-          <!-- 洗练孔位 -->
-          <div class="slots-section">
-            <h4>{{ t("refineHelperCard.labels.slotLock") }}</h4>
-            <div class="slots">
-              <div
-                v-for="slot in slots"
-                :key="slot.id"
+        <!-- 洗练孔位 -->
+        <div class="slots-section">
+          <h4>{{ t("refineHelperCard.labels.slotLock") }}</h4>
+          <div class="gwb2-mini-card__list slots">
+            <div
+              v-for="slot in slots"
+              :key="slot.id"
                 class="slot"
                 :class="{
                   locked: slot.isLocked,
@@ -113,13 +113,13 @@
                 <div v-else class="slot-empty">{{ t("refineHelperCard.states.notQuenched") }}</div>
               </div>
             </div>
-          </div>
+        </div>
 
-          <!-- 密码验证区域 -->
-          <div class="password-section">
-            <div v-if="!isPasswordValidated" class="password-info">
-              <span class="password-label">{{ t("refineHelperCard.labels.secondaryPassword") }}</span>
-              <n-input
+        <!-- 密码验证区域 -->
+        <div class="gwb2-mini-card__list password-section">
+          <div v-if="!isPasswordValidated" class="password-info">
+            <span class="password-label">{{ t("refineHelperCard.labels.secondaryPassword") }}</span>
+            <n-input
                 class="input-w-150"
                 size="small"
                 type="password"
@@ -1069,7 +1069,9 @@ const resetCount = () => {
 }
 
 .refine-container {
-  padding: var(--spacing-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
 }
 
 .toolbar {
@@ -1106,9 +1108,6 @@ h4 {
   gap: var(--spacing-sm);
   max-height: 220px;
   overflow-y: auto;
-  padding: var(--spacing-sm);
-  background: var(--bg-tertiary);
-  border-radius: var(--border-radius-medium);
 }
 
 .hero-item {
@@ -1116,35 +1115,37 @@ h4 {
   align-items: center;
   gap: var(--spacing-sm);
   padding: var(--spacing-sm);
-  background: var(--bg-primary);
-  border: 2px solid transparent;
-  border-radius: var(--border-radius-medium);
+  border: 1px solid rgba(78, 94, 116, 0.12);
+  border-radius: 12px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(214, 224, 234, 0.16)),
+    rgba(230, 237, 244, 0.5);
   cursor: pointer;
   font-size: var(--font-size-sm);
   transition: all 0.2s;
   color: var(--text-primary);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
   min-width: 140px;
   flex: 0 0 calc(25% - 8px);
   box-sizing: border-box;
 }
 
 .hero-item:hover {
-  border-color: var(--primary-color);
-  background: var(--primary-color-light);
+  border-color: rgba(78, 94, 116, 0.22);
 }
 
 .hero-item.active {
   border-color: var(--primary-color);
-  background: var(--primary-color-light);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(211, 224, 236, 0.16)),
+    rgba(224, 233, 241, 0.72);
   color: var(--primary-color);
 }
 
 .hero-avatar {
   width: 36px;
   height: 36px;
-  border-radius: 50%;
-  background: var(--bg-tertiary);
+  border-radius: 12px;
+  background: rgba(214, 223, 232, 0.52);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1197,27 +1198,25 @@ h4 {
 .equip-tabs {
   display: flex;
   gap: var(--spacing-sm);
-  margin-bottom: var(--spacing-md);
 }
 
 .equip-tab {
   flex: 1;
   padding: var(--spacing-sm) var(--spacing-md);
-  background: var(--bg-tertiary);
-  border: 2px solid transparent;
-  border-radius: var(--border-radius-medium);
+  border-radius: 10px;
   cursor: pointer;
   text-align: center;
   transition: all 0.2s;
 }
 
 .equip-tab:hover {
-  border-color: var(--border-light);
+  background: rgba(255, 255, 255, 0.26);
 }
 
 .equip-tab.active {
-  border-color: var(--primary-color);
-  background: var(--primary-color-light);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(214, 224, 234, 0.2)),
+    rgba(238, 243, 248, 0.94);
 }
 
 .tab-name {
@@ -1235,9 +1234,7 @@ h4 {
 .stats {
   display: flex;
   gap: var(--spacing-lg);
-  padding: var(--spacing-sm) var(--spacing-md);
-  background: var(--bg-tertiary);
-  border-radius: var(--border-radius-medium);
+  align-items: center;
   margin-bottom: var(--spacing-md);
 }
 
@@ -1269,54 +1266,65 @@ h4 {
 }
 
 .slot {
+  --slot-accent: rgba(78, 94, 116, 0.36);
   display: flex;
   align-items: center;
   gap: var(--spacing-sm);
   padding: var(--spacing-sm) var(--spacing-md);
-  background: var(--bg-tertiary);
-  border-radius: var(--border-radius-medium);
-  border-left: 4px solid var(--border-light);
+  border: 1px solid rgba(78, 94, 116, 0.14);
+  border-radius: 12px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(214, 224, 234, 0.14)),
+    rgba(230, 237, 244, 0.48);
   transition: all 0.2s;
 }
 
-.slot:hover {
-  background: var(--bg-secondary);
+.slot::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--slot-accent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--slot-accent) 16%, transparent);
+  flex-shrink: 0;
 }
 
 .slot.locked {
-  border-left-color: var(--primary-color);
-  background: var(--primary-color-light);
+  border-color: color-mix(in srgb, var(--slot-accent) 26%, rgba(78, 94, 116, 0.18));
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(214, 224, 234, 0.16)),
+    rgba(224, 233, 241, 0.68);
 }
 
 /* 孔位颜色样式 */
 .slot.color-1 {
-  background: rgba(255, 255, 255, 0.1);
-  border-left-color: #ffffff;
+  --slot-accent: #ffffff;
+  background: rgba(255, 255, 255, 0.12);
 }
 
 .slot.color-2 {
+  --slot-accent: #4caf50;
   background: rgba(76, 175, 80, 0.1);
-  border-left-color: #4caf50;
 }
 
 .slot.color-3 {
+  --slot-accent: #2196f3;
   background: rgba(33, 150, 243, 0.1);
-  border-left-color: #2196f3;
 }
 
 .slot.color-4 {
+  --slot-accent: #9c27b0;
   background: rgba(156, 39, 176, 0.1);
-  border-left-color: #9c27b0;
 }
 
 .slot.color-5 {
+  --slot-accent: #ff9800;
   background: rgba(255, 152, 0, 0.1);
-  border-left-color: #ff9800;
 }
 
 .slot.color-6 {
+  --slot-accent: #f44336;
   background: rgba(244, 67, 54, 0.1);
-  border-left-color: #f44336;
 }
 
 /* 锁定状态下的颜色样式 */
@@ -1387,9 +1395,9 @@ h4 {
 }
 
 .auto-section {
-  padding: var(--spacing-sm);
-  background: var(--bg-tertiary);
-  border-radius: var(--border-radius-medium);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
 }
 
 .auto-form {
@@ -1406,10 +1414,10 @@ h4 {
 
 .condition-item {
   padding: var(--spacing-sm);
-  background: rgba(0, 0, 0, 0.05);
-  border-radius: var(--border-radius-medium);
+  background: rgba(223, 231, 239, 0.36);
+  border-radius: 12px;
   margin-bottom: var(--spacing-sm);
-  border: 1px solid var(--border-light);
+  border: 1px solid rgba(78, 94, 116, 0.12);
 }
 
 /* 添加条件按钮样式 */
@@ -1422,16 +1430,12 @@ h4 {
 /* 延迟设置样式 */
 .delay-setting {
   padding-top: var(--spacing-sm);
-  border-top: 1px dashed var(--border-light);
+  border-top: 1px dashed rgba(78, 94, 116, 0.18);
 }
 
 /* 密码验证区域样式 */
 .password-section {
   margin-bottom: var(--spacing-md);
-  padding: var(--spacing-sm) var(--spacing-md);
-  background: rgba(0, 0, 0, 0.05);
-  border-radius: var(--border-radius-medium);
-  border: 1px solid var(--border-light);
 }
 
 .password-info,

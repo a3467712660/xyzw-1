@@ -169,9 +169,9 @@ const handleBoxHelper = async () => {
 
 <style scoped lang="scss">
 .container {
-  padding: 10px 0;
   display: flex;
   flex-direction: column;
+  gap: 12px;
 
   .list {
     display: flex;
@@ -210,27 +210,34 @@ const handleBoxHelper = async () => {
     display: flex;
     align-items: center;
     gap: 12px;
-    margin-top: 12px;
   }
 
   .total-points {
     display: flex;
     align-items: center;
-    justify-content: center;
-    gap: 2px;
-    padding: 2px;
-    background: var(--bg-tertiary);
-    border-radius: var(--border-radius-medium);
+    justify-content: space-between;
+    gap: 8px;
 
     .label {
       color: var(--text-secondary);
-      font-size: var(--font-size-sm);
+      font-size: var(--font-size-xs);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
     }
 
     .value {
       color: var(--text-primary);
       font-size: var(--font-size-md);
       font-weight: var(--font-weight-semibold);
+      font-family: var(--font-family-mono);
+    }
+  }
+
+  @media (max-width: 768px) {
+    .list,
+    .selects {
+      flex-direction: column;
+      align-items: stretch;
     }
   }
 }

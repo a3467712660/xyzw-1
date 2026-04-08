@@ -2,18 +2,23 @@
   <div class="gwb2-mini-card tower-status">
     <div class="gwb2-mini-card__surface">
       <div class="gwb2-mini-card__toolbar tower-status__toolbar">
-        <img
-          class="status-icon"
-          src="/icons/1733492491706148.png"
-          :alt="t('towerStatus.iconAlt')"
-        >
-        <div class="status-info">
-          <h3>{{ t("towerStatus.title") }}</h3>
-          <p>{{ t("towerStatus.subtitle") }}</p>
+        <div class="gwb2-mini-card__toolbar-main">
+          <img
+            class="status-icon"
+            src="/icons/1733492491706148.png"
+            :alt="t('towerStatus.iconAlt')"
+          >
+          <div class="status-info">
+            <h3>{{ t("towerStatus.title") }}</h3>
+            <p>{{ t("towerStatus.subtitle") }}</p>
+          </div>
         </div>
-        <div class="energy-display">
-          <img class="energy-icon" src="/icons/xiaoyugan.png" :alt="t('towerStatus.energyAlt')">
-          <span class="energy-count">{{ towerEnergy }}</span>
+        <div class="gwb2-mini-card__toolbar-side">
+          <div class="gwb2-mini-card__chip tower-energy-chip">
+            <img class="energy-icon" src="/icons/xiaoyugan.png" :alt="t('towerStatus.energyAlt')">
+            <span class="energy-label">{{ t("towerStatus.energyAlt") }}</span>
+            <span class="energy-count">{{ towerEnergy }}</span>
+          </div>
         </div>
       </div>
 
@@ -332,26 +337,25 @@ onMounted(() => {
   margin-bottom: var(--spacing-lg);
 }
 
-.energy-display {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-xs);
-  background: var(--bg-tertiary);
-  padding: var(--spacing-xs) var(--spacing-sm);
-  border-radius: var(--border-radius-medium);
-  margin-left: auto; // 使小鱼干展示靠右
+.tower-energy-chip {
+  gap: 8px;
 }
 
 .energy-icon {
-  width: 20px;
-  height: 20px;
+  width: 16px;
+  height: 16px;
   object-fit: contain;
 }
 
+.energy-label {
+  color: currentColor;
+  font-size: 12px;
+}
+
 .energy-count {
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-medium);
-  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 700;
+  color: currentColor;
 }
 
 .tower-floor {
@@ -421,10 +425,6 @@ onMounted(() => {
     flex-direction: column;
     gap: var(--spacing-sm);
     text-align: center;
-  }
-
-  .energy-display {
-    align-self: center;
   }
 }
 </style>

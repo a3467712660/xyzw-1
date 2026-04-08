@@ -2,18 +2,23 @@
   <div class="gwb2-mini-card tower-status weird-tower">
     <div class="gwb2-mini-card__surface">
       <div class="gwb2-mini-card__toolbar weird-tower__toolbar">
-        <img
-          class="status-icon"
-          src="/icons/1733492491706152.png"
-          :alt="t('weirdTowerStatus.iconAlt')"
-        >
-        <div class="status-info">
-          <h3>{{ t("weirdTowerStatus.title") }}</h3>
-          <p>{{ t("weirdTowerStatus.subtitle") }}</p>
+        <div class="gwb2-mini-card__toolbar-main">
+          <img
+            class="status-icon"
+            src="/icons/1733492491706152.png"
+            :alt="t('weirdTowerStatus.iconAlt')"
+          >
+          <div class="status-info">
+            <h3>{{ t("weirdTowerStatus.title") }}</h3>
+            <p>{{ t("weirdTowerStatus.subtitle") }}</p>
+          </div>
         </div>
-        <div class="energy-display">
-          <img class="energy-icon" src="/icons/xiaoyugan.png" :alt="t('weirdTowerStatus.energyAlt')">
-          <span class="energy-count">{{ towerEnergy }}</span>
+        <div class="gwb2-mini-card__toolbar-side">
+          <div class="gwb2-mini-card__chip tower-energy-chip">
+            <img class="energy-icon" src="/icons/xiaoyugan.png" :alt="t('weirdTowerStatus.energyAlt')">
+            <span class="energy-label">{{ t("weirdTowerStatus.energyAlt") }}</span>
+            <span class="energy-count">{{ towerEnergy }}</span>
+          </div>
         </div>
       </div>
 
@@ -38,7 +43,7 @@
 
       <n-button
         v-if="!isClimbing && !isUsingItems && !isMerging"
-        class="climb-button active"
+        class="climb-button"
         type="primary"
         @click="startUseItems"
       >
@@ -48,7 +53,7 @@
 
       <n-button
         v-if="!isClimbing && !isUsingItems && !isMerging"
-        class="climb-button active"
+        class="climb-button"
         type="primary"
         @click="autoMergeItems"
       >
@@ -752,26 +757,25 @@ onMounted(() => {
   margin-bottom: var(--spacing-lg);
 }
 
-.energy-display {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-xs);
-  background: var(--bg-tertiary);
-  padding: var(--spacing-xs) var(--spacing-sm);
-  border-radius: var(--border-radius-medium);
-  margin-left: auto; // 使小鱼干展示靠右
+.tower-energy-chip {
+  gap: 8px;
 }
 
 .energy-icon {
-  width: 20px;
-  height: 20px;
+  width: 16px;
+  height: 16px;
   object-fit: contain;
 }
 
+.energy-label {
+  color: currentColor;
+  font-size: 12px;
+}
+
 .energy-count {
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-medium);
-  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 700;
+  color: currentColor;
 }
 
 .tower-floor {
@@ -809,10 +813,6 @@ onMounted(() => {
     flex-direction: column;
     gap: var(--spacing-sm);
     text-align: center;
-  }
-
-  .energy-display {
-    align-self: center;
   }
 }
 </style>

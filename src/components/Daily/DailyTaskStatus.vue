@@ -2,27 +2,33 @@
   <div class="gwb2-mini-card daily-task">
     <div class="gwb2-mini-card__surface">
       <div class="gwb2-mini-card__toolbar daily-task__toolbar">
-        <img
-          alt="每日任务"
-          class="status-icon"
-          src="/icons/174023274867420.png"
-        >
-        <div class="status-info">
-          <h3>每日任务</h3>
-          <p>当前进度</p>
+        <div class="gwb2-mini-card__toolbar-main">
+          <img
+            alt="每日任务"
+            class="status-icon"
+            src="/icons/174023274867420.png"
+          >
+          <div class="status-info">
+            <h3>每日任务</h3>
+            <p>当前进度</p>
+          </div>
         </div>
-        <div class="header-right">
-          <div
-            class="gwb2-mini-card__chip"
+        <div class="gwb2-mini-card__toolbar-side header-right">
+          <button
+            class="gwb2-mini-card__chip detail-chip"
+            type="button"
             :class="{ completed: isFull }"
             @click="showTaskDetails = true"
           >
             <div class="gwb2-mini-card__chip-dot" :class="{ completed: isFull }"></div>
             <span>任务详情</span>
-          </div>
+          </button>
 
-          <button
+          <n-button
+            circle
+            quaternary
             class="settings-gear"
+            size="small"
             title="任务设置"
             @click="showSettings = true"
           >
@@ -37,50 +43,54 @@
               />
               <path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
-          </button>
+          </n-button>
         </div>
       </div>
 
-    <!-- 卡片内容区域（自适应填充高度，居中展示） -->
+      <!-- 卡片内容区域（自适应填充高度，居中展示） -->
       <div class="gwb2-mini-card__body daily-task__body">
-      <!-- 进度条 -->
-      <div class="gwb2-mini-card__metric progress-container">
-        <n-progress
-          rail-color="#f3f4f6"
-          type="line"
-          :border-radius="4"
-          :color="progressColor"
-          :height="8"
-          :percentage="dailyPoint"
-        ></n-progress>
+        <!-- 进度条 -->
+        <div class="gwb2-mini-card__metric progress-container">
+          <div class="progress-copy">
+            <span class="progress-label">当前完成率</span>
+            <strong class="progress-value">{{ dailyPoint }}%</strong>
+          </div>
+          <n-progress
+            rail-color="#f3f4f6"
+            type="line"
+            :border-radius="4"
+            :color="progressColor"
+            :height="8"
+            :percentage="dailyPoint"
+          ></n-progress>
+        </div>
+
+        <!-- 提示信息 -->
+        <div class="gwb2-mini-card__list info-container">右上角小齿轮有惊喜</div>
       </div>
 
-      <!-- 提示信息 -->
-      <div class="info-container">右上角小齿轮有惊喜</div>
-    </div>
-
-    <!-- 一键执行按钮 -->
-    <div class="gwb2-mini-card__actions daily-task__actions">
-      <n-button
-        block
-        class="action-button"
-        type="primary"
-        :disabled="busy || !isConnected"
-        @click="runDailyFix"
-      >
-        <span v-if="busy" class="loading-text">
-          <svg class="loading-icon" viewBox="0 0 24 24">
-            <path
-              d="M12 22c5.421 0 10-4.579 10-10h-2c0 4.337-3.663 8-8 8s-8-3.663-8-8c0-4.336 3.663-8 8-8V2C6.579 2 2 6.58 2 12c0 5.421 4.579 10 10 10z"
-              fill="currentColor"
-            />
-          </svg>
-          执行中...
-        </span>
-        <span v-else-if="!isConnected">WebSocket未连接</span>
-        <span v-else>一键补差</span>
-      </n-button>
-    </div>
+      <!-- 一键执行按钮 -->
+      <div class="gwb2-mini-card__actions daily-task__actions">
+        <n-button
+          block
+          class="daily-task__run-button"
+          type="primary"
+          :disabled="busy || !isConnected"
+          @click="runDailyFix"
+        >
+          <span v-if="busy" class="loading-text">
+            <svg class="loading-icon" viewBox="0 0 24 24">
+              <path
+                d="M12 22c5.421 0 10-4.579 10-10h-2c0 4.337-3.663 8-8 8s-8-3.663-8-8c0-4.336 3.663-8 8-8V2C6.579 2 2 6.58 2 12c0 5.421 4.579 10 10 10z"
+                fill="currentColor"
+              />
+            </svg>
+            执行中...
+          </span>
+          <span v-else-if="!isConnected">WebSocket未连接</span>
+          <span v-else>一键补差</span>
+        </n-button>
+      </div>
     </div>
 
     <!-- 任务设置模态框 -->
@@ -207,8 +217,10 @@
             <Calendar></Calendar>
           </n-icon>
           <span>每日任务详情</span>
-          <button
+          <n-button
+            quaternary
             class="refresh-button"
+            size="small"
             :disabled="busy"
             @click="handleRefreshTaskStatus"
           >
@@ -216,7 +228,7 @@
               <Refresh></Refresh>
             </n-icon>
             刷新状态
-          </button>
+          </n-button>
         </div>
       </template>
 
@@ -679,10 +691,34 @@ onBeforeUnmount(() => {
 }
 
 .progress-container {
-  margin-bottom: var(--spacing-md);
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.progress-copy {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+}
+
+.progress-label {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.progress-value {
+  color: var(--text-primary);
+  font-family: var(--font-family-mono);
+  font-size: 1rem;
+  font-weight: 700;
 }
 
 .info-container {
+  align-items: center;
+  justify-content: center;
   color: var(--text-secondary);
   font-size: var(--font-size-sm);
   text-align: center;
@@ -696,35 +732,31 @@ onBeforeUnmount(() => {
 }
 
 .header-right {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-sm);
-  margin-left: auto;
+  justify-content: flex-end;
+}
+
+.detail-chip {
+  cursor: pointer;
+  transition:
+    border-color var(--transition-fast),
+    background var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.detail-chip:hover {
+  border-color: rgba(78, 94, 116, 0.22);
+  color: var(--text-primary);
 }
 
 .settings-gear {
-  width: 28px;
-  height: 28px;
-  padding: var(--spacing-xs);
-  border: none;
-  border-radius: var(--border-radius-medium);
-  background: rgba(107, 114, 128, 0.1);
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: all var(--transition-fast);
   display: flex;
   align-items: center;
   justify-content: center;
+  flex: 0 0 auto;
 
   svg {
     width: 18px;
     height: 18px;
-  }
-
-  &:hover {
-    background: var(--primary-color);
-    color: white;
-    transform: rotate(90deg);
   }
 }
 
@@ -761,28 +793,7 @@ onBeforeUnmount(() => {
 }
 
 .refresh-button {
-  display: flex;
-  align-items: center;
   gap: var(--spacing-xs);
-  padding: var(--spacing-xs) var(--spacing-sm);
-  border: 1px solid var(--border-light);
-  border-radius: var(--border-radius-medium);
-  background: var(--bg-primary);
-  color: var(--text-secondary);
-  font-size: var(--font-size-sm);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-
-  &:hover:not(:disabled) {
-    background: var(--bg-tertiary);
-    border-color: var(--primary-color);
-    color: var(--primary-color);
-  }
-
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
 }
 
 .settings-content {
@@ -918,7 +929,6 @@ onBeforeUnmount(() => {
   .header-right {
     width: 100%;
     justify-content: space-between;
-    margin-top: var(--spacing-sm);
   }
 }
 </style>

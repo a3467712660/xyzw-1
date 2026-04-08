@@ -2,42 +2,48 @@
   <div class="gwb2-mini-card consumption-progress">
     <div class="gwb2-mini-card__surface">
       <div class="gwb2-mini-card__toolbar consumption-progress__toolbar">
-        <div class="header-left">
-          <span class="icon">📊</span>
-          <span class="title">消耗活动进度</span>
+        <div class="gwb2-mini-card__toolbar-main">
+          <div class="header-left">
+            <span class="icon">📊</span>
+            <span class="title">消耗活动进度</span>
+          </div>
+        </div>
+        <div class="gwb2-mini-card__toolbar-side">
+          <n-button
+            size="small"
+            type="primary"
+            @click="showCombosModal = true"
+          >
+            查看所有可行方案
+          </n-button>
         </div>
       </div>
 
-      <div class="gwb2-mini-card__metric item-header">
-        <div class="item-values">
-          <div class="current">
-            黄金道具数量:{{ ActivityGoldItem }}（还需: {{ remainingGoldNeeded }}）
-            获取率:{{ Math.floor((1 / goldRateUsed) * 1000) / 1000 }}
-          </div>
-          <div class="current">
-            普通道具已累计获取: {{ totalObtained }}(剩余:{{ ActivityItem }})
-          </div>
-          <div class="current">
-            还需普通道具(库存 {{ ActivityItem }} 已计入): {{ remainingOrdNeeded }}
-          </div>
-          <div class="current">
-            可行方案:
-            <n-button
-              size="small"
-              style="margin-left: 8px"
-              type="primary"
-              @click="showCombosModal = true"
-            >
-              查看所有可行方案
-            </n-button>
-          </div>
-          <div v-if="feasibleCombos.length === 0" class="current">
-            暂无可行组合或已满足目标
-          </div>
+      <div class="gwb2-mini-card__list summary-grid">
+        <div class="summary-cell">
+          <span class="summary-label">黄金道具数量</span>
+          <strong class="summary-value">{{ ActivityGoldItem }}</strong>
+          <span class="summary-meta">
+            还需 {{ remainingGoldNeeded }} / 获取率 {{ Math.floor((1 / goldRateUsed) * 1000) / 1000 }}
+          </span>
+        </div>
+        <div class="summary-cell">
+          <span class="summary-label">普通道具累计</span>
+          <strong class="summary-value">{{ totalObtained }}</strong>
+          <span class="summary-meta">库存剩余 {{ ActivityItem }}</span>
+        </div>
+        <div class="summary-cell">
+          <span class="summary-label">补齐缺口</span>
+          <strong class="summary-value">{{ remainingOrdNeeded }}</strong>
+          <span class="summary-meta">库存 {{ ActivityItem }} 已计入</span>
+        </div>
+        <div v-if="feasibleCombos.length === 0" class="summary-cell summary-cell--muted">
+          <span class="summary-label">方案状态</span>
+          <span class="summary-meta">暂无可行组合或已满足目标</span>
         </div>
       </div>
       <div class="gwb2-mini-card__toolbar setting-item">
-        <span class="label">使用数量:</span>
+        <span class="label">使用数量</span>
         <n-input-number
           size="small"
           v-model:value="Activitynumber"
@@ -87,27 +93,27 @@
           </div>
         </div>
       </div>
-    <!-- 显示可行方案 -->
+      <!-- 显示可行方案 -->
       <n-modal
+        class="consumption-progress__modal"
         preset="card"
-        style="width:min(900px,calc(100vw - 32px))"
         v-model:show="showCombosModal"
       >
         <template #header>
           <h3>所有可行组合（按总普通道具升序）</h3>
         </template>
         <div class="cp-modal-scroll">
-          <div v-if="feasibleCombos.length === 0">暂无可行组合或已满足目标</div>
-          <div v-else>
+          <div v-if="feasibleCombos.length === 0" class="combo-empty">暂无可行组合或已满足目标</div>
+          <div v-else class="combo-list">
             <div
               v-for="(combo, idx) in feasibleCombos"
               :key="idx"
-              style="margin-bottom: 12px"
+              class="combo-item"
             >
-              <div>
+              <div class="combo-title">
                 <strong>方案 {{ idx + 1 }} : {{ combo.totalOrd }}档</strong>
               </div>
-              <ol>
+              <ol class="combo-steps">
                 <li
                   v-for="step in combo.combo"
                   :key="`${step.id}-${step.threshold}`"
@@ -668,7 +674,6 @@ const feasibleCombos = computed(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: var(--spacing-md);
 
   .header-left {
     display: flex;
@@ -684,6 +689,42 @@ const feasibleCombos = computed(() => {
       color: var(--text-primary);
     }
   }
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.summary-cell {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.summary-cell--muted {
+  justify-content: center;
+}
+
+.summary-label {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.summary-value {
+  color: var(--text-primary);
+  font-family: var(--font-family-mono);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.summary-meta {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
 }
 
 .consumption-progress__body {
@@ -710,33 +751,32 @@ const feasibleCombos = computed(() => {
 .progress-item {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 8px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(78, 94, 116, 0.1);
 }
-.settings {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: var(--spacing-sm);
-  margin-bottom: var(--spacing-md);
+
+.progress-item:last-child {
+  padding-bottom: 0;
+  border-bottom: none;
 }
 .setting-item {
   display: flex;
   align-items: center;
   gap: var(--spacing-sm);
+  flex-wrap: wrap;
 
   .n-input-number {
     width: 80px;
   }
 
   .label {
-    color: var(--primary-color);
+    color: var(--text-tertiary);
     font-weight: 600;
-    font-size: var(--font-size-sm);
+    font-size: var(--font-size-xs);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
   }
-}
-.status-row {
-  display: flex;
-  gap: var(--spacing-lg);
 }
 
 .item-header {
@@ -787,6 +827,35 @@ const feasibleCombos = computed(() => {
   color: var(--primary-color);
   font-weight: 600;
 }
+
+.combo-empty {
+  color: var(--text-secondary);
+}
+
+.combo-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.combo-item {
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(78, 94, 116, 0.1);
+}
+
+.combo-item:last-child {
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.combo-title {
+  margin-bottom: 6px;
+}
+
+.combo-steps {
+  margin: 0;
+  padding-left: 18px;
+}
 /* 模态内部可滚动容器，确保在内容过多时显示滚动条且标题/底部可见 */
 .cp-modal-scroll {
   max-height: 60vh; /* 不超过视口高度 */
@@ -802,5 +871,16 @@ const feasibleCombos = computed(() => {
 }
 .cp-modal-scroll::-webkit-scrollbar-track {
   background: transparent;
+}
+
+@media (max-width: 768px) {
+  .summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .setting-item {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }
 </style>

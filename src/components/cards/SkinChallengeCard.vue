@@ -80,19 +80,18 @@
         </div>
       </div>
 
-      <div class="gwb2-mini-card__actions action-row">
-        <n-button
-          class="action-button secondary"
-          :disabled="isFighting"
-          @click="refreshInfo"
-        >
-          {{
-            isFighting
-              ? t("skinChallengeCard.actions.refreshing")
-              : t("skinChallengeCard.actions.refresh")
-          }}
-        </n-button>
-      </div>
+    </template>
+    <template #action>
+      <n-button
+        :disabled="isFighting"
+        @click="refreshInfo"
+      >
+        {{
+          isFighting
+            ? t("skinChallengeCard.actions.refreshing")
+            : t("skinChallengeCard.actions.refresh")
+        }}
+      </n-button>
     </template>
   </MyCard>
 </template>
@@ -375,64 +374,68 @@ watch(
   display: flex;
   gap: var(--spacing-md);
   font-size: var(--font-size-sm);
-  align-items: center;
-  margin-bottom: var(--spacing-md);
-  padding-bottom: var(--spacing-sm);
-  border-bottom: 1px solid var(--border-color);
+  align-items: stretch;
 }
 
 .challenge-count {
-  font-weight: bold;
-  color: var(--primary-color);
+  color: var(--text-primary);
+  font-weight: 700;
 }
 
 .daily-target {
   color: var(--text-secondary);
+  text-align: right;
 }
 
 .boss-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: var(--spacing-sm);
-  margin-bottom: var(--spacing-md);
 }
 
 .boss-card {
-  background: var(--bg-secondary);
-  border-radius: var(--border-radius-medium);
-  padding: var(--spacing-sm);
+  border: 1px solid rgba(78, 94, 116, 0.12);
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(214, 224, 234, 0.18)),
+    rgba(223, 231, 239, 0.62);
+  padding: 12px;
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
-  border: 1px solid transparent;
   transition: all var(--transition-fast);
 
   &.active {
-    background: #fff;
-    border-color: var(--primary-color);
-    box-shadow: var(--shadow-sm);
+    border-color: color-mix(in srgb, var(--primary-color) 28%, transparent);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.22),
+      0 0 0 1px rgba(78, 94, 116, 0.08);
   }
 
   &.cleared {
-    background: rgba(34, 197, 94, 0.05);
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(207, 227, 214, 0.16)),
+      rgba(224, 236, 228, 0.74);
     border-color: var(--success-color);
   }
 
   &.locked {
     opacity: 0.7;
-    background: var(--bg-tertiary);
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(209, 219, 229, 0.12)),
+      rgba(217, 225, 233, 0.5);
   }
 }
 
 .expired-mask {
   text-align: center;
   color: var(--error-color);
-  font-weight: bold;
-  padding: var(--spacing-sm);
-  background: rgba(239, 68, 68, 0.1);
-  border-radius: var(--border-radius-medium);
-  margin-bottom: var(--spacing-md);
+  font-weight: 700;
+  padding: 12px 14px;
+  border: 1px dashed color-mix(in srgb, var(--error-color) 30%, transparent);
+  border-radius: 14px;
+  background: rgba(239, 68, 68, 0.08);
 }
 
 .boss-grid.disabled {
@@ -441,15 +444,15 @@ watch(
 }
 
 .boss-title {
-  font-weight: bold;
-  color: var(--primary-color);
-  font-size: var(--font-size-md);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
   margin-bottom: 4px;
 }
 
 .boss-level {
-  font-size: var(--font-size-lg);
-  font-weight: bold;
+  font-size: var(--font-size-md);
+  font-weight: 700;
   margin-bottom: 8px;
 }
 
@@ -478,17 +481,15 @@ watch(
   width: 100%;
 }
 
-.action-row {
-  margin-top: auto;
-  display: flex;
-  justify-content: flex-start;
-}
-
-.action-button {
-  width: 100%;
-}
-
 @media (max-width: 640px) {
+  .header-info {
+    flex-direction: column;
+  }
+
+  .daily-target {
+    text-align: left;
+  }
+
   .boss-grid {
     grid-template-columns: repeat(2, 1fr);
   }
