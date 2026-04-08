@@ -1,5 +1,8 @@
 <template>
-  <div class="gwb2-mini-card team-formation-card">
+  <div
+    class="gwb2-mini-card team-formation-card"
+    :data-panel-active="panelActive ? 'true' : 'false'"
+  >
     <div class="gwb2-mini-card__surface">
       <div class="gwb2-mini-card__toolbar team-formation-card__toolbar">
         <div class="gwb2-mini-card__toolbar-main">
@@ -66,10 +69,9 @@
 
         <div class="gwb2-mini-card__list heroes-container">
           <div v-if="!loading" class="heroes-formation">
-            <!-- 前排 2个 -->
             <div class="formation-row front-row">
               <div
-                v-for="hero in currentTeamHeroes.slice(0, 2)"
+                v-for="hero in frontHeroes"
                 :key="hero.id || hero.name"
                 class="hero-item"
               >
@@ -88,10 +90,9 @@
               </div>
             </div>
 
-            <!-- 后排 3个 -->
             <div class="formation-row back-row">
               <div
-                v-for="hero in currentTeamHeroes.slice(2)"
+                v-for="hero in backHeroes"
                 :key="hero.id || hero.name"
                 class="hero-item"
               >
@@ -111,7 +112,7 @@
             </div>
           </div>
 
-          <div v-if="!loading && !currentTeamHeroes.length" class="gwb2-mini-card__empty empty-team">
+          <div v-if="!loading && !hasCurrentTeamHeroes" class="gwb2-mini-card__empty empty-team">
             <p>暂无队伍信息</p>
           </div>
           <div v-if="loading" class="gwb2-mini-card__empty empty-team">
@@ -124,18 +125,30 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, toRef, watch } from "vue";
+import { useGameCardPanelActive } from "@/composables/gameCards/useGameCardPanelActive";
 import { useTokenStore } from "@/stores/tokenStore";
 import { useMessage } from "naive-ui/es";
 import { HERO_DICT } from "@/utils/HeroList.js";
 
+const props = withDefaults(defineProps<{
+  panelActive?: boolean;
+}>(), {
+  panelActive: true,
+});
+
 const tokenStore = useTokenStore();
 const message = useMessage();
+const { panelActive } = useGameCardPanelActive(toRef(props, "panelActive"));
 
 const loading = ref(false);
 const switching = ref(false);
 const currentTeam = ref(1);
 const availableTeams = ref<number[]>([1, 2, 3, 4, 5, 6]);
+const frontHeroes = ref<any[]>([]);
+const backHeroes = ref<any[]>([]);
+const pendingTeamRefresh = ref(false);
+let connectRefreshHandle: ReturnType<typeof setTimeout> | null = null;
 
 const wsStatus = computed(() => {
   if (!tokenStore.selectedToken)
@@ -198,15 +211,11 @@ function normalizePresetTeam(raw: any) {
   return { useTeamId: Number(useTeamId) || 1, teams };
 }
 
-const presetTeam = computed(() => normalizePresetTeam(presetTeamRaw.value));
-
-const currentTeamHeroes = computed(() => {
-  const team = (presetTeam.value.teams as any)[currentTeam.value]?.teamInfo;
-  console.log("🚀 ~ team:", team);
-  if (!team)
+const buildTeamHeroes = (teamInfo: Record<string, any> | undefined | null) => {
+  if (!teamInfo)
     return [] as any[];
   const heroes: any[] = [];
-  for (const [pos, hero] of Object.entries(team)) {
+  for (const [pos, hero] of Object.entries(teamInfo)) {
     const hid = (hero as any)?.heroId ?? (hero as any)?.id;
     if (!hid)
       continue;
@@ -225,9 +234,13 @@ const currentTeamHeroes = computed(() => {
     });
   }
   heroes.sort((a, b) => a.position - b.position);
-  console.log("🚀 ~ heroes:", heroes);
   return heroes;
-});
+};
+
+const normalizedPresetTeam = ref(normalizePresetTeam(null));
+const hasCurrentTeamHeroes = computed(() =>
+  frontHeroes.value.length + backHeroes.value.length > 0,
+);
 
 const executeGameCommand = async (
   tokenId: string | number,
@@ -273,27 +286,38 @@ const getTeamInfoWithCache = async (force = false) => {
       state.gameData = { ...(state.gameData ?? {}), presetTeam: result };
     });
     return result?.presetTeamInfo ?? null;
-  } catch (e) {
-    console.error("获取阵容信息失败:", e);
+  } catch {
     return null;
   } finally {
     loading.value = false;
   }
 };
 
-const updateAvailableTeams = () => {
-  const ids = Object.keys(presetTeam.value.teams)
+const syncTeamRows = () => {
+  const teamInfo = normalizedPresetTeam.value.teams[currentTeam.value]?.teamInfo;
+  const heroes = buildTeamHeroes(teamInfo);
+  frontHeroes.value = heroes.slice(0, 2);
+  backHeroes.value = heroes.slice(2);
+};
+
+const applyPresetTeamState = (raw: any = presetTeamRaw.value) => {
+  normalizedPresetTeam.value = normalizePresetTeam(raw);
+  const ids = Object.keys(normalizedPresetTeam.value.teams)
     .map(Number)
     .filter((n) => !Number.isNaN(n))
     .sort((a, b) => a - b);
   availableTeams.value = ids.length ? ids : [1, 2, 3, 4, 5, 6];
-};
-const updateCurrentTeam = () => {
-  currentTeam.value = (presetTeam.value as any).useTeamId || 1;
+  const nextTeam = normalizedPresetTeam.value.useTeamId || availableTeams.value[0] || 1;
+  if (!availableTeams.value.includes(currentTeam.value) || !switching.value) {
+    currentTeam.value = nextTeam;
+  }
+  syncTeamRows();
 };
 
 const selectTeam = async (teamId: number) => {
   if (switching.value || loading.value)
+    return;
+  if (teamId === currentTeam.value)
     return;
   if (!tokenStore.selectedToken) {
     message.warning("请先选择Token");
@@ -319,20 +343,26 @@ const selectTeam = async (teamId: number) => {
 };
 
 const refreshTeamData = async (force = false) => {
-  await getTeamInfoWithCache(force);
+  const result = await getTeamInfoWithCache(force);
+  if (panelActive.value) {
+    applyPresetTeamState(result);
+    pendingTeamRefresh.value = false;
+    return;
+  }
+  pendingTeamRefresh.value = true;
 };
 
 onMounted(async () => {
   if (tokenStore.selectedToken && wsStatus.value === "connected") {
     await refreshTeamData(false);
-    updateAvailableTeams();
-    updateCurrentTeam();
     if (!presetTeamRaw.value) {
       await refreshTeamData(true);
-      updateAvailableTeams();
-      updateCurrentTeam();
     }
   }
+});
+
+watch(currentTeam, () => {
+  syncTeamRows();
 });
 
 watch(wsStatus, (newStatus, oldStatus) => {
@@ -341,14 +371,17 @@ watch(wsStatus, (newStatus, oldStatus) => {
     && oldStatus !== "connected"
     && tokenStore.selectedToken
   ) {
-    setTimeout(async () => {
+    if (connectRefreshHandle) {
+      clearTimeout(connectRefreshHandle);
+    }
+    connectRefreshHandle = setTimeout(async () => {
+      if (!panelActive.value) {
+        pendingTeamRefresh.value = true;
+        return;
+      }
       await refreshTeamData(false);
-      updateAvailableTeams();
-      updateCurrentTeam();
       if (!presetTeamRaw.value) {
         await refreshTeamData(true);
-        updateAvailableTeams();
-        updateCurrentTeam();
       }
     }, 1000);
   }
@@ -361,21 +394,44 @@ watch(
       const status = tokenStore.getWebSocketStatus(newToken.id);
       if (status === "connected") {
         await refreshTeamData(true);
-        updateAvailableTeams();
-        updateCurrentTeam();
       }
     }
   },
 );
 
 watch(
-  () => presetTeamRaw.value,
+  presetTeamRaw,
   () => {
-    updateAvailableTeams();
-    updateCurrentTeam();
+    if (!panelActive.value) {
+      pendingTeamRefresh.value = true;
+      return;
+    }
+    applyPresetTeamState();
   },
-  { deep: true },
+  { immediate: true },
 );
+
+watch(
+  panelActive,
+  async (active) => {
+    if (!active || !pendingTeamRefresh.value) {
+      return;
+    }
+    await refreshTeamData(false);
+    if (pendingTeamRefresh.value) {
+      applyPresetTeamState();
+      pendingTeamRefresh.value = false;
+    }
+  },
+  { immediate: true },
+);
+
+onBeforeUnmount(() => {
+  if (connectRefreshHandle) {
+    clearTimeout(connectRefreshHandle);
+    connectRefreshHandle = null;
+  }
+});
 </script>
 
 <style scoped lang="scss">
@@ -535,10 +591,10 @@ watch(
   font-size: var(--font-size-sm);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 959px) {
   .refresh-button {
-    min-height: 40px;
-    padding: 0 14px;
+    min-height: 36px;
+    padding: 0 12px;
   }
 
   .team-formation-card__toolbar {
@@ -550,35 +606,44 @@ watch(
 
   .team-selector {
     width: 100%;
+    gap: 6px;
   }
 
   .heroes-container {
-    padding: var(--spacing-sm);
+    padding: var(--spacing-xs);
   }
 
   .heroes-formation {
-    gap: var(--spacing-sm);
+    gap: var(--spacing-xs);
   }
 
   .formation-row {
-    gap: var(--spacing-sm);
+    gap: 8px;
   }
 
   .hero-item {
-    min-width: 45px;
+    min-width: 52px;
+    gap: 2px;
   }
 
   .hero-circle {
-    width: 40px;
-    height: 40px;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
   }
 
   .hero-name {
     font-size: 10px;
     min-width: 0;
-    max-width: 60px;
+    max-width: 52px;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  .team-segment {
+    min-width: 34px;
+    min-height: 32px;
+    padding: 0 8px;
   }
 }
 </style>

@@ -1,5 +1,8 @@
 <template>
-  <div class="gwb2-mini-card tower-status">
+  <div
+    class="gwb2-mini-card tower-status"
+    :data-panel-active="panelActive ? 'true' : 'false'"
+  >
     <div class="gwb2-mini-card__surface">
       <div class="gwb2-mini-card__toolbar tower-status__toolbar">
         <div class="gwb2-mini-card__toolbar-main">
@@ -22,48 +25,79 @@
         </div>
       </div>
 
-      <div class="gwb2-mini-card__metric tower-floor">
-        <span class="label">{{ t("towerStatus.labels.currentFloor") }}</span>
-        <span class="floor-number">{{ currentFloor }}</span>
+      <div class="gwb2-mini-card__body tower-status__body">
+        <div class="gwb2-mini-card__metric-grid">
+          <div class="gwb2-mini-card__metric tower-floor">
+            <span class="label">{{ t("towerStatus.labels.currentFloor") }}</span>
+            <span class="floor-number">{{ currentFloor }}</span>
+          </div>
+          <div class="gwb2-mini-card__metric tower-runtime">
+            <span class="label">当前状态</span>
+            <span class="runtime-value">{{ runtime.statusText }}</span>
+          </div>
+        </div>
+
+        <div class="gwb2-mini-card__list tower-runtime-list">
+          <div class="runtime-row">
+            <span class="runtime-label">执行阶段</span>
+            <strong class="runtime-meta">{{ isClimbing ? t("towerStatus.actions.climbing") : "待命" }}</strong>
+          </div>
+          <div class="runtime-row">
+            <span class="runtime-label">已发挑战</span>
+            <strong class="runtime-meta">{{ runtime.progressCount }}</strong>
+          </div>
+        </div>
       </div>
     </div>
 
     <div class="gwb2-mini-card__actions tower-status__actions">
-      <n-button
-        class="climb-button"
-        type="primary"
-        :disabled="!canClimb"
-        @click="startTowerClimb"
-      >
-        {{ isClimbing.value ? t("towerStatus.actions.climbing") : t("towerStatus.actions.start") }}
-      </n-button>
-
-      <!-- 停止批量爬塔按钮，仅批量时显示 -->
-      <n-button secondary class="stop-button" type="warning" @click="stopClimbing">{{ t("towerStatus.actions.stop") }}</n-button>
-      <!-- 调试用的重置按钮，只在开发环境显示 -->
-      <n-button v-if="false" secondary class="reset-button" @click="resetClimbingState">
-        {{ t("towerStatus.actions.reset") }}
-      </n-button>
+      <div class="gwb2-mini-card__action-rail">
+        <n-button
+          class="climb-button"
+          type="primary"
+          :disabled="!canClimb"
+          @click="startTowerClimb"
+        >
+          {{ isClimbing ? t("towerStatus.actions.climbing") : t("towerStatus.actions.start") }}
+        </n-button>
+        <n-button
+          secondary
+          class="stop-button"
+          type="warning"
+          :disabled="!isClimbing"
+          @click="stopClimbing"
+        >
+          {{ t("towerStatus.actions.stop") }}
+        </n-button>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
-// 停止批量爬塔操作
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, reactive, ref, toRef, watch } from "vue";
+import { useGameCardPanelActive } from "@/composables/gameCards/useGameCardPanelActive";
 import { useTokenStore } from "@/stores/tokenStore";
 import { useMessage } from "naive-ui/es";
 import { useI18n } from "vue-i18n";
 
-let stopFlag = false;
+const props = defineProps({
+  panelActive: {
+    type: Boolean,
+    default: true,
+  },
+});
+
+const { panelActive } = useGameCardPanelActive(toRef(props, "panelActive"));
+const stopFlag = ref(false);
+const pendingTowerInfoRefresh = ref(false);
+let connectRefreshHandle = null;
 
 const stopClimbing = () => {
-  stopFlag = true;
-  if (climbTimeout.value) {
-    clearTimeout(climbTimeout.value);
-    climbTimeout.value = null;
-  }
-  isClimbing.value = false;
+  stopFlag.value = true;
+  clearClimbTimeout();
+  runtime.phase = "idle";
+  runtime.statusText = t("towerStatus.messages.manuallyStopped");
   message.info(t("towerStatus.messages.manuallyStopped"));
 };
 
@@ -71,12 +105,14 @@ const tokenStore = useTokenStore();
 const message = useMessage();
 const { t } = useI18n();
 
-// 响应式数据
-const isClimbing = ref(false);
-const climbTimeout = ref(null); // 用于超时重置状态
-const lastClimbResult = ref(null); // 最后一次爬塔结果
+const runtime = reactive({
+  phase: "idle",
+  progressCount: 0,
+  statusText: t("towerStatus.subtitle"),
+});
+const climbTimeout = ref(null);
+const isClimbing = computed(() => runtime.phase === "climb");
 
-// 计算属性 - 从gameData中获取塔相关信息
 const roleInfo = computed(() => {
   const data = tokenStore.gameData?.roleInfo || null;
   return data;
@@ -112,7 +148,25 @@ const canClimb = computed(() => {
   return hasEnergy && notClimbing;
 });
 
-// 方法
+const clearClimbTimeout = () => {
+  if (climbTimeout.value) {
+    clearTimeout(climbTimeout.value);
+    climbTimeout.value = null;
+  }
+};
+
+const scheduleTowerInfoRefresh = async ({ forceUi = false } = {}) => {
+  if (!tokenStore.selectedToken) {
+    return;
+  }
+  if (!panelActive.value && !isClimbing.value && !forceUi) {
+    pendingTowerInfoRefresh.value = true;
+    return;
+  }
+  pendingTowerInfoRefresh.value = false;
+  await getTowerInfo();
+};
+
 const startTowerClimb = async () => {
   if (!tokenStore.selectedToken) {
     message.warning(t("towerStatus.messages.selectTokenFirst"));
@@ -124,35 +178,31 @@ const startTowerClimb = async () => {
     return;
   }
 
-  // 清除之前的超时
-  if (climbTimeout.value) {
-    clearTimeout(climbTimeout.value);
-    climbTimeout.value = null;
-  }
-
-  isClimbing.value = true;
-  stopFlag = false;
+  clearClimbTimeout();
+  runtime.phase = "climb";
+  runtime.progressCount = 0;
+  runtime.statusText = "准备挑战中";
+  stopFlag.value = false;
   let climbCount = 0;
-  const maxClimb = 100; // 最多批量次数，防止死循环
-  // 设置超时保护，60秒后自动重置状态
+  const maxClimb = 100;
   climbTimeout.value = setTimeout(() => {
-    isClimbing.value = false;
-    climbTimeout.value = null;
-    stopFlag = true;
+    runtime.phase = "idle";
+    runtime.statusText = t("towerStatus.messages.autoStoppedByTimeout");
+    stopFlag.value = true;
     message.info(t("towerStatus.messages.autoStoppedByTimeout"));
   }, 60000);
 
   try {
     const tokenId = tokenStore.selectedToken.id;
     for (let i = 0; i < maxClimb; i++) {
-      if (stopFlag)
+      if (stopFlag.value)
         break;
       await getTowerInfo();
-      // 体力判断必须每次都刷新
       const tower = roleInfo.value?.role?.tower;
       const energy = tower?.energy || 0;
       if (energy <= 0)
         break;
+      runtime.statusText = `正在执行第 ${climbCount + 1} 次挑战`;
       await tokenStore.sendMessageWithPromise(
         tokenId,
         "fight_starttower",
@@ -160,34 +210,27 @@ const startTowerClimb = async () => {
         10000,
       );
       climbCount++;
-      message.success(t("towerStatus.messages.climbCommandSent", { count: climbCount }));
-      await new Promise((res) => setTimeout(res, 2000)); // 每次间隔2秒
+      runtime.progressCount = climbCount;
+      runtime.statusText = `已发送 ${climbCount} 次挑战`;
+      await new Promise((res) => setTimeout(res, 2000));
     }
-    message.success(t("towerStatus.messages.climbCompleted", { count: climbCount }));
+    if (!stopFlag.value) {
+      runtime.statusText = t("towerStatus.messages.climbCompleted", { count: climbCount });
+      message.success(t("towerStatus.messages.climbCompleted", { count: climbCount }));
+    }
   } catch (error) {
+    runtime.statusText = t("towerStatus.messages.climbFailed", {
+      error: error.message || t("towerStatus.common.unknownError"),
+    });
     message.error(
       t("towerStatus.messages.climbFailed", {
         error: error.message || t("towerStatus.common.unknownError"),
       }),
     );
+  } finally {
+    clearClimbTimeout();
+    runtime.phase = "idle";
   }
-
-  // 清除超时并重置状态
-  if (climbTimeout.value) {
-    clearTimeout(climbTimeout.value);
-    climbTimeout.value = null;
-  }
-  isClimbing.value = false;
-};
-
-// 重置爬塔状态的方法
-const resetClimbingState = () => {
-  if (climbTimeout.value) {
-    clearTimeout(climbTimeout.value);
-    climbTimeout.value = null;
-  }
-  isClimbing.value = false;
-  message.info(t("towerStatus.messages.stateReset"));
 };
 
 const getTowerInfo = async () => {
@@ -197,101 +240,70 @@ const getTowerInfo = async () => {
 
   try {
     const tokenId = tokenStore.selectedToken.id;
-    // 检查WebSocket连接状态
     const wsStatus = tokenStore.getWebSocketStatus(tokenId);
 
     if (wsStatus !== "connected") {
       return;
     }
-    // 首先获取角色信息，这包含了塔的数据
-    const roleResult = tokenStore.sendMessage(tokenId, "role_getroleinfo");
-    // 直接请求塔信息
-    const towerResult = tokenStore.sendMessage(tokenId, "tower_getinfo");
-    if (!roleResult && !towerResult) {
-    }
-  } catch (error) {
-    // 获取塔信息失败：静默，避免噪声
-  }
+    tokenStore.sendMessage(tokenId, "role_getroleinfo");
+    tokenStore.sendMessage(tokenId, "tower_getinfo");
+  } catch {}
 };
 
-// 监听WebSocket连接状态变化
 const wsStatus = computed(() => {
   if (!tokenStore.selectedToken)
     return "disconnected";
   return tokenStore.getWebSocketStatus(tokenStore.selectedToken.id);
 });
 
-// 监听WebSocket连接状态，连接成功后自动获取塔信息
 watch(wsStatus, (newStatus, oldStatus) => {
   if (newStatus === "connected" && oldStatus !== "connected") {
-    // 延迟一点时间让WebSocket完全就绪
-    setTimeout(() => {
-      getTowerInfo();
+    if (connectRefreshHandle) {
+      clearTimeout(connectRefreshHandle);
+    }
+    connectRefreshHandle = setTimeout(() => {
+      scheduleTowerInfoRefresh();
     }, 1000);
   }
 });
 
-// 监听选中Token变化
 watch(
   () => tokenStore.selectedToken,
   (newToken, oldToken) => {
     if (newToken && newToken.id !== oldToken?.id) {
-      // 检查WebSocket是否已连接
       const status = tokenStore.getWebSocketStatus(newToken.id);
       if (status === "connected") {
-        getTowerInfo();
+        scheduleTowerInfoRefresh();
       }
     }
   },
 );
 
-// 监听爬塔结果
 watch(
-  () => tokenStore.gameData.towerResult,
-  (newResult, oldResult) => {
-    if (newResult && newResult.timestamp !== oldResult?.timestamp) {
-      // 显示爬塔结果消息
-      if (newResult.success) {
-        message.success(t("towerStatus.messages.challengeSuccess"));
-
-        if (newResult.autoReward) {
-          setTimeout(() => {
-            message.success(
-              t("towerStatus.messages.autoRewardClaimed", {
-                floor: newResult.rewardFloor,
-              }),
-            );
-          }, 1000);
-        }
-      } else {
-        message.error(t("towerStatus.messages.challengeFailed"));
-      }
-
-      // 重置爬塔状态（仅在未批量时重置）
-      if (!stopFlag) {
-        setTimeout(() => {
-          if (climbTimeout.value) {
-            clearTimeout(climbTimeout.value);
-            climbTimeout.value = null;
-          }
-          isClimbing.value = false;
-        }, 2000);
-      }
+  panelActive,
+  (active) => {
+    if (active && pendingTowerInfoRefresh.value) {
+      scheduleTowerInfoRefresh({ forceUi: true });
     }
   },
-  { deep: true },
+  { immediate: true },
 );
 
-// 生命周期
 onMounted(() => {
-  // 检查WebSocket客户端
-  if (tokenStore.selectedToken) {
-    const client = tokenStore.getWebSocketClient(tokenStore.selectedToken.id);
-  }
-
-  // 组件挂载时获取塔信息
   if (tokenStore.selectedToken && wsStatus.value === "connected") {
-    getTowerInfo();
+    scheduleTowerInfoRefresh();
+  } else if (!panelActive.value) {
+    pendingTowerInfoRefresh.value = true;
+  }
+});
+
+onBeforeUnmount(() => {
+  if (connectRefreshHandle) {
+    clearTimeout(connectRefreshHandle);
+    connectRefreshHandle = null;
+  }
+  if (!isClimbing.value) {
+    clearClimbTimeout();
   }
 });
 </script>
@@ -320,7 +332,7 @@ onMounted(() => {
 .tower-status {
   display: flex;
   flex-direction: column;
-  min-height: 240px; // 继续缩小整体高度
+  min-height: 240px;
 }
 
 .status-icon {
@@ -358,11 +370,15 @@ onMounted(() => {
   color: currentColor;
 }
 
-.tower-floor {
+.tower-status__body {
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.tower-floor,
+.tower-runtime {
   align-items: center;
-  padding: var(--spacing-lg);
 
   .label {
     font-size: var(--font-size-sm);
@@ -377,54 +393,46 @@ onMounted(() => {
   }
 }
 
-.tower-status__actions {
-  display: flex;
-  flex-direction: column;
+.tower-runtime {
+  justify-content: space-between;
+}
+
+.runtime-value,
+.runtime-meta {
+  color: var(--text-primary);
+  font-weight: var(--font-weight-semibold);
+}
+
+.tower-runtime-list {
   gap: var(--spacing-sm);
+}
+
+.runtime-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+}
+
+.runtime-label {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
 }
 
 .climb-button {
   width: 100%;
 }
 
-.reset-button {
-  width: 100%;
-  padding: var(--spacing-xs) var(--spacing-sm);
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-medium);
-  border: 1px solid var(--warning-color);
-  border-radius: var(--border-radius-small);
-  background: transparent;
-  color: var(--warning-color);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-
-  &:hover {
-    background: var(--warning-color);
-    color: white;
-  }
-}
-
-.debug-info {
-  margin-top: var(--spacing-sm);
-  padding: var(--spacing-xs);
-  background: var(--bg-tertiary);
-  border-radius: var(--border-radius-small);
-  font-family: monospace;
-  word-break: break-all;
-
-  small {
-    color: var(--text-secondary);
-    font-size: 10px;
-  }
-}
-
-// 响应式设计
-@media (max-width: 768px) {
+@media (max-width: 959px) {
   .tower-status__toolbar {
     flex-direction: column;
     gap: var(--spacing-sm);
     text-align: center;
+  }
+
+  .runtime-row {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }
 </style>

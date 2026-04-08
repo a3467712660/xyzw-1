@@ -1,5 +1,9 @@
 <template>
-  <MyCard class="skin-challenge" :status-class="statusClass">
+  <MyCard
+    class="skin-challenge"
+    :panel-active="panelActive"
+    :status-class="statusClass"
+  >
     <template #icon>
       <img
         src="/icons/1733492491706152.png"
@@ -11,111 +15,150 @@
       <p>{{ t("skinChallengeCard.subtitle") }}</p>
     </template>
     <template #badge>
-      <!-- Badge content moved to default slot -->
+      <span>{{ headerBadgeText }}</span>
     </template>
     <template #default>
-      <div class="gwb2-mini-card__metric header-info">
-        <span class="challenge-count">
-          {{ t("skinChallengeCard.todayChallenge", { count: dailyFightNum }) }}
-        </span>
-        <span
-          v-if="isActivityValid"
-          class="daily-target"
-        >
-          {{ t("skinChallengeCard.todayAvailable", { info: todayInfo }) }}
-        </span>
-        <span v-else class="daily-target">
-          {{ t("skinChallengeCard.activityEnded") }}
-        </span>
-      </div>
-
-      <div v-if="!isActivityValid" class="expired-mask">
-        {{ t("skinChallengeCard.currentActivityEnded") }}
-      </div>
-      <div class="gwb2-mini-card__list boss-grid" :class="{ disabled: !isActivityValid }">
-        <div
-          v-for="type in 6"
-          :key="type"
-          class="boss-card"
-          :class="{
-            active: isTowerOpen(type),
-            cleared: isTowerCleared(type),
-            locked: !isTowerOpen(type),
-          }"
-        >
-          <div class="boss-title">
-            {{ t("skinChallengeCard.bossTitle", { type }) }}
-          </div>
-          <div class="boss-level">
-            {{ t("skinChallengeCard.level", { level: getTowerLevel(type) }) }}
-          </div>
-
-          <div class="boss-status">
-            <span
-              v-if="isTowerCleared(type)"
-              class="status-text cleared"
-            >
-              {{ t("skinChallengeCard.status.cleared") }}
-            </span>
-            <span
-              v-else-if="!isTowerOpen(type)"
-              class="status-text locked"
-            >
-              {{ t("skinChallengeCard.status.locked") }}
-            </span>
-            <span v-else class="status-text active">
-              {{ t("skinChallengeCard.status.active") }}
-            </span>
-          </div>
-
-          <n-button
-            class="challenge-btn"
-            size="small"
-            type="primary"
-            :disabled="!canChallenge(type) || isFighting"
-            @click="challengeSingle(type)"
+      <div class="gwb2-mini-card__stack">
+        <div class="gwb2-mini-card__metric header-info">
+          <span class="challenge-count">
+            {{ t("skinChallengeCard.todayChallenge", { count: dailyFightNum }) }}
+          </span>
+          <span
+            v-if="isActivityValid"
+            class="daily-target"
           >
-            {{ t("skinChallengeCard.actions.challenge") }}
-          </n-button>
+            {{ t("skinChallengeCard.todayAvailable", { info: todayInfo }) }}
+          </span>
+          <span v-else class="daily-target">
+            {{ t("skinChallengeCard.activityEnded") }}
+          </span>
+        </div>
+
+        <div v-if="!isActivityValid" class="expired-mask">
+          {{ t("skinChallengeCard.currentActivityEnded") }}
+        </div>
+
+        <div class="gwb2-mini-card__resource-grid boss-grid" :class="{ disabled: !isActivityValid }">
+          <div
+            v-for="boss in bossCards"
+            :key="boss.type"
+            class="boss-card"
+            :class="{
+              active: boss.open,
+              busy: activeChallengeType === boss.type,
+              cleared: boss.cleared,
+              locked: !boss.open,
+            }"
+          >
+            <div class="boss-title">
+              {{ boss.title }}
+            </div>
+            <div class="boss-level">
+              {{ t("skinChallengeCard.level", { level: boss.level }) }}
+            </div>
+
+            <div class="boss-status">
+              <span
+                v-if="boss.cleared"
+                class="status-text cleared"
+              >
+                {{ t("skinChallengeCard.status.cleared") }}
+              </span>
+              <span
+                v-else-if="!boss.open"
+                class="status-text locked"
+              >
+                {{ t("skinChallengeCard.status.locked") }}
+              </span>
+              <span v-else-if="activeChallengeType === boss.type" class="status-text busy">
+                {{ t("skinChallengeCard.actions.challenge") }}
+              </span>
+              <span v-else class="status-text active">
+                {{ t("skinChallengeCard.status.active") }}
+              </span>
+            </div>
+
+            <n-button
+              class="challenge-btn"
+              size="small"
+              type="primary"
+              :disabled="!boss.canChallenge || isRefreshing || activeChallengeType !== null"
+              @click="challengeSingle(boss.type)"
+            >
+              {{
+                activeChallengeType === boss.type
+                  ? t("skinChallengeCard.actions.refreshing")
+                  : t("skinChallengeCard.actions.challenge")
+              }}
+            </n-button>
+          </div>
         </div>
       </div>
-
     </template>
     <template #action>
-      <n-button
-        :disabled="isFighting"
-        @click="refreshInfo"
-      >
-        {{
-          isFighting
-            ? t("skinChallengeCard.actions.refreshing")
-            : t("skinChallengeCard.actions.refresh")
-        }}
-      </n-button>
+      <div class="gwb2-mini-card__action-rail gwb2-mini-card__action-rail--single">
+        <n-button
+          :disabled="isRefreshing || activeChallengeType !== null"
+          @click="refreshInfo"
+        >
+          {{
+            isRefreshing
+              ? t("skinChallengeCard.actions.refreshing")
+              : t("skinChallengeCard.actions.refresh")
+          }}
+        </n-button>
+      </div>
     </template>
   </MyCard>
 </template>
 
 <script setup>
-import { computed, ref, watch } from "vue";
-import { useTokenStore } from "@/stores/tokenStore";
+import { computed, onBeforeUnmount, ref, toRef, watch } from "vue";
 import { useMessage } from "naive-ui/es";
 import { useI18n } from "vue-i18n";
+import { useGameCardPanelActive } from "@/composables/gameCards/useGameCardPanelActive";
+import { useTokenStore } from "@/stores/tokenStore";
 import MyCard from "../Common/MyCard.vue";
+
+const props = defineProps({
+  panelActive: {
+    type: Boolean,
+    default: true,
+  },
+});
 
 const tokenStore = useTokenStore();
 const message = useMessage();
 const { t } = useI18n();
+const { panelActive } = useGameCardPanelActive(toRef(props, "panelActive"));
 
-const isFighting = ref(false);
+const isRefreshing = ref(false);
+const activeChallengeType = ref(null);
+const pendingRefresh = ref(false);
 const actId = ref(null);
+const levelRewardMap = ref({});
+const dailyFightNum = ref(0);
+let infoRefreshHandle = null;
+
+const selectedTokenId = computed(() =>
+  tokenStore.selectedToken ? String(tokenStore.selectedToken.id) : "",
+);
+
+const wsStatus = computed(() => {
+  if (!selectedTokenId.value) {
+    return "disconnected";
+  }
+  return tokenStore.getWebSocketStatus(selectedTokenId.value);
+});
+
 const isActivityValid = computed(() => {
-  if (!actId.value) return false;
+  if (!actId.value)
+    return false;
 
   const idStr = String(actId.value);
-  if (idStr.length < 6) return false;
+  if (idStr.length < 6)
+    return false;
 
-  // Format: YYMMDDX -> 20YY-MM-DD
   const year = `20${idStr.substring(0, 2)}`;
   const month = idStr.substring(2, 4);
   const day = idStr.substring(4, 6);
@@ -128,30 +171,35 @@ const isActivityValid = computed(() => {
   return now >= startDate && now < endDate;
 });
 
-const levelRewardMap = ref({});
-const dailyFightNum = ref(0); // Mock or real data
 const finishedCount = computed(() => Object.keys(levelRewardMap.value).length);
 
 const statusClass = computed(() => {
-  if (finishedCount.value >= 48) return "completed";
+  if (finishedCount.value >= 48)
+    return "completed";
   return "active";
 });
 
-// Calculate today's open boss
-const todayWeekDay = new Date().getDay(); // 0-6 (Sun-Sat)
+const headerBadgeText = computed(() => {
+  if (isRefreshing.value)
+    return t("skinChallengeCard.actions.refreshing");
+  if (activeChallengeType.value != null) {
+    return t("skinChallengeCard.bossTitle", { type: activeChallengeType.value });
+  }
+  return t("skinChallengeCard.todayChallenge", { count: dailyFightNum.value });
+});
+
+const todayWeekDay = new Date().getDay();
 const openTowerMap = {
-  5: [1], // Friday
-  6: [2], // Saturday
-  0: [3], // Sunday
-  1: [4], // Monday
-  2: [5], // Tuesday
-  3: [6], // Wednesday
-  4: [1, 2, 3, 4, 5, 6], // Thursday (All open)
+  5: [1],
+  6: [2],
+  0: [3],
+  1: [4],
+  2: [5],
+  3: [6],
+  4: [1, 2, 3, 4, 5, 6],
 };
 
-const todayOpenTowers = computed(() => {
-  return openTowerMap[todayWeekDay] || [];
-});
+const todayOpenTowers = computed(() => openTowerMap[todayWeekDay] || []);
 
 const todayInfo = computed(() => {
   const weekDays = [
@@ -177,12 +225,9 @@ const todayInfo = computed(() => {
   return t("skinChallengeCard.schedule.noActivity", { day: dayName });
 });
 
-const isTowerOpen = (type) => {
-  return (
-    todayOpenTowers.value.includes(type) ||
-    (todayOpenTowers.value.includes(6) && todayWeekDay === 4)
-  ); // Special case for Thursday if map is correct
-};
+const isTowerOpen = (type) =>
+  todayOpenTowers.value.includes(type)
+  || (todayOpenTowers.value.includes(6) && todayWeekDay === 4);
 
 const isTowerCleared = (type) => {
   const key1 = `${type}008`;
@@ -191,77 +236,104 @@ const isTowerCleared = (type) => {
 };
 
 const getTowerLevel = (type) => {
-  // Find highest cleared level
-  for (let i = 8; i >= 1; i--) {
+  for (let i = 8; i >= 1; i -= 1) {
     const key1 = `${type}00${i}`;
     const key2 = Number(key1);
     if (levelRewardMap.value[key1] || levelRewardMap.value[key2]) {
-      // If 8 is cleared, return 8
-      if (i === 8) return 8;
-      // Else return next level
-      return i + 1;
+      return i === 8 ? 8 : i + 1;
     }
   }
   return 1;
 };
 
-const canChallenge = (type) => {
-  return isActivityValid.value && isTowerOpen(type) && !isTowerCleared(type);
+const bossCards = computed(() =>
+  Array.from({ length: 6 }, (_, index) => {
+    const type = index + 1;
+    const open = isTowerOpen(type);
+    const cleared = isTowerCleared(type);
+    return {
+      canChallenge: isActivityValid.value && open && !cleared,
+      cleared,
+      level: getTowerLevel(type),
+      open,
+      title: t("skinChallengeCard.bossTitle", { type }),
+      type,
+    };
+  }),
+);
+
+const clearInfoRefreshHandle = () => {
+  if (infoRefreshHandle) {
+    clearTimeout(infoRefreshHandle);
+    infoRefreshHandle = null;
+  }
 };
 
 const getInfo = async () => {
-  if (!tokenStore.selectedToken) return;
-  const tokenId = tokenStore.selectedToken.id;
-  if (tokenStore.getWebSocketStatus(tokenId) !== "connected") return;
+  if (!selectedTokenId.value || wsStatus.value !== "connected")
+    return;
 
   try {
     const res = await tokenStore.sendMessageWithPromise(
-      tokenId,
+      selectedTokenId.value,
       "towers_getinfo",
       {},
       5000,
     );
     if (res) {
-      // Handle nested data structure if necessary
       const data = res.actId
         ? res
         : res.towerData && res.towerData.actId
           ? res.towerData
           : res;
 
-      actId.value = data.actId;
+      actId.value = data.actId || null;
       levelRewardMap.value = data.levelRewardMap || {};
-
-      console.log("SkinChallenge Info:", {
-        actId: data.actId,
-        mapSize: Object.keys(levelRewardMap.value).length,
-        keys: Object.keys(levelRewardMap.value).slice(0, 10),
-        map: levelRewardMap.value,
-        rawRes: res,
-      });
-
-      // Try to find daily num if exists in response
-      if (data.todayUseTickCnt !== undefined) {
-        dailyFightNum.value = data.todayUseTickCnt;
-      }
+      dailyFightNum.value = Number(data.todayUseTickCnt || 0);
     }
-  } catch {
-    // console.error(e);
+  } catch {}
+};
+
+const scheduleInfoRefresh = ({ delay = 0, forceUi = false } = {}) => {
+  clearInfoRefreshHandle();
+  if (!selectedTokenId.value || wsStatus.value !== "connected")
+    return;
+  if (!panelActive.value && activeChallengeType.value == null && !isRefreshing.value && !forceUi) {
+    pendingRefresh.value = true;
+    return;
   }
+  pendingRefresh.value = false;
+
+  const run = async () => {
+    infoRefreshHandle = null;
+    await getInfo();
+  };
+
+  if (delay > 0) {
+    infoRefreshHandle = setTimeout(() => {
+      void run();
+    }, delay);
+    return;
+  }
+
+  void run();
 };
 
 const refreshInfo = async () => {
-  isFighting.value = true;
-  await getInfo();
-  message.success(t("skinChallengeCard.messages.progressRefreshed"));
-  isFighting.value = false;
+  isRefreshing.value = true;
+  try {
+    await getInfo();
+    message.success(t("skinChallengeCard.messages.progressRefreshed"));
+  } finally {
+    isRefreshing.value = false;
+  }
 };
 
 const challengeSingle = async (type) => {
-  if (isFighting.value) return;
+  if (activeChallengeType.value != null || isRefreshing.value || !selectedTokenId.value)
+    return;
 
-  isFighting.value = true;
-  const tokenId = tokenStore.selectedToken.id;
+  activeChallengeType.value = type;
 
   try {
     message.info(t("skinChallengeCard.messages.challengeStarted", { type }));
@@ -273,7 +345,7 @@ const challengeSingle = async (type) => {
     while (loop) {
       if (needStart) {
         await tokenStore.sendMessageWithPromise(
-          tokenId,
+          selectedTokenId.value,
           "towers_start",
           { towerType: type },
           5000,
@@ -281,7 +353,7 @@ const challengeSingle = async (type) => {
       }
 
       const fightRes = await tokenStore.sendMessageWithPromise(
-        tokenId,
+        selectedTokenId.value,
         "towers_fight",
         { towerType: type },
         5000,
@@ -290,7 +362,6 @@ const challengeSingle = async (type) => {
       const curHP = battleData?.result?.accept?.ext?.curHP;
 
       if (curHP === 0) {
-        // Get current level before updating info (it will be the level just cleared)
         const currentLevel = getTowerLevel(type);
         message.success(
           t("skinChallengeCard.messages.challengeSuccess", {
@@ -299,11 +370,9 @@ const challengeSingle = async (type) => {
           }),
         );
 
-        // 挑战成功，不需要重新 start，直接继续 fight
         needStart = false;
         failCount = 0;
 
-        // 检查是否通关（需要更新 levelRewardMap）
         await getInfo();
         if (isTowerCleared(type)) {
           loop = false;
@@ -311,7 +380,6 @@ const challengeSingle = async (type) => {
             t("skinChallengeCard.messages.bossFullyCleared", { type }),
           );
         } else {
-          // 等待一下避免过快请求
           await new Promise((r) => setTimeout(r, 1000));
         }
       } else {
@@ -322,9 +390,8 @@ const challengeSingle = async (type) => {
             level: currentLevel,
           }),
         );
-        // 挑战失败，需要重新 start
         needStart = true;
-        failCount++;
+        failCount += 1;
 
         if (failCount >= 3) {
           message.error(
@@ -344,29 +411,44 @@ const challengeSingle = async (type) => {
       t("skinChallengeCard.messages.challengeError", { message: e.message }),
     );
   } finally {
-    isFighting.value = false;
+    activeChallengeType.value = null;
     await getInfo();
   }
 };
 
 watch(
-  () => tokenStore.selectedToken,
-  (newVal) => {
-    if (newVal) {
-      setTimeout(getInfo, 1000);
+  [selectedTokenId, wsStatus],
+  ([tokenId, status], [prevTokenId, prevStatus]) => {
+    const tokenChanged = tokenId !== prevTokenId;
+    const connectionRestored = status === "connected" && prevStatus !== "connected";
+
+    if (tokenChanged) {
+      actId.value = null;
+      levelRewardMap.value = {};
+      dailyFightNum.value = 0;
+      pendingRefresh.value = Boolean(tokenId);
+    }
+
+    if (tokenId && status === "connected" && (tokenChanged || connectionRestored)) {
+      scheduleInfoRefresh({ delay: tokenChanged ? 1000 : 0 });
     }
   },
   { immediate: true },
 );
 
 watch(
-  () => tokenStore.getWebSocketStatus(tokenStore.selectedToken?.id),
-  (status) => {
-    if (status === "connected") {
-      getInfo();
+  panelActive,
+  (active) => {
+    if (active && pendingRefresh.value) {
+      scheduleInfoRefresh({ forceUi: true });
     }
   },
+  { immediate: true },
 );
+
+onBeforeUnmount(() => {
+  clearInfoRefreshHandle();
+});
 </script>
 
 <style scoped lang="scss">
@@ -389,7 +471,7 @@ watch(
 
 .boss-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--spacing-sm);
 }
 
@@ -401,16 +483,28 @@ watch(
     rgba(223, 231, 239, 0.62);
   padding: 12px;
   display: flex;
+  min-width: 0;
   flex-direction: column;
   align-items: center;
   text-align: center;
-  transition: all var(--transition-fast);
+  transition:
+    border-color var(--transition-fast),
+    background var(--transition-fast),
+    box-shadow var(--transition-fast),
+    opacity var(--transition-fast);
 
   &.active {
     border-color: color-mix(in srgb, var(--primary-color) 28%, transparent);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.22),
       0 0 0 1px rgba(78, 94, 116, 0.08);
+  }
+
+  &.busy {
+    border-color: color-mix(in srgb, var(--primary-color) 38%, transparent);
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.2), rgba(214, 224, 234, 0.2)),
+      rgba(230, 237, 244, 0.82);
   }
 
   &.cleared {
@@ -448,6 +542,7 @@ watch(
   font-size: var(--font-size-sm);
   font-weight: 700;
   margin-bottom: 4px;
+  overflow-wrap: anywhere;
 }
 
 .boss-level {
@@ -472,8 +567,12 @@ watch(
     color: var(--text-tertiary);
   }
 
+  &.busy {
+    color: var(--primary-color);
+  }
+
   &.active {
-    display: none; // Hide "进行中" text if button is there, or show it?
+    display: none;
   }
 }
 
@@ -481,7 +580,7 @@ watch(
   width: 100%;
 }
 
-@media (max-width: 640px) {
+@media (max-width: 959px) {
   .header-info {
     flex-direction: column;
   }
@@ -491,7 +590,13 @@ watch(
   }
 
   .boss-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .boss-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 </style>

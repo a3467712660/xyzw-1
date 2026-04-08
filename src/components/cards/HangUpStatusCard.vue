@@ -1,5 +1,9 @@
 <template>
-  <MyCard class="hang-up" :status-class="{ active: hangUp.isActive }">
+  <MyCard
+    class="hang-up"
+    :panel-active="panelActive"
+    :status-class="{ active: hangUp.isActive }"
+  >
     <template #icon>
       <img alt="挂机图标" src="/icons/174061875626614.png">
     </template>
@@ -10,62 +14,67 @@
       <span>{{ hangUp.isActive ? "挂机中" : "已完成" }}</span>
     </template>
     <template #default>
-      <div class="gwb2-mini-card__metric hang-up__metric">
-        <div class="metric-block">
+      <div class="gwb2-mini-card__metric-grid hang-up__metrics">
+        <div class="gwb2-mini-card__metric hang-up__metric">
           <span class="metric-label">已挂机</span>
           <strong class="metric-value">{{ formatTime(hangUp.elapsedTime) }}</strong>
         </div>
-        <div class="metric-block">
+        <div class="gwb2-mini-card__metric hang-up__metric">
           <span class="metric-label">剩余时间</span>
           <strong class="metric-value time-display">{{ formatTime(hangUp.remainingTime) }}</strong>
         </div>
       </div>
     </template>
     <template #action>
-      <n-button
-        size="small"
-        :disabled="hangUp.isExtending"
-        @click="extendHangUp"
-      >
-        <span v-if="hangUp.isExtending" class="loading-text">
-          <i class="line-md:loading-loop"></i> 加钟中...
-        </span>
-        <span v-else>加钟</span>
-      </n-button>
-      <n-button
-        size="small"
-        type="primary"
-        :disabled="hangUp.isClaiming"
-        @click="claimHangUpReward"
-      >
-        <span v-if="hangUp.isClaiming" class="loading-text">
-          <i class="line-md:loading-loop"></i> 领取中...
-        </span>
-        <span v-else>领取奖励</span>
-      </n-button>
+      <div class="gwb2-mini-card__action-rail">
+        <n-button
+          size="small"
+          :disabled="isExtending"
+          @click="extendHangUp"
+        >
+          <span v-if="isExtending" class="loading-text">
+            <i class="line-md:loading-loop"></i> 加钟中...
+          </span>
+          <span v-else>加钟</span>
+        </n-button>
+        <n-button
+          size="small"
+          type="primary"
+          :disabled="isClaiming"
+          @click="claimHangUpReward"
+        >
+          <span v-if="isClaiming" class="loading-text">
+            <i class="line-md:loading-loop"></i> 领取中...
+          </span>
+          <span v-else>领取奖励</span>
+        </n-button>
+      </div>
     </template>
   </MyCard>
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, ref, toRef } from "vue";
 import { useMessage } from "naive-ui/es";
+import { useGameCardPanelActive } from "@/composables/gameCards/useGameCardPanelActive";
+import { useGameCardTicker } from "@/composables/gameCards/useGameCardTicker";
 import { useTokenStore } from "@/stores/tokenStore";
 import MyCard from "../Common/MyCard.vue";
 
+const props = defineProps({
+  panelActive: {
+    type: Boolean,
+    default: true,
+  },
+});
+
 const tokenStore = useTokenStore();
 const message = useMessage();
+const { panelActive } = useGameCardPanelActive(toRef(props, "panelActive"));
+const { now } = useGameCardTicker({ panelActive });
 const roleInfo = computed(() => tokenStore.gameData?.roleInfo || null);
-
-const hangUp = ref({
-  isActive: false,
-  remainingTime: 0,
-  elapsedTime: 0,
-  lastTime: 0,
-  hangUpTime: 0,
-  isExtending: false,
-  isClaiming: false,
-});
+const isExtending = ref(false);
+const isClaiming = ref(false);
 
 const formatTime = (seconds) => {
   const total = Math.floor(Number(seconds) || 0);
@@ -81,42 +90,34 @@ const formatTime = (seconds) => {
   return `${h}:${m}:${s}`;
 };
 
-const syncFromRole = () => {
-  const role = roleInfo.value?.role;
-  if (!role?.hangUp)
-    return;
-  const now = Date.now() / 1000;
-  hangUp.value.lastTime = role.hangUp.lastTime;
-  hangUp.value.hangUpTime = role.hangUp.hangUpTime;
-  const elapsed = now - hangUp.value.lastTime;
-  if (elapsed <= hangUp.value.hangUpTime) {
-    hangUp.value.remainingTime = Math.floor(hangUp.value.hangUpTime - elapsed);
-    hangUp.value.isActive = true;
-  } else {
-    hangUp.value.remainingTime = 0;
-    hangUp.value.isActive = false;
+const hangUp = computed(() => {
+  const hangUpInfo = roleInfo.value?.role?.hangUp;
+  if (!hangUpInfo) {
+    return {
+      elapsedTime: 0,
+      hangUpTime: 0,
+      isActive: false,
+      lastTime: 0,
+      remainingTime: 0,
+    };
   }
-  hangUp.value.elapsedTime = Math.floor(
-    hangUp.value.hangUpTime - hangUp.value.remainingTime,
-  );
-};
 
-watch(roleInfo, () => syncFromRole(), { deep: true, immediate: true });
+  const currentNow = now.value / 1000;
+  const lastTime = Number(hangUpInfo.lastTime || 0);
+  const hangUpTime = Number(hangUpInfo.hangUpTime || 0);
+  const elapsed = currentNow - lastTime;
+  const remainingTime
+    = elapsed <= hangUpTime
+      ? Math.floor(hangUpTime - elapsed)
+      : 0;
 
-let timer = null;
-onMounted(() => {
-  timer = setInterval(() => {
-    if (hangUp.value.isActive && hangUp.value.remainingTime > 0) {
-      hangUp.value.remainingTime = Math.max(0, hangUp.value.remainingTime - 1);
-      hangUp.value.elapsedTime = hangUp.value.elapsedTime + 1;
-      if (hangUp.value.remainingTime <= 0)
-        hangUp.value.isActive = false;
-    }
-  }, 1000);
-});
-onUnmounted(() => {
-  if (timer)
-    clearInterval(timer);
+  return {
+    elapsedTime: Math.floor(hangUpTime - remainingTime),
+    hangUpTime,
+    isActive: remainingTime > 0,
+    lastTime,
+    remainingTime,
+  };
 });
 
 const extendHangUp = async () => {
@@ -124,7 +125,7 @@ const extendHangUp = async () => {
     return message.warning("请先选择Token");
   const tokenId = tokenStore.selectedToken.id;
   try {
-    hangUp.value.isExtending = true;
+    isExtending.value = true;
     message.info("正在加钟...");
     const tasks = [];
     for (let i = 0; i < 4; i++) {
@@ -144,11 +145,11 @@ const extendHangUp = async () => {
     setTimeout(() => tokenStore.sendMessage(tokenId, "role_getroleinfo"), 1500);
     setTimeout(() => {
       message.success("加钟操作已完成，请查看挂机剩余时间");
-      hangUp.value.isExtending = false;
+      isExtending.value = false;
     }, 2500);
   } catch (e) {
     message.error(`加钟操作失败: ${e?.message || "未知错误"}`);
-    hangUp.value.isExtending = false;
+    isExtending.value = false;
   }
 };
 
@@ -157,7 +158,7 @@ const claimHangUpReward = async () => {
     return message.warning("请先选择Token");
   const tokenId = tokenStore.selectedToken.id;
   try {
-    hangUp.value.isClaiming = true;
+    isClaiming.value = true;
     message.info("正在领取挂机奖励...");
     tokenStore.sendMessage(tokenId, "system_mysharecallback");
     setTimeout(
@@ -175,26 +176,22 @@ const claimHangUpReward = async () => {
     setTimeout(() => tokenStore.sendMessage(tokenId, "role_getroleinfo"), 600);
     setTimeout(() => {
       message.success("挂机奖励领取完成");
-      hangUp.value.isClaiming = false;
+      isClaiming.value = false;
     }, 1200);
   } catch (e) {
     message.error(`领取挂机奖励失败: ${e?.message || "未知错误"}`);
-    hangUp.value.isClaiming = false;
+    isClaiming.value = false;
   }
 };
 </script>
 
 <style scoped lang="scss">
-.hang-up__metric {
+.hang-up__metrics {
   align-items: stretch;
 }
 
-.metric-block {
-  display: flex;
-  min-width: 0;
-  flex: 1 1 0;
-  flex-direction: column;
-  gap: 4px;
+.hang-up__metric {
+  align-items: stretch;
 }
 
 .metric-label {
@@ -211,9 +208,9 @@ const claimHangUpReward = async () => {
   font-weight: 700;
 }
 
-@media (max-width: 768px) {
-  .hang-up__metric {
-    flex-direction: column;
+@media (max-width: 959px) {
+  .hang-up__metrics {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 </style>

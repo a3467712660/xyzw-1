@@ -1,5 +1,9 @@
 <template>
-  <MyCard class="star-upgrade" :status-class="{ active: state.isRunning }">
+  <MyCard
+    class="hero-upgrade-card"
+    :panel-active="panelActive"
+    :status-class="{ active: isRunning }"
+  >
     <template #icon>
       <img src="/icons/legionCup.png" :alt="t('heroUpgradeCard.iconAlt')">
     </template>
@@ -8,15 +12,14 @@
       <p>{{ t("heroUpgradeCard.subtitle") }}</p>
     </template>
     <template #badge>
-      <span>{{ state.isRunning ? t("heroUpgradeCard.status.running") : t("heroUpgradeCard.status.stopped") }}</span>
+      <span>{{ isRunning ? t("heroUpgradeCard.status.running") : t("heroUpgradeCard.status.stopped") }}</span>
     </template>
     <template #default>
-      <div class="gwb2-mini-card__toolbar settings">
+      <div class="gwb2-mini-card__control-grid settings">
         <span class="label">{{ t("heroUpgradeCard.labels.heroSelect") }}</span>
         <n-select
           v-model:value="HeroValue"
           :options="HeroOptions"
-          @update:value="handleUpdateValue"
         ></n-select>
       </div>
       <div v-if="HeroItem != null" class="gwb2-mini-card__metric hero-summary">
@@ -34,81 +37,138 @@
           </div>
         </div>
       </div>
-      <div v-if="HeroItem != null" class="gwb2-mini-card__toolbar upgrade-settings">
+      <div v-if="HeroItem != null" class="gwb2-mini-card__control-grid upgrade-settings">
         <span class="label">{{ t("heroUpgradeCard.labels.levelUpgrade") }}</span>
         <n-select
           v-model:value="levelNum"
           :options="levelOptions"
         ></n-select>
       </div>
+      <div v-if="HeroItem != null" class="gwb2-mini-card__metric-grid hero-runtime-grid">
+        <div class="gwb2-mini-card__metric hero-runtime-card">
+          <span class="metric-label">当前阶段</span>
+          <strong class="metric-value">{{ runtimePhaseText }}</strong>
+        </div>
+        <div class="gwb2-mini-card__metric hero-runtime-card">
+          <span class="metric-label">最近结果</span>
+          <strong class="metric-value">{{ runtime.recentResult }}</strong>
+        </div>
+        <div class="gwb2-mini-card__metric hero-runtime-card hero-runtime-card--wait">
+          <span class="metric-label">重试等待</span>
+          <strong class="metric-value">{{ runtimeWaitText }}</strong>
+        </div>
+      </div>
       <div v-else class="gwb2-mini-card__empty hero-empty">
         {{ t("heroUpgradeCard.labels.heroSelect") }}
       </div>
     </template>
     <template #action>
-      <n-button
-        v-if="HeroItem != null"
-        size="small"
-        type="primary"
-        :disabled="state.isRunning"
-        @click="levelHeroUpgrade"
-      >
-        {{ t("heroUpgradeCard.actions.levelUpgrade") }}
-      </n-button>
-      <n-button
-        v-if="HeroItem != null"
-        size="small"
-        type="primary"
-        :disabled="
-          state.isRunning
-            || judgeLevelupgrade(HeroItem.level, 1, HeroItem.order) == false
-        "
-        @click="orderHeroUpgrade"
-      >
-        {{ t("heroUpgradeCard.actions.orderUpgrade") }}
-      </n-button>
+      <div v-if="HeroItem != null" class="gwb2-mini-card__action-rail">
+        <n-button
+          size="small"
+          type="primary"
+          :disabled="isRunning"
+          @click="levelHeroUpgrade"
+        >
+          {{ t("heroUpgradeCard.actions.levelUpgrade") }}
+        </n-button>
+        <n-button
+          size="small"
+          type="primary"
+          :disabled="
+            isRunning
+              || judgeLevelupgrade(HeroItem.level, 1, HeroItem.order) == false
+          "
+          @click="orderHeroUpgrade"
+        >
+          {{ t("heroUpgradeCard.actions.orderUpgrade") }}
+        </n-button>
+      </div>
     </template>
   </MyCard>
 </template>
 
 <script setup>
-import { computed, ref, watch } from "vue";
+import { computed, reactive, ref } from "vue";
 import { useMessage } from "naive-ui/es";
 import { useI18n } from "vue-i18n";
+import { useGameCardActionLock } from "@/composables/gameCards/useGameCardActionLock";
 import { useTokenStore } from "@/stores/tokenStore";
 import MyCard from "../Common/MyCard.vue";
 import { HERO_DICT } from "@/utils/HeroList";
 
+defineProps({
+  panelActive: {
+    type: Boolean,
+    default: true,
+  },
+});
+
 const tokenStore = useTokenStore();
 const message = useMessage();
 const { t } = useI18n();
+const { isRunning, runLocked } = useGameCardActionLock();
+const runtime = reactive({
+  phase: "idle",
+  recentResult: "待命",
+  waitSeconds: 0,
+});
+
+const roleHeroes = computed(() => tokenStore.gameData?.roleInfo?.role?.heroes || {});
 
 const HeroOptions = computed(() => [
-  ...Object.values(tokenStore.gameData.roleInfo.role.heroes).map((item) => {
+  ...Object.values(roleHeroes.value).map((item) => {
+    const heroMeta = HERO_DICT[item.heroId] || {};
     return {
-      label: `${HERO_DICT[item.heroId].name}(${item.level}/6000)`,
+      label: `${heroMeta.name || item.heroId}(${item.level}/6000)`,
       value: item.heroId,
-      disabled: item.level == 6000,
+      disabled: item.level === 6000,
     };
   }),
 ]);
 
 const HeroValue = ref(null);
-const HeroItem = ref(null);
 const levelNum = ref(1);
 const lastActionAt = ref(0);
-const state = ref({
-  isRunning: false,
-  showConfirm: false,
-  progressText: "idle",
-  stopRequested: false,
-  total: 0,
-  done: 0,
+const HeroItem = computed(() => {
+  if (HeroValue.value == null) {
+    return null;
+  }
+
+  const hero = roleHeroes.value?.[HeroValue.value];
+  if (!hero || Number(hero.level) === 6000) {
+    return null;
+  }
+
+  return Object.assign({}, hero, HERO_DICT[HeroValue.value] || {});
 });
 
 const MIN_ACTION_INTERVAL_MS = 1200;
 const RATE_LIMIT_RETRY_DELAY_MS = 1800;
 const MAX_RATE_LIMIT_RETRY = 2;
+
+const runtimePhaseText = computed(() => {
+  switch (runtime.phase) {
+    case "order":
+      return "进阶处理中";
+    case "level":
+      return "升级处理中";
+    case "cooldown":
+      return "等待发送窗口";
+    case "retry":
+      return "等待重试";
+    case "done":
+      return "已完成";
+    case "error":
+      return "执行失败";
+    default:
+      return "待命";
+  }
+});
+
+const runtimeWaitText = computed(() =>
+  runtime.waitSeconds > 0 ? `${runtime.waitSeconds}s` : "无",
+);
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const isRateLimitError = (error) => {
@@ -118,8 +178,12 @@ const isRateLimitError = (error) => {
 const waitForActionWindow = async () => {
   const elapsed = Date.now() - lastActionAt.value;
   if (elapsed < MIN_ACTION_INTERVAL_MS) {
-    await sleep(MIN_ACTION_INTERVAL_MS - elapsed);
+    const waitMs = MIN_ACTION_INTERVAL_MS - elapsed;
+    runtime.phase = "cooldown";
+    runtime.waitSeconds = Math.ceil(waitMs / 1000);
+    await sleep(waitMs);
   }
+  runtime.waitSeconds = 0;
 };
 const sendUpgradeCommand = async (tokenId, cmd, body, timeout = 5000) => {
   let attempt = 0;
@@ -139,24 +203,14 @@ const sendUpgradeCommand = async (tokenId, cmd, body, timeout = 5000) => {
         throw error;
       }
       const waitMs = RATE_LIMIT_RETRY_DELAY_MS + attempt * 400;
-      message.warning(
-        t("heroUpgradeCard.messages.retrying", {
-          seconds: Math.ceil(waitMs / 1000),
-        }),
-      );
+      runtime.phase = "retry";
+      runtime.waitSeconds = Math.ceil(waitMs / 1000);
       await sleep(waitMs);
+      runtime.waitSeconds = 0;
       attempt += 1;
     }
   }
   throw new Error(t("heroUpgradeCard.errors.requestFailed"));
-};
-
-const handleUpdateValue = (value) => {
-  HeroItem.value = Object.assign(
-    {},
-    tokenStore.gameData.roleInfo.role.heroes[value],
-    HERO_DICT[value],
-  );
 };
 
 const levelOptions = [
@@ -178,122 +232,126 @@ const levelOptions = [
   },
 ];
 
-watch(
-  () => tokenStore.gameData.roleInfo.heroes,
-  () => {
-    if (HeroValue.value) {
-      if (
-        tokenStore.gameData.roleInfo.role.heroes[HeroValue.value].level != 6000
-      ) {
-        HeroItem.value = Object.assign(
-          {},
-          tokenStore.gameData.roleInfo.role.heroes[HeroValue.value],
-          HERO_DICT[HeroValue.value],
-        );
-      } else {
-        HeroItem.value = null;
-      }
-    }
-  },
-  { deep: true }, // 深度监听内部变化
-);
-
 // 英雄进阶
 const orderHeroUpgrade = async () => {
-  if (!tokenStore.selectedToken) {
-    message.warning(t("heroUpgradeCard.messages.selectRoleFirst"));
-    return;
-  }
-
-  const tokenId = tokenStore.selectedToken.id;
-
-  // 检查WebSocket连接
-  const wsStatus = tokenStore.getWebSocketStatus(tokenId);
-  if (wsStatus !== "connected") {
-    message.error(t("heroUpgradeCard.messages.wsDisconnected"));
-    return;
-  }
-  state.value.isRunning = true;
-
-  try {
-    const judgement = judgeLevelupgrade(
-      HeroItem.value.level,
-      levelNum.value,
-      HeroItem.value.order,
-    );
-    if (judgement == HeroItem.value.level) {
-      const result = await sendUpgradeCommand(
-        tokenId,
-        "hero_heroupgradeorder",
-        {
-          heroId: HeroValue.value,
-        },
-        5000,
-      );
-      if (result?.role.heroes) {
-        message.success(t("heroUpgradeCard.messages.orderSuccess"));
-        tokenStore.sendGetRoleInfo(tokenId);
-      }
-    } else {
-      message.warning(t("heroUpgradeCard.messages.orderFailed"));
+  await runLocked(async () => {
+    if (!tokenStore.selectedToken) {
+      message.warning(t("heroUpgradeCard.messages.selectRoleFirst"));
+      return;
     }
-  } catch (error) {
-    message.error(t("heroUpgradeCard.messages.orderFailedWithReason", { error: error.message }));
-    tokenStore.sendGetRoleInfo(tokenId);
-  } finally {
-    state.value.isRunning = false;
-  }
+    if (!HeroItem.value) {
+      return;
+    }
+
+    const tokenId = tokenStore.selectedToken.id;
+
+    const wsStatus = tokenStore.getWebSocketStatus(tokenId);
+    if (wsStatus !== "connected") {
+      runtime.phase = "error";
+      runtime.recentResult = t("heroUpgradeCard.messages.wsDisconnected");
+      message.error(t("heroUpgradeCard.messages.wsDisconnected"));
+      return;
+    }
+
+    try {
+      runtime.phase = "order";
+      runtime.recentResult = "正在尝试进阶";
+      const judgement = judgeLevelupgrade(
+        HeroItem.value.level,
+        levelNum.value,
+        HeroItem.value.order,
+      );
+      if (judgement == HeroItem.value.level) {
+        const result = await sendUpgradeCommand(
+          tokenId,
+          "hero_heroupgradeorder",
+          {
+            heroId: HeroValue.value,
+          },
+          5000,
+        );
+        if (result?.role.heroes) {
+          runtime.phase = "done";
+          runtime.recentResult = t("heroUpgradeCard.messages.orderSuccess");
+          message.success(t("heroUpgradeCard.messages.orderSuccess"));
+          tokenStore.sendGetRoleInfo(tokenId);
+        }
+      } else {
+        runtime.phase = "idle";
+        runtime.recentResult = t("heroUpgradeCard.messages.orderFailed");
+        message.warning(t("heroUpgradeCard.messages.orderFailed"));
+      }
+    } catch (error) {
+      runtime.phase = "error";
+      runtime.recentResult = t("heroUpgradeCard.messages.orderFailedWithReason", { error: error.message });
+      message.error(t("heroUpgradeCard.messages.orderFailedWithReason", { error: error.message }));
+      tokenStore.sendGetRoleInfo(tokenId);
+    }
+  });
 };
 
 // 英雄升级
 const levelHeroUpgrade = async () => {
-  if (!tokenStore.selectedToken) {
-    message.warning(t("heroUpgradeCard.messages.selectRoleFirst"));
-    return;
-  }
-
-  const tokenId = tokenStore.selectedToken.id;
-
-  // 检查WebSocket连接
-  const wsStatus = tokenStore.getWebSocketStatus(tokenId);
-  if (wsStatus !== "connected") {
-    message.error(t("heroUpgradeCard.messages.wsDisconnected"));
-    return;
-  }
-  state.value.isRunning = true;
-
-  try {
-    const judgement = judgeLevelupgrade(
-      HeroItem.value.level,
-      levelNum.value,
-      HeroItem.value.order,
-    );
-    if (judgement == false) {
-      const result = await sendUpgradeCommand(
-        tokenId,
-        "hero_heroupgradelevel",
-        {
-          heroId: HeroValue.value,
-          upgradeNum: levelNum.value,
-        },
-        5000,
-      );
-      if (result?.role.heroes) {
-        tokenStore.sendGetRoleInfo(tokenId);
-      }
-    } else {
-      message.warning(
-        t("heroUpgradeCard.messages.manualUpgradeRequired", {
-          level: judgement,
-        }),
-      );
+  await runLocked(async () => {
+    if (!tokenStore.selectedToken) {
+      message.warning(t("heroUpgradeCard.messages.selectRoleFirst"));
+      return;
     }
-  } catch (error) {
-    message.error(t("heroUpgradeCard.messages.levelFailedWithReason", { error: error.message }));
-    tokenStore.sendGetRoleInfo(tokenId);
-  } finally {
-    state.value.isRunning = false;
-  }
+    if (!HeroItem.value) {
+      return;
+    }
+
+    const tokenId = tokenStore.selectedToken.id;
+
+    const wsStatus = tokenStore.getWebSocketStatus(tokenId);
+    if (wsStatus !== "connected") {
+      runtime.phase = "error";
+      runtime.recentResult = t("heroUpgradeCard.messages.wsDisconnected");
+      message.error(t("heroUpgradeCard.messages.wsDisconnected"));
+      return;
+    }
+
+    try {
+      runtime.phase = "level";
+      runtime.recentResult = "正在尝试升级";
+      const judgement = judgeLevelupgrade(
+        HeroItem.value.level,
+        levelNum.value,
+        HeroItem.value.order,
+      );
+      if (judgement == false) {
+        const result = await sendUpgradeCommand(
+          tokenId,
+          "hero_heroupgradelevel",
+          {
+            heroId: HeroValue.value,
+            upgradeNum: levelNum.value,
+          },
+          5000,
+        );
+        if (result?.role.heroes) {
+          runtime.phase = "done";
+          runtime.recentResult = "升级命令已完成";
+          tokenStore.sendGetRoleInfo(tokenId);
+        }
+      } else {
+        runtime.phase = "idle";
+        runtime.recentResult = t("heroUpgradeCard.messages.manualUpgradeRequired", {
+          level: judgement,
+        });
+        message.warning(
+          t("heroUpgradeCard.messages.manualUpgradeRequired", {
+            level: judgement,
+          }),
+        );
+      }
+    } catch (error) {
+      runtime.phase = "error";
+      runtime.recentResult = t("heroUpgradeCard.messages.levelFailedWithReason", { error: error.message });
+      message.error(t("heroUpgradeCard.messages.levelFailedWithReason", { error: error.message }));
+      tokenStore.sendGetRoleInfo(tokenId);
+    }
+  });
 };
 
 /**
@@ -323,14 +381,6 @@ const levelArr = [
 ]; // 需要进阶的等级
 const judgeLevelupgrade = (level, levelNum, order) => {
   for (const item of levelArr) {
-    console.log(
-      level,
-      levelNum,
-      order,
-      order != item.order,
-      level <= item.level,
-      item.level < level + levelNum,
-    );
     if (
       order != item.order
       && level <= item.level
@@ -346,16 +396,14 @@ const judgeLevelupgrade = (level, levelNum, order) => {
 </script>
 
 <style scoped lang="scss">
-.settings {
-  display: flex;
+.settings,
+.upgrade-settings {
   align-items: center;
-  justify-content: flex-start;
-  flex-wrap: wrap;
-  gap: var(--spacing-sm);
+}
 
-  .label {
-    flex-shrink: 0;
-  }
+.settings .label,
+.upgrade-settings .label {
+  flex-shrink: 0;
 }
 
 .hero-item {
@@ -411,11 +459,6 @@ const judgeLevelupgrade = (level, levelNum, order) => {
   font-size: var(--font-size-sm);
 }
 
-.upgrade-settings {
-  justify-content: flex-start;
-  gap: var(--spacing-sm);
-}
-
 .hero-empty {
   min-height: 96px;
   align-items: center;
@@ -423,13 +466,43 @@ const judgeLevelupgrade = (level, levelNum, order) => {
   color: var(--text-tertiary);
 }
 
-@media (max-width: 768px) {
+.hero-runtime-grid {
+  align-items: stretch;
+}
+
+.hero-runtime-card {
+  align-items: stretch;
+}
+
+.hero-runtime-card--wait {
+  grid-column: 1 / -1;
+}
+
+.metric-label {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.metric-value {
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 959px) {
   .hero-summary {
     flex-direction: column;
   }
 
   .hero-property {
     justify-content: flex-start;
+  }
+
+  .hero-runtime-card--wait {
+    grid-column: auto;
   }
 }
 </style>

@@ -1,5 +1,8 @@
 <template>
-  <div class="gwb2-mini-card tower-status weird-tower">
+  <div
+    class="gwb2-mini-card tower-status weird-tower"
+    :data-panel-active="panelActive ? 'true' : 'false'"
+  >
     <div class="gwb2-mini-card__surface">
       <div class="gwb2-mini-card__toolbar weird-tower__toolbar">
         <div class="gwb2-mini-card__toolbar-main">
@@ -22,90 +25,166 @@
         </div>
       </div>
 
-      <div class="gwb2-mini-card__metric tower-floor">
-        <span class="label">{{ t("weirdTowerStatus.labels.currentFloor") }}</span>
-        <span class="floor-number">{{ displayFloor }}</span>
+      <div class="gwb2-mini-card__body weird-tower__body">
+        <div class="gwb2-mini-card__metric-grid">
+          <div class="gwb2-mini-card__metric tower-floor">
+            <span class="label">{{ t("weirdTowerStatus.labels.currentFloor") }}</span>
+            <span class="floor-number">{{ displayFloor }}</span>
+          </div>
+          <div class="gwb2-mini-card__metric tower-runtime">
+            <span class="label">当前状态</span>
+            <span class="runtime-value">{{ runtime.statusText }}</span>
+          </div>
+        </div>
+
+        <div class="gwb2-mini-card__list tower-runtime-list">
+          <div class="runtime-row">
+            <span class="runtime-label">执行阶段</span>
+            <strong class="runtime-meta">{{ activeModeLabel }}</strong>
+          </div>
+          <div class="runtime-row">
+            <span class="runtime-label">处理次数</span>
+            <strong class="runtime-meta">{{ runtime.progressCount }}</strong>
+          </div>
+        </div>
       </div>
     </div>
 
     <div class="gwb2-mini-card__actions weird-tower__actions">
-      <n-button
-        class="climb-button"
-        type="primary"
-        :disabled="!canClimb"
-        @click="startTowerClimb"
-      >
-        {{ isClimbing.value ? t("weirdTowerStatus.actions.climbing") : t("weirdTowerStatus.actions.startClimb") }}
-      </n-button>
-
-      <!-- 停止批量爬塔按钮，仅批量时显示 -->
-      <n-button v-if="isClimbing" secondary class="stop-button" type="warning" @click="stopClimbing">{{ t("weirdTowerStatus.actions.stopClimb") }}</n-button>
-
-      <n-button
-        v-if="!isClimbing && !isUsingItems && !isMerging"
-        class="climb-button"
-        type="primary"
-        @click="startUseItems"
-      >
-        {{ t("weirdTowerStatus.actions.useItems") }}
-      </n-button>
-      <n-button v-if="isUsingItems" secondary class="stop-button" type="warning" @click="stopUsingItems">{{ t("weirdTowerStatus.actions.stopUsing") }}</n-button>
-
-      <n-button
-        v-if="!isClimbing && !isUsingItems && !isMerging"
-        class="climb-button"
-        type="primary"
-        @click="autoMergeItems"
-      >
-        {{ isMerging ? t("weirdTowerStatus.actions.merging") : t("weirdTowerStatus.actions.autoMerge") }}
-      </n-button>
+      <div class="gwb2-mini-card__action-rail weird-tower__action-rail">
+        <n-button
+          class="climb-button"
+          type="primary"
+          :disabled="!canClimb"
+          @click="startTowerClimb"
+        >
+          {{ isClimbing ? t("weirdTowerStatus.actions.climbing") : t("weirdTowerStatus.actions.startClimb") }}
+        </n-button>
+        <n-button
+          v-if="isClimbing"
+          secondary
+          class="stop-button"
+          type="warning"
+          @click="stopClimbing"
+        >
+          {{ t("weirdTowerStatus.actions.stopClimb") }}
+        </n-button>
+        <n-button
+          v-if="!isClimbing && !isUsingItems && !isMerging"
+          class="climb-button"
+          type="primary"
+          @click="startUseItems"
+        >
+          {{ t("weirdTowerStatus.actions.useItems") }}
+        </n-button>
+        <n-button
+          v-if="isUsingItems"
+          secondary
+          class="stop-button"
+          type="warning"
+          @click="stopUsingItems"
+        >
+          {{ t("weirdTowerStatus.actions.stopUsing") }}
+        </n-button>
+        <n-button
+          v-if="!isClimbing && !isUsingItems && !isMerging"
+          class="climb-button"
+          type="primary"
+          @click="autoMergeItems"
+        >
+          {{ isMerging ? t("weirdTowerStatus.actions.merging") : t("weirdTowerStatus.actions.autoMerge") }}
+        </n-button>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
-// 停止批量爬塔操作
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, reactive, ref, toRef, watch } from "vue";
+import { useGameCardPanelActive } from "@/composables/gameCards/useGameCardPanelActive";
 import { useTokenStore } from "@/stores/tokenStore";
 import { useMessage } from "naive-ui/es";
 import { useI18n } from "vue-i18n";
 
+const props = defineProps({
+  panelActive: {
+    type: Boolean,
+    default: true,
+  },
+});
+
 let stopFlag = false;
 let stopItemFlag = false;
 let stopMergeFlag = false;
+let connectRefreshHandle = null;
+const pendingTowerInfoRefresh = ref(false);
 
 const stopClimbing = () => {
   stopFlag = true;
-  if (climbTimeout.value) {
-    clearTimeout(climbTimeout.value);
-    climbTimeout.value = null;
-  }
+  clearTimer(climbTimeout);
   isClimbing.value = false;
+  runtime.activeMode = "idle";
+  runtime.statusText = t("weirdTowerStatus.messages.manuallyStoppedClimb");
   message.info(t("weirdTowerStatus.messages.manuallyStoppedClimb"));
 };
 
 const stopUsingItems = () => {
   stopItemFlag = true;
-  if (itemTimeout.value) {
-    clearTimeout(itemTimeout.value);
-    itemTimeout.value = null;
-  }
+  clearTimer(itemTimeout);
   isUsingItems.value = false;
+  runtime.activeMode = "idle";
+  runtime.statusText = t("weirdTowerStatus.messages.manuallyStoppedItems");
   message.info(t("weirdTowerStatus.messages.manuallyStoppedItems"));
 };
 
 const tokenStore = useTokenStore();
 const message = useMessage();
 const { t } = useI18n();
+const { panelActive } = useGameCardPanelActive(toRef(props, "panelActive"));
 
-// 响应式数据
 const isClimbing = ref(false);
 const isUsingItems = ref(false);
 const isMerging = ref(false);
-const climbTimeout = ref(null); // 用于超时重置状态
-const itemTimeout = ref(null); // 用于道具使用超时
-const mergeTimeout = ref(null); // 用于合成超时
-const lastClimbResult = ref(null); // 最后一次爬塔结果
+const climbTimeout = ref(null);
+const itemTimeout = ref(null);
+const mergeTimeout = ref(null);
+const runtime = reactive({
+  activeMode: "idle",
+  progressCount: 0,
+  statusText: t("weirdTowerStatus.subtitle"),
+});
+
+const clearTimer = (timerRef) => {
+  if (timerRef.value) {
+    clearTimeout(timerRef.value);
+    timerRef.value = null;
+  }
+};
+
+const activeModeLabel = computed(() => {
+  if (isClimbing.value)
+    return t("weirdTowerStatus.actions.climbing");
+  if (isUsingItems.value)
+    return t("weirdTowerStatus.actions.useItems");
+  if (isMerging.value)
+    return t("weirdTowerStatus.actions.merging");
+  return "待命";
+});
+
+const isBusy = computed(() =>
+  isClimbing.value || isUsingItems.value || isMerging.value,
+);
+
+const setRuntimeStatus = (text, count = runtime.progressCount) => {
+  runtime.statusText = text;
+  runtime.progressCount = count;
+};
+
+const notifyIfVisible = (type, text) => {
+  if (panelActive.value) {
+    message[type](text);
+  }
+};
 
 // 计算属性 - 从gameData中获取塔相关信息
 const evoTowerInfo = computed(() => {
@@ -176,6 +255,18 @@ const isWeirdTowerActivityOpen = computed(() => {
   return getCurrentActivityWeek.value === "blackMarket";
 });
 
+const scheduleTowerInfoRefresh = async ({ forceUi = false } = {}) => {
+  if (!tokenStore.selectedToken) {
+    return;
+  }
+  if (!panelActive.value && !isBusy.value && !forceUi) {
+    pendingTowerInfoRefresh.value = true;
+    return;
+  }
+  pendingTowerInfoRefresh.value = false;
+  await getTowerInfo();
+};
+
 // 方法
 const startUseItems = async () => {
   if (!tokenStore.selectedToken) {
@@ -195,13 +286,16 @@ const startUseItems = async () => {
 
   isUsingItems.value = true;
   stopItemFlag = false;
+  runtime.activeMode = "items";
+  setRuntimeStatus("正在读取道具信息", 0);
 
-  // 设置超时保护，60秒后自动重置状态
   itemTimeout.value = setTimeout(() => {
     isUsingItems.value = false;
-    itemTimeout.value = null;
+    clearTimer(itemTimeout);
     stopItemFlag = true;
-    message.info(t("weirdTowerStatus.messages.useItemsTimeout"));
+    runtime.activeMode = "idle";
+    setRuntimeStatus(t("weirdTowerStatus.messages.useItemsTimeout"), runtime.progressCount);
+    notifyIfVisible("info", t("weirdTowerStatus.messages.useItemsTimeout"));
   }, 60000);
 
   try {
@@ -231,18 +325,19 @@ const startUseItems = async () => {
     let lotteryLeftCnt = towerInfoRes?.evoTower?.lotteryLeftCnt || 0;
 
     if (lotteryLeftCnt <= 0) {
-      message.info(t("weirdTowerStatus.messages.noItemsLeft"));
+      setRuntimeStatus(t("weirdTowerStatus.messages.noItemsLeft"), 0);
       isUsingItems.value = false;
-      if (itemTimeout.value)
-        clearTimeout(itemTimeout.value);
+      clearTimer(itemTimeout);
+      runtime.activeMode = "idle";
       return;
     }
 
-    message.success(
+    setRuntimeStatus(
       t("weirdTowerStatus.messages.useItemsStarted", {
         remaining: lotteryLeftCnt,
         used: costTotalCnt,
       }),
+      0,
     );
     let processedCount = 0;
 
@@ -270,6 +365,7 @@ const startUseItems = async () => {
       costTotalCnt++;
       lotteryLeftCnt--;
       processedCount++;
+      setRuntimeStatus(`已使用 ${processedCount} 个道具`, processedCount);
 
       await new Promise((res) => setTimeout(res, 500));
     }
@@ -282,21 +378,25 @@ const startUseItems = async () => {
       5000,
     ).catch(() => {});
 
-    message.success(t("weirdTowerStatus.messages.useItemsCompleted", { count: processedCount }));
-    // 刷新一下
+    setRuntimeStatus(t("weirdTowerStatus.messages.useItemsCompleted", { count: processedCount }), processedCount);
+    notifyIfVisible("success", t("weirdTowerStatus.messages.useItemsCompleted", { count: processedCount }));
     await getTowerInfo();
   } catch (error) {
+    setRuntimeStatus(
+      t("weirdTowerStatus.messages.useItemsFailed", {
+        error: error.message || t("weirdTowerStatus.common.unknownError"),
+      }),
+      runtime.progressCount,
+    );
     message.error(
       t("weirdTowerStatus.messages.useItemsFailed", {
         error: error.message || t("weirdTowerStatus.common.unknownError"),
       }),
     );
   } finally {
-    if (itemTimeout.value) {
-      clearTimeout(itemTimeout.value);
-      itemTimeout.value = null;
-    }
+    clearTimer(itemTimeout);
     isUsingItems.value = false;
+    runtime.activeMode = "idle";
   }
 };
 
@@ -313,26 +413,29 @@ const autoMergeItems = async () => {
 
   isMerging.value = true;
   stopMergeFlag = false;
+  runtime.activeMode = "merge";
+  setRuntimeStatus("正在分析可合成物品", 0);
 
-  // 设置超时保护，60秒后自动重置状态
   mergeTimeout.value = setTimeout(() => {
     isMerging.value = false;
-    mergeTimeout.value = null;
+    clearTimer(mergeTimeout);
     stopMergeFlag = true;
-    message.info(t("weirdTowerStatus.messages.mergeTimeout"));
+    runtime.activeMode = "idle";
+    setRuntimeStatus(t("weirdTowerStatus.messages.mergeTimeout"), runtime.progressCount);
+    notifyIfVisible("info", t("weirdTowerStatus.messages.mergeTimeout"));
   }, 60000);
 
   try {
     const tokenId = tokenStore.selectedToken.id;
-    message.loading(t("weirdTowerStatus.messages.mergingLoading"));
+    setRuntimeStatus(t("weirdTowerStatus.messages.mergingLoading"), 0);
 
     let loopCount = 0;
     const MAX_LOOPS = 20;
 
     while (loopCount < MAX_LOOPS && !stopMergeFlag) {
       loopCount++;
+      setRuntimeStatus(`正在执行第 ${loopCount} 轮合成检查`, loopCount);
 
-      // 获取当前信息
       const infoRes = await tokenStore.sendMessageWithPromise(
         tokenId,
         "mergebox_getinfo",
@@ -402,7 +505,7 @@ const autoMergeItems = async () => {
 
       if (!hasPotentialMerge) {
         if (loopCount === 1) {
-          message.info(t("weirdTowerStatus.messages.noMergeableItems"));
+          setRuntimeStatus(t("weirdTowerStatus.messages.noMergeableItems"), 0);
         }
         break;
       }
@@ -446,25 +549,29 @@ const autoMergeItems = async () => {
         }
       }
 
-      // 继续下一轮循环
+      setRuntimeStatus(`已完成第 ${loopCount} 轮合成`, loopCount);
       await new Promise((res) => setTimeout(res, 500));
     }
 
-    message.success(t("weirdTowerStatus.messages.mergeCompleted"));
-    // 刷新一下
+    setRuntimeStatus(t("weirdTowerStatus.messages.mergeCompleted"), loopCount);
+    notifyIfVisible("success", t("weirdTowerStatus.messages.mergeCompleted"));
     await getTowerInfo();
   } catch (error) {
+    setRuntimeStatus(
+      t("weirdTowerStatus.messages.mergeFailed", {
+        error: error.message || t("weirdTowerStatus.common.unknownError"),
+      }),
+      runtime.progressCount,
+    );
     message.error(
       t("weirdTowerStatus.messages.mergeFailed", {
         error: error.message || t("weirdTowerStatus.common.unknownError"),
       }),
     );
   } finally {
-    if (mergeTimeout.value) {
-      clearTimeout(mergeTimeout.value);
-      mergeTimeout.value = null;
-    }
+    clearTimer(mergeTimeout);
     isMerging.value = false;
+    runtime.activeMode = "idle";
   }
 };
 
@@ -484,22 +591,21 @@ const startTowerClimb = async () => {
     return;
   }
 
-  // 清除之前的超时
-  if (climbTimeout.value) {
-    clearTimeout(climbTimeout.value);
-    climbTimeout.value = null;
-  }
+  clearTimer(climbTimeout);
 
   isClimbing.value = true;
   stopFlag = false;
+  runtime.activeMode = "climb";
+  setRuntimeStatus("正在准备战斗", 0);
   let climbCount = 0;
-  const maxClimb = 100; // 最多批量次数，防止死循环
-  // 设置超时保护，60秒后自动重置状态
+  const maxClimb = 100;
   climbTimeout.value = setTimeout(() => {
     isClimbing.value = false;
-    climbTimeout.value = null;
+    clearTimer(climbTimeout);
     stopFlag = true;
-    message.info(t("weirdTowerStatus.messages.climbTimeout"));
+    runtime.activeMode = "idle";
+    setRuntimeStatus(t("weirdTowerStatus.messages.climbTimeout"), climbCount);
+    notifyIfVisible("info", t("weirdTowerStatus.messages.climbTimeout"));
   }, 60000);
 
   try {
@@ -508,13 +614,12 @@ const startTowerClimb = async () => {
       if (stopFlag)
         break;
 
-      // 检查当前能量
       await getTowerInfo();
       const currentEnergy = towerEnergy.value;
       if (currentEnergy <= 0)
         break;
+      setRuntimeStatus(`正在执行第 ${climbCount + 1} 次挑战`, climbCount);
 
-      // 准备战斗
       await tokenStore.sendMessageWithPromise(
         tokenId,
         "evotower_readyfight",
@@ -522,7 +627,6 @@ const startTowerClimb = async () => {
         5000,
       );
 
-      // 执行战斗
       const fightResult = await tokenStore.sendMessageWithPromise(
         tokenId,
         "evotower_fight",
@@ -534,12 +638,10 @@ const startTowerClimb = async () => {
       );
 
       climbCount++;
-      message.success(t("weirdTowerStatus.messages.climbCommandSent", { count: climbCount }));
+      setRuntimeStatus(`已完成 ${climbCount} 次挑战`, climbCount);
 
-      // 更新爬塔信息
       await getTowerInfo();
 
-      // 检查并领取每日任务奖励
       const towerData = evoTowerInfo.value?.evoTower;
       if (towerData && towerData.taskClaimMap) {
         const now = new Date();
@@ -558,22 +660,12 @@ const startTowerClimb = async () => {
               "evotower_claimtask",
               { taskId },
               2000,
-            ).then(() => {
-              message.success(
-                t("weirdTowerStatus.messages.dailyRewardClaimed", {
-                  taskId,
-                }),
-              );
-            }).catch(() => {
-              // 失败静默，可能是还没达到条件
-            });
-            // 稍微延时避免请求过快
+            ).catch(() => {});
             await new Promise((r) => setTimeout(r, 200));
           }
         }
       }
 
-      // 检查是否刚通关10层（即当前层是1-1, 2-1, 3-1等）
       const towerId = currentTowerId.value;
       const floor = (towerId % 10) + 1;
       if (
@@ -582,23 +674,22 @@ const startTowerClimb = async () => {
         && fightResult.winList[0] === true
         && floor === 1
       ) {
-        // 领取通关奖励
         await tokenStore.sendMessageWithPromise(
           tokenId,
           "evotower_claimreward",
           {},
           5000,
         );
-        message.success(
+        setRuntimeStatus(
           t("weirdTowerStatus.messages.chapterRewardClaimed", {
             chapter: Math.floor(towerId / 10),
           }),
+          climbCount,
         );
       }
 
-      await new Promise((res) => setTimeout(res, 400)); // 每次间隔400毫秒
+      await new Promise((res) => setTimeout(res, 400));
     }
-    // 获取免费道具数量
     const freeEnergyResult = await tokenStore.sendMessageWithPromise(
       tokenId,
       "mergebox_getinfo",
@@ -608,7 +699,6 @@ const startTowerClimb = async () => {
       5000,
     );
     if (freeEnergyResult && freeEnergyResult.mergeBox.freeEnergy > 0) {
-      // 领取免费道具
       await tokenStore.sendMessageWithPromise(
         tokenId,
         "mergebox_claimfreeenergy",
@@ -617,15 +707,25 @@ const startTowerClimb = async () => {
         },
         5000,
       );
-      message.success(
+      setRuntimeStatus(
         t("weirdTowerStatus.messages.freeItemsClaimed", {
           count: freeEnergyResult.mergeBox.freeEnergy,
         }),
+        climbCount,
       );
     }
     await new Promise((res) => setTimeout(res, 500));
-    message.success(t("weirdTowerStatus.messages.climbCompleted", { count: climbCount }));
+    if (!stopFlag) {
+      setRuntimeStatus(t("weirdTowerStatus.messages.climbCompleted", { count: climbCount }), climbCount);
+      notifyIfVisible("success", t("weirdTowerStatus.messages.climbCompleted", { count: climbCount }));
+    }
   } catch (error) {
+    setRuntimeStatus(
+      t("weirdTowerStatus.messages.climbFailed", {
+        error: error.message || t("weirdTowerStatus.common.unknownError"),
+      }),
+      runtime.progressCount,
+    );
     message.error(
       t("weirdTowerStatus.messages.climbFailed", {
         error: error.message || t("weirdTowerStatus.common.unknownError"),
@@ -633,12 +733,9 @@ const startTowerClimb = async () => {
     );
   }
 
-  // 清除超时并重置状态
-  if (climbTimeout.value) {
-    clearTimeout(climbTimeout.value);
-    climbTimeout.value = null;
-  }
+  clearTimer(climbTimeout);
   isClimbing.value = false;
+  runtime.activeMode = "idle";
 };
 
 const getTowerInfo = async () => {
@@ -651,24 +748,19 @@ const getTowerInfo = async () => {
 
   try {
     const tokenId = tokenStore.selectedToken.id;
-    // 检查WebSocket连接状态
     const wsStatus = tokenStore.getWebSocketStatus(tokenId);
 
     if (wsStatus !== "connected") {
       return;
     }
-    // 获取怪异塔信息
     await tokenStore.sendMessageWithPromise(
       tokenId,
       "evotower_getinfo",
       {},
       5000,
     );
-    // 更新角色信息
     await tokenStore.sendMessage(tokenId, "role_getroleinfo");
-  } catch (error) {
-    // 获取塔信息失败：静默，避免噪声
-  }
+  } catch {}
 };
 
 // 监听WebSocket连接状态变化
@@ -678,12 +770,13 @@ const wsStatus = computed(() => {
   return tokenStore.getWebSocketStatus(tokenStore.selectedToken.id);
 });
 
-// 监听WebSocket连接状态，连接成功后自动获取塔信息
 watch(wsStatus, (newStatus, oldStatus) => {
   if (newStatus === "connected" && oldStatus !== "connected") {
-    // 延迟一点时间让WebSocket完全就绪
-    setTimeout(() => {
-      getTowerInfo();
+    if (connectRefreshHandle) {
+      clearTimeout(connectRefreshHandle);
+    }
+    connectRefreshHandle = setTimeout(() => {
+      scheduleTowerInfoRefresh();
     }, 1000);
   }
 });
@@ -693,25 +786,41 @@ watch(
   () => tokenStore.selectedToken,
   (newToken, oldToken) => {
     if (newToken && newToken.id !== oldToken?.id) {
-      // 检查WebSocket是否已连接
       const status = tokenStore.getWebSocketStatus(newToken.id);
       if (status === "connected") {
-        getTowerInfo();
+        scheduleTowerInfoRefresh();
       }
     }
   },
 );
 
-// 生命周期
-onMounted(() => {
-  // 检查WebSocket客户端
-  if (tokenStore.selectedToken) {
-    const client = tokenStore.getWebSocketClient(tokenStore.selectedToken.id);
-  }
+watch(
+  panelActive,
+  (active) => {
+    if (active && pendingTowerInfoRefresh.value) {
+      scheduleTowerInfoRefresh({ forceUi: true });
+    }
+  },
+  { immediate: true },
+);
 
-  // 组件挂载时获取塔信息
+onMounted(() => {
   if (tokenStore.selectedToken && wsStatus.value === "connected") {
-    getTowerInfo();
+    scheduleTowerInfoRefresh();
+  } else if (!panelActive.value) {
+    pendingTowerInfoRefresh.value = true;
+  }
+});
+
+onBeforeUnmount(() => {
+  if (connectRefreshHandle) {
+    clearTimeout(connectRefreshHandle);
+    connectRefreshHandle = null;
+  }
+  if (!isBusy.value) {
+    clearTimer(climbTimeout);
+    clearTimer(itemTimeout);
+    clearTimer(mergeTimeout);
   }
 });
 </script>
@@ -740,7 +849,7 @@ onMounted(() => {
 .weird-tower {
   display: flex;
   flex-direction: column;
-  min-height: 240px; // 继续缩小整体高度
+  min-height: 240px;
 }
 
 .status-icon {
@@ -778,11 +887,15 @@ onMounted(() => {
   color: currentColor;
 }
 
-.tower-floor {
+.weird-tower__body {
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.tower-floor,
+.tower-runtime {
   align-items: center;
-  padding: var(--spacing-lg);
 
   .label {
     font-size: var(--font-size-sm);
@@ -797,22 +910,46 @@ onMounted(() => {
   }
 }
 
-.weird-tower__actions {
-  display: flex;
-  flex-direction: column;
+.tower-runtime {
+  justify-content: space-between;
+}
+
+.runtime-value,
+.runtime-meta {
+  color: var(--text-primary);
+  font-weight: var(--font-weight-semibold);
+}
+
+.tower-runtime-list {
   gap: var(--spacing-sm);
+}
+
+.runtime-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+}
+
+.runtime-label {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
 }
 
 .climb-button {
   width: 100%;
 }
 
-// 响应式设计
-@media (max-width: 768px) {
+@media (max-width: 959px) {
   .weird-tower__toolbar {
     flex-direction: column;
     gap: var(--spacing-sm);
     text-align: center;
+  }
+
+  .runtime-row {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }
 </style>

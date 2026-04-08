@@ -1,5 +1,9 @@
 <template>
-  <MyCard class="helper" :status-class="{ active: state.isRunning }">
+  <MyCard
+    class="fish-helper-card"
+    :panel-active="panelActive"
+    :status-class="{ active: isRunning }"
+  >
     <template #icon>
       <img :alt="t('fishHelperCard.iconAlt')" :src="iconPath">
     </template>
@@ -7,18 +11,20 @@
       <h3>{{ t("fishHelperCard.title") }}</h3>
     </template>
     <template #badge>
-      <span>{{ state.isRunning ? t("fishHelperCard.status.running") : t("fishHelperCard.status.stopped") }}</span>
+      <span>{{ isRunning ? t("fishHelperCard.status.running") : t("fishHelperCard.status.stopped") }}</span>
     </template>
     <template #default>
-      <div class="container">
-        <div class="gwb2-mini-card__metric helper-metric">
-          <div class="metric-copy">
-            <span class="metric-label">{{ selectedTypeLabel }}</span>
-            <strong class="metric-value">{{ t("fishHelperCard.count", { count: number }) }}</strong>
+      <div class="gwb2-mini-card__stack container">
+        <div class="gwb2-mini-card__metric-grid gwb2-mini-card__metric-grid--single">
+          <div class="gwb2-mini-card__metric helper-metric">
+            <div class="metric-copy">
+              <span class="metric-label">{{ selectedTypeLabel }}</span>
+              <strong class="metric-value">{{ t("fishHelperCard.count", { count: number }) }}</strong>
+            </div>
+            <span class="metric-summary">{{ t("fishHelperCard.count", { count: totalRodCount }) }}</span>
           </div>
-          <span class="metric-summary">{{ t("fishHelperCard.count", { count: totalRodCount }) }}</span>
         </div>
-        <div class="gwb2-mini-card__list list">
+        <div class="gwb2-mini-card__resource-grid list">
           <div v-for="item in dataList" :key="item.type" class="item">
             <img :alt="item.type" :src="item.img">
             <div class="box-info">
@@ -27,23 +33,25 @@
             </div>
           </div>
         </div>
-        <div class="gwb2-mini-card__toolbar selects">
+        <div class="gwb2-mini-card__control-grid selects">
           <n-select v-model:value="type" :options="typeOptions"></n-select>
           <n-select v-model:value="number" :options="numberOptions"></n-select>
         </div>
       </div>
     </template>
     <template #action>
-      <n-button
-        block
-        secondary
-        size="small"
-        type="primary"
-        :disabled="state.isRunning"
-        @click="handleHelper"
-      >
-        {{ state.isRunning ? t("fishHelperCard.status.running") : t("fishHelperCard.actions.start") }}
-      </n-button>
+      <div class="gwb2-mini-card__action-rail gwb2-mini-card__action-rail--single">
+        <n-button
+          block
+          secondary
+          size="small"
+          type="primary"
+          :disabled="isRunning"
+          @click="handleHelper"
+        >
+          {{ isRunning ? t("fishHelperCard.status.running") : t("fishHelperCard.actions.start") }}
+        </n-button>
+      </div>
     </template>
   </MyCard>
 </template>
@@ -52,12 +60,23 @@
 import { computed, ref } from "vue";
 import { useMessage } from "naive-ui/es";
 import { useI18n } from "vue-i18n";
+import { useGameCardActionLock } from "@/composables/gameCards/useGameCardActionLock";
+import { useGameCardBatchAction } from "@/composables/gameCards/useGameCardBatchAction";
 import { useTokenStore } from "@/stores/tokenStore";
 import MyCard from "../Common/MyCard.vue";
+
+defineProps({
+  panelActive: {
+    type: Boolean,
+    default: true,
+  },
+});
 
 const tokenStore = useTokenStore();
 const message = useMessage();
 const { t } = useI18n();
+const { isRunning, runLocked } = useGameCardActionLock();
+const { runBatchedCount } = useGameCardBatchAction();
 
 const iconPath = computed(() => {
   return `${import.meta.env.BASE_URL}fish/hjyg.png`;
@@ -106,42 +125,31 @@ const totalRodCount = computed(() =>
   dataList.value.reduce((sum, item) => sum + Number(item.count || 0), 0),
 );
 
-const state = ref({
-  isRunning: false,
-});
-
 const handleHelper = async () => {
-  if (!tokenStore.selectedToken) {
-    message.warning(t("fishHelperCard.messages.selectTokenFirst"));
-    return;
-  }
-  const tokenId = tokenStore.selectedToken.id;
-  state.value.isRunning = true;
-  message.info(t("fishHelperCard.messages.running"));
-  console.log("🚀 ~ handleHelper ~ type.value:", type.value);
-  if (number.value >= 10) {
-    const batches = Math.floor(number.value / 10);
-    const remainder = number.value % 10;
-    for (let i = 0; i < batches; i++) {
-      await tokenStore.sendMessageWithPromise(tokenId, "artifact_lottery", {
-        type: type.value,
-        lotteryNumber: 10,
-        newFree: true,
-      });
+  await runLocked(async () => {
+    if (!tokenStore.selectedToken) {
+      message.warning(t("fishHelperCard.messages.selectTokenFirst"));
+      return;
     }
-    if (remainder > 0) {
-      await tokenStore.sendMessageWithPromise(tokenId, "artifact_lottery", {
-        type: type.value,
-        lotteryNumber: remainder,
-        newFree: true,
+    const tokenId = tokenStore.selectedToken.id;
+    message.info(t("fishHelperCard.messages.running"));
+    if (number.value >= 10) {
+      await runBatchedCount({
+        total: number.value,
+        batchSize: 10,
+        executeBatch: async (batchCount) => {
+          await tokenStore.sendMessageWithPromise(tokenId, "artifact_lottery", {
+            type: type.value,
+            lotteryNumber: batchCount,
+            newFree: true,
+          });
+        },
       });
+      await tokenStore.sendMessage(tokenId, "role_getroleinfo");
+      tokenStore.sendMessage(tokenId, "activity_get");
+      message.success(t("fishHelperCard.messages.done"));
     }
-    await tokenStore.sendMessage(tokenId, "role_getroleinfo");
-    // 更新活动进度
-    tokenStore.sendMessage(tokenId, "activity_get");
-    message.success(t("fishHelperCard.messages.done"));
-    state.value.isRunning = false;
-  }
+  });
 };
 </script>
 
@@ -181,11 +189,8 @@ const handleHelper = async () => {
   }
 
   .list {
-    display: flex;
-    align-items: center;
-    justify-content: space-around;
-
     .item {
+      min-width: 0;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -197,36 +202,32 @@ const handleHelper = async () => {
 
       .box-info {
         display: flex;
+        min-width: 0;
         flex-direction: column;
         align-items: center;
 
         .box-type {
           font-weight: bold;
           margin-top: 4px;
+          overflow-wrap: anywhere;
+          text-align: center;
         }
 
         .box-count {
           margin-top: 2px;
           color: #666;
+          overflow-wrap: anywhere;
+          text-align: center;
         }
       }
     }
   }
 
   .selects {
-    display: flex;
-    align-items: center;
-    gap: 12px;
+    align-items: stretch;
   }
 
-  @media (max-width: 768px) {
-    .helper-metric,
-    .list,
-    .selects {
-      flex-direction: column;
-      align-items: stretch;
-    }
-
+  @media (max-width: 959px) {
     .metric-summary {
       text-align: left;
     }

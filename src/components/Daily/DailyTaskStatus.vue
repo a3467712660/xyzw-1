@@ -93,8 +93,8 @@
       </div>
     </div>
 
-    <!-- 任务设置模态框 -->
     <n-modal
+      v-if="!isMobile"
       class="modal-w-400"
       preset="card"
       title="任务设置"
@@ -111,81 +111,43 @@
 
       <div class="settings-content">
         <div class="settings-grid">
-          <!-- 竞技场设置 -->
           <div class="setting-item">
             <label class="setting-label">竞技场阵容</label>
-            <n-select
-              size="small"
-              v-model:value="settings.arenaFormation"
-              :options="formationOptions"
-            ></n-select>
+            <n-select size="small" v-model:value="settings.arenaFormation" :options="formationOptions"></n-select>
           </div>
-
-          <!-- BOSS设置 -->
           <div class="setting-item">
             <label class="setting-label">BOSS阵容</label>
-            <n-select
-              size="small"
-              v-model:value="settings.bossFormation"
-              :options="formationOptions"
-            ></n-select>
+            <n-select size="small" v-model:value="settings.bossFormation" :options="formationOptions"></n-select>
           </div>
-
-          <!-- BOSS次数 -->
           <div class="setting-item">
             <label class="setting-label">BOSS次数</label>
-            <n-select
-              size="small"
-              v-model:value="settings.bossTimes"
-              :options="bossTimesOptions"
-            ></n-select>
+            <n-select size="small" v-model:value="settings.bossTimes" :options="bossTimesOptions"></n-select>
           </div>
-
-          <!-- 延迟设置 -->
           <div class="setting-item">
             <label class="setting-label">命令延迟 (毫秒)</label>
-            <n-input-number
-              size="small"
-              v-model:value="settings.commandDelay"
-              :max="5000"
-              :min="0"
-              :step="100"
-            ></n-input-number>
+            <n-input-number size="small" v-model:value="settings.commandDelay" :max="5000" :min="0" :step="100"></n-input-number>
           </div>
-
           <div class="setting-item">
             <label class="setting-label">任务延迟 (毫秒)</label>
-            <n-input-number
-              size="small"
-              v-model:value="settings.taskDelay"
-              :max="5000"
-              :min="0"
-              :step="100"
-            ></n-input-number>
+            <n-input-number size="small" v-model:value="settings.taskDelay" :max="5000" :min="0" :step="100"></n-input-number>
           </div>
-
-          <!-- 功能开关 -->
           <div class="setting-switches">
             <div class="switch-row">
               <span class="switch-label">领罐子</span>
               <n-switch v-model:value="settings.claimBottle"></n-switch>
             </div>
-
             <div class="switch-row">
               <span class="switch-label">领挂机</span>
               <n-switch v-model:value="settings.claimHangUp"></n-switch>
             </div>
-
             <div class="switch-row">
               <span class="switch-label">竞技场</span>
               <n-switch v-model:value="settings.arenaEnable"></n-switch>
             </div>
-
             <div class="switch-row">
               <span class="switch-label">开宝箱</span>
               <n-switch v-model:value="settings.openBox"></n-switch>
             </div>
-
             <div class="switch-row">
               <span class="switch-label">领取邮件奖励</span>
               <n-switch v-model:value="settings.claimEmail"></n-switch>
@@ -194,7 +156,6 @@
               <span class="switch-label">黑市购买物品</span>
               <n-switch v-model:value="settings.blackMarketPurchase"></n-switch>
             </div>
-
             <div class="switch-row">
               <span class="switch-label">付费招募</span>
               <n-switch v-model:value="settings.payRecruit"></n-switch>
@@ -203,9 +164,67 @@
         </div>
       </div>
     </n-modal>
+    <n-drawer v-else height="82vh" placement="bottom" v-model:show="showSettings">
+      <n-drawer-content closable title="任务设置">
+        <div class="settings-content">
+          <div class="settings-grid">
+            <div class="setting-item">
+              <label class="setting-label">竞技场阵容</label>
+              <n-select size="small" v-model:value="settings.arenaFormation" :options="formationOptions"></n-select>
+            </div>
+            <div class="setting-item">
+              <label class="setting-label">BOSS阵容</label>
+              <n-select size="small" v-model:value="settings.bossFormation" :options="formationOptions"></n-select>
+            </div>
+            <div class="setting-item">
+              <label class="setting-label">BOSS次数</label>
+              <n-select size="small" v-model:value="settings.bossTimes" :options="bossTimesOptions"></n-select>
+            </div>
+            <div class="setting-item">
+              <label class="setting-label">命令延迟 (毫秒)</label>
+              <n-input-number size="small" v-model:value="settings.commandDelay" :max="5000" :min="0" :step="100"></n-input-number>
+            </div>
+            <div class="setting-item">
+              <label class="setting-label">任务延迟 (毫秒)</label>
+              <n-input-number size="small" v-model:value="settings.taskDelay" :max="5000" :min="0" :step="100"></n-input-number>
+            </div>
+            <div class="setting-switches">
+              <div class="switch-row">
+                <span class="switch-label">领罐子</span>
+                <n-switch v-model:value="settings.claimBottle"></n-switch>
+              </div>
+              <div class="switch-row">
+                <span class="switch-label">领挂机</span>
+                <n-switch v-model:value="settings.claimHangUp"></n-switch>
+              </div>
+              <div class="switch-row">
+                <span class="switch-label">竞技场</span>
+                <n-switch v-model:value="settings.arenaEnable"></n-switch>
+              </div>
+              <div class="switch-row">
+                <span class="switch-label">开宝箱</span>
+                <n-switch v-model:value="settings.openBox"></n-switch>
+              </div>
+              <div class="switch-row">
+                <span class="switch-label">领取邮件奖励</span>
+                <n-switch v-model:value="settings.claimEmail"></n-switch>
+              </div>
+              <div class="switch-row">
+                <span class="switch-label">黑市购买物品</span>
+                <n-switch v-model:value="settings.blackMarketPurchase"></n-switch>
+              </div>
+              <div class="switch-row">
+                <span class="switch-label">付费招募</span>
+                <n-switch v-model:value="settings.payRecruit"></n-switch>
+              </div>
+            </div>
+          </div>
+        </div>
+      </n-drawer-content>
+    </n-drawer>
 
-    <!-- 任务详情模态框 -->
     <n-modal
+      v-if="!isMobile"
       class="modal-w-400"
       preset="card"
       title="每日任务详情"
@@ -217,13 +236,7 @@
             <Calendar></Calendar>
           </n-icon>
           <span>每日任务详情</span>
-          <n-button
-            quaternary
-            class="refresh-button"
-            size="small"
-            :disabled="busy"
-            @click="handleRefreshTaskStatus"
-          >
+          <n-button quaternary class="refresh-button" size="small" :disabled="busy" @click="handleRefreshTaskStatus">
             <n-icon>
               <Refresh></Refresh>
             </n-icon>
@@ -235,10 +248,7 @@
       <div class="task-list">
         <div v-for="task in tasks" :key="task.id" class="task-item">
           <div class="task-item-left">
-            <n-icon
-              class="task-status-icon"
-              :class="{ completed: task.completed }"
-            >
+            <n-icon class="task-status-icon" :class="{ completed: task.completed }">
               <CheckmarkCircle v-if="task.completed"></CheckmarkCircle>
               <EllipseOutline v-else></EllipseOutline>
             </n-icon>
@@ -250,9 +260,36 @@
         </div>
       </div>
     </n-modal>
+    <n-drawer v-else height="82vh" placement="bottom" v-model:show="showTaskDetails">
+      <n-drawer-content closable title="每日任务详情">
+        <div class="modal-header">
+          <span></span>
+          <n-button quaternary class="refresh-button" size="small" :disabled="busy" @click="handleRefreshTaskStatus">
+            <n-icon>
+              <Refresh></Refresh>
+            </n-icon>
+            刷新状态
+          </n-button>
+        </div>
+        <div class="task-list">
+          <div v-for="task in tasks" :key="task.id" class="task-item">
+            <div class="task-item-left">
+              <n-icon class="task-status-icon" :class="{ completed: task.completed }">
+                <CheckmarkCircle v-if="task.completed"></CheckmarkCircle>
+                <EllipseOutline v-else></EllipseOutline>
+              </n-icon>
+              <span class="task-name">{{ task.name }}</span>
+            </div>
+            <n-tag size="small" :type="task.completed ? 'success' : 'default'">
+              {{ task.completed ? "已完成" : "未完成" }}
+            </n-tag>
+          </div>
+        </div>
+      </n-drawer-content>
+    </n-drawer>
 
-    <!-- 执行日志模态框 -->
     <n-modal
+      v-if="!isMobile"
       class="modal-w-500"
       preset="card"
       title="任务执行日志"
@@ -268,11 +305,7 @@
       </template>
 
       <div ref="logContainer" class="log-container">
-        <div
-          v-for="logItem in logList"
-          :key="logItem.time + logItem.message"
-          class="log-item"
-        >
+        <div v-for="logItem in logList" :key="logItem.time + logItem.message" class="log-item">
           <span class="log-time">{{ logItem.time }}</span>
           <span
             class="log-message"
@@ -287,6 +320,25 @@
         </div>
       </div>
     </n-modal>
+    <n-drawer v-else height="86vh" placement="bottom" v-model:show="showLog">
+      <n-drawer-content closable title="任务执行日志">
+        <div ref="logContainer" class="log-container log-container--mobile">
+          <div v-for="logItem in logList" :key="logItem.time + logItem.message" class="log-item">
+            <span class="log-time">{{ logItem.time }}</span>
+            <span
+              class="log-message"
+              :class="{
+                error: logItem.type === 'error',
+                success: logItem.type === 'success',
+                warning: logItem.type === 'warning',
+              }"
+            >
+              {{ logItem.message }}
+            </span>
+          </div>
+        </div>
+      </n-drawer-content>
+    </n-drawer>
   </div>
 </template>
 
@@ -298,8 +350,11 @@ import {
   onMounted,
   reactive,
   ref,
+  toRef,
   watch,
 } from "vue";
+import { useResponsive } from "@/composables/useResponsive";
+import { useGameCardPanelActive } from "@/composables/gameCards/useGameCardPanelActive";
 import { useTokenStore } from "@/stores/tokenStore";
 import { DailyTaskRunner } from "@/utils/dailyTaskRunner";
 import {
@@ -316,8 +371,16 @@ import {
   Settings,
 } from "@vicons/ionicons5";
 
+const props = defineProps({
+  panelActive: {
+    type: Boolean,
+    default: true,
+  },
+});
 const tokenStore = useTokenStore();
 const message = useMessage();
+const { isMobile } = useResponsive();
+const { panelActive } = useGameCardPanelActive(toRef(props, "panelActive"));
 
 // 响应式数据
 const showSettings = ref(false);
@@ -325,6 +388,9 @@ const showTaskDetails = ref(false);
 const showLog = ref(false);
 const busy = ref(false);
 const logContainer = ref(null);
+const pendingRoleInfoRefresh = ref(false);
+let settingsSaveHandle = null;
+let finalRefreshHandle = null;
 
 // 任务设置
 const settings = reactive({
@@ -376,13 +442,24 @@ const roleInfo = computed(() => {
   return tokenStore.selectedTokenRoleInfo;
 });
 
+const dailyTaskInfo = computed(() => roleInfo.value?.role?.dailyTask || null);
 const roleDailyPoint = computed(() => {
-  return roleInfo.value?.role?.dailyTask?.dailyPoint ?? 0;
+  return dailyTaskInfo.value?.dailyPoint ?? 0;
 });
 
 const dailyPoint = computed(() => Math.min(roleDailyPoint.value, 100));
 const isFull = computed(() => dailyPoint.value >= 100);
 const progressColor = computed(() => (isFull.value ? "#10b981" : "#3b82f6"));
+const dailyCompleteMap = computed(() => dailyTaskInfo.value?.complete ?? null);
+const dailyCompleteKey = computed(() => {
+  if (!dailyCompleteMap.value) {
+    return "";
+  }
+  return Object.keys(dailyCompleteMap.value)
+    .sort((a, b) => Number(a) - Number(b))
+    .map((key) => `${key}:${dailyCompleteMap.value[key]}`)
+    .join("|");
+});
 
 // WebSocket连接状态
 const isConnected = computed(() => {
@@ -395,13 +472,13 @@ const isConnected = computed(() => {
 // 日志系统
 const logList = ref([]);
 const LOG_MAX = 500;
+const shouldAutoScrollLog = computed(() =>
+  panelActive.value && (busy.value || showLog.value),
+);
 
-const log = (message, type = "info") => {
-  const time = new Date().toLocaleTimeString();
-  logList.value.push({ time, message, type });
-
-  if (logList.value.length > LOG_MAX) {
-    logList.value.splice(0, logList.value.length - LOG_MAX);
+const scrollLogsToBottom = () => {
+  if (!shouldAutoScrollLog.value) {
+    return;
   }
 
   nextTick(() => {
@@ -411,18 +488,33 @@ const log = (message, type = "info") => {
   });
 };
 
+const log = (message, type = "info") => {
+  const time = new Date().toLocaleTimeString();
+  logList.value.push({ time, message, type });
+
+  if (logList.value.length > LOG_MAX) {
+    logList.value.splice(0, logList.value.length - LOG_MAX);
+  }
+
+  scrollLogsToBottom();
+};
+
 // 同步服务器任务完成状态
-const syncCompleteFromServer = (resp) => {
-  if (!resp?.role?.dailyTask?.complete) {
-    log("角色信息中无任务完成数据", "warning");
+const syncCompleteFromServer = (dailyTask, { verbose = false } = {}) => {
+  if (!dailyTask?.complete) {
+    if (verbose) {
+      log("角色信息中无任务完成数据", "warning");
+    }
     return;
   }
 
-  const complete = resp.role.dailyTask.complete;
+  const complete = dailyTask.complete;
   const isDone = (v) => v === -1;
 
-  log("开始同步任务完成状态...");
-  log(`服务器返回的任务完成数据: ${JSON.stringify(complete)}`);
+  if (verbose) {
+    log("开始同步任务完成状态...");
+    log(`服务器返回的任务完成数据: ${JSON.stringify(complete)}`);
+  }
 
   let syncedCount = 0;
   let completedCount = 0;
@@ -446,17 +538,23 @@ const syncCompleteFromServer = (resp) => {
         completedCount++;
       }
 
-      log(
-        `任务${id} "${tasks.value[idx].name}": ${isCompleted ? "已完成" : "未完成"}`,
-        isCompleted ? "success" : "info",
-      );
+      if (verbose) {
+        log(
+          `任务${id} "${tasks.value[idx].name}": ${isCompleted ? "已完成" : "未完成"}`,
+          isCompleted ? "success" : "info",
+        );
+      }
     } else {
-      log(`服务器返回未知任务ID: ${id} (完成值: ${complete[k]})`, "warning");
+      if (verbose) {
+        log(`服务器返回未知任务ID: ${id} (完成值: ${complete[k]})`, "warning");
+      }
     }
   });
 
-  log(`任务状态同步完成: ${completedCount}/${syncedCount} 已完成`);
-  log(`当前进度: ${roleDailyPoint.value}/100`);
+  if (verbose) {
+    log(`任务状态同步完成: ${completedCount}/${syncedCount} 已完成`);
+    log(`当前进度: ${dailyTask.dailyPoint ?? roleDailyPoint.value}/100`);
+  }
 };
 
 // 刷新角色信息
@@ -473,8 +571,8 @@ const refreshRoleInfo = async () => {
     log("角色信息获取成功", "success");
 
     // 同步任务状态
-    if (response) {
-      syncCompleteFromServer(response);
+    if (response?.role?.dailyTask) {
+      syncCompleteFromServer(response.role.dailyTask, { verbose: true });
     }
 
     return response;
@@ -524,7 +622,10 @@ const runDailyFix = async () => {
     message.success("每日任务补差执行完成");
 
     // 最终刷新角色信息
-    setTimeout(async () => {
+    if (finalRefreshHandle) {
+      clearTimeout(finalRefreshHandle);
+    }
+    finalRefreshHandle = setTimeout(async () => {
       try {
         await refreshRoleInfo();
         log("最终角色信息刷新完成", "success");
@@ -534,7 +635,6 @@ const runDailyFix = async () => {
     }, 3000);
   } catch (error) {
     log(`任务执行失败: ${error.message}`, "error");
-    console.error("详细错误信息:", error);
     message.error(`任务执行失败: ${error.message}`);
   } finally {
     busy.value = false;
@@ -582,16 +682,45 @@ const saveSettings = (roleId, s) => {
   }
 };
 
-// 监听设置变化
-watch(
-  settings,
-  (cur) => {
-    const role = getCurrentRole();
-    if (role)
-      saveSettings(role.roleId, cur);
-  },
-  { deep: true },
-);
+const settingsSnapshot = computed(() => ({
+  arenaFormation: settings.arenaFormation,
+  arenaEnable: settings.arenaEnable,
+  blackMarketPurchase: settings.blackMarketPurchase,
+  bossFormation: settings.bossFormation,
+  bossTimes: settings.bossTimes,
+  claimBottle: settings.claimBottle,
+  claimEmail: settings.claimEmail,
+  claimHangUp: settings.claimHangUp,
+  commandDelay: settings.commandDelay,
+  openBox: settings.openBox,
+  payRecruit: settings.payRecruit,
+  taskDelay: settings.taskDelay,
+}));
+
+const scheduleRoleInfoRefresh = async ({ forceWhenHidden = false } = {}) => {
+  if (!tokenStore.selectedToken || !isConnected.value) {
+    return;
+  }
+  if (!panelActive.value && !busy.value && !forceWhenHidden) {
+    pendingRoleInfoRefresh.value = true;
+    return;
+  }
+  pendingRoleInfoRefresh.value = false;
+  await refreshRoleInfo();
+};
+
+watch(settingsSnapshot, (snapshot) => {
+  const role = getCurrentRole();
+  if (!role) {
+    return;
+  }
+  if (settingsSaveHandle) {
+    clearTimeout(settingsSaveHandle);
+  }
+  settingsSaveHandle = setTimeout(() => {
+    saveSettings(role.roleId, snapshot);
+  }, 240);
+});
 
 // 监听token选择变化
 watch(
@@ -605,42 +734,50 @@ watch(
       if (saved)
         Object.assign(settings, saved);
 
-      // 如果WebSocket已连接，尝试获取最新角色信息
-      if (isConnected.value) {
-        try {
-          await refreshRoleInfo();
-        } catch (error) {
-          console.warn("切换token后获取角色信息失败:", error.message);
-        }
-      }
+      await scheduleRoleInfoRefresh();
     }
   },
   { immediate: true },
 );
 
-// 监听角色信息变化，自动同步任务状态
 watch(
-  () => tokenStore.selectedTokenRoleInfo,
-  (newRoleInfo) => {
-    if (newRoleInfo?.role?.dailyTask?.complete) {
-      log("角色信息更新，同步任务状态");
-      syncCompleteFromServer(newRoleInfo);
+  [dailyCompleteKey, roleDailyPoint],
+  () => {
+    if (dailyTaskInfo.value?.complete) {
+      syncCompleteFromServer(dailyTaskInfo.value, {
+        verbose: busy.value || showLog.value,
+      });
     }
   },
-  { immediate: true, deep: true },
+  { immediate: true },
 );
 
-// 生命周期
-onMounted(async () => {
-  log("组件初始化完成");
+watch(
+  [showLog, panelActive],
+  ([visible, active]) => {
+    if (visible && active) {
+      scrollLogsToBottom();
+    }
+  },
+  { immediate: true },
+);
 
-  // 首次拉取角色信息（如果有选中的token且已连接）
+watch(
+  panelActive,
+  async (active) => {
+    if (!active || !pendingRoleInfoRefresh.value) {
+      return;
+    }
+    await scheduleRoleInfoRefresh({ forceWhenHidden: true });
+  },
+  { immediate: true },
+);
+
+onMounted(async () => {
   if (tokenStore.selectedToken && isConnected.value) {
     try {
-      await refreshRoleInfo();
-    } catch (error) {
-      console.warn("初始化时获取角色信息失败:", error.message);
-    }
+      await scheduleRoleInfoRefresh();
+    } catch {}
   }
 
   const role = getCurrentRole();
@@ -649,12 +786,17 @@ onMounted(async () => {
     if (saved)
       Object.assign(settings, saved);
   }
-
-  // 初始化时的任务状态同步会通过 watch selectedTokenRoleInfo 自动处理
 });
 
 onBeforeUnmount(() => {
-  log("组件即将卸载");
+  if (settingsSaveHandle) {
+    clearTimeout(settingsSaveHandle);
+    settingsSaveHandle = null;
+  }
+  if (finalRefreshHandle) {
+    clearTimeout(finalRefreshHandle);
+    finalRefreshHandle = null;
+  }
 });
 </script>
 
@@ -917,7 +1059,7 @@ onBeforeUnmount(() => {
 }
 
 // 响应式设计
-@media (max-width: 768px) {
+@media (max-width: 959px) {
   .daily-task {
     min-height: auto;
   }

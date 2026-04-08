@@ -1,5 +1,9 @@
 <template>
-  <MyCard class="bottle-helper" :status-class="{ active: state.isRunning }">
+  <MyCard
+    class="bottle-helper"
+    :panel-active="panelActive"
+    :status-class="{ active: bottleHelper.isRunning }"
+  >
     <template #icon>
       <img src="/icons/173746572831736.png" :alt="t('bottleHelperCard.iconAlt')">
     </template>
@@ -8,46 +12,55 @@
       <p>{{ t("bottleHelperCard.subtitle") }}</p>
     </template>
     <template #badge>
-      <span>{{ state.isRunning ? t("bottleHelperCard.status.running") : t("bottleHelperCard.status.stopped") }}</span>
+      <span>{{ bottleHelper.isRunning ? t("bottleHelperCard.status.running") : t("bottleHelperCard.status.stopped") }}</span>
     </template>
     <template #default>
-      <div class="gwb2-mini-card__metric bottle-helper__metric">
-        <span class="metric-label">{{ t("bottleHelperCard.subtitle") }}</span>
-        <strong class="metric-value time-display">{{ formatTime(state.remainingTime) }}</strong>
+      <div class="gwb2-mini-card__metric-grid gwb2-mini-card__metric-grid--single">
+        <div class="gwb2-mini-card__metric bottle-helper__metric">
+          <span class="metric-label">{{ t("bottleHelperCard.subtitle") }}</span>
+          <strong class="metric-value time-display">{{ formatTime(bottleHelper.remainingTime) }}</strong>
+        </div>
       </div>
     </template>
     <template #action>
-      <n-button
-        block
-        secondary
-        size="small"
-        type="primary"
-        @click="handleBottleHelper"
-      >
-        {{ state.isRunning ? t("bottleHelperCard.actions.restart") : t("bottleHelperCard.actions.start") }}
-      </n-button>
+      <div class="gwb2-mini-card__action-rail gwb2-mini-card__action-rail--single">
+        <n-button
+          block
+          secondary
+          size="small"
+          type="primary"
+          @click="handleBottleHelper"
+        >
+          {{ bottleHelper.isRunning ? t("bottleHelperCard.actions.restart") : t("bottleHelperCard.actions.start") }}
+        </n-button>
+      </div>
     </template>
   </MyCard>
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, toRef } from "vue";
 import { useMessage } from "naive-ui/es";
 import { useI18n } from "vue-i18n";
+import { useGameCardPanelActive } from "@/composables/gameCards/useGameCardPanelActive";
+import { useGameCardTicker } from "@/composables/gameCards/useGameCardTicker";
 import { useTokenStore } from "@/stores/tokenStore";
 import MyCard from "../Common/MyCard.vue";
+
+const props = defineProps({
+  panelActive: {
+    type: Boolean,
+    default: true,
+  },
+});
 
 const tokenStore = useTokenStore();
 const message = useMessage();
 const { t } = useI18n();
 
+const { panelActive } = useGameCardPanelActive(toRef(props, "panelActive"));
+const { now } = useGameCardTicker({ panelActive });
 const roleInfo = computed(() => tokenStore.gameData?.roleInfo || null);
-
-const state = ref({
-  isRunning: false,
-  remainingTime: 0,
-  stopTime: 0,
-});
 
 const formatTime = (seconds) => {
   const total = Math.floor(Number(seconds) || 0);
@@ -62,31 +75,16 @@ const formatTime = (seconds) => {
   return `${h}:${m}:${s}`;
 };
 
-const syncFromRole = () => {
-  const role = roleInfo.value?.role;
-  if (!role?.bottleHelpers) return;
-  const now = Date.now() / 1000;
-  state.value.stopTime = role.bottleHelpers.helperStopTime;
-  state.value.isRunning = role.bottleHelpers.helperStopTime > now;
-  state.value.remainingTime = Math.max(
-    0,
-    Math.floor(role.bottleHelpers.helperStopTime - now),
-  );
-};
+const bottleHelper = computed(() => {
+  const stopTime = Number(roleInfo.value?.role?.bottleHelpers?.helperStopTime || 0);
+  const currentNow = now.value / 1000;
+  const remainingTime = Math.max(0, Math.floor(stopTime - currentNow));
 
-watch(roleInfo, () => syncFromRole(), { deep: true, immediate: true });
-
-let timer = null;
-onMounted(() => {
-  timer = setInterval(() => {
-    if (state.value.isRunning && state.value.remainingTime > 0) {
-      state.value.remainingTime = Math.max(0, state.value.remainingTime - 1);
-      if (state.value.remainingTime <= 0) state.value.isRunning = false;
-    }
-  }, 1000);
-});
-onUnmounted(() => {
-  if (timer) clearInterval(timer);
+  return {
+    isRunning: stopTime > currentNow,
+    remainingTime,
+    stopTime,
+  };
 });
 
 const handleBottleHelper = () => {
@@ -101,7 +99,7 @@ const handleBottleHelper = () => {
     tokenStore.sendMessage(tokenId, "role_getroleinfo");
   }, 500);
   message.info(
-    state.value.isRunning
+    bottleHelper.value.isRunning
       ? t("bottleHelperCard.messages.restarting")
       : t("bottleHelperCard.messages.starting"),
   );

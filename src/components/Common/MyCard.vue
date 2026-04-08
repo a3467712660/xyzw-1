@@ -1,7 +1,8 @@
 <template>
   <div
     class="gwb2-mini-card"
-    :class="stateClasses"
+    :class="rootClasses"
+    :data-panel-active="panelActive ? 'true' : 'false'"
   >
     <div class="gwb2-mini-card__surface">
       <div class="gwb2-mini-card__toolbar">
@@ -58,7 +59,8 @@ import { computed } from "vue";
 type StatusKey = "active" | "weekly" | "energy" | "completed";
 
 const props = defineProps<{
-  statusClass: StatusKey | Record<StatusKey, boolean> | string;
+  panelActive?: boolean;
+  statusClass?: StatusKey | Record<StatusKey, boolean> | string;
 }>();
 
 const stateClasses = computed(() => {
@@ -79,6 +81,13 @@ const stateClasses = computed(() => {
     .filter(([, enabled]) => Boolean(enabled))
     .map(([name]) => `gwb2-mini-card--${name}`);
 });
+
+const rootClasses = computed(() => [
+  ...stateClasses.value,
+  props.panelActive === false
+    ? "gwb2-mini-card--panel-inactive"
+    : "gwb2-mini-card--panel-active",
+]);
 </script>
 
 <style lang="scss">
@@ -89,6 +98,7 @@ const stateClasses = computed(() => {
   min-height: 220px;
   flex-direction: column;
   gap: var(--spacing-md);
+  transition: opacity var(--transition-fast);
 }
 
 .gwb2-mini-card--active {
@@ -109,6 +119,10 @@ const stateClasses = computed(() => {
 .gwb2-mini-card--completed {
   --gwb2-mini-card-accent: var(--success-color);
   --gwb2-mini-card-accent-soft: rgba(63, 143, 107, 0.16);
+}
+
+.gwb2-mini-card--panel-inactive {
+  opacity: 0.96;
 }
 
 .gwb2-mini-card__surface {
@@ -224,7 +238,7 @@ const stateClasses = computed(() => {
   }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 959px) {
   .gwb2-mini-card {
     min-height: auto;
   }

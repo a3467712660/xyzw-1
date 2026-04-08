@@ -821,6 +821,16 @@
   background: rgba(214, 223, 232, 0.34);
 }
 
+.game-workbench-v2 .gwb2-mini-card__metric-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.game-workbench-v2 .gwb2-mini-card__metric-grid--single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .game-workbench-v2 .gwb2-mini-card__list {
   display: flex;
   flex-direction: column;
@@ -829,6 +839,44 @@
   border: 1px solid rgba(78, 94, 116, 0.1);
   border-radius: 14px;
   background: rgba(214, 223, 232, 0.28);
+}
+
+.game-workbench-v2 .gwb2-mini-card__resource-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+  gap: 10px;
+}
+
+.game-workbench-v2 .gwb2-mini-card__resource-grid > * {
+  min-width: 0;
+}
+
+.game-workbench-v2 .gwb2-mini-card__control-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.game-workbench-v2 .gwb2-mini-card__control-grid > * {
+  min-width: 0;
+}
+
+.game-workbench-v2 .gwb2-mini-card__stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.game-workbench-v2 .gwb2-mini-card__section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .game-workbench-v2 .gwb2-mini-card__segmented {
@@ -963,6 +1011,32 @@
   background: transparent;
 }
 
+.game-workbench-v2 .gwb2-mini-card__actions > .gwb2-mini-card__action-rail {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  width: 100%;
+  min-height: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.game-workbench-v2 .gwb2-mini-card__actions > .gwb2-mini-card__action-rail--single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.game-workbench-v2 .gwb2-mini-card__actions > .gwb2-mini-card__action-rail:hover {
+  background: transparent;
+}
+
+.game-workbench-v2 .gwb2-mini-card__actions > .gwb2-mini-card__action-rail > :is(.n-button, .n-button-group, .n-dropdown) {
+  width: 100%;
+  min-width: 0;
+}
+
 .game-workbench-v2 .gwb2-mini-card__actions > .n-button,
 .game-workbench-v2 .gwb2-mini-card__actions > .n-button-group .n-button,
 .game-workbench-v2 .gwb2-mini-card__actions > .n-dropdown .n-button {
@@ -986,7 +1060,7 @@
   z-index: 1;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 959px) {
   .game-workbench-v2 .gwb2-mini-card__toolbar,
   .game-workbench-v2 .gwb2-mini-card__toolbar-main,
   .game-workbench-v2 .gwb2-mini-card__toolbar-side {
@@ -1004,6 +1078,16 @@
 
   .game-workbench-v2 .gwb2-mini-card__segmented > button {
     flex: 1 1 calc(33.333% - 6px);
+  }
+
+  .game-workbench-v2 .gwb2-mini-card__metric-grid,
+  .game-workbench-v2 .gwb2-mini-card__control-grid,
+  .game-workbench-v2 .gwb2-mini-card__actions > .gwb2-mini-card__action-rail {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .game-workbench-v2 .gwb2-mini-card__resource-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .game-workbench-v2 .gwb2-mini-card__actions > *,

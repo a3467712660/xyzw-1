@@ -44,47 +44,86 @@
           'club-mode': activeSection === 'club',
         }"
       >
-        <TeamFormation v-show="activeSection === 'daily'"></TeamFormation>
-        <DailyTaskStatus v-show="activeSection === 'daily'"></DailyTaskStatus>
+        <TeamFormation
+          v-show="activeSection === 'daily'"
+          :panel-active="activeSection === 'daily'"
+        ></TeamFormation>
+        <DailyTaskStatus
+          v-show="activeSection === 'daily'"
+          :panel-active="activeSection === 'daily'"
+        ></DailyTaskStatus>
 
         <TowerStatus
           v-if="mountedSections.dailyExtras && isShowTowerStatus"
           v-show="activeSection === 'daily'"
+          :panel-active="activeSection === 'daily'"
         ></TowerStatus>
         <WeirdTowerStatus
           v-if="mountedSections.dailyExtras"
           v-show="activeSection === 'daily'"
+          :panel-active="activeSection === 'daily'"
         ></WeirdTowerStatus>
         <BottleHelperCard
           v-if="mountedSections.dailyExtras"
           v-show="activeSection === 'daily'"
+          :panel-active="activeSection === 'daily'"
         ></BottleHelperCard>
         <HangUpStatusCard
           v-if="mountedSections.dailyExtras"
           v-show="activeSection === 'daily'"
+          :panel-active="activeSection === 'daily'"
         ></HangUpStatusCard>
 
         <BoxHelperCard
           v-if="mountedSections.tools"
           v-show="activeSection === 'tools'"
+          :panel-active="activeSection === 'tools'"
         ></BoxHelperCard>
         <FishHelperCard
           v-if="mountedSections.tools"
           v-show="activeSection === 'tools'"
+          :panel-active="activeSection === 'tools'"
         ></FishHelperCard>
         <RecruitHelperCard
           v-if="mountedSections.tools"
           v-show="activeSection === 'tools'"
+          :panel-active="activeSection === 'tools'"
         ></RecruitHelperCard>
-        <StarUpgradeCard v-if="activeSection === 'tools'"></StarUpgradeCard>
-        <FightHelperCard v-if="activeSection === 'tools'"></FightHelperCard>
-        <DreamHelperCard v-if="activeSection === 'tools'"></DreamHelperCard>
-        <HeroUpgradeCard v-if="activeSection === 'tools'"></HeroUpgradeCard>
-        <RefineHelperCard v-if="activeSection === 'tools'"></RefineHelperCard>
+        <StarUpgradeCard
+          v-if="mountedSections.tools"
+          v-show="activeSection === 'tools'"
+          :panel-active="activeSection === 'tools'"
+        ></StarUpgradeCard>
+        <FightHelperCard
+          v-if="mountedSections.tools"
+          v-show="activeSection === 'tools'"
+          :panel-active="activeSection === 'tools'"
+        ></FightHelperCard>
+        <DreamHelperCard
+          v-if="mountedSections.tools"
+          v-show="activeSection === 'tools'"
+          :panel-active="activeSection === 'tools'"
+        ></DreamHelperCard>
+        <HeroUpgradeCard
+          v-if="mountedSections.tools"
+          v-show="activeSection === 'tools'"
+          :panel-active="activeSection === 'tools'"
+        ></HeroUpgradeCard>
+        <RefineHelperCard
+          v-if="mountedSections.tools"
+          v-show="activeSection === 'tools'"
+          :panel-active="activeSection === 'tools'"
+        ></RefineHelperCard>
         <ConsumptionProgressCard
-          v-if="activeSection === 'tools'"
+          v-if="mountedSections.tools"
+          v-show="activeSection === 'tools'"
+          :panel-active="activeSection === 'tools'"
         ></ConsumptionProgressCard>
-        <BossTower v-if="activeSection === 'tools'"></BossTower>
+        <BossTower
+          v-if="mountedSections.tools"
+          v-show="activeSection === 'tools'"
+          :panel-active="activeSection === 'tools'"
+        ></BossTower>
 
         <div
           v-if="ENABLE_LEGION_MATCH && activeSection === 'club'"
@@ -207,14 +246,17 @@
         <MonthlyTasksCard
           v-if="mountedSections.activity"
           v-show="activeSection === 'activity'"
+          :panel-active="activeSection === 'activity'"
         ></MonthlyTasksCard>
         <StudyChallengeCard
           v-if="mountedSections.activity"
           v-show="activeSection === 'activity'"
+          :panel-active="activeSection === 'activity'"
         ></StudyChallengeCard>
         <SkinChallengeCard
           v-if="mountedSections.activity"
           v-show="activeSection === 'activity'"
+          :panel-active="activeSection === 'activity'"
         ></SkinChallengeCard>
 
         <div
@@ -500,10 +542,6 @@ const tokenStore = useTokenStore();
 const authStore = useAuthStore();
 const { t } = useI18n();
 
-const legionMatch = ref({
-  isRegistered: false,
-});
-
 const internalActiveModule = ref(GAME_STATUS_MODULE_IDS.daily);
 const moduleSectionState = ref({});
 const saltFieldSubTab = ref("warrank");
@@ -516,27 +554,6 @@ const mountedSections = ref({
 });
 let deferredDailyExtrasHandle = null;
 let deferredDailyExtrasMode = "";
-
-const bottleHelper = ref({
-  isRunning: false,
-  remainingTime: 0,
-  stopTime: 0,
-});
-
-const hangUp = ref({
-  isActive: false,
-  remainingTime: 0,
-  elapsedTime: 0,
-  lastTime: 0,
-  hangUpTime: 0,
-  isExtending: false,
-  isClaiming: false,
-});
-
-const legionSignin = ref({
-  isSignedIn: false,
-  clubName: "",
-});
 
 const activeModule = computed({
   get: () => props.activeModule ?? internalActiveModule.value,
@@ -612,6 +629,38 @@ const mountedSummary = computed(() => {
     labels.push(t("gameStatus.intel.loaded.tools"));
   }
   return labels.length ? labels.join(" / ") : t("gameStatus.intel.loaded.none");
+});
+
+const getTodayTimestamp = () => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return today.getTime() / 1000;
+};
+
+const legionMatch = computed(() => {
+  const todayTimestamp = getTodayTimestamp();
+  return {
+    isRegistered:
+      Number(roleInfo.value?.role?.statistics?.["last:legion:match:sign:up:time"]) > todayTimestamp,
+  };
+});
+
+const legionSignin = computed(() => {
+  const todayTimestamp = getTodayTimestamp();
+  const legionInfo
+    = roleInfo.value?.legionInfo
+      || roleInfo.value?.role?.legionInfo
+      || null;
+
+  return {
+    clubName:
+      legionInfo?.name
+      || legionInfo?.legionName
+      || roleInfo.value?.role?.legionName
+      || "",
+    isSignedIn:
+      Number(roleInfo.value?.role?.statisticsTime?.["legion:sign:in"]) > todayTimestamp,
+  };
 });
 
 const intelFacts = computed(() => [
@@ -711,88 +760,6 @@ const prepareSectionMount = (section) => {
   }
 };
 
-const updateGameStatus = () => {
-  if (!roleInfo.value) {
-    return;
-  }
-
-  const role = roleInfo.value.role;
-
-  if (role.bottleHelpers) {
-    const now = Date.now() / 1000;
-    bottleHelper.value.stopTime = role.bottleHelpers.helperStopTime;
-    bottleHelper.value.isRunning = role.bottleHelpers.helperStopTime > now;
-    bottleHelper.value.remainingTime = Math.max(
-      0,
-      Math.floor(role.bottleHelpers.helperStopTime - now),
-    );
-  }
-
-  if (role.hangUp) {
-    const now = Date.now() / 1000;
-    hangUp.value.lastTime = role.hangUp.lastTime;
-    hangUp.value.hangUpTime = role.hangUp.hangUpTime;
-
-    const elapsed = now - hangUp.value.lastTime;
-    if (elapsed <= hangUp.value.hangUpTime) {
-      hangUp.value.remainingTime = Math.floor(
-        hangUp.value.hangUpTime - elapsed,
-      );
-      hangUp.value.isActive = true;
-    } else {
-      hangUp.value.remainingTime = 0;
-      hangUp.value.isActive = false;
-    }
-    hangUp.value.elapsedTime = Math.floor(
-      hangUp.value.hangUpTime - hangUp.value.remainingTime,
-    );
-  }
-
-  if (role.statistics) {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const todayTimestamp = today.getTime() / 1000;
-
-    legionMatch.value.isRegistered =
-      Number(role.statistics["last:legion:match:sign:up:time"]) > todayTimestamp;
-  }
-
-  if (role.statisticsTime) {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const todayTimestamp = today.getTime() / 1000;
-
-    legionSignin.value.isSignedIn =
-      role.statisticsTime["legion:sign:in"] > todayTimestamp;
-  }
-};
-
-let timer = null;
-const startTimer = () => {
-  if (timer) {
-    clearInterval(timer);
-  }
-  timer = setInterval(() => {
-    if (bottleHelper.value.isRunning && bottleHelper.value.remainingTime > 0) {
-      bottleHelper.value.remainingTime = Math.max(
-        0,
-        bottleHelper.value.remainingTime - 1,
-      );
-      if (bottleHelper.value.remainingTime <= 0) {
-        bottleHelper.value.isRunning = false;
-      }
-    }
-
-    if (hangUp.value.isActive && hangUp.value.remainingTime > 0) {
-      hangUp.value.remainingTime = Math.max(0, hangUp.value.remainingTime - 1);
-      hangUp.value.elapsedTime = hangUp.value.elapsedTime + 1;
-      if (hangUp.value.remainingTime <= 0) {
-        hangUp.value.isActive = false;
-      }
-    }
-  }, 1000);
-};
-
 const ENABLE_LEGION_MATCH = false;
 const ENABLE_LEGION_SIGNIN_CARD = false;
 const ENABLE_TOOLS_TAB = true;
@@ -817,16 +784,6 @@ watch(
     }
   },
   { immediate: true },
-);
-
-watch(
-  roleInfo,
-  (newValue) => {
-    if (newValue) {
-      updateGameStatus();
-    }
-  },
-  { deep: true, immediate: true },
 );
 
 watch(
@@ -868,9 +825,6 @@ watch(
 );
 
 onMounted(() => {
-  updateGameStatus();
-  startTimer();
-
   if (
     tokenStore.selectedToken
     && tokenStore.getWebSocketStatus(tokenStore.selectedToken.id) === "connected"
@@ -882,9 +836,6 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-  if (timer) {
-    clearInterval(timer);
-  }
   clearDeferredDailyExtrasMount();
 });
 </script>
@@ -928,16 +879,7 @@ onUnmounted(() => {
     grid-template-columns: repeat(3, 1fr);
   }
 
-  @media (max-width: 1280px) {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  @media (max-width: 900px) {
-    grid-template-columns: 1fr;
-    gap: var(--spacing-md);
-  }
-
-  @media (max-width: 768px) {
+  @media (max-width: 959px) {
     grid-template-columns: minmax(0, 1fr);
     padding: var(--spacing-sm);
     gap: var(--spacing-md);
@@ -984,7 +926,7 @@ onUnmounted(() => {
   min-height: 600px;
   overflow: auto;
 
-  @media (max-width: 768px) {
+  @media (max-width: 959px) {
     height: auto;
     min-height: calc(100dvh - 180px);
     overflow: visible;
@@ -1102,7 +1044,7 @@ onUnmounted(() => {
   }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 959px) {
   .sub-nav-center {
     justify-content: flex-start;
     overflow-x: auto;

@@ -1,5 +1,9 @@
 <template>
-  <MyCard class="bottle-helper" :status-class="{ active: state.isRunning }">
+  <MyCard
+    class="fight-helper-card"
+    :panel-active="panelActive"
+    :status-class="{ active: isRunning }"
+  >
     <template #icon>
       <img src="/icons/1736425783912140.png" :alt="t('fightHelperCard.iconAlt')">
     </template>
@@ -7,30 +11,34 @@
       <h3>{{ t("fightHelperCard.title") }}</h3>
     </template>
     <template #badge>
-      <span>{{ state.isRunning ? t("fightHelperCard.status.running") : t("fightHelperCard.status.stopped") }}</span>
+      <span>{{ isRunning ? t("fightHelperCard.status.running") : t("fightHelperCard.status.stopped") }}</span>
     </template>
     <template #default>
-      <div class="gwb2-mini-card__metric total-points">
-        <span class="label">{{ t("fightHelperCard.labels.ticketCount") }}</span>
-        <span class="value">{{ itemcount }}</span>
-      </div>
-      <div class="container">
-        <div class="gwb2-mini-card__toolbar selects">
+      <div class="gwb2-mini-card__stack container">
+        <div class="gwb2-mini-card__metric-grid gwb2-mini-card__metric-grid--single">
+          <div class="gwb2-mini-card__metric total-points">
+            <span class="label">{{ t("fightHelperCard.labels.ticketCount") }}</span>
+            <span class="value">{{ itemcount }}</span>
+          </div>
+        </div>
+        <div class="gwb2-mini-card__control-grid selects">
           <n-select v-model:value="number" :options="numberOptions"></n-select>
         </div>
       </div>
     </template>
     <template #action>
-      <n-button
-        block
-        secondary
-        size="small"
-        type="primary"
-        :disabled="state.isRunning"
-        @click="handleFightHelper"
-      >
-        {{ state.isRunning ? t("fightHelperCard.status.running") : t("fightHelperCard.actions.start") }}
-      </n-button>
+      <div class="gwb2-mini-card__action-rail gwb2-mini-card__action-rail--single">
+        <n-button
+          block
+          secondary
+          size="small"
+          type="primary"
+          :disabled="isRunning"
+          @click="handleFightHelper"
+        >
+          {{ isRunning ? t("fightHelperCard.status.running") : t("fightHelperCard.actions.start") }}
+        </n-button>
+      </div>
     </template>
   </MyCard>
 </template>
@@ -39,12 +47,23 @@
 import { computed, ref } from "vue";
 import { useMessage } from "naive-ui/es";
 import { useI18n } from "vue-i18n";
+import { useGameCardActionLock } from "@/composables/gameCards/useGameCardActionLock";
+import { useGameCardBatchAction } from "@/composables/gameCards/useGameCardBatchAction";
 import { useTokenStore } from "@/stores/tokenStore";
 import MyCard from "../Common/MyCard.vue";
+
+defineProps({
+  panelActive: {
+    type: Boolean,
+    default: true,
+  },
+});
 
 const tokenStore = useTokenStore();
 const message = useMessage();
 const { t } = useI18n();
+const { isRunning, runLocked } = useGameCardActionLock();
+const { runBatchedCount } = useGameCardBatchAction();
 
 const roleInfo = computed(() => tokenStore.gameData?.roleInfo || null);
 const itemcount = computed(
@@ -77,54 +96,54 @@ const numberOptions = [
   { label: "5000", value: 5000 },
   { label: "10000", value: 10000 },
 ];
-const state = ref({
-  isRunning: false,
-});
-
 const handleFightHelper = async () => {
-  if (!tokenStore.selectedToken) {
-    message.warning(t("fightHelperCard.messages.selectTokenFirst"));
-    return;
-  }
-  if (itemcount.value < number.value) {
-    message.warning(t("fightHelperCard.messages.notEnoughTickets"));
-    return;
-  }
-  const tokenId = tokenStore.selectedToken.id;
-  state.value.isRunning = true;
-  message.info(t("fightHelperCard.messages.running"));
-  for (let i = 0; i < number.value; i++) {
-    // 开始竞技场
-    await tokenStore.sendMessageWithPromise(tokenId, "arena_startarea", {});
-    let targets;
-    try {
-      targets = await tokenStore.sendMessageWithPromise(
-        tokenId,
-        "arena_getareatarget",
-        {},
-      );
-    } catch (err) {
-      message.error(t("fightHelperCard.messages.targetFailed", { error: err.message }));
-      break;
+  await runLocked(async () => {
+    if (!tokenStore.selectedToken) {
+      message.warning(t("fightHelperCard.messages.selectTokenFirst"));
+      return;
     }
+    if (itemcount.value < number.value) {
+      message.warning(t("fightHelperCard.messages.notEnoughTickets"));
+      return;
+    }
+    const tokenId = tokenStore.selectedToken.id;
+    message.info(t("fightHelperCard.messages.running"));
+    await runBatchedCount({
+      total: number.value,
+      batchSize: 1,
+      executeBatch: async () => {
+        await tokenStore.sendMessageWithPromise(tokenId, "arena_startarea", {});
+        let targets;
+        try {
+          targets = await tokenStore.sendMessageWithPromise(
+            tokenId,
+            "arena_getareatarget",
+            {},
+          );
+        } catch (err) {
+          message.error(t("fightHelperCard.messages.targetFailed", { error: err.message }));
+          return false;
+        }
 
-    const targetId = pickArenaTargetId(targets);
-    if (!targetId) {
-      message.warning(t("fightHelperCard.messages.noTarget"));
-      break;
-    }
-    try {
-      await tokenStore.sendMessageWithPromise(tokenId, "fight_startareaarena", {
-        targetId,
-      });
-    } catch (e) {
-      message.error(t("fightHelperCard.messages.fightFailed", { error: e.message }));
-    }
-  }
+        const targetId = pickArenaTargetId(targets);
+        if (!targetId) {
+          message.warning(t("fightHelperCard.messages.noTarget"));
+          return false;
+        }
+        try {
+          await tokenStore.sendMessageWithPromise(tokenId, "fight_startareaarena", {
+            targetId,
+          });
+        } catch (e) {
+          message.error(t("fightHelperCard.messages.fightFailed", { error: e.message }));
+        }
+        return true;
+      },
+    });
 
-  await tokenStore.sendMessage(tokenId, "role_getroleinfo");
-  message.success(t("fightHelperCard.messages.done"));
-  state.value.isRunning = false;
+    await tokenStore.sendMessage(tokenId, "role_getroleinfo");
+    message.success(t("fightHelperCard.messages.done"));
+  });
 };
 </script>
 
@@ -161,9 +180,7 @@ const handleFightHelper = async () => {
     }
   }
   .selects {
-    display: flex;
-    align-items: center;
-    gap: 12px;
+    align-items: stretch;
   }
   .total-points {
     display: flex;
@@ -186,10 +203,9 @@ const handleFightHelper = async () => {
     }
   }
 
-  @media (max-width: 768px) {
+  @media (max-width: 959px) {
     .selects {
-      flex-direction: column;
-      align-items: stretch;
+      grid-template-columns: minmax(0, 1fr);
     }
   }
 }
