@@ -78,7 +78,7 @@ export const setupRouterGuards = (router) => {
 
     if (
       authStore.isAuthenticated
-      && ["GameFeatures", "TaskControl", "LineupAssistant"].includes(String(to.name || ""))
+      && ["GameFeatures", "BattleReports", "TaskControl", "LineupAssistant"].includes(String(to.name || ""))
     ) {
       if (!tokenStore.hasUsableWorkbenchToken) {
         try {

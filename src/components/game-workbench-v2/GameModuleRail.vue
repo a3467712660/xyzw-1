@@ -7,15 +7,21 @@
         class="game-module-rail__group"
         :class="{ 'game-module-rail__group--active': isGroupActive(group) }"
       >
-        <div class="game-module-rail__group-head">
+        <div
+          class="game-module-rail__group-head"
+          :class="{ 'game-module-rail__group-head--compact': !showGroupCaption }"
+        >
           <div class="game-module-rail__group-icon">
             <n-icon>
               <component :is="group.icon"></component>
             </n-icon>
           </div>
-          <div class="game-module-rail__group-copy">
+          <div
+            class="game-module-rail__group-copy"
+            :class="{ 'game-module-rail__group-copy--compact': !showGroupCaption }"
+          >
             <strong>{{ group.label }}</strong>
-            <span>{{ group.caption }}</span>
+            <span v-if="showGroupCaption">{{ group.caption }}</span>
           </div>
         </div>
 
@@ -25,11 +31,19 @@
             :key="item.id"
             class="game-module-rail__module"
             type="button"
-            :class="{ 'game-module-rail__module--active': item.id === modelValue }"
+            :class="{
+              'game-module-rail__module--active': item.id === modelValue,
+              'game-module-rail__module--compact': !showModuleNote,
+            }"
             @click="selectModule(item.id)"
           >
             <span class="game-module-rail__module-name">{{ item.label }}</span>
-            <span class="game-module-rail__module-note">{{ item.description }}</span>
+            <span
+              v-if="showModuleNote"
+              class="game-module-rail__module-note"
+            >
+              {{ item.description }}
+            </span>
           </button>
         </div>
       </section>
@@ -60,11 +74,19 @@
             :key="item.id"
             class="game-module-dock__module"
             type="button"
-            :class="{ 'game-module-dock__module--active': item.id === modelValue }"
+            :class="{
+              'game-module-dock__module--active': item.id === modelValue,
+              'game-module-dock__module--compact': !showModuleNote,
+            }"
             @click="selectModule(item.id)"
           >
             <span class="game-module-dock__module-name">{{ item.label }}</span>
-            <span class="game-module-dock__module-note">{{ item.description }}</span>
+            <span
+              v-if="showModuleNote"
+              class="game-module-dock__module-note"
+            >
+              {{ item.description }}
+            </span>
           </button>
         </div>
       </div>
@@ -107,6 +129,14 @@ const props = defineProps({
   dockLabel: {
     type: String,
     default: "",
+  },
+  showGroupCaption: {
+    type: Boolean,
+    default: true,
+  },
+  showModuleNote: {
+    type: Boolean,
+    default: true,
   },
 });
 

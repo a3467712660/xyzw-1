@@ -2134,7 +2134,7 @@
       },
       "legionOps": {
         "label": "Legion & Operations",
-        "description": "Bundle club, salt field, and peach garden into one coordinated battle lane."
+        "description": "Keep the club overview and coordinated legion operation entry points."
       },
       "activity": {
         "label": "Limited Activities",
@@ -2155,7 +2155,7 @@
     },
     "moduleSections": {
       "daily": "Core daily surfaces and idle information.",
-      "club": "Club overview, guild info, and linked operation entry points.",
+      "club": "Club overview, guild info, and coordinated operation entry points.",
       "saltFieldGroup": "Salt field overview, records, map, and war status switching.",
       "peachGroup": "Peach garden info and battle records.",
       "activity": "Limited-time activity and staged challenge surfaces.",

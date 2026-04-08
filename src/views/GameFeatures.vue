@@ -19,11 +19,13 @@
       @toggle-connection="handleToggleConnection"
     ></GameCommandBar>
 
-    <div class="game-workbench-v2__body">
+    <div class="game-workbench-v2__body game-workbench-v2__body--no-inspector">
       <GameModuleRail
         v-model="activeModule"
         :dock-label="t('gameFeatures.workbench.dockLabel')"
         :groups="moduleGroups"
+        :show-group-caption="false"
+        :show-module-note="false"
       ></GameModuleRail>
 
       <GameStage
@@ -44,7 +46,7 @@
       </GameStage>
 
       <GameInspector
-        v-if="!isMobile"
+        v-if="showDesktopInspector"
         :connection-action-label="connectionActionLabel"
         :connection-status-text="connectionStatusText"
         :connection-tone="connectionPillTone"
@@ -137,6 +139,7 @@ const { isMobile } = useResponsive();
 const activeModule = ref(GAME_STATUS_MODULE_IDS.daily);
 const lastActivity = ref(null);
 const showInspectorDrawer = ref(false);
+const showDesktopInspector = computed(() => false);
 
 const canAccessRestrictedGameSections = computed(() =>
   hasGameFeatureAccess(authStore.user),

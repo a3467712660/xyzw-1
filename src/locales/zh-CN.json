@@ -197,7 +197,7 @@
     },
     "workbench": {
       "eyebrow": "Mission Control",
-      "title": "游戏指挥舱",
+      "title": "游戏功能",
       "dockLabel": "模块导航",
       "values": {
         "none": "暂无",
@@ -2110,7 +2110,7 @@
       },
       "legionOps": {
         "label": "军团与作战",
-        "description": "整合俱乐部、盐场与蟠桃园等协同作战区域。"
+        "description": "保留俱乐部概览与军团协同作战入口。"
       },
       "activity": {
         "label": "限时活动",
@@ -2131,7 +2131,7 @@
     },
     "moduleSections": {
       "daily": "基础日常面板与挂机信息。",
-      "club": "军团概览、俱乐部信息与联动作战入口。",
+      "club": "军团概览、俱乐部信息与协作作战入口。",
       "saltFieldGroup": "盐场主面板、战绩、地图与战况切换。",
       "peachGroup": "蟠桃园信息与战绩记录。",
       "activity": "限时活动与阶段挑战面板。",

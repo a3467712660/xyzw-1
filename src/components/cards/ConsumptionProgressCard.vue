@@ -1,174 +1,128 @@
 <template>
-  <MyCard
-    class="consumption-progress-card"
-    :panel-active="panelActive"
-    :status-class="statusClass"
-  >
-    <template #icon>
-      <span class="consumption-progress-card__icon">📊</span>
-    </template>
-    <template #title>
-      <h3>消耗活动进度</h3>
-      <p>按需计算补齐方案，避免主界面常驻大枚举</p>
-    </template>
-    <template #badge>
-      <span>{{ plannerSummaryText }}</span>
-    </template>
-    <template #default>
-      <div class="gwb2-mini-card__stack">
-        <div class="gwb2-mini-card__metric-grid summary-grid">
-          <div class="gwb2-mini-card__metric summary-cell">
-            <span class="summary-label">黄金道具数量</span>
-            <strong class="summary-value">{{ ActivityGoldItem }}</strong>
-            <span class="summary-meta">
-              还需 {{ remainingGoldNeeded }} / 获取率 {{ Math.floor((1 / goldRateUsed) * 1000) / 1000 }}
-            </span>
+  <div class="consumption-progress-card-shell">
+    <MyCard
+      class="consumption-progress-card"
+      :panel-active="panelActive"
+      :status-class="statusClass"
+    >
+      <template #icon>
+        <span class="consumption-progress-card__icon">📊</span>
+      </template>
+      <template #title>
+        <h3>消耗活动进度</h3>
+        <p>按需计算补齐方案，避免主界面常驻大枚举</p>
+      </template>
+      <template #badge>
+        <span>{{ plannerSummaryText }}</span>
+      </template>
+      <template #default>
+        <div class="gwb2-mini-card__stack">
+          <div class="gwb2-mini-card__metric-grid summary-grid">
+            <div class="gwb2-mini-card__metric summary-cell">
+              <span class="summary-label">黄金道具数量</span>
+              <strong class="summary-value">{{ ActivityGoldItem }}</strong>
+              <span class="summary-meta">
+                还需 {{ remainingGoldNeeded }} / 获取率 {{ Math.floor((1 / goldRateUsed) * 1000) / 1000 }}
+              </span>
+            </div>
+            <div class="gwb2-mini-card__metric summary-cell">
+              <span class="summary-label">普通道具累计</span>
+              <strong class="summary-value">{{ totalObtained }}</strong>
+              <span class="summary-meta">库存剩余 {{ ActivityItem }}</span>
+            </div>
+            <div class="gwb2-mini-card__metric summary-cell">
+              <span class="summary-label">补齐缺口</span>
+              <strong class="summary-value">{{ remainingOrdNeeded }}</strong>
+              <span class="summary-meta">库存 {{ ActivityItem }} 已计入</span>
+            </div>
+            <div class="gwb2-mini-card__metric summary-cell summary-cell--muted">
+              <span class="summary-label">方案状态</span>
+              <strong class="summary-value">{{ plannerSummaryText }}</strong>
+              <span class="summary-meta">{{ plannerSummaryMeta }}</span>
+            </div>
           </div>
-          <div class="gwb2-mini-card__metric summary-cell">
-            <span class="summary-label">普通道具累计</span>
-            <strong class="summary-value">{{ totalObtained }}</strong>
-            <span class="summary-meta">库存剩余 {{ ActivityItem }}</span>
+
+          <div class="gwb2-mini-card__control-grid consumption-controls">
+            <span class="label">使用数量</span>
+            <n-input-number
+              size="small"
+              v-model:value="Activitynumber"
+              :min="1"
+              :step="1"
+            ></n-input-number>
           </div>
-          <div class="gwb2-mini-card__metric summary-cell">
-            <span class="summary-label">补齐缺口</span>
-            <strong class="summary-value">{{ remainingOrdNeeded }}</strong>
-            <span class="summary-meta">库存 {{ ActivityItem }} 已计入</span>
+
+          <div v-if="!hasActivityData" class="gwb2-mini-card__empty empty-state">
+            暂无活动数据
           </div>
-          <div class="gwb2-mini-card__metric summary-cell summary-cell--muted">
-            <span class="summary-label">方案状态</span>
-            <strong class="summary-value">{{ plannerSummaryText }}</strong>
-            <span class="summary-meta">{{ plannerSummaryMeta }}</span>
+          <div v-else class="gwb2-mini-card__list progress-list">
+            <div v-for="item in progressList" :key="item.id" class="progress-item">
+              <div class="item-header">
+                <span class="item-name">{{ item.name }}</span>
+                <span class="item-values">
+                  <span class="current">{{ item.current }}</span>
+                  <span class="separator">/</span>
+                  <span class="target">{{ item.nextTarget }}</span>
+                </span>
+              </div>
+              <n-progress
+                rail-color="rgba(0, 0, 0, 0.06)"
+                type="line"
+                :color="item.isCompleted ? '#52c41a' : '#1890ff'"
+                :height="8"
+                :percentage="item.percentage"
+                :show-indicator="false"
+              ></n-progress>
+              <div class="item-footer">
+                <span v-if="!item.isCompleted" class="next-reward">
+                  下一档: {{ item.nextTarget }} (还需 {{ item.nextTarget - item.current }})
+                </span>
+                <span v-else class="completed-text">已完成所有档位</span>
+                <span v-if="item.obtainedItems > 0" class="obtained-items">
+                  已获得道具: {{ item.obtainedItems }}
+                </span>
+              </div>
+            </div>
           </div>
         </div>
-
-        <div class="gwb2-mini-card__control-grid consumption-controls">
-          <span class="label">使用数量</span>
-          <n-input-number
+      </template>
+      <template #action>
+        <div class="gwb2-mini-card__action-rail consumption-actions">
+          <n-button
             size="small"
-            v-model:value="Activitynumber"
-            :min="1"
-            :step="1"
-          ></n-input-number>
+            type="primary"
+            :disabled="state.isRunning"
+            @click="OpenActivityItem"
+          >
+            打开普通道具
+          </n-button>
+          <n-button
+            size="small"
+            :disabled="!hasActivityData"
+            @click="openComboPlans"
+          >
+            查看方案
+          </n-button>
+          <n-button
+            size="small"
+            :disabled="!hasActivityData || comboLoading"
+            @click="recalculateCombos"
+          >
+            {{ comboLoading ? "计算中..." : "重新计算" }}
+          </n-button>
         </div>
+      </template>
+    </MyCard>
 
-        <div v-if="!hasActivityData" class="gwb2-mini-card__empty empty-state">
-          暂无活动数据
-        </div>
-        <div v-else class="gwb2-mini-card__list progress-list">
-          <div v-for="item in progressList" :key="item.id" class="progress-item">
-            <div class="item-header">
-              <span class="item-name">{{ item.name }}</span>
-              <span class="item-values">
-                <span class="current">{{ item.current }}</span>
-                <span class="separator">/</span>
-                <span class="target">{{ item.nextTarget }}</span>
-              </span>
-            </div>
-            <n-progress
-              rail-color="rgba(0, 0, 0, 0.06)"
-              type="line"
-              :color="item.isCompleted ? '#52c41a' : '#1890ff'"
-              :height="8"
-              :percentage="item.percentage"
-              :show-indicator="false"
-            ></n-progress>
-            <div class="item-footer">
-              <span v-if="!item.isCompleted" class="next-reward">
-                下一档: {{ item.nextTarget }} (还需 {{ item.nextTarget - item.current }})
-              </span>
-              <span v-else class="completed-text">已完成所有档位</span>
-              <span v-if="item.obtainedItems > 0" class="obtained-items">
-                已获得道具: {{ item.obtainedItems }}
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </template>
-    <template #action>
-      <div class="gwb2-mini-card__action-rail consumption-actions">
-        <n-button
-          size="small"
-          type="primary"
-          :disabled="state.isRunning"
-          @click="OpenActivityItem"
-        >
-          打开普通道具
-        </n-button>
-        <n-button
-          size="small"
-          :disabled="!hasActivityData"
-          @click="openComboPlans"
-        >
-          查看方案
-        </n-button>
-        <n-button
-          size="small"
-          :disabled="!hasActivityData || comboLoading"
-          @click="recalculateCombos"
-        >
-          {{ comboLoading ? "计算中..." : "重新计算" }}
-        </n-button>
-      </div>
-    </template>
-  </MyCard>
-
-  <n-modal
-    v-if="!isMobile"
-    class="consumption-progress__modal"
-    preset="card"
-    v-model:show="showCombosPanel"
-  >
-    <template #header>
-      <h3>可行方案（按总普通道具升序）</h3>
-    </template>
-    <div class="cp-modal-scroll">
-      <div class="combo-toolbar">
-        <span class="combo-summary">{{ plannerSummaryMeta }}</span>
-        <n-button
-          size="small"
-          :disabled="!hasActivityData || comboLoading"
-          @click="recalculateCombos"
-        >
-          {{ comboLoading ? "计算中..." : "重新计算" }}
-        </n-button>
-      </div>
-      <div v-if="comboLoading" class="combo-empty">方案计算中，请稍候...</div>
-      <div v-else-if="comboList.length === 0" class="combo-empty">{{ comboEmptyText }}</div>
-      <div v-else class="combo-list">
-        <div
-          v-for="(combo, idx) in comboList"
-          :key="idx"
-          class="combo-item"
-        >
-          <div class="combo-title">
-            <strong>方案 {{ idx + 1 }} : {{ combo.totalOrd }} 档</strong>
-          </div>
-          <ol class="combo-steps">
-            <li
-              v-for="step in combo.combo"
-              :key="`${step.id}-${step.threshold}`"
-            >
-              {{ step.name }} -> 达到 {{ step.threshold }} (可得 {{ step.delta }} 普通道具, 还需消耗 {{ step.cost }})
-            </li>
-          </ol>
-        </div>
-      </div>
-    </div>
-    <template #footer>
-      <n-space align="center" justify="end">
-        <n-button @click="showCombosPanel = false">关闭</n-button>
-      </n-space>
-    </template>
-  </n-modal>
-
-  <n-drawer
-    v-else
-    height="84vh"
-    placement="bottom"
-    v-model:show="showCombosPanel"
-  >
-    <n-drawer-content closable title="可行方案">
+    <n-modal
+      v-if="!isMobile"
+      class="consumption-progress__modal"
+      preset="card"
+      v-model:show="showCombosPanel"
+    >
+      <template #header>
+        <h3>可行方案（按总普通道具升序）</h3>
+      </template>
       <div class="cp-modal-scroll">
         <div class="combo-toolbar">
           <span class="combo-summary">{{ plannerSummaryMeta }}</span>
@@ -202,8 +156,56 @@
           </div>
         </div>
       </div>
-    </n-drawer-content>
-  </n-drawer>
+      <template #footer>
+        <n-space align="center" justify="end">
+          <n-button @click="showCombosPanel = false">关闭</n-button>
+        </n-space>
+      </template>
+    </n-modal>
+
+    <n-drawer
+      v-else
+      height="84vh"
+      placement="bottom"
+      v-model:show="showCombosPanel"
+    >
+      <n-drawer-content closable title="可行方案">
+        <div class="cp-modal-scroll">
+          <div class="combo-toolbar">
+            <span class="combo-summary">{{ plannerSummaryMeta }}</span>
+            <n-button
+              size="small"
+              :disabled="!hasActivityData || comboLoading"
+              @click="recalculateCombos"
+            >
+              {{ comboLoading ? "计算中..." : "重新计算" }}
+            </n-button>
+          </div>
+          <div v-if="comboLoading" class="combo-empty">方案计算中，请稍候...</div>
+          <div v-else-if="comboList.length === 0" class="combo-empty">{{ comboEmptyText }}</div>
+          <div v-else class="combo-list">
+            <div
+              v-for="(combo, idx) in comboList"
+              :key="idx"
+              class="combo-item"
+            >
+              <div class="combo-title">
+                <strong>方案 {{ idx + 1 }} : {{ combo.totalOrd }} 档</strong>
+              </div>
+              <ol class="combo-steps">
+                <li
+                  v-for="step in combo.combo"
+                  :key="`${step.id}-${step.threshold}`"
+                >
+                  {{ step.name }} -> 达到 {{ step.threshold }} (可得 {{ step.delta }} 普通道具, 还需消耗 {{ step.cost }})
+                </li>
+              </ol>
+            </div>
+          </div>
+        </div>
+      </n-drawer-content>
+    </n-drawer>
+  </div>
 </template>
 
 <script setup>
@@ -875,12 +877,19 @@ onBeforeUnmount(() => {
   font-size: 1.3rem;
 }
 
+.consumption-progress-card-shell,
+.consumption-progress-card {
+  height: 100%;
+}
+
 .summary-grid {
   align-items: stretch;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .summary-cell {
   align-items: stretch;
+  min-width: 0;
 }
 
 .summary-cell--muted {
@@ -919,6 +928,8 @@ onBeforeUnmount(() => {
 }
 
 .progress-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--spacing-md);
 }
 
@@ -926,6 +937,7 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  min-width: 0;
   padding-bottom: 10px;
   border-bottom: 1px solid rgba(78, 94, 116, 0.1);
 }
@@ -945,6 +957,10 @@ onBeforeUnmount(() => {
   font-size: var(--font-size-xs);
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.consumption-actions {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .item-header {
@@ -1058,6 +1074,17 @@ onBeforeUnmount(() => {
   background: transparent;
 }
 
+@media (max-width: 1279px) {
+  .summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .progress-list,
+  .consumption-actions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 @media (max-width: 959px) {
   .summary-grid {
     grid-template-columns: 1fr;
@@ -1082,6 +1109,10 @@ onBeforeUnmount(() => {
   .cp-modal-scroll {
     max-height: none;
     padding-right: 0;
+  }
+
+  .consumption-actions {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 </style>

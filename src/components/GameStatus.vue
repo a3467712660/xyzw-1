@@ -28,19 +28,17 @@
       :show-header="!isEmbeddedWorkbench"
       :title="t('gameStatus.stage.title')"
     >
-      <div
-        class="game-status-container"
-        :class="{
-          'full-grid':
-            activeSection === 'fightPvp'
+        <div
+          class="game-status-container"
+          :class="{
+            'activity-mode': activeSection === 'activity',
+            'full-grid':
+              activeSection === 'fightPvp'
               || activeSection === 'arenaPvp'
               || activeSection === 'resourceChanges'
               || activeSection === 'goldFishCalc'
               || activeSection === 'tenHall',
-          'full-page-mode':
-            activeSection === 'saltFieldGroup'
-              || activeSection === 'peachGroup'
-              || activeSection === 'rankGroup',
+          'full-page-mode': activeSection === 'rankGroup',
           'club-mode': activeSection === 'club',
         }"
       >
@@ -114,11 +112,6 @@
           v-show="activeSection === 'tools'"
           :panel-active="activeSection === 'tools'"
         ></RefineHelperCard>
-        <ConsumptionProgressCard
-          v-if="mountedSections.tools"
-          v-show="activeSection === 'tools'"
-          :panel-active="activeSection === 'tools'"
-        ></ConsumptionProgressCard>
         <BossTower
           v-if="mountedSections.tools"
           v-show="activeSection === 'tools'"
@@ -258,81 +251,11 @@
           v-show="activeSection === 'activity'"
           :panel-active="activeSection === 'activity'"
         ></SkinChallengeCard>
-
-        <div
-          v-if="canAccessRestrictedGameSections && activeSection === 'saltFieldGroup'"
-          class="salt-field-group"
-        >
-          <div class="sub-nav sub-nav-center">
-            <n-tabs
-              animated
-              class="sub-tabs"
-              size="small"
-              type="segment"
-              v-model:value="saltFieldSubTab"
-            >
-              <n-tab-pane name="warrank" :tab="t('gameStatus.saltFieldTabs.warrank')"></n-tab-pane>
-              <n-tab-pane name="weekBattle" :tab="t('gameStatus.saltFieldTabs.weekBattle')"></n-tab-pane>
-              <n-tab-pane name="monthBattle" :tab="t('gameStatus.saltFieldTabs.monthBattle')"></n-tab-pane>
-              <n-tab-pane name="legionWarMap" :tab="t('gameStatus.saltFieldTabs.legionWarMap')"></n-tab-pane>
-              <n-tab-pane name="legionWarStatistics" :tab="t('gameStatus.saltFieldTabs.legionWarStatistics')"></n-tab-pane>
-            </n-tabs>
-          </div>
-
-          <div
-            v-if="saltFieldSubTab === 'weekBattle'"
-            class="warrank-full-container"
-          >
-            <ClubBattleRecords></ClubBattleRecords>
-          </div>
-          <div v-if="saltFieldSubTab === 'warrank'" class="warrank-full-container">
-            <ClubWarrank></ClubWarrank>
-          </div>
-          <div
-            v-if="saltFieldSubTab === 'monthBattle'"
-            class="warrank-full-container"
-          >
-            <ClubMonthBattleRecords></ClubMonthBattleRecords>
-          </div>
-          <div
-            v-if="saltFieldSubTab === 'legionWarMap'"
-            class="warrank-full-container"
-          >
-            <LegionWarMap></LegionWarMap>
-          </div>
-          <div
-            v-if="saltFieldSubTab === 'legionWarStatistics'"
-            class="warrank-full-container"
-          >
-            <LegionWarStatistics></LegionWarStatistics>
-          </div>
-        </div>
-
-        <div
-          v-if="canAccessRestrictedGameSections && activeSection === 'peachGroup'"
-          class="peach-group"
-        >
-          <div class="sub-nav sub-nav-center">
-            <n-tabs
-              animated
-              class="sub-tabs"
-              size="small"
-              type="segment"
-              v-model:value="peachSubTab"
-            >
-              <n-tab-pane name="peach" :tab="t('gameStatus.peachTabs.peach')"></n-tab-pane>
-              <n-tab-pane name="peachBattle" :tab="t('gameStatus.peachTabs.peachBattle')"></n-tab-pane>
-            </n-tabs>
-          </div>
-
-          <div v-if="peachSubTab === 'peachBattle'" class="warrank-full-container">
-            <PeachBattleRecords></PeachBattleRecords>
-          </div>
-          <div v-if="peachSubTab === 'peach'" class="warrank-full-container">
-            <PeachInfo></PeachInfo>
-          </div>
-        </div>
-
+        <ConsumptionProgressCard
+          v-if="mountedSections.activity"
+          v-show="activeSection === 'activity'"
+          :panel-active="activeSection === 'activity'"
+        ></ConsumptionProgressCard>
         <div v-if="activeSection === 'rankGroup'" class="rank-group">
           <div class="sub-nav sub-nav-center">
             <n-tabs
@@ -470,18 +393,6 @@ const StudyChallengeCard = defineAsyncComponent(
 const SkinChallengeCard = defineAsyncComponent(
   () => import("./cards/SkinChallengeCard.vue"),
 );
-const ClubWarrank = defineAsyncComponent(
-  () => import("./Club/ClubWarrank.vue"),
-);
-const ClubMonthBattleRecords = defineAsyncComponent(
-  () => import("./Club/ClubMonthBattleRecords.vue"),
-);
-const ClubBattleRecords = defineAsyncComponent(
-  () => import("./Club/ClubBattleRecords.vue"),
-);
-const PeachBattleRecords = defineAsyncComponent(
-  () => import("./Club/PeachBattleRecords.vue"),
-);
 const TopRankList = defineAsyncComponent(
   () => import("./cards/TopRankListPageCard.vue"),
 );
@@ -527,15 +438,8 @@ const WeirdTowerStatus = defineAsyncComponent(
   () => import("./Tower/WeirdTowerStatus.vue"),
 );
 const BossTower = defineAsyncComponent(() => import("./Tower/BossTower.vue"));
-const PeachInfo = defineAsyncComponent(() => import("./Club/PeachInfo.vue"));
 const ServerRankList = defineAsyncComponent(
   () => import("./cards/ServerRankListPageCard.vue"),
-);
-const LegionWarMap = defineAsyncComponent(
-  () => import("./Club/LegionWarMap.vue"),
-);
-const LegionWarStatistics = defineAsyncComponent(
-  () => import("./Club/LegionWarStatistics.vue"),
 );
 
 const tokenStore = useTokenStore();
@@ -544,8 +448,6 @@ const { t } = useI18n();
 
 const internalActiveModule = ref(GAME_STATUS_MODULE_IDS.daily);
 const moduleSectionState = ref({});
-const saltFieldSubTab = ref("warrank");
-const peachSubTab = ref("peach");
 const rankSubTab = ref("serverrank");
 const mountedSections = ref({
   activity: false,
@@ -907,6 +809,46 @@ onUnmounted(() => {
   }
 }
 
+.game-status-container.activity-mode {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+  max-width: 100% !important;
+}
+
+.game-status-container.activity-mode :deep(.monthly-tasks),
+.game-status-container.activity-mode :deep(.study-challenge-card),
+.game-status-container.activity-mode :deep(.skin-challenge),
+.game-status-container.activity-mode :deep(.consumption-progress-card-shell),
+.game-status-container.activity-mode :deep(.consumption-progress-card) {
+  height: 100%;
+}
+
+.game-status-container.activity-mode :deep(.consumption-progress-card-shell) {
+  grid-column: 1 / -1;
+}
+
+@media (min-width: 1360px) {
+  .game-status-container.activity-mode {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+  }
+
+  .game-status-container.activity-mode :deep(.monthly-tasks) {
+    grid-column: span 4;
+  }
+
+  .game-status-container.activity-mode :deep(.study-challenge-card) {
+    grid-column: span 3;
+  }
+
+  .game-status-container.activity-mode :deep(.skin-challenge) {
+    grid-column: span 5;
+  }
+
+  .game-status-container.activity-mode :deep(.consumption-progress-card-shell) {
+    grid-column: 1 / -1;
+  }
+}
+
 .sub-tabs :deep(.n-tabs-nav-scroll-wrapper) {
   overflow-x: auto;
   overflow-y: hidden;
@@ -934,8 +876,6 @@ onUnmounted(() => {
   }
 }
 
-.salt-field-group,
-.peach-group,
 .rank-group {
   grid-column: 1 / -1;
   width: 100%;

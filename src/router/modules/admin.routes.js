@@ -37,6 +37,17 @@ const adminChildren = [
     }),
   },
   {
+    path: "battle-reports",
+    name: "BattleReports",
+    component: () => import("@/views/BattleReports.vue"),
+    meta: withRouteMeta({
+      title: "战报功能",
+      requiresAuth: true,
+      requiresGameAccess: true,
+      layout: "default",
+    }),
+  },
+  {
     path: "lineup-assistant",
     name: "LineupAssistant",
     component: () => import("@/views/LineupAssistant.vue"),

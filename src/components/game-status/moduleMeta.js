@@ -41,16 +41,6 @@ export const buildGameStatusModules = (
               label: t("gameStatus.sections.club"),
               description: t("gameStatus.moduleSections.club"),
             },
-            {
-              id: "saltFieldGroup",
-              label: t("gameStatus.sections.saltField"),
-              description: t("gameStatus.moduleSections.saltFieldGroup"),
-            },
-            {
-              id: "peachGroup",
-              label: t("gameStatus.sections.peachGroup"),
-              description: t("gameStatus.moduleSections.peachGroup"),
-            },
           ]
         : [],
     },

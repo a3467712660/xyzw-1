@@ -484,8 +484,10 @@ onBeforeUnmount(() => {
   padding: 12px;
   display: flex;
   min-width: 0;
+  min-height: 150px;
   flex-direction: column;
   align-items: center;
+  justify-content: space-between;
   text-align: center;
   transition:
     border-color var(--transition-fast),
@@ -520,6 +522,15 @@ onBeforeUnmount(() => {
       linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(209, 219, 229, 0.12)),
       rgba(217, 225, 233, 0.5);
   }
+}
+
+.skin-challenge :deep(.gwb2-mini-card__surface) {
+  height: 100%;
+}
+
+.skin-challenge :deep(.gwb2-mini-card__body) {
+  display: flex;
+  min-height: 0;
 }
 
 .expired-mask {

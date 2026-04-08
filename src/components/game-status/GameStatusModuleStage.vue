@@ -19,7 +19,6 @@
             {{ currentSectionMeta.label }}
           </span>
         </div>
-        <p class="game-status-module-stage__description">{{ module?.description }}</p>
       </div>
 
       <div
@@ -60,7 +59,6 @@
             @click="$emit('update:modelValue', section.id)"
           >
             <span class="game-status-module-stage__subnav-item-label">{{ section.label }}</span>
-            <span class="game-status-module-stage__subnav-item-meta">{{ section.description }}</span>
           </button>
         </div>
       </aside>
@@ -87,7 +85,6 @@
             @click="selectMobileSection(section.id)"
           >
             <span class="game-status-module-stage__subnav-item-label">{{ section.label }}</span>
-            <span class="game-status-module-stage__subnav-item-meta">{{ section.description }}</span>
           </button>
         </div>
       </n-drawer-content>
@@ -204,12 +201,6 @@ const selectMobileSection = (sectionId) => {
   color: var(--text-primary);
 }
 
-.game-status-module-stage__description {
-  margin: 10px 0 0;
-  color: var(--text-secondary);
-  line-height: 1.65;
-}
-
 .game-status-module-stage__section-chip {
   display: inline-flex;
   align-items: center;
@@ -304,12 +295,6 @@ const selectMobileSection = (sectionId) => {
 .game-status-module-stage__subnav-item-label {
   font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
-}
-
-.game-status-module-stage__subnav-item-meta {
-  color: var(--text-secondary);
-  font-size: var(--font-size-xs);
-  line-height: 1.5;
 }
 
 .game-status-module-stage__content {

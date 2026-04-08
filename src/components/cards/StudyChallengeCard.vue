@@ -199,6 +199,8 @@ onBeforeUnmount(() => {
 <style scoped lang="scss">
 .study-metric {
   align-items: stretch;
+  min-height: 84px;
+  justify-content: space-between;
 }
 
 .study-metric__state,
@@ -220,6 +222,16 @@ onBeforeUnmount(() => {
 
 .description {
   margin: 0;
+  color: var(--text-secondary);
+}
+
+.study-challenge-card :deep(.gwb2-mini-card__surface) {
+  height: 100%;
+}
+
+.study-challenge-card :deep(.gwb2-mini-card__body) {
+  display: flex;
+  align-items: flex-start;
 }
 
 @media (max-width: 959px) {

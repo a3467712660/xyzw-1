@@ -229,7 +229,7 @@
           <div v-else-if="currentStyle === 'style1'" class="style-1">
             <div class="style1-header">
               <h2>
-                {{ currentMonthDisplay }} {{ club.name || "俱乐部" }}盐场月报
+                {{ currentMonthDisplay }} {{ club?.name || "俱乐部" }}盐场月报
               </h2>
             </div>
 
@@ -472,7 +472,7 @@
               <div class="style2-title">
                 <span class="trophy-icon">🏆</span>
                 <div class="title-text">
-                  <h2>{{ club.name || "俱乐部" }} 盐场月报</h2>
+                  <h2>{{ club?.name || "俱乐部" }} 盐场月报</h2>
                   <div class="date-text">{{ currentMonthDisplay }}</div>
                 </div>
               </div>
