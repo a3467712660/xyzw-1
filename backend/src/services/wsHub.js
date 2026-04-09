@@ -6,7 +6,35 @@ import { parseCookies } from "../lib/cookies.js";
 import { env } from "../config/env.js";
 
 const socketsByUserId = new Map();
+const socketsByIp = new Map();
 const WS_AUTH_TIMEOUT_MS = 5000;
+const WS_LIMIT_CLOSE_CODE = 1013;
+const WS_LIMIT_CLOSE_REASON = "Connection limit exceeded";
+let globalSocketCount = 0;
+
+const getSocketIp = (req) => {
+  const forwardedFor = String(req.headers?.["x-forwarded-for"] || "").trim();
+  if (env.trustProxy !== false && forwardedFor) {
+    const forwardedIp = forwardedFor.split(",")[0]?.trim();
+    if (forwardedIp) {
+      return forwardedIp;
+    }
+  }
+  return String(req.socket?.remoteAddress || "").trim() || "unknown";
+};
+
+const incrementMapCount = (map, key) => {
+  map.set(key, (map.get(key) || 0) + 1);
+};
+
+const decrementMapCount = (map, key) => {
+  const next = (map.get(key) || 0) - 1;
+  if (next > 0) {
+    map.set(key, next);
+    return;
+  }
+  map.delete(key);
+};
 
 const closeAllSocketsByUserId = (userId, reason = "Session revoked") => {
   const clients = socketsByUserId.get(String(userId || ""));
@@ -32,14 +60,38 @@ const mapAuthErrorToWsReason = (error) => {
   return "Invalid token";
 };
 
+const closeForLimit = (ws) => {
+  if (ws.readyState === ws.OPEN || ws.readyState === ws.CONNECTING) {
+    ws.close(WS_LIMIT_CLOSE_CODE, WS_LIMIT_CLOSE_REASON);
+  }
+};
+
 export const attachWsHub = (wss) => {
   wss.on("connection", (ws, req) => {
+    const ip = getSocketIp(req);
+    const currentIpCount = socketsByIp.get(ip) || 0;
+    if (
+      globalSocketCount >= env.wsMaxGlobalConnections
+      || currentIpCount >= env.wsMaxConnectionsPerIp
+    ) {
+      closeForLimit(ws);
+      return;
+    }
+
+    globalSocketCount += 1;
+    incrementMapCount(socketsByIp, ip);
+
     let userId = "";
     let attachedSet = null;
     let authenticated = false;
     let authTimer = null;
+    let cleanedUp = false;
 
     const cleanup = () => {
+      if (cleanedUp) {
+        return;
+      }
+      cleanedUp = true;
       if (authTimer) {
         clearTimeout(authTimer);
         authTimer = null;
@@ -49,7 +101,10 @@ export const attachWsHub = (wss) => {
         if (attachedSet.size === 0) {
           socketsByUserId.delete(userId);
         }
+        attachedSet = null;
       }
+      decrementMapCount(socketsByIp, ip);
+      globalSocketCount = Math.max(0, globalSocketCount - 1);
     };
 
     const acceptToken = (token, { allowReauth = false } = {}) => {
@@ -82,8 +137,23 @@ export const attachWsHub = (wss) => {
       if (!socketsByUserId.has(userId)) {
         socketsByUserId.set(userId, new Set());
       }
-      attachedSet = socketsByUserId.get(userId);
-      attachedSet.add(ws);
+      const userSockets = socketsByUserId.get(userId);
+      const userAlreadyAttached = userSockets.has(ws);
+      if (
+        !userAlreadyAttached
+        && userSockets.size >= env.wsMaxConnectionsPerUser
+      ) {
+        if (userSockets.size === 0) {
+          socketsByUserId.delete(userId);
+        }
+        closeForLimit(ws);
+        return false;
+      }
+
+      attachedSet = userSockets;
+      if (!userAlreadyAttached) {
+        userSockets.add(ws);
+      }
       const wasAuthenticated = authenticated;
       authenticated = true;
       if (authTimer) {

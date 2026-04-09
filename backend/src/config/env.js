@@ -461,6 +461,36 @@ export const env = {
     process.env.WECHAT_PROXY_HORTOR_LOGIN_GUEST_ONLY,
     false,
   ),
+  publicWechatContactsSseMaxGlobal: parsePositiveIntInRange(
+    process.env.PUBLIC_WECHAT_CONTACTS_SSE_MAX_GLOBAL,
+    50,
+    1,
+    5000,
+  ),
+  publicWechatContactsSseMaxPerIp: parsePositiveIntInRange(
+    process.env.PUBLIC_WECHAT_CONTACTS_SSE_MAX_PER_IP,
+    3,
+    1,
+    100,
+  ),
+  wsMaxGlobalConnections: parsePositiveIntInRange(
+    process.env.WS_MAX_GLOBAL_CONNECTIONS,
+    200,
+    1,
+    10000,
+  ),
+  wsMaxConnectionsPerIp: parsePositiveIntInRange(
+    process.env.WS_MAX_CONNECTIONS_PER_IP,
+    10,
+    1,
+    1000,
+  ),
+  wsMaxConnectionsPerUser: parsePositiveIntInRange(
+    process.env.WS_MAX_CONNECTIONS_PER_USER,
+    5,
+    1,
+    200,
+  ),
   logCleanupTaskControlDays: parsePositiveIntInRange(
     process.env.LOG_CLEANUP_TASK_CONTROL_DAYS,
     30,

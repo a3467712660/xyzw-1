@@ -28,11 +28,12 @@
     "security:lockfiles": "node ./scripts/security/check-lockfiles.mjs",
     "security:build-mode": "node ./scripts/security/check-build-mode.mjs",
     "security:csp": "node ./scripts/security/check-csp.mjs",
+    "security:prod-config": "node ./scripts/security/check-backend-prod-config.mjs",
     "e2e:install": "playwright install --with-deps chromium",
     "e2e:security": "playwright test",
     "security:licenses": "node ./scripts/security/check-prod-licenses.mjs",
     "security:audit": "npm audit --omit=dev --audit-level=high && npm --prefix backend audit --omit=dev --audit-level=high",
-    "security:sca": "npm run security:lockfiles && npm run security:build-mode && npm run security:csp && npm run security:licenses && npm run security:audit",
+    "security:sca": "npm run security:lockfiles && npm run security:build-mode && npm run security:csp && npm run security:prod-config && npm run security:licenses && npm run security:audit",
     "check": "npm run lint:check && npm run test && npm run guard:legacy",
     "format": "prettier --write \"src/**/*.{js,vue,ts,css,scss}\""
   },

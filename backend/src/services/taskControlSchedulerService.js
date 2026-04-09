@@ -271,7 +271,7 @@ const getActualTokenByBin = async ({ user, tokenId, withContext = false }) => {
   if (cached && cached.expiresAt > now) {
     return withContext ? cached : cached.token;
   }
-  const binBuffer = readBinFile({ user, tokenId });
+  const binBuffer = await readBinFile({ user, tokenId });
   if (!binBuffer) {
     throw new Error("未找到对应 BIN 文件");
   }
@@ -1644,7 +1644,7 @@ const executeTaskRow = async ({ user, row }) => {
     return;
   }
 
-  const allBinTokenIds = listBinFiles({ user }).map((item) => item.tokenId);
+  const allBinTokenIds = (await listBinFiles({ user })).map((item) => item.tokenId);
   const configuredTokenIds = Array.isArray(row?.tokenIds)
     ? [...new Set(row.tokenIds.map((id) => String(id || "").trim()).filter(Boolean))]
     : [];

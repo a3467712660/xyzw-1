@@ -295,13 +295,11 @@ router.post(
   },
 );
 
-router.get("/users", (req, res) => {
+router.get("/users", async (req, res) => {
   const rows = userRepository.listUsersWithRoleInviteStats();
 
-  return res.json({
-    success: true,
-    data: rows.map((row) => {
-      const binCount = countBinFilesForUser({
+  const data = await Promise.all(rows.map(async (row) => {
+      const binCount = await countBinFilesForUser({
         user: {
           id: row.id,
           username: row.username,
@@ -329,7 +327,11 @@ router.get("/users", (req, res) => {
         refreshSecondVerifyEnabled,
         isCurrentUser: row.id === req.auth.user.id,
       };
-    }),
+    }));
+
+  return res.json({
+    success: true,
+    data,
   });
 });
 

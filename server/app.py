@@ -51,6 +51,7 @@ if not _is_truthy_env('ENABLE_LEGACY_FLASK'):
 
 
 LEGACY_FILE_TOKEN_ROUTE_ENABLED = _is_truthy_env('ENABLE_LEGACY_FILE_TOKEN_ROUTE')
+LEGACY_TRUST_PROXY = _bool_env('LEGACY_TRUST_PROXY', False)
 
 
 def _parse_legacy_cors_origins():
@@ -61,8 +62,15 @@ def _parse_legacy_cors_origins():
     return origins
 
 
+raw_flask_secret = os.environ.get('FLASK_SECRET_KEY', '').strip()
+if not raw_flask_secret:
+    raise RuntimeError(
+        "FLASK_SECRET_KEY is required when ENABLE_LEGACY_FLASK=1. "
+        "Legacy Flask must use an explicit secret."
+    )
+
 app = Flask(__name__)
-app.secret_key = os.environ.get('FLASK_SECRET_KEY') or os.urandom(24)
+app.secret_key = raw_flask_secret
 app.config.update(
     SESSION_COOKIE_NAME='xyzw_session',
     SESSION_COOKIE_HTTPONLY=_bool_env('SESSION_COOKIE_HTTPONLY', True),
@@ -164,9 +172,13 @@ def init_rate_limit_db():
 init_rate_limit_db()
 
 def get_client_ip():
-    forwarded_for = request.headers.get('X-Forwarded-For', '')
-    if forwarded_for:
-        return forwarded_for.split(',')[0].strip()
+    if LEGACY_TRUST_PROXY:
+        forwarded_for = request.headers.get('X-Forwarded-For', '')
+        if forwarded_for:
+            return forwarded_for.split(',')[0].strip()
+        real_ip = request.headers.get('X-Real-IP', '').strip()
+        if real_ip:
+            return real_ip
     return request.remote_addr or 'unknown'
 
 def is_rate_limited(bucket, key, limit, window_seconds):

@@ -722,6 +722,7 @@ const createSchema = () => {
     CREATE INDEX IF NOT EXISTS idx_resource_change_logs_user_id ON resource_change_logs(user_id);
     CREATE INDEX IF NOT EXISTS idx_task_control_logs_user_id ON task_control_logs(user_id);
     CREATE INDEX IF NOT EXISTS idx_task_control_logs_created_at ON task_control_logs(created_at);
+    CREATE INDEX IF NOT EXISTS idx_task_control_logs_user_id_created_at ON task_control_logs(user_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_password_reset_codes_user_id ON password_reset_codes(user_id);
     CREATE INDEX IF NOT EXISTS idx_password_reset_codes_code ON password_reset_codes(code);
     CREATE INDEX IF NOT EXISTS idx_admin_audit_logs_admin_user_id ON admin_audit_logs(admin_user_id);
@@ -733,6 +734,8 @@ const createSchema = () => {
     CREATE INDEX IF NOT EXISTS idx_user_notifications_user_id ON user_notifications(user_id);
     CREATE INDEX IF NOT EXISTS idx_user_notifications_is_read ON user_notifications(is_read);
     CREATE INDEX IF NOT EXISTS idx_user_notifications_created_at ON user_notifications(created_at);
+    CREATE INDEX IF NOT EXISTS idx_user_notifications_user_id_created_at ON user_notifications(user_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_user_notifications_user_id_is_read_created_at ON user_notifications(user_id, is_read, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_id ON refresh_tokens(user_id);
     CREATE INDEX IF NOT EXISTS idx_refresh_tokens_expires_at ON refresh_tokens(expires_at);
     CREATE INDEX IF NOT EXISTS idx_refresh_tokens_revoked_at ON refresh_tokens(revoked_at);
@@ -746,6 +749,9 @@ const createSchema = () => {
     CREATE INDEX IF NOT EXISTS idx_security_event_logs_user_id ON security_event_logs(user_id);
     CREATE INDEX IF NOT EXISTS idx_security_event_logs_event_type ON security_event_logs(event_type);
     CREATE INDEX IF NOT EXISTS idx_security_event_logs_created_at ON security_event_logs(created_at);
+    CREATE INDEX IF NOT EXISTS idx_security_event_logs_user_id_created_at ON security_event_logs(user_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_security_event_logs_event_type_created_at ON security_event_logs(event_type, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_security_event_logs_user_id_event_type_created_at ON security_event_logs(user_id, event_type, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_activation_codes_code ON activation_codes(code);
     CREATE INDEX IF NOT EXISTS idx_activation_codes_created_by ON activation_codes(created_by);
     CREATE INDEX IF NOT EXISTS idx_activation_codes_used_by ON activation_codes(used_by);

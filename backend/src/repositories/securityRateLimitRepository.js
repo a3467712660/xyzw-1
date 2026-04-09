@@ -12,6 +12,16 @@ export const securityRateLimitRepository = {
     );
   },
 
+  cleanupAllExpired(cleanupBefore) {
+    run(
+      `DELETE FROM security_rate_limits
+       WHERE reset_at < $cleanupBefore`,
+      {
+        $cleanupBefore: cleanupBefore,
+      },
+    );
+  },
+
   findByScopeKey(scopeKey) {
     const rows = query(
       `SELECT

@@ -3,7 +3,7 @@ import http from "node:http";
 import test from "node:test";
 import { createApp } from "../src/app/createApp.js";
 import { initDatabase } from "../src/db/database.js";
-import { run } from "../src/db/client.js";
+import { query, run } from "../src/db/client.js";
 import { createPassword, signJwt } from "../src/lib/crypto.js";
 import { nowIso } from "../src/db/sql.js";
 import { env } from "../src/config/env.js";
@@ -355,4 +355,65 @@ test("GET /wechat-proxy/qrconnect is rate limited", async (t) => {
   }
 
   assert.equal(status, 429);
+});
+
+test("wechat proxy shared limiter blocks across route families", async (t) => {
+  await initDatabase();
+  run(`DELETE FROM security_rate_limits WHERE scope_key LIKE 'wechat_proxy_%'`);
+
+  const originalFetch = global.fetch;
+  global.fetch = async () =>
+    new Response("<html><body>ok</body></html>", {
+      status: 200,
+      headers: {
+        "content-type": "text/html; charset=utf-8",
+      },
+    });
+  t.after(() => {
+    global.fetch = originalFetch;
+  });
+
+  const server = await createServer();
+  t.after(async () => {
+    await new Promise((resolve) => server.close(resolve));
+    run(`DELETE FROM security_rate_limits WHERE scope_key LIKE 'wechat_proxy_%'`);
+  });
+
+  const baseUrl = makeBaseUrl(server);
+  const warmup = await requestLocal({
+    url: `${baseUrl}/api/v1/wechat-proxy/qrconnect?appid=test&state=warmup`,
+    method: "GET",
+  });
+  assert.equal(warmup.status, 200);
+
+  const sharedRow = query(
+    `SELECT scope_key as scopeKey
+     FROM security_rate_limits
+     WHERE scope_key LIKE 'wechat_proxy_shared:%'
+     LIMIT 1`,
+  )[0];
+  assert.ok(sharedRow?.scopeKey);
+
+  run(
+    `UPDATE security_rate_limits
+     SET count = 120,
+         reset_at = $resetAt,
+         block_until = NULL
+     WHERE scope_key = $scopeKey`,
+    {
+      $scopeKey: sharedRow.scopeKey,
+      $resetAt: new Date(Date.now() + 60 * 1000).toISOString(),
+    },
+  );
+
+  const blocked = await requestLocal({
+    url: `${baseUrl}/api/v1/wechat-proxy/qrstatus`,
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ uuid: "wx_uuid_456" }),
+  });
+
+  assert.equal(blocked.status, 429);
 });

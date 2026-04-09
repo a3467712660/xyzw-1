@@ -1,10 +1,10 @@
 <template>
-  <MyCard class="lineup-saver" :statusClass="{ active: state.isRunning }">
+  <MyCard class="lineup-saver" :status-class="{ active: state.isRunning }">
     <template #icon>
       <img
-        src="/icons/Ob7pyorzmHiJcbab2c25af264d0758b527bc1b61cc3b.png"
         alt="阵容图标"
-      />
+        src="/icons/Ob7pyorzmHiJcbab2c25af264d0758b527bc1b61cc3b.png"
+      >
     </template>
     <template #title>
       <h3>阵容助手</h3>
@@ -17,31 +17,31 @@
       <div class="lineup-container">
         <div class="toolbar">
           <n-button
-            type="primary"
             size="small"
-            @click="refreshTeamInfo"
+            type="primary"
             :loading="loading"
+            @click="refreshTeamInfo"
           >
             刷新数据
           </n-button>
           <n-button
             size="small"
-            @click="saveCurrentLineup"
             :disabled="editingHeroes.length === 0"
+            @click="saveCurrentLineup"
           >
             保存阵容
           </n-button>
           <n-button
-            type="success"
             size="small"
-            @click="openAddHeroModal"
+            type="success"
             :disabled="editingHeroes.length >= 5"
+            @click="openAddHeroModal"
           >
             上阵英雄
           </n-button>
           <n-button
-            type="info"
             size="small"
+            type="info"
             @click="savedLineupsModalVisible = true"
           >
             已保存阵容 ({{ savedLineups.length }})
@@ -54,35 +54,35 @@
             <n-button
               v-for="teamId in availableTeams"
               :key="teamId"
-              :type="currentTeamId === teamId ? 'primary' : 'default'"
               size="small"
-              @click="switchTeam(teamId)"
               :loading="switchingTeamId === teamId"
+              :type="currentTeamId === teamId ? 'primary' : 'default'"
+              @click="switchTeam(teamId)"
             >
               阵容{{ teamId }}
             </n-button>
           </div>
         </div>
 
-        <div class="current-team-section" v-if="currentTeamInfo">
+        <div v-if="currentTeamInfo" class="current-team-section">
           <h4>
             编辑阵容 (阵容槽位{{ currentTeamId }})
             <span class="drag-tip">拖拽调整站位</span>
           </h4>
           <div class="heroes-grid">
             <div
-              v-for="(hero, index) in editingHeroes"
-              :key="hero.heroId + '-' + hero.position"
+              v-for="hero in editingHeroes"
+              :key="`${hero.heroId}-${hero.position}`"
               class="hero-item"
+              draggable="true"
               :class="{
-                dragging: draggedHeroId === hero.heroId,
+                'dragging': draggedHeroId === hero.heroId,
                 'drag-over': dragOverPosition === hero.position,
               }"
-              draggable="true"
-              @dragstart="onDragStart($event, hero)"
               @dragend="onDragEnd"
-              @dragover.prevent="onDragOver($event, hero)"
               @dragleave="onDragLeave"
+              @dragover.prevent="onDragOver($event, hero)"
+              @dragstart="onDragStart($event, hero)"
               @drop="onDrop($event, hero)"
             >
               <div class="hero-position">{{ hero.position + 1 }}</div>
@@ -90,9 +90,9 @@
                 <div class="hero-avatar">
                   <img
                     v-if="getHeroAvatar(hero.heroId)"
-                    :src="getHeroAvatar(hero.heroId)"
                     :alt="getHeroName(hero.heroId)"
-                  />
+                    :src="getHeroAvatar(hero.heroId)"
+                  >
                   <div v-else class="hero-placeholder">
                     {{ getHeroName(hero.heroId)?.substring(0, 2) || "?" }}
                   </div>
@@ -101,13 +101,13 @@
                   <div class="hero-name-small-inline">
                     {{ getHeroName(hero.heroId) || `武将${hero.heroId}` }}
                   </div>
-                  <div class="hero-level-small-inline" v-if="hero.level">
+                  <div v-if="hero.level" class="hero-level-small-inline">
                     Lv.{{ hero.level }}
                   </div>
                 </div>
               </div>
               <div class="hero-info" @click="showHeroRefineModal(hero)">
-                <div class="hero-fish" v-if="getFishInfo(hero.artifactId)">
+                <div v-if="getFishInfo(hero.artifactId)" class="hero-fish">
                   {{ getFishInfo(hero.artifactId).name }}
                   <span
                     v-if="getPearlSkillNameByArtifactId(hero.artifactId)"
@@ -129,20 +129,26 @@
                     ></span>
                   </span>
                 </div>
-                <div class="hero-stats" v-if="hero.power">
+                <div v-if="hero.power" class="hero-stats">
                   <div class="stat-row">
                     <span class="stat-power"
                       >战力{{ formatPower(hero.power) }}</span
                     >
-                    <span class="stat-speed" v-if="hero.speed"
+                    <span
+v-if="hero.speed"
+class="stat-speed"
                       >速度{{ hero.speed }}</span
                     >
                   </div>
                   <div class="stat-row">
-                    <span class="stat-attack" v-if="hero.attack"
+                    <span
+v-if="hero.attack"
+class="stat-attack"
                       >攻击{{ formatPower(hero.attack) }}</span
                     >
-                    <span class="stat-hp" v-if="hero.hp"
+                    <span
+v-if="hero.hp"
+class="stat-hp"
                       >血量{{ formatPower(hero.hp) }}</span
                     >
                   </div>
@@ -171,350 +177,46 @@
         </div>
       </div>
 
-      <n-modal
+      <LineupApplyProgressModal
+        :debug-finished="applyDebugFinished"
+        :debug-lineup-name="applyDebugLineupName"
+        :debug-mode="applyDebugMode"
+        :debug-paused="applyDebugPaused"
+        :debug-steps="applyDebugSteps"
+        :elapsed-text="applyProgressElapsedText"
+        :estimated-text="applyProgressEstimatedText"
+        :finish-text="applyProgressFinishText"
+        :format-step-status="formatApplyDebugStepStatus"
+        :overdue="applyProgressOverdue"
+        :percent="applyProgressPercent"
+        :remaining-text="applyProgressRemainingText"
         :show="applyProgressVisible"
-        preset="card"
-        :mask-closable="false"
-        :close-on-esc="false"
-        :show-close="false"
-        style="width: 420px; max-width: 90vw"
-        :bordered="false"
-      >
-        <div class="apply-progress-modal">
-          <div class="apply-progress-header">
-            <div class="apply-progress-title">正在应用阵容</div>
-            <div class="apply-progress-subtitle">
-              应用过程中请勿关闭页面或重复点击
-            </div>
-          </div>
-          <n-spin :show="applyProgressSpinning">
-            <div class="apply-progress-body">
-              <div class="apply-progress-stage">
-                {{ applyProgressStage || "正在准备" }}
-              </div>
-              <div class="apply-progress-bar-wrap">
-                <div class="apply-progress-bar-top">
-                  <span>执行进度</span>
-                  <span>{{ applyProgressPercent }}%</span>
-                </div>
-                <n-progress
-                  type="line"
-                  :percentage="applyProgressPercent"
-                  :show-indicator="false"
-                  :processing="applyProgressSpinning && !applyProgressOverdue"
-                  :status="applyProgressStatus"
-                  :height="10"
-                  :border-radius="999"
-                />
-              </div>
-              <div class="apply-progress-time-grid">
-                <div class="apply-progress-time-item">
-                  <span class="label">预计总时长</span>
-                  <span class="value">{{ applyProgressEstimatedText }}</span>
-                </div>
-                <div class="apply-progress-time-item">
-                  <span class="label">预计完成</span>
-                  <span class="value">{{ applyProgressFinishText }}</span>
-                </div>
-                <div class="apply-progress-time-item">
-                  <span class="label">已用时间</span>
-                  <span class="value">{{ applyProgressElapsedText }}</span>
-                </div>
-                <div class="apply-progress-time-item">
-                  <span class="label">剩余时间</span>
-                  <span class="value">{{ applyProgressRemainingText }}</span>
-                </div>
-              </div>
-              <div class="apply-progress-tip" v-if="applyProgressOverdue">
-                已超过预计时间，仍在继续执行，请保持前台等待完成
-              </div>
-              <div v-if="applyDebugMode" class="apply-debug-panel">
-                <div class="apply-debug-header-row">
-                  <div class="apply-debug-title">
-                    分步调试
-                    <span v-if="applyDebugLineupName">· {{ applyDebugLineupName }}</span>
-                  </div>
-                  <div class="apply-debug-state">
-                    {{
-                      applyDebugFinished
-                        ? "已结束"
-                        : applyDebugPaused
-                          ? "等待执行下一步"
-                          : "执行中"
-                    }}
-                  </div>
-                </div>
-                <div class="apply-debug-step-list">
-                  <div
-                    v-for="step in applyDebugSteps"
-                    :key="step.key"
-                    class="apply-debug-step"
-                    :class="`is-${step.status}`"
-                  >
-                    <div class="apply-debug-step-main">
-                      <span class="apply-debug-step-index">{{ step.order }}</span>
-                      <span class="apply-debug-step-label">{{ step.label }}</span>
-                      <span class="apply-debug-step-status">
-                        {{ formatApplyDebugStepStatus(step.status) }}
-                      </span>
-                    </div>
-                    <div v-if="step.detail" class="apply-debug-step-detail">
-                      {{ step.detail }}
-                    </div>
-                    <div
-                      v-if="Array.isArray(step.commands) && step.commands.length > 0"
-                      class="apply-debug-step-commands"
-                    >
-                      <div class="apply-debug-step-commands-title">本步骤命令</div>
-                      <div class="apply-debug-step-command-list">
-                        <span
-                          v-for="(command, commandIndex) in step.commands"
-                          :key="`${step.key}-${commandIndex}-${command}`"
-                          class="apply-debug-step-command"
-                        >
-                          {{ command }}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div class="apply-debug-actions">
-                  <n-button
-                    v-if="!applyDebugFinished"
-                    type="primary"
-                    size="small"
-                    :disabled="!applyDebugPaused"
-                    @click="continueApplyDebug"
-                  >
-                    执行下一步
-                  </n-button>
-                  <n-button
-                    v-if="!applyDebugFinished"
-                    size="small"
-                    @click="abortApplyDebug"
-                  >
-                    中止调试
-                  </n-button>
-                  <n-button
-                    v-else
-                    type="primary"
-                    size="small"
-                    @click="closeApplyDebugPanel"
-                  >
-                    关闭
-                  </n-button>
-                </div>
-              </div>
-            </div>
-          </n-spin>
-        </div>
-      </n-modal>
+        :spinning="applyProgressSpinning"
+        :stage="applyProgressStage"
+        :status="applyProgressStatus"
+        @abort-debug="abortApplyDebug"
+        @close-debug="closeApplyDebugPanel"
+        @continue-debug="continueApplyDebug"
+      ></LineupApplyProgressModal>
 
-      <n-modal
+      <LineupSavedLineupsModal
+        v-model:expanded-lineup="expandedLineup"
+        v-model:selected-team-tab="selectedTeamTab"
         v-model:show="savedLineupsModalVisible"
-        preset="card"
-        title="已保存的阵容"
-        style="width: 900px; max-width: 90vw"
-        :bordered="false"
-      >
-        <div v-if="savedLineups.length === 0" class="empty-tip">
-          暂无保存的阵容，点击"保存阵容"开始使用
-        </div>
-        <div v-else class="saved-lineups-modal-content">
-          <div class="team-tabs">
-            <div class="team-tabs-left">
-              <div
-                v-for="teamId in availableTeams"
-                :key="teamId"
-                class="team-tab"
-                :class="{ active: selectedTeamTab === teamId }"
-                @click="selectedTeamTab = teamId"
-              >
-                槽位{{ teamId }}
-                <span class="tab-count"
-                  >({{ getLineupsByTeamId(teamId).length }})</span
-                >
-              </div>
-            </div>
-            <div class="team-tabs-right">
-              <n-button
-                size="tiny"
-                :loading="lineupCloudSyncing || lineupCloudLoading"
-                @click="syncSavedLineupsCloudNow"
-              >
-                上传到服务器
-              </n-button>
-              <n-button size="tiny" @click="exportLineups"> 导出 </n-button>
-              <n-upload
-                :show-file-list="false"
-                :custom-request="importLineups"
-                accept=".json"
-              >
-                <n-button size="tiny">导入</n-button>
-              </n-upload>
-            </div>
-          </div>
-          <div class="lineups-list">
-            <div
-              v-for="(lineup, index) in getLineupsByTeamId(selectedTeamTab)"
-              :key="index"
-              class="lineup-card"
-            >
-              <div class="lineup-title-bar" @click="toggleLineupExpand(lineup)">
-                <div class="lineup-title-left">
-                  <span class="expand-icon">{{
-                    expandedLineup === lineup ? "▼" : "▶"
-                  }}</span>
-                  <span class="lineup-name">{{ lineup.name }}</span>
-                  <span
-                    v-if="
-                      lineup.weaponId !== undefined && lineup.weaponId !== null
-                    "
-                    class="lineup-weapon-tag"
-                  >
-                    {{ weapon[lineup.weaponId] || lineup.weaponId }}
-                  </span>
-                  <span class="lineup-time">{{
-                    formatTime(lineup.savedAt)
-                  }}</span>
-                </div>
-                <div class="lineup-quick-actions">
-                  <n-button
-                    size="tiny"
-                    @click.stop="renameLineup(savedLineups.indexOf(lineup))"
-                  >
-                    重命名
-                  </n-button>
-                  <n-button
-                    size="tiny"
-                    @click.stop="showTechModal(lineup)"
-                    :disabled="
-                      !lineup.legionResearch ||
-                      Object.keys(lineup.legionResearch).length === 0
-                    "
-                  >
-                    科技
-                  </n-button>
-                  <n-button
-                    type="error"
-                    size="tiny"
-                    @click.stop="deleteLineup(savedLineups.indexOf(lineup))"
-                  >
-                    删除
-                  </n-button>
-                  <n-button
-                    type="primary"
-                    size="tiny"
-                    @click.stop="
-                      applyLineup(lineup);
-                      savedLineupsModalVisible = false;
-                    "
-                    :loading="lineup.applying"
-                    :disabled="lineup.teamId !== currentTeamId"
-                  >
-                    应用
-                  </n-button>
-                  <n-button
-                    type="warning"
-                    size="tiny"
-                    @click.stop="
-                      startDebugApply(lineup);
-                      savedLineupsModalVisible = false;
-                    "
-                    :disabled="lineup.teamId !== currentTeamId"
-                  >
-                    调试
-                  </n-button>
-                </div>
-              </div>
-              <div v-if="expandedLineup === lineup" class="lineup-detail">
-                <div class="lineup-heroes-row">
-                  <div
-                    v-for="(hero, hIdx) in lineup.heroes"
-                    :key="hIdx"
-                    class="lineup-hero-card"
-                  >
-                    <img
-                      v-if="getHeroAvatar(hero.heroId)"
-                      :src="getHeroAvatar(hero.heroId)"
-                      class="hero-avatar"
-                    />
-                    <div v-else class="hero-avatar-placeholder">
-                      {{ getHeroName(hero.heroId)?.[0] || "?" }}
-                    </div>
-                    <div class="hero-info-small">
-                      <div class="hero-header-small">
-                        <div class="hero-name-small">
-                          {{ getHeroName(hero.heroId) || `武将${hero.heroId}` }}
-                        </div>
-                        <div v-if="hero.level" class="hero-level-small">
-                          Lv.{{ formatLevel(hero.level) }}
-                        </div>
-                      </div>
-                      <div v-if="hero.fishId" class="hero-fish-info">
-                        <div class="hero-fish-row">
-                          <span class="hero-fish-name">
-                            {{ getFishNameById(hero.fishId) }}
-                            <span
-                              v-if="hero.skillId"
-                              class="hero-fish-skill-name"
-                            >
-                              {{ getPearlSkillNameById(hero.skillId) }}
-                            </span>
-                          </span>
-                          <div
-                            v-if="getSlotColors(hero.slotMap)"
-                            class="hero-fish-slots"
-                          >
-                            <span
-                              v-for="(color, idx) in getSlotColors(
-                                hero.slotMap,
-                              )"
-                              :key="idx"
-                              class="slot-dot"
-                              :style="{ backgroundColor: color }"
-                            ></span>
-                          </div>
-                        </div>
-                      </div>
-                      <div v-if="hero.power" class="hero-stats-small">
-                        <div class="stat-row-small">
-                          <span class="stat-power"
-                            >战力{{ formatPower(hero.power) }}</span
-                          >
-                          <span class="stat-speed" v-if="hero.speed"
-                            >速度{{ hero.speed }}</span
-                          >
-                        </div>
-                        <div class="stat-row-small">
-                          <span class="stat-attack" v-if="hero.attack"
-                            >攻击{{ formatPower(hero.attack) }}</span
-                          >
-                          <span class="stat-hp" v-if="hero.hp"
-                            >血量{{ formatPower(hero.hp) }}</span
-                          >
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div
-              v-if="getLineupsByTeamId(selectedTeamTab).length === 0"
-              class="no-lineup-tip"
-            >
-              暂无保存的阵容
-            </div>
-          </div>
-        </div>
-      </n-modal>
+        :actions="savedLineupsModalActions"
+        :available-teams="availableTeams"
+        :current-team-id="currentTeamId"
+        :lineup-cloud-loading="lineupCloudLoading"
+        :lineup-cloud-syncing="lineupCloudSyncing"
+        :saved-lineups="savedLineups"
+        :weapon="weapon"
+      ></LineupSavedLineupsModal>
 
       <n-modal
-        v-model:show="techModalVisible"
         preset="card"
-        title="俱乐部科技"
         style="width: 700px; max-width: 90vw"
+        title="俱乐部科技"
+        v-model:show="techModalVisible"
         :bordered="false"
       >
         <div v-if="selectedTechData" class="tech-modal-content">
@@ -546,11 +248,11 @@
       </n-modal>
 
       <n-modal
-        v-model:show="refineModalVisible"
         preset="card"
-        :title="refineModalTitle"
         style="width: 600px; max-width: 90vw"
+        v-model:show="refineModalVisible"
         :bordered="false"
+        :title="refineModalTitle"
       >
         <n-spin :show="refineModalLoading">
           <div v-if="selectedHeroEquipment" class="refine-modal-content">
@@ -564,7 +266,7 @@
                 <span class="equip-level">
                   Lv.{{ selectedHeroEquipment[partId]?.level || 0 }}
                 </span>
-                <span class="equip-bonus" v-if="selectedHeroEquipment[partId]">
+                <span v-if="selectedHeroEquipment[partId]" class="equip-bonus">
                   +{{ getEquipBonus(partId) }}
                   {{ partId === 1 ? "攻击" : partId === 3 ? "防御" : "血量" }}
                 </span>
@@ -587,7 +289,10 @@
                     <span class="attr-value">+{{ slot.attrNum }}%</span>
                   </div>
                   <div v-else class="slot-empty">未淬炼</div>
-                  <n-tag v-if="slot.isLocked" size="small" type="warning"
+                  <n-tag
+v-if="slot.isLocked"
+size="small"
+type="warning"
                     >锁定</n-tag
                   >
                 </div>
@@ -599,16 +304,16 @@
       </n-modal>
 
       <n-modal
-        v-model:show="exchangeModalVisible"
         preset="card"
-        :title="exchangeMode === 'add' ? '上阵英雄' : '更换武将'"
         style="width: 700px; max-width: 90vw"
+        v-model:show="exchangeModalVisible"
         :bordered="false"
+        :title="exchangeMode === 'add' ? '上阵英雄' : '更换武将'"
       >
         <div class="exchange-modal-content">
           <div v-if="exchangeMode === 'exchange'" class="current-hero-info">
             <span>当前武将：</span>
-            <n-tag type="primary" size="large">
+            <n-tag size="large" type="primary">
               {{
                 getHeroName(exchangeHero?.heroId) ||
                 `武将${exchangeHero?.heroId}`
@@ -617,25 +322,25 @@
           </div>
           <div v-else class="current-hero-info">
             <span>上阵位置：</span>
-            <n-tag type="success" size="large">
+            <n-tag size="large" type="success">
               位置 {{ getFirstEmptySlot() + 1 }}
             </n-tag>
           </div>
-          <n-input
-            v-model:value="heroSearchKeyword"
-            placeholder="搜索武将名称..."
+          <NInput
             clearable
+            placeholder="搜索武将名称..."
             style="margin-bottom: 12px"
-          />
+            v-model:value="heroSearchKeyword"
+          ></NInput>
           <div class="hero-filter-section">
             <div class="filter-label">品质：</div>
             <div class="filter-tags">
               <n-tag
                 v-for="q in heroQualities"
                 :key="q"
-                :type="selectedQuality === q ? 'primary' : 'default'"
-                :bordered="false"
                 style="cursor: pointer; margin-right: 8px"
+                :bordered="false"
+                :type="selectedQuality === q ? 'primary' : 'default'"
                 @click="selectedQuality = selectedQuality === q ? '全部' : q"
               >
                 {{ q }}
@@ -648,9 +353,9 @@
               <n-tag
                 v-for="t in heroCountries"
                 :key="t"
-                :type="selectedCountry === t ? 'primary' : 'default'"
-                :bordered="false"
                 style="cursor: pointer; margin-right: 8px"
+                :bordered="false"
+                :type="selectedCountry === t ? 'primary' : 'default'"
                 @click="selectedCountry = selectedCountry === t ? '全部' : t"
               >
                 {{ t }}
@@ -664,7 +369,7 @@
                 :key="hero.id"
                 class="hero-select-item"
                 :class="{
-                  selected: exchangeTargetHeroId === hero.id,
+                  'selected': exchangeTargetHeroId === hero.id,
                   'quality-red': hero.quality === '红将',
                   'quality-orange': hero.quality === '橙将',
                   'quality-purple': hero.quality === '紫将',
@@ -672,7 +377,7 @@
                 @click="selectExchangeHero(hero)"
               >
                 <div class="hero-select-avatar">
-                  <img v-if="hero.avatar" :src="hero.avatar" :alt="hero.name" />
+                  <img v-if="hero.avatar" :alt="hero.name" :src="hero.avatar">
                   <div v-else class="hero-placeholder">
                     {{ hero.name?.substring(0, 2) || "?" }}
                   </div>
@@ -694,7 +399,7 @@
                   >
                     {{ hero.quality }}
                   </n-tag>
-                  <n-tag size="small" :bordered="false" type="default">
+                  <n-tag size="small" type="default" :bordered="false">
                     {{ hero.type }}
                   </n-tag>
                 </div>
@@ -707,9 +412,9 @@
             <n-button @click="exchangeModalVisible = false">取消</n-button>
             <n-button
               type="primary"
-              @click="confirmHeroAction"
-              :loading="exchangeLoading"
               :disabled="!exchangeTargetHeroId"
+              :loading="exchangeLoading"
+              @click="confirmHeroAction"
             >
               {{ exchangeMode === "add" ? "确认上阵" : "确认更换" }}
             </n-button>
@@ -732,17 +437,26 @@ import {
   releaseTokenOperationLock,
 } from "@/services/token/tokenOperationCoordination";
 import MyCard from "../Common/MyCard.vue";
+import LineupApplyProgressModal from "./lineup/LineupApplyProgressModal.vue";
+import LineupSavedLineupsModal from "./lineup/LineupSavedLineupsModal.vue";
 import {
+  buildLineupCloudPrefKey,
+  buildLineupStorageKey,
+  getAverageApplyDurationMs,
+  recordApplyDurationMetric,
+} from "./lineup/lineupCloudStorage";
+import { useLineupApplyProgress } from "./lineup/useLineupApplyProgress";
+import {
+  color,
   FishMap,
+  getTechType,
   HERO_DICT,
   LEGION_TECH_MAX_LEVEL,
+  LEGION_TECH_NAME,
   LEGION_TECH_RESET_TYPE_MAP,
   LEGION_TECH_TYPE_MAP,
-  getTechType,
-  LEGION_TECH_NAME,
   LEGION_TECH_TYPE_NAME,
   PearlMap,
-  color,
   weapon,
 } from "@/utils/HeroList.js";
 
@@ -772,10 +486,10 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const formatPower = (power) => {
   if (!power) return "0";
   if (power >= 100000000) {
-    return (power / 100000000).toFixed(2) + "亿";
+    return `${(power / 100000000).toFixed(2)}亿`;
   }
   if (power >= 10000) {
-    return (power / 10000).toFixed(2) + "万";
+    return `${(power / 10000).toFixed(2)}万`;
   }
   return power.toString();
 };
@@ -792,12 +506,6 @@ const generateLineupId = () => {
 const state = ref({
   isRunning: false,
 });
-const applyProgressVisible = ref(false);
-const applyProgressStage = ref("");
-const applyProgressStartedAt = ref(0);
-const applyProgressEstimateMs = ref(0);
-const applyProgressNow = ref(Date.now());
-let applyProgressTimer = null;
 const applyDebugMode = ref(false);
 const applyDebugPaused = ref(false);
 const applyDebugFinished = ref(false);
@@ -845,10 +553,7 @@ const dragOverPosition = ref(null);
 const lineupCloudLoading = ref(false);
 const lineupCloudSyncing = ref(false);
 
-const STORAGE_KEY = "saved_lineups";
-const APPLY_METRICS_STORAGE_KEY_PREFIX = "saved_lineup_apply_metrics_v1";
 const LINEUP_STORE_VERSION = 2;
-const LINEUP_CLOUD_PREF_PREFIX = "lineup.saved";
 let lineupCloudTimer = null;
 let savedLineupsLoadSeq = 0;
 
@@ -872,82 +577,10 @@ const getLineupCollectionUpdatedAt = (lineups = []) =>
 const getSelectedTokenId = () => String(tokenStore.selectedToken?.id || "").trim();
 
 const getLineupStorageKey = (tokenId = getSelectedTokenId()) =>
-  tokenId ? `${STORAGE_KEY}_${tokenId}` : "";
+  buildLineupStorageKey(tokenId);
 
 const getLineupCloudPrefKey = (tokenId = getSelectedTokenId()) =>
-  tokenId ? `${LINEUP_CLOUD_PREF_PREFIX}:${tokenId}` : "";
-
-const getApplyMetricsStorageKey = (tokenId = getSelectedTokenId()) =>
-  tokenId ? `${APPLY_METRICS_STORAGE_KEY_PREFIX}_${tokenId}` : "";
-
-const normalizeApplyDurationMetrics = (rawValue) => {
-  if (!rawValue || typeof rawValue !== "object") {
-    return {};
-  }
-
-  const normalized = {};
-  for (const [lineupId, durations] of Object.entries(rawValue)) {
-    const key = String(lineupId || "").trim();
-    if (!key || !Array.isArray(durations)) continue;
-    const cleaned = durations
-      .map((value) => Number(value))
-      .filter((value) => Number.isFinite(value) && value > 0)
-      .slice(-10);
-    if (cleaned.length > 0) {
-      normalized[key] = cleaned;
-    }
-  }
-
-  return normalized;
-};
-
-const readApplyDurationMetrics = (tokenId = getSelectedTokenId()) => {
-  const storageKey = getApplyMetricsStorageKey(tokenId);
-  if (!storageKey) return {};
-
-  try {
-    const rawValue = localStorage.getItem(storageKey);
-    if (!rawValue) return {};
-    return normalizeApplyDurationMetrics(JSON.parse(rawValue));
-  } catch (error) {
-    console.warn("读取阵容应用耗时历史失败，已回退为空:", error?.message || error);
-    return {};
-  }
-};
-
-const writeApplyDurationMetrics = (tokenId, metrics) => {
-  const storageKey = getApplyMetricsStorageKey(tokenId);
-  if (!storageKey) return;
-  localStorage.setItem(
-    storageKey,
-    JSON.stringify(normalizeApplyDurationMetrics(metrics)),
-  );
-};
-
-const getAverageApplyDurationMs = (lineupId, tokenId = getSelectedTokenId()) => {
-  const key = String(lineupId || "").trim();
-  if (!key) return 0;
-  const metrics = readApplyDurationMetrics(tokenId);
-  const durations = metrics[key] || [];
-  if (!Array.isArray(durations) || durations.length === 0) return 0;
-  const total = durations.reduce((sum, value) => sum + Number(value || 0), 0);
-  return Math.round(total / durations.length);
-};
-
-const recordApplyDurationMetric = (
-  lineupId,
-  durationMs,
-  tokenId = getSelectedTokenId(),
-) => {
-  const key = String(lineupId || "").trim();
-  const duration = Number(durationMs);
-  if (!key || !Number.isFinite(duration) || duration <= 0 || !tokenId) return;
-
-  const metrics = readApplyDurationMetrics(tokenId);
-  const nextDurations = [...(metrics[key] || []), duration].slice(-10);
-  metrics[key] = nextDurations;
-  writeApplyDurationMetrics(tokenId, metrics);
-};
+  buildLineupCloudPrefKey(tokenId);
 
 const parseEquipmentQuenchMap = (quenchMap) => {
   const normalizedMap = normalizeEquipmentQuenchMap(quenchMap);
@@ -1379,80 +1012,6 @@ const persistSavedLineups = ({ updatedAt = Date.now(), syncCloud = true } = {}) 
   return store;
 };
 
-const formatDurationMs = (ms) => {
-  const totalSeconds = Math.max(0, Math.round((Number(ms) || 0) / 1000));
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  if (minutes <= 0) {
-    return `${seconds}秒`;
-  }
-  return `${minutes}分${String(seconds).padStart(2, "0")}秒`;
-};
-
-const applyProgressElapsedMs = computed(() => {
-  if (!applyProgressStartedAt.value) return 0;
-  return Math.max(0, applyProgressNow.value - applyProgressStartedAt.value);
-});
-
-const applyProgressRemainingMs = computed(() => {
-  if (!applyProgressEstimateMs.value) return 0;
-  return Math.max(0, applyProgressEstimateMs.value - applyProgressElapsedMs.value);
-});
-
-const applyProgressOverdue = computed(
-  () =>
-    Boolean(
-      applyProgressEstimateMs.value
-      && applyProgressElapsedMs.value > applyProgressEstimateMs.value,
-    ),
-);
-
-const applyProgressSpinning = computed(() =>
-  state.value.isRunning && !(applyDebugMode.value && applyDebugPaused.value),
-);
-
-const applyProgressStatus = computed(() =>
-  applyProgressOverdue.value ? "warning" : "success",
-);
-
-const applyProgressPercent = computed(() => {
-  if (!applyProgressEstimateMs.value) return 0;
-  const percent = Math.round(
-    (applyProgressElapsedMs.value / applyProgressEstimateMs.value) * 100,
-  );
-  return applyProgressOverdue.value
-    ? 99
-    : Math.min(95, Math.max(3, percent));
-});
-
-const applyProgressEstimatedText = computed(() =>
-  formatDurationMs(applyProgressEstimateMs.value),
-);
-
-const applyProgressElapsedText = computed(() =>
-  formatDurationMs(applyProgressElapsedMs.value),
-);
-
-const applyProgressRemainingText = computed(() =>
-  applyProgressOverdue.value
-    ? "已超时"
-    : formatDurationMs(applyProgressRemainingMs.value),
-);
-
-const applyProgressFinishText = computed(() => {
-  if (!applyProgressStartedAt.value || !applyProgressEstimateMs.value) {
-    return "--";
-  }
-  return new Date(
-    applyProgressStartedAt.value + applyProgressEstimateMs.value,
-  ).toLocaleTimeString("zh-CN", {
-    hour12: false,
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
-});
-
 const estimateApplyDurationMsByShape = (lineup) => {
   const heroCount = Array.isArray(lineup?.heroes) ? lineup.heroes.length : 0;
   const hasLevelData = lineup?.heroes?.some((hero) => hero.level && hero.level > 0);
@@ -1476,30 +1035,35 @@ const estimateApplyDurationMsByShape = (lineup) => {
 };
 
 const estimateApplyDurationMs = (lineup) => {
-  const historyAvg = getAverageApplyDurationMs(lineup?.id);
+  const historyAvg = getAverageApplyDurationMs(lineup?.id, getSelectedTokenId());
   if (historyAvg > 0) {
     return historyAvg;
   }
   return estimateApplyDurationMsByShape(lineup);
 };
 
-const startApplyProgress = (lineup) => {
-  applyProgressEstimateMs.value = estimateApplyDurationMs(lineup);
-  applyProgressStartedAt.value = Date.now();
-  applyProgressNow.value = applyProgressStartedAt.value;
-  applyProgressStage.value = "正在准备应用阵容";
-  applyProgressVisible.value = true;
-  if (applyProgressTimer) {
-    clearInterval(applyProgressTimer);
-  }
-  applyProgressTimer = window.setInterval(() => {
-    applyProgressNow.value = Date.now();
-  }, 1000);
-};
-
-const setApplyProgressStage = (stage) => {
-  applyProgressStage.value = stage || "正在处理中";
-};
+const {
+  applyProgressElapsedMs,
+  applyProgressEstimatedText,
+  applyProgressElapsedText,
+  applyProgressFinishText,
+  applyProgressOverdue,
+  applyProgressPercent,
+  applyProgressRemainingText,
+  applyProgressSpinning,
+  applyProgressStage,
+  applyProgressStartedAt,
+  applyProgressStatus,
+  applyProgressVisible,
+  finishApplyProgress,
+  setApplyProgressStage,
+  startApplyProgress,
+} = useLineupApplyProgress({
+  isRunning: computed(() => state.value.isRunning),
+  applyDebugMode,
+  applyDebugPaused,
+  estimateApplyDurationMs,
+});
 
 const createDebugAbortError = () => {
   const error = new Error("已手动中止调试");
@@ -1627,22 +1191,6 @@ const abortApplyDebug = () => {
 const closeApplyDebugPanel = () => {
   finishApplyProgress();
   resetApplyDebugSession();
-};
-
-const finishApplyProgress = ({ keepVisible = false } = {}) => {
-  if (applyProgressTimer) {
-    clearInterval(applyProgressTimer);
-    applyProgressTimer = null;
-  }
-  if (keepVisible) {
-    applyProgressNow.value = Date.now();
-    return;
-  }
-  applyProgressVisible.value = false;
-  applyProgressStage.value = "";
-  applyProgressStartedAt.value = 0;
-  applyProgressEstimateMs.value = 0;
-  applyProgressNow.value = Date.now();
 };
 
 const isTooFastCommandError = (error) => {
@@ -1804,7 +1352,7 @@ const syncLegionResearch = async (tokenId, targetResearch) => {
       setApplyProgressStage(`正在重置${LEGION_TECH_TYPE_NAME[type] || `类型${type}`}科技`);
       await sendRetriedGameCommand(tokenId, "legion_resetresearch", {
         advanced: false,
-        type: type,
+        type,
       });
     } catch (err) {
       return {
@@ -3201,7 +2749,7 @@ const applyLineup = async (lineup, options = {}) => {
         ...heroesInTeam.map((hero) => Number(hero.position)),
         ...targetHeroes.map((hero) => Number(hero.position)),
       ].filter((position) => Number.isFinite(position));
-      const slotBase = positions.some((position) => position === 0) ? 0 : 1;
+      const slotBase = positions.includes(0) ? 0 : 1;
       return Array.from({ length: 5 }, (_, index) => slotBase + index);
     };
 
@@ -4844,6 +4392,26 @@ const switchTeam = async (teamId) => {
     switchingTeamId.value = null;
     state.value.isRunning = false;
   }
+};
+
+const savedLineupsModalActions = {
+  applyLineup,
+  deleteLineup,
+  exportLineups,
+  formatLevel,
+  formatPower,
+  formatTime,
+  getFishNameById,
+  getHeroAvatar,
+  getHeroName,
+  getLineupsByTeamId,
+  getPearlSkillNameById,
+  getSlotColors,
+  importLineups,
+  renameLineup,
+  showTechModal,
+  startDebugApply,
+  syncSavedLineupsCloudNow,
 };
 
 watch(

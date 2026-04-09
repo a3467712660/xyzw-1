@@ -1,7 +1,7 @@
 import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
-import path from "path";
-import { fileURLToPath } from "url";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { parseHostPatterns } from "./src/utils/hostAllowlist.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -111,9 +111,9 @@ export default defineConfig(async ({ command, mode }) => {
       headers: {
         "User-Agent":
           "Mozilla/5.0 (Linux; Android 7.0; Mi-4c Build/NRD90M; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/53.0.2785.49 Mobile MQQBrowser/6.2 TBS/043632 Safari/537.36 MicroMessenger/6.6.1.1220(0x26060135) NetType/WIFI Language/zh_CN",
-        Accept:
+        "Accept":
           "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-        Referer: "https://open.weixin.qq.com/",
+        "Referer": "https://open.weixin.qq.com/",
       },
     },
     "/api/weixin-long": {
@@ -124,8 +124,8 @@ export default defineConfig(async ({ command, mode }) => {
       headers: {
         "User-Agent":
           "Mozilla/5.0 (Linux; Android 7.0; Mi-4c Build/NRD90M; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/53.0.2785.49 Mobile MQQBrowser/6.2 TBS/043632 Safari/537.36 MicroMessenger/6.6.1.1220(0x26060135) NetType/WIFI Language/zh_CN",
-        Accept: "*/*",
-        Referer: "https://open.weixin.qq.com/",
+        "Accept": "*/*",
+        "Referer": "https://open.weixin.qq.com/",
       },
     },
     "/api/hortor": {
@@ -136,12 +136,12 @@ export default defineConfig(async ({ command, mode }) => {
       headers: {
         "User-Agent":
           "Mozilla/5.0 (Linux; Android 12; 23117RK66C Build/V417IR; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/95.0.4638.74 Mobile Safari/537.36",
-        Accept: "*/*",
-        Host: "comb-platform.hortorgames.com",
-        Connection: "keep-alive",
+        "Accept": "*/*",
+        "Host": "comb-platform.hortorgames.com",
+        "Connection": "keep-alive",
         "Content-Type": "text/plain; charset=utf-8",
-        Origin: "https://open.weixin.qq.com",
-        Referer: "https://open.weixin.qq.com/",
+        "Origin": "https://open.weixin.qq.com",
+        "Referer": "https://open.weixin.qq.com/",
       },
     },
   };
@@ -265,10 +265,6 @@ export default defineConfig(async ({ command, mode }) => {
               return "vendor-misc";
             }
 
-            if (id.includes("/src/xyzw/")) {
-              return "xyzw-runtime";
-            }
-
             if (
               id.includes("/src/utils/batch/daily.js") ||
               id.includes("/src/utils/batch/tasksBottle.js") ||
@@ -340,7 +336,7 @@ export default defineConfig(async ({ command, mode }) => {
     css: {
       preprocessorOptions: {
         scss: {
-          additionalData: '@use "@/assets/styles/variables.scss" as vars;',
+          additionalData: "@use \"@/assets/styles/variables.scss\" as vars;",
         },
       },
     },

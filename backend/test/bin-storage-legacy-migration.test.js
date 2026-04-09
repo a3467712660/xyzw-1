@@ -41,7 +41,7 @@ const writePlainBin = (dir, tokenId, text) => {
   fs.writeFileSync(path.join(dir, `${tokenId}.bin`), Buffer.from(text), { mode: 0o600 });
 };
 
-test("bin storage: migrates legacy userId directory into canonical directory", () => {
+test("bin storage: migrates legacy userId directory into canonical directory", async () => {
   const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const user = { id: `uid_${suffix}`, username: "alice" };
   const canonicalDir = canonicalDirFor(user);
@@ -50,7 +50,7 @@ test("bin storage: migrates legacy userId directory into canonical directory", (
   ensureClean([canonicalDir, legacyDir]);
   writeEncryptedBin(legacyDir, "token_migrate", "legacy-data");
 
-  const buffer = readBinFile({ user, tokenId: "token_migrate" });
+  const buffer = await readBinFile({ user, tokenId: "token_migrate" });
   assert.equal(buffer?.toString("utf8"), "legacy-data");
   assert.equal(fs.existsSync(path.join(canonicalDir, "token_migrate.bin.enc")), true);
   assert.equal(fs.existsSync(path.join(legacyDir, "token_migrate.bin.enc")), false);
@@ -58,7 +58,7 @@ test("bin storage: migrates legacy userId directory into canonical directory", (
   ensureClean([canonicalDir, legacyDir]);
 });
 
-test("bin storage: does not scan *_userId directory suffix anymore", () => {
+test("bin storage: does not scan *_userId directory suffix anymore", async () => {
   const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const user = { id: `uid_${suffix}`, username: "alice" };
   const canonicalDir = canonicalDirFor(user);
@@ -67,8 +67,8 @@ test("bin storage: does not scan *_userId directory suffix anymore", () => {
   ensureClean([canonicalDir, suspiciousDir]);
   writeEncryptedBin(suspiciousDir, "token_scan", "should-not-be-read");
 
-  const files = listBinFiles({ user });
-  const buffer = readBinFile({ user, tokenId: "token_scan" });
+  const files = await listBinFiles({ user });
+  const buffer = await readBinFile({ user, tokenId: "token_scan" });
 
   assert.equal(files.length, 0);
   assert.equal(buffer, null);
@@ -77,7 +77,7 @@ test("bin storage: does not scan *_userId directory suffix anymore", () => {
   ensureClean([canonicalDir, suspiciousDir]);
 });
 
-test("bin storage: migrates legacy plain .bin file into canonical encrypted file", () => {
+test("bin storage: migrates legacy plain .bin file into canonical encrypted file", async () => {
   const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const user = { id: `uid_${suffix}`, username: "alice" };
   const canonicalDir = canonicalDirFor(user);
@@ -86,7 +86,7 @@ test("bin storage: migrates legacy plain .bin file into canonical encrypted file
   ensureClean([canonicalDir, legacyDir]);
   writePlainBin(legacyDir, "token_plain_legacy", "plain-legacy-data");
 
-  const buffer = readBinFile({ user, tokenId: "token_plain_legacy" });
+  const buffer = await readBinFile({ user, tokenId: "token_plain_legacy" });
   assert.equal(buffer?.toString("utf8"), "plain-legacy-data");
   assert.equal(fs.existsSync(path.join(canonicalDir, "token_plain_legacy.bin.enc")), true);
   assert.equal(fs.existsSync(path.join(legacyDir, "token_plain_legacy.bin")), false);
@@ -94,7 +94,7 @@ test("bin storage: migrates legacy plain .bin file into canonical encrypted file
   ensureClean([canonicalDir, legacyDir]);
 });
 
-test("bin storage: migrates canonical plain .bin file into encrypted file", () => {
+test("bin storage: migrates canonical plain .bin file into encrypted file", async () => {
   const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const user = { id: `uid_${suffix}`, username: "alice" };
   const canonicalDir = canonicalDirFor(user);
@@ -102,8 +102,8 @@ test("bin storage: migrates canonical plain .bin file into encrypted file", () =
   ensureClean([canonicalDir]);
   writePlainBin(canonicalDir, "token_plain_canonical", "plain-canonical-data");
 
-  const files = listBinFiles({ user });
-  const buffer = readBinFile({ user, tokenId: "token_plain_canonical" });
+  const files = await listBinFiles({ user });
+  const buffer = await readBinFile({ user, tokenId: "token_plain_canonical" });
 
   assert.equal(buffer?.toString("utf8"), "plain-canonical-data");
   assert.equal(files.some((item) => item.tokenId === "token_plain_canonical"), true);
@@ -113,7 +113,7 @@ test("bin storage: migrates canonical plain .bin file into encrypted file", () =
   ensureClean([canonicalDir]);
 });
 
-test("bin storage: count triggers migration and counts canonical files only", () => {
+test("bin storage: count triggers migration and counts canonical files only", async () => {
   const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const user = { id: `uid_${suffix}`, username: "alice" };
   const canonicalDir = canonicalDirFor(user);
@@ -123,11 +123,40 @@ test("bin storage: count triggers migration and counts canonical files only", ()
   writeEncryptedBin(legacyDir, "token_count_1", "count-1");
   writeEncryptedBin(legacyDir, "token_count_2", "count-2");
 
-  const count = countBinFilesForUser({ user });
+  const count = await countBinFilesForUser({ user });
 
   assert.equal(count, 2);
   assert.equal(fs.existsSync(path.join(canonicalDir, "token_count_1.bin.enc")), true);
   assert.equal(fs.existsSync(path.join(canonicalDir, "token_count_2.bin.enc")), true);
 
   ensureClean([canonicalDir, legacyDir]);
+});
+
+test("bin storage: repeated reads skip legacy deep scan after migration is clean", async () => {
+  const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const user = { id: `uid_${suffix}`, username: "alice" };
+  const canonicalDir = canonicalDirFor(user);
+  const legacyDir = path.join(env.binStoragePath, safeSegment(user.id, "unknown"));
+
+  ensureClean([canonicalDir, legacyDir]);
+  writeEncryptedBin(legacyDir, "token_cached", "cached-data");
+
+  const firstBuffer = await readBinFile({ user, tokenId: "token_cached" });
+  assert.equal(firstBuffer?.toString("utf8"), "cached-data");
+
+  const originalReaddir = fs.promises.readdir;
+  let readdirCalls = 0;
+  fs.promises.readdir = async (...args) => {
+    readdirCalls += 1;
+    return originalReaddir(...args);
+  };
+
+  try {
+    const secondBuffer = await readBinFile({ user, tokenId: "token_cached" });
+    assert.equal(secondBuffer?.toString("utf8"), "cached-data");
+    assert.equal(readdirCalls, 0);
+  } finally {
+    fs.promises.readdir = originalReaddir;
+    ensureClean([canonicalDir, legacyDir]);
+  }
 });

@@ -12,6 +12,20 @@ if rg -n "(python\\s+server/app\\.py|flask\\s+run|gunicorn\\s+.*server\\.app|uws
   exit 1
 fi
 
+echo "[guard] checking proxy configs do not target legacy Flask ports..."
+if rg -n "proxy_pass\\s+http://[^;]*(:5000|server/app|legacy)" \
+  docker/nginx.conf deploy/nginx/xyzw-xq5007.conf >/dev/null 2>&1; then
+  echo "[guard] nginx proxy config must not forward to legacy Flask."
+  exit 1
+fi
+
+echo "[guard] checking shared deploy docs do not recommend enabling legacy Flask..."
+if rg -n "ENABLE_LEGACY_FLASK=1|ALLOW_LEGACY_FLASK_PUBLIC_BIND=1|ENABLE_LEGACY_FILE_TOKEN_ROUTE=1" \
+  docs/startup.md docs/tunnel-production-baseline.md deploy docker >/dev/null 2>&1; then
+  echo "[guard] shared deploy/docs must not recommend enabling legacy Flask."
+  exit 1
+fi
+
 echo "[guard] checking docker build context excludes legacy server..."
 if ! rg -n "^server/$" .dockerignore >/dev/null 2>&1; then
   echo "[guard] .dockerignore must exclude server/ from docker build context."

@@ -10,6 +10,7 @@ import { createPassword, signJwt } from "../src/lib/crypto.js";
 import { nowIso } from "../src/db/sql.js";
 import { attachWsHub } from "../src/services/wsHub.js";
 import { registerWs } from "../src/app/registerWs.js";
+import { env } from "../src/config/env.js";
 
 const createServer = async () => {
   const app = express();
@@ -288,4 +289,152 @@ test("ws accepts 127.0.0.1 when whitelist contains localhost with same port", as
     token,
     origin: "http://127.0.0.1:3000",
   });
+});
+
+test("ws enforces global connection limit", async (t) => {
+  await initDatabase();
+  const prevGlobal = env.wsMaxGlobalConnections;
+  const prevPerIp = env.wsMaxConnectionsPerIp;
+  const prevPerUser = env.wsMaxConnectionsPerUser;
+  env.wsMaxGlobalConnections = 1;
+  env.wsMaxConnectionsPerIp = 10;
+  env.wsMaxConnectionsPerUser = 10;
+  t.after(() => {
+    env.wsMaxGlobalConnections = prevGlobal;
+    env.wsMaxConnectionsPerIp = prevPerIp;
+    env.wsMaxConnectionsPerUser = prevPerUser;
+  });
+
+  const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const userIdA = `ws_limit_global_a_${suffix}`;
+  const userIdB = `ws_limit_global_b_${suffix}`;
+  seedUser({
+    userId: userIdA,
+    username: `ws_limit_global_a_${suffix}`,
+    password: "Test1234!Aa",
+    tokenVersion: 0,
+  });
+  seedUser({
+    userId: userIdB,
+    username: `ws_limit_global_b_${suffix}`,
+    password: "Test1234!Aa",
+    tokenVersion: 0,
+  });
+
+  const tokenA = signJwt({ sub: userIdA, username: `ws_limit_global_a_${suffix}`, ver: 0 }, 300);
+  const tokenB = signJwt({ sub: userIdB, username: `ws_limit_global_b_${suffix}`, ver: 0 }, 300);
+
+  const runtime = await createServer();
+  let openWs = null;
+  t.after(async () => {
+    if (openWs?.readyState === openWs.OPEN) {
+      const closePromise = waitWsClose(openWs);
+      openWs.close();
+      await closePromise;
+    }
+    await runtime.close();
+    run(`DELETE FROM users WHERE id IN ($idA, $idB)`, { $idA: userIdA, $idB: userIdB });
+  });
+
+  openWs = await connectWs(runtime.wsUrl, tokenA);
+
+  const rejected = await connectAndWaitClose(runtime.wsUrl, tokenB);
+  assert.equal(rejected.code, 1013);
+  assert.equal(rejected.reason, "Connection limit exceeded");
+});
+
+test("ws enforces per-IP connection limit", async (t) => {
+  await initDatabase();
+  const prevGlobal = env.wsMaxGlobalConnections;
+  const prevPerIp = env.wsMaxConnectionsPerIp;
+  const prevPerUser = env.wsMaxConnectionsPerUser;
+  env.wsMaxGlobalConnections = 10;
+  env.wsMaxConnectionsPerIp = 1;
+  env.wsMaxConnectionsPerUser = 10;
+  t.after(() => {
+    env.wsMaxGlobalConnections = prevGlobal;
+    env.wsMaxConnectionsPerIp = prevPerIp;
+    env.wsMaxConnectionsPerUser = prevPerUser;
+  });
+
+  const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const userIdA = `ws_limit_ip_a_${suffix}`;
+  const userIdB = `ws_limit_ip_b_${suffix}`;
+  seedUser({
+    userId: userIdA,
+    username: `ws_limit_ip_a_${suffix}`,
+    password: "Test1234!Aa",
+    tokenVersion: 0,
+  });
+  seedUser({
+    userId: userIdB,
+    username: `ws_limit_ip_b_${suffix}`,
+    password: "Test1234!Aa",
+    tokenVersion: 0,
+  });
+
+  const tokenA = signJwt({ sub: userIdA, username: `ws_limit_ip_a_${suffix}`, ver: 0 }, 300);
+  const tokenB = signJwt({ sub: userIdB, username: `ws_limit_ip_b_${suffix}`, ver: 0 }, 300);
+
+  const runtime = await createServer();
+  let openWs = null;
+  t.after(async () => {
+    if (openWs?.readyState === openWs.OPEN) {
+      const closePromise = waitWsClose(openWs);
+      openWs.close();
+      await closePromise;
+    }
+    await runtime.close();
+    run(`DELETE FROM users WHERE id IN ($idA, $idB)`, { $idA: userIdA, $idB: userIdB });
+  });
+
+  openWs = await connectWs(runtime.wsUrl, tokenA);
+
+  const rejected = await connectAndWaitClose(runtime.wsUrl, tokenB);
+  assert.equal(rejected.code, 1013);
+  assert.equal(rejected.reason, "Connection limit exceeded");
+});
+
+test("ws enforces per-user connection limit", async (t) => {
+  await initDatabase();
+  const prevGlobal = env.wsMaxGlobalConnections;
+  const prevPerIp = env.wsMaxConnectionsPerIp;
+  const prevPerUser = env.wsMaxConnectionsPerUser;
+  env.wsMaxGlobalConnections = 10;
+  env.wsMaxConnectionsPerIp = 10;
+  env.wsMaxConnectionsPerUser = 1;
+  t.after(() => {
+    env.wsMaxGlobalConnections = prevGlobal;
+    env.wsMaxConnectionsPerIp = prevPerIp;
+    env.wsMaxConnectionsPerUser = prevPerUser;
+  });
+
+  const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const userId = `ws_limit_user_${suffix}`;
+  const username = `ws_limit_user_${suffix}`;
+  seedUser({
+    userId,
+    username,
+    password: "Test1234!Aa",
+    tokenVersion: 0,
+  });
+
+  const token = signJwt({ sub: userId, username, ver: 0 }, 300);
+  const runtime = await createServer();
+  let openWs = null;
+  t.after(async () => {
+    if (openWs?.readyState === openWs.OPEN) {
+      const closePromise = waitWsClose(openWs);
+      openWs.close();
+      await closePromise;
+    }
+    await runtime.close();
+    run(`DELETE FROM users WHERE id = $id`, { $id: userId });
+  });
+
+  openWs = await connectWs(runtime.wsUrl, token);
+
+  const rejected = await connectAndWaitClose(runtime.wsUrl, token);
+  assert.equal(rejected.code, 1013);
+  assert.equal(rejected.reason, "Connection limit exceeded");
 });

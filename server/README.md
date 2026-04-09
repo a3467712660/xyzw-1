@@ -13,8 +13,10 @@
 
 - `server/app.py` 在**模块导入阶段**即校验 `ENABLE_LEGACY_FLASK=1`。  
   这同时覆盖 `python app.py` 与 WSGI 方式（如 `gunicorn server.app:app`）。
+- `FLASK_SECRET_KEY` 必须显式提供；legacy Flask 不再接受随机临时 secret。
 - 历史 `/<token>/<bin_param>/<key>` URL token 路由默认返回 `410 Gone`；只有显式设置 `ENABLE_LEGACY_FILE_TOKEN_ROUTE=1` 才允许临时恢复。
 - 默认仅允许 `127.0.0.1` 监听；若要绑定非回环地址，需显式设置 `ALLOW_LEGACY_FLASK_PUBLIC_BIND=1`。
+- 默认不信任代理头。只有显式设置 `LEGACY_TRUST_PROXY=true` 才会读取 `X-Forwarded-For` / `X-Real-IP`。
 - 默认不启用 CORS。仅在设置 `LEGACY_CORS_ORIGINS` 后按白名单启用。  
   若 `LEGACY_CORS_SUPPORTS_CREDENTIALS=true`，禁止使用 `*` 通配符源。
 
@@ -23,7 +25,7 @@
 ```bash
 cd server
 pip install -r requirements.txt
-ENABLE_LEGACY_FLASK=1 FLASK_RUN_HOST=127.0.0.1 FLASK_RUN_PORT=5000 python app.py
+ENABLE_LEGACY_FLASK=1 FLASK_SECRET_KEY=replace-me FLASK_RUN_HOST=127.0.0.1 FLASK_RUN_PORT=5000 python app.py
 ```
 
 ## 一键安全启动（推荐）
@@ -37,15 +39,17 @@ bash ./start-safe.sh
 `start-safe.sh` 默认行为：
 
 - 必须由调用方显式传入 `ENABLE_LEGACY_FLASK=1`
+- 必须显式传入 `FLASK_SECRET_KEY`
 - 仅监听 `127.0.0.1`（禁止公网绑定）
 - `LEGACY_MAX_CONTENT_LENGTH=2097152`（2MB 上传上限）
 - `LEGACY_HTTP_TIMEOUT_SECONDS=8`（外部请求超时）
 - `SESSION_COOKIE_HTTPONLY=true`、`SESSION_COOKIE_SAMESITE=Strict`
+- `LEGACY_TRUST_PROXY=false`（默认不信任代理头）
 
 如需临时调整，可在命令前覆盖环境变量，例如：
 
 ```bash
-ENABLE_LEGACY_FLASK=1 SESSION_COOKIE_SECURE=true LEGACY_MAX_CONTENT_LENGTH=1048576 bash ./start-safe.sh
+ENABLE_LEGACY_FLASK=1 FLASK_SECRET_KEY=replace-me SESSION_COOKIE_SECURE=true LEGACY_MAX_CONTENT_LENGTH=1048576 bash ./start-safe.sh
 ```
 
 如果你需要外网服务入口，请在网关层仅暴露 `backend/`，并确保 legacy 路由统一返回 `404` 或 `410`。

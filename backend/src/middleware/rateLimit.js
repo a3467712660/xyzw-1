@@ -5,11 +5,6 @@ const defaultKeyGenerator = (req) => req.ip || "anonymous";
 const toIso = (ms) => new Date(ms).toISOString();
 const toTs = (value) => new Date(value).getTime();
 
-const cleanupExpiredRows = (scopePrefix, nowTs) => {
-  const cleanupBefore = new Date(nowTs - 24 * 60 * 60 * 1000).toISOString();
-  securityRateLimitRepository.cleanupExpired({ scopePrefix, cleanupBefore });
-};
-
 export const createRateLimiter = ({
   windowMs,
   max,
@@ -30,7 +25,6 @@ export const createRateLimiter = ({
         resetAt: toIso(nowTs + windowMs),
         updatedAt: nowIso(),
       });
-      cleanupExpiredRows(scope, nowTs);
       return next();
     }
 
@@ -52,7 +46,6 @@ export const createRateLimiter = ({
         resetAt: toIso(nowTs + windowMs),
         updatedAt: nowIso(),
       });
-      cleanupExpiredRows(scope, nowTs);
       return next();
     }
 

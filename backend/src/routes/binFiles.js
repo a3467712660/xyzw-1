@@ -248,11 +248,11 @@ const sendBinBuffer = (req, res, buffer) => {
 
 router.use(authRequired);
 
-router.get("/bin-files", binListLimiter, (req, res) => {
+router.get("/bin-files", binListLimiter, async (req, res) => {
   try {
     return res.json({
       success: true,
-      data: listBinFiles({ user: req.auth.user }),
+      data: await listBinFiles({ user: req.auth.user }),
     });
   } catch (error) {
     return res.status(400).json({
@@ -266,7 +266,7 @@ router.put(
   "/bin-files/:tokenId",
   binUploadLimiter,
   express.raw({ type: "application/octet-stream", limit: BIN_UPLOAD_MAX_BYTES }),
-  (req, res) => {
+  async (req, res) => {
     try {
       if (!req.is("application/octet-stream")) {
         writeBinAudit(req, {
@@ -291,7 +291,7 @@ router.put(
           message: validationError,
         });
       }
-      const saved = saveBinFile({
+      const saved = await saveBinFile({
         user: req.auth.user,
         tokenId: req.params.tokenId,
         buffer: req.body,
@@ -325,9 +325,9 @@ router.put(
   },
 );
 
-router.get("/bin-files/:tokenId", binDownloadLimiter, conditionalSensitiveBinRead, (req, res) => {
+router.get("/bin-files/:tokenId", binDownloadLimiter, conditionalSensitiveBinRead, async (req, res) => {
   try {
-    const buffer = readBinBuffer(req);
+    const buffer = await readBinBuffer(req);
     return sendBinBuffer(req, res, buffer);
   } catch (error) {
     writeBinAudit(req, {
@@ -346,7 +346,7 @@ router.post(
   "/bin-files/:tokenId/download-ticket",
   binTicketLimiter,
   userSensitiveActionRequiredWithAudit,
-  (req, res) => {
+  async (req, res) => {
     try {
       const tokenId = String(req.params.tokenId || "").trim();
       if (!tokenId) {
@@ -414,7 +414,7 @@ router.get("/bin-files/:tokenId/download", binDownloadLimiter, (req, res) =>
     message: "下载票据仅支持 POST 提交，请重新申请下载授权",
   }));
 
-router.post("/bin-files/:tokenId/download", binDownloadLimiter, validateRequest({ body: binDownloadBodySchema }), (req, res) => {
+router.post("/bin-files/:tokenId/download", binDownloadLimiter, validateRequest({ body: binDownloadBodySchema }), async (req, res) => {
   try {
     const ticket = String(req.body?.ticket || "").trim();
 
@@ -450,7 +450,7 @@ router.post("/bin-files/:tokenId/download", binDownloadLimiter, validateRequest(
       });
     }
 
-    const buffer = readBinBuffer(req);
+    const buffer = await readBinBuffer(req);
     writeBinAudit(req, {
       action: "bin_download",
       result: "success",
@@ -470,9 +470,9 @@ router.post("/bin-files/:tokenId/download", binDownloadLimiter, validateRequest(
   }
 });
 
-router.delete("/bin-files/:tokenId", binDeleteLimiter, (req, res) => {
+router.delete("/bin-files/:tokenId", binDeleteLimiter, async (req, res) => {
   try {
-    const removed = deleteBinFile({
+    const removed = await deleteBinFile({
       user: req.auth.user,
       tokenId: req.params.tokenId,
     });

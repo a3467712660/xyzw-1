@@ -1041,140 +1041,25 @@
       title="批量功法残卷赠送"
       v-model:show="showLegacyGiftModal"
     >
-      <div class="settings-content">
-        <div class="settings-grid">
-          <!-- 接收者ID输入 -->
-          <div class="setting-item">
-            <label class="setting-label">接收者ID</label>
-            <n-space>
-              <n-input-number
-                class="input-w-180"
-                placeholder="ID"
-                v-model:value="recipientIdInput"
-                :show-button="false"
-                @update:value="clearRecipientError"
-              ></n-input-number>
-              <n-input
-                class="input-w-180"
-                placeholder="请输入安全密码"
-                type="password"
-                v-model:value="securityPassword"
-                @input="clearRecipientError"
-              ></n-input>
-              <n-button
-                type="primary"
-                :disabled="
-                  !recipientIdInput || isQueryingRecipient || !securityPassword
-                "
-                @click="queryRecipientInfo"
-              >
-                查询
-              </n-button>
-            </n-space>
-            <n-text
-              v-if="recipientIdError"
-              class="recipient-error-text"
-              type="error"
-            >
-              {{ recipientIdError }}
-            </n-text>
-          </div>
-
-          <!-- 接收者信息展示 -->
-          <div v-if="recipientInfo" class="setting-item">
-            <label class="setting-label">接收者信息</label>
-            <div class="recipient-info recipient-card">
-              <!-- 头像部分 -->
-              <div class="avatar-container">
-                <img
-                  v-if="recipientInfo.avatarUrl && !avatarLoadError"
-                  alt="角色头像"
-                  class="avatar-image"
-                  :src="recipientInfo.avatarUrl"
-                  @error="handleAvatarError"
-                  @load="handleAvatarLoad"
-                >
-                <!-- 头像加载失败或未设置时的 fallback -->
-                <div v-else class="avatar-fallback">
-                  {{ (recipientInfo.name || "未知角色")[0] || "?" }}
-                </div>
-                <!-- 加载指示器 -->
-                <div v-if="isAvatarLoading" class="avatar-loading">
-                  <div class="loading-spinner"></div>
-                </div>
-              </div>
-
-              <!-- 角色信息部分 -->
-              <div class="role-info">
-                <div class="role-name">
-                  {{ recipientInfo.name || "未知角色" }}
-                </div>
-                <div class="role-info-grid">
-                  <div class="info-item">
-                    <div class="info-label">角色ID</div>
-                    <div class="info-value">
-                      {{ recipientInfo.roleId }}
-                    </div>
-                  </div>
-                  <div class="info-item">
-                    <div class="info-label">服务器</div>
-                    <div class="info-value">
-                      {{ recipientInfo.serverName }}
-                    </div>
-                  </div>
-                  <div class="info-item">
-                    <div class="info-label">战力</div>
-                    <div class="info-value info-value-power">
-                      {{ recipientInfo.power }} {{ recipientInfo.powerUnit }}
-                    </div>
-                  </div>
-                  <div class="info-item">
-                    <div class="info-label">军团</div>
-                    <div class="info-value">
-                      {{ recipientInfo.legionName || "无" }}
-                    </div>
-                  </div>
-                  <div class="info-item info-item-full">
-                    <div class="info-label">军团ID</div>
-                    <div class="info-value">
-                      {{ recipientInfo.legionId || "无" }}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- 赠送数量 -->
-          <div class="setting-item">
-            <label class="setting-label">赠送数量</label>
-            <n-input-number
-              placeholder="请输入赠送数量"
-              v-model:value="giftQuantity"
-              :max="1000"
-              :min="1"
-              :step="1"
-            ></n-input-number>
-          </div>
-        </div>
-
-        <!-- 操作按钮 -->
-        <div class="modal-actions modal-actions-right">
-          <n-button
-            class="btn-mr"
-            @click="showLegacyGiftModal = false"
-          >
-            取消
-          </n-button>
-          <n-button
-            type="primary"
-            :disabled="!recipientIdInput || !recipientInfo"
-            @click="confirmLegacyGift"
-          >
-            开始赠送
-          </n-button>
-        </div>
-      </div>
+      <TaskControlLegacyGiftModalBody
+        :avatar-load-error="avatarLoadError"
+        :clear-recipient-error="clearRecipientError"
+        :gift-quantity="giftQuantity"
+        :handle-avatar-error="handleAvatarError"
+        :handle-avatar-load="handleAvatarLoad"
+        :is-avatar-loading="isAvatarLoading"
+        :is-querying-recipient="isQueryingRecipient"
+        :on-confirm-legacy-gift="confirmLegacyGift"
+        :on-query-recipient-info="queryRecipientInfo"
+        :recipient-id-error="recipientIdError"
+        :recipient-id-input="recipientIdInput"
+        :recipient-info="recipientInfo"
+        :security-password="securityPassword"
+        @close="showLegacyGiftModal = false"
+        @update:gift-quantity="giftQuantity = $event"
+        @update:recipient-id-input="recipientIdInput = $event"
+        @update:security-password="securityPassword = $event"
+      ></TaskControlLegacyGiftModalBody>
     </n-modal>
 
     <!-- Helper Modal (开箱/钓鱼/招募) -->
@@ -1291,73 +1176,15 @@
       title="定时任务列表"
       v-model:show="showTasksModal"
     >
-      <div class="tasks-list">
-        <div v-for="task in scheduledTasks" :key="task.id" class="task-item">
-          <div class="task-item-head">
-            <div class="task-item-title">{{ task.name }}</div>
-            <n-switch
-              v-model:value="task.enabled"
-              @update:value="toggleTaskEnabled(task.id, $event)"
-            >
-            </n-switch>
-          </div>
-          <div class="task-item-row">
-            <span class="task-item-label">运行类型：</span>
-            <span>{{
-              task.runType === "daily" ? "每天固定时间" : "Cron表达式"
-            }}</span>
-          </div>
-          <div class="task-item-row">
-            <span class="task-item-label">运行时间：</span>
-            <span>{{
-              task.runType === "daily" ? task.runTime : task.cronExpression
-            }}</span>
-          </div>
-          <div class="task-item-row">
-            <span class="task-item-label">下次执行：</span>
-            <span
-              class="task-next-run"
-              :class="
-                taskCountdowns[task.id]?.isNearExecution
-                  ? 'is-near'
-                  : 'is-normal'
-              "
-            >
-              {{
-                task.enabled
-                  ? taskCountdowns[task.id]?.formatted || "计算中..."
-                  : "已禁用"
-              }}
-            </span>
-          </div>
-          <div class="task-item-row">
-            <span class="task-item-label">选中账号：</span>
-            <span>{{ task.selectedTokens.length }} 个</span>
-          </div>
-          <div class="task-item-row task-item-row-last">
-            <span class="task-item-label">选中任务：</span>
-            <span>{{ task.selectedTasks.length }} 个</span>
-          </div>
-          <div class="task-item-actions">
-            <n-button size="tiny" @click="editTask(task)"> 编辑 </n-button>
-            <n-button size="tiny" type="error" @click="deleteTask(task.id)">
-              删除
-            </n-button>
-            <n-button
-              secondary
-              size="tiny"
-              type="info"
-              :loading="executingTaskIds.includes(task.id)"
-              @click="manualExecuteTask(task)"
-            >
-              立即执行
-            </n-button>
-          </div>
-        </div>
-        <div v-if="scheduledTasks.length === 0" class="task-empty-state">
-          暂无定时任务
-        </div>
-      </div>
+      <TaskControlScheduledTasksList
+        :executing-task-ids="executingTaskIds"
+        :on-delete-task="deleteTask"
+        :on-edit-task="editTask"
+        :on-manual-execute-task="manualExecuteTask"
+        :on-toggle-task-enabled="toggleTaskEnabled"
+        :scheduled-tasks="scheduledTasks"
+        :task-countdowns="taskCountdowns"
+      ></TaskControlScheduledTasksList>
     </n-modal>
 
     <!-- Task Modal -->
@@ -2232,6 +2059,7 @@
 // Import required dependencies
 import {
   computed,
+  defineAsyncComponent,
   h,
   nextTick,
   onBeforeUnmount,
@@ -2289,6 +2117,13 @@ import {
 } from "@/utils/batch";
 
 import { goldItemsConfig, merchantConfig } from "@/utils/dreamConstants";
+
+const TaskControlLegacyGiftModalBody = defineAsyncComponent(
+  () => import("@/components/task-control/TaskControlLegacyGiftModalBody.vue"),
+);
+const TaskControlScheduledTasksList = defineAsyncComponent(
+  () => import("@/components/task-control/TaskControlScheduledTasksList.vue"),
+);
 
 // Initialize token store, message service, and task runner
 const tokenStore = useTokenStore();

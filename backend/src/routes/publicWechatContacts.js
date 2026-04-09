@@ -3,7 +3,6 @@ import { z } from "zod";
 import { validateRequest } from "../middleware/validate.js";
 import { wechatContactRepository } from "../repositories/wechatContactRepository.js";
 import {
-  attachWechatContactsStreamCleanup,
   registerWechatContactsStreamClient,
 } from "../services/publicWechatContactStream.js";
 
@@ -21,8 +20,7 @@ router.get("/public/wechat-contacts", (_req, res) => {
 });
 
 router.get("/public/wechat-contacts/stream", (req, res) => {
-  registerWechatContactsStreamClient(res);
-  attachWechatContactsStreamCleanup(req, res);
+  registerWechatContactsStreamClient(req, res);
 });
 
 router.get(

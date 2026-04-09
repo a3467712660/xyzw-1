@@ -1,6 +1,6 @@
-import fs from "fs";
-import path from "path";
-import crypto from "crypto";
+import fs from "node:fs/promises";
+import path from "node:path";
+import crypto from "node:crypto";
 import { env } from "../config/env.js";
 import { decryptBuffer, encryptBuffer } from "../lib/crypto.js";
 import { userRepository } from "../repositories/userRepository.js";
@@ -12,10 +12,20 @@ const BIN_PLAIN_SUFFIX = ".bin";
 export const BIN_UPLOAD_MAX_BYTES = 5 * 1024 * 1024;
 export const BIN_UPLOAD_MIN_BYTES = 8;
 
-const ensureDir = (dirPath) => {
-  if (!fs.existsSync(dirPath)) {
-    fs.mkdirSync(dirPath, { recursive: true });
+const migrationPromises = new Map();
+const migrationCleanState = new Map();
+
+const pathExists = async (targetPath) => {
+  try {
+    await fs.access(targetPath);
+    return true;
+  } catch {
+    return false;
   }
+};
+
+const ensureDir = async (dirPath) => {
+  await fs.mkdir(dirPath, { recursive: true });
 };
 
 const safeSegment = (value, fallback) => {
@@ -73,6 +83,9 @@ const userFolderName = (user) => {
   return `${username}_${userId}`;
 };
 
+const migrationStateKey = (user) =>
+  `${safeSegment(user?.id, "unknown")}:${safeSegment(user?.username, "user")}`;
+
 const canonicalUserDir = (user) => path.join(env.binStoragePath, userFolderName(user));
 
 const asLegacySafeSegment = (value) => {
@@ -83,7 +96,7 @@ const asLegacySafeSegment = (value) => {
   return raw;
 };
 
-const collectLegacyUserDirs = (user) => {
+const collectLegacyUserDirCandidates = (user) => {
   const usernameRawSafe = asLegacySafeSegment(user?.username);
   const usernameSafe = safeSegment(user?.username, "user");
   const userIdSafe = safeSegment(user?.id, "unknown");
@@ -98,93 +111,126 @@ const collectLegacyUserDirs = (user) => {
     dirs.add(path.join(env.binStoragePath, usernameRawSafe));
   }
 
-  return [...dirs].filter((dir) => dir !== canonicalDir && fs.existsSync(dir));
+  return [...dirs].filter((dir) => dir !== canonicalDir);
 };
 
-const moveFileToCanonical = (sourcePath, targetPath) => {
+const collectExistingLegacyUserDirs = async (user) => {
+  const candidates = collectLegacyUserDirCandidates(user);
+  const settled = await Promise.all(
+    candidates.map(async (dir) => ({
+      dir,
+      exists: await pathExists(dir),
+    })),
+  );
+  return settled.filter((item) => item.exists).map((item) => item.dir);
+};
+
+const moveFileToCanonical = async (sourcePath, targetPath) => {
   try {
-    fs.renameSync(sourcePath, targetPath);
+    await fs.rename(sourcePath, targetPath);
   } catch (error) {
     if (error?.code !== "EXDEV") {
       throw error;
     }
-    fs.copyFileSync(sourcePath, targetPath);
-    fs.rmSync(sourcePath, { force: true });
+    await fs.copyFile(sourcePath, targetPath);
+    await fs.rm(sourcePath, { force: true });
   }
 };
 
-const migrateLegacyUserBinDirs = (user) => {
-  const legacyDirs = collectLegacyUserDirs(user);
+const migrateLegacyUserBinDirsUnsafe = async (user) => {
+  const stateKey = migrationStateKey(user);
+  const legacyDirs = await collectExistingLegacyUserDirs(user);
   const canonicalDir = canonicalUserDir(user);
-  const hasCanonicalDir = fs.existsSync(canonicalDir);
+  const hasCanonicalDir = await pathExists(canonicalDir);
+  if (migrationCleanState.get(stateKey) && legacyDirs.length === 0) {
+    return;
+  }
   if (legacyDirs.length === 0 && !hasCanonicalDir) {
+    migrationCleanState.set(stateKey, true);
     return;
   }
 
-  ensureDir(canonicalDir);
+  await ensureDir(canonicalDir);
   const scanDirs = [canonicalDir, ...legacyDirs];
 
-  scanDirs.forEach((scanDir) => {
-    if (!fs.existsSync(scanDir)) return;
+  for (const scanDir of scanDirs) {
+    if (!(await pathExists(scanDir))) continue;
 
-    const entries = fs.readdirSync(scanDir, { withFileTypes: true });
-    entries
-      .filter((entry) => entry.isFile())
-      .forEach((entry) => {
-        const parsed = parseTokenIdFromFileName(entry.name);
-        if (!parsed) return;
+    const entries = await fs.readdir(scanDir, { withFileTypes: true });
+    for (const entry of entries.filter((candidate) => candidate.isFile())) {
+      const parsed = parseTokenIdFromFileName(entry.name);
+      if (!parsed) continue;
 
-        const sourcePath = path.join(scanDir, entry.name);
-        const targetPath = path.join(canonicalDir, `${parsed.tokenId}${BIN_ENCRYPTED_SUFFIX}`);
-        const sourceUpdatedAt = fs.statSync(sourcePath).mtimeMs;
-        const targetExists = fs.existsSync(targetPath);
-        const targetUpdatedAt = targetExists ? fs.statSync(targetPath).mtimeMs : 0;
+      const sourcePath = path.join(scanDir, entry.name);
+      const targetPath = path.join(canonicalDir, `${parsed.tokenId}${BIN_ENCRYPTED_SUFFIX}`);
+      const sourceStats = await fs.stat(sourcePath);
+      const targetExists = await pathExists(targetPath);
+      const targetStats = targetExists ? await fs.stat(targetPath) : null;
+      const targetUpdatedAt = targetStats?.mtimeMs || 0;
 
-        if (parsed.encrypted) {
-          if (sourcePath === targetPath) {
-            return;
-          }
-          if (!targetExists) {
-            moveFileToCanonical(sourcePath, targetPath);
-            return;
-          }
-
-          if (sourceUpdatedAt > targetUpdatedAt) {
-            fs.rmSync(targetPath, { force: true });
-            moveFileToCanonical(sourcePath, targetPath);
-          } else {
-            fs.rmSync(sourcePath, { force: true });
-          }
-          return;
+      if (parsed.encrypted) {
+        if (sourcePath === targetPath) {
+          continue;
+        }
+        if (!targetExists) {
+          await moveFileToCanonical(sourcePath, targetPath);
+          continue;
         }
 
-        if (sourceUpdatedAt >= targetUpdatedAt) {
-          const plainBuffer = fs.readFileSync(sourcePath);
-          const encryptedPayload = encryptBuffer(plainBuffer);
-          fs.writeFileSync(targetPath, encryptedPayload, { mode: 0o600 });
+        if (sourceStats.mtimeMs > targetUpdatedAt) {
+          await fs.rm(targetPath, { force: true });
+          await moveFileToCanonical(sourcePath, targetPath);
+        } else {
+          await fs.rm(sourcePath, { force: true });
         }
-        fs.rmSync(sourcePath, { force: true });
-      });
-  });
+        continue;
+      }
 
-  legacyDirs.forEach((legacyDir) => {
-    if (!fs.existsSync(legacyDir)) return;
-    const remaining = fs.readdirSync(legacyDir, { withFileTypes: true });
-    if (remaining.length === 0) {
-      fs.rmSync(legacyDir, { recursive: true, force: true });
+      if (sourceStats.mtimeMs >= targetUpdatedAt) {
+        const plainBuffer = await fs.readFile(sourcePath);
+        const encryptedPayload = encryptBuffer(plainBuffer);
+        await fs.writeFile(targetPath, encryptedPayload, { mode: 0o600 });
+      }
+      await fs.rm(sourcePath, { force: true });
     }
-  });
+  }
+
+  for (const legacyDir of legacyDirs) {
+    if (!(await pathExists(legacyDir))) continue;
+    const remaining = await fs.readdir(legacyDir, { withFileTypes: true });
+    if (remaining.length === 0) {
+      await fs.rm(legacyDir, { recursive: true, force: true });
+    }
+  }
+
+  migrationCleanState.set(
+    stateKey,
+    (await collectExistingLegacyUserDirs(user)).length === 0,
+  );
 };
 
-const resolveCanonicalBinFilePath = (user, tokenId) => {
+const ensureLegacyMigration = async (user) => {
+  const stateKey = migrationStateKey(user);
+  if (migrationPromises.has(stateKey)) {
+    return migrationPromises.get(stateKey);
+  }
+  const promise = migrateLegacyUserBinDirsUnsafe(user).finally(() => {
+    migrationPromises.delete(stateKey);
+  });
+  migrationPromises.set(stateKey, promise);
+  return promise;
+};
+
+const resolveCanonicalBinFilePath = async (user, tokenId) => {
   assertTokenId(tokenId);
+  await ensureLegacyMigration(user);
   return path.join(canonicalUserDir(user), `${tokenId}${BIN_ENCRYPTED_SUFFIX}`);
 };
 
-const binFilePath = (user, tokenId) => {
+const binFilePath = async (user, tokenId) => {
   assertTokenId(tokenId);
   const dir = canonicalUserDir(user);
-  ensureDir(dir);
+  await ensureDir(dir);
   return path.join(dir, `${tokenId}${BIN_ENCRYPTED_SUFFIX}`);
 };
 
@@ -216,26 +262,25 @@ export const validateBinBuffer = (buffer) => {
   return "";
 };
 
-export const saveBinFile = ({ user, tokenId, buffer }) => {
+export const saveBinFile = async ({ user, tokenId, buffer }) => {
   const validationError = validateBinBuffer(buffer);
   if (validationError) {
     throw new Error(validationError);
   }
 
-  migrateLegacyUserBinDirs(user);
-  const canonicalPath = resolveCanonicalBinFilePath(user, tokenId);
-  const exists = fs.existsSync(canonicalPath);
+  const canonicalPath = await resolveCanonicalBinFilePath(user, tokenId);
+  const exists = await pathExists(canonicalPath);
   if (!exists) {
-    const currentCount = countBinFilesForUser({ user });
+    const currentCount = await countBinFilesForUser({ user });
     const bindLimit = readTokenBindLimit(user);
     if (currentCount >= bindLimit) {
       throw new Error(`最多只能绑定 ${bindLimit} 个Token`);
     }
   }
 
-  const filePath = binFilePath(user, tokenId);
+  const filePath = await binFilePath(user, tokenId);
   const payload = encryptBuffer(buffer);
-  fs.writeFileSync(filePath, payload, { mode: 0o600 });
+  await fs.writeFile(filePath, payload, { mode: 0o600 });
 
   return {
     tokenId,
@@ -245,50 +290,50 @@ export const saveBinFile = ({ user, tokenId, buffer }) => {
   };
 };
 
-export const readBinFile = ({ user, tokenId }) => {
-  migrateLegacyUserBinDirs(user);
-  const filePath = resolveCanonicalBinFilePath(user, tokenId);
-  if (!filePath || !fs.existsSync(filePath)) {
+export const readBinFile = async ({ user, tokenId }) => {
+  const filePath = await resolveCanonicalBinFilePath(user, tokenId);
+  if (!filePath || !(await pathExists(filePath))) {
     return null;
   }
 
-  const encrypted = fs.readFileSync(filePath);
+  const encrypted = await fs.readFile(filePath);
   return decryptBuffer(encrypted);
 };
 
-export const deleteBinFile = ({ user, tokenId }) => {
+export const deleteBinFile = async ({ user, tokenId }) => {
   assertTokenId(tokenId);
-  migrateLegacyUserBinDirs(user);
-  const filePath = resolveCanonicalBinFilePath(user, tokenId);
-  if (!fs.existsSync(filePath)) {
+  const filePath = await resolveCanonicalBinFilePath(user, tokenId);
+  if (!(await pathExists(filePath))) {
     return false;
   }
-  fs.rmSync(filePath, { force: true });
+  await fs.rm(filePath, { force: true });
   return true;
 };
 
-export const listBinFiles = ({ user }) => {
-  migrateLegacyUserBinDirs(user);
+export const listBinFiles = async ({ user }) => {
+  await ensureLegacyMigration(user);
   const dir = canonicalUserDir(user);
-  if (!fs.existsSync(dir)) {
+  if (!(await pathExists(dir))) {
     return [];
   }
 
-  const items = fs
-    .readdirSync(dir, { withFileTypes: true })
-    .filter((entry) => entry.isFile() && entry.name.endsWith(BIN_ENCRYPTED_SUFFIX))
-    .map((entry) => {
-      const filePath = path.join(dir, entry.name);
-      const stats = fs.statSync(filePath);
-      const tokenId = entry.name.replace(/\.bin\.enc$/, "");
-      return {
-        tokenId,
-        fileName: entry.name,
-        size: stats.size,
-        createdAt: stats.birthtime.toISOString(),
-        updatedAt: stats.mtime.toISOString(),
-      };
-    });
+  const entries = await fs.readdir(dir, { withFileTypes: true });
+  const items = await Promise.all(
+    entries
+      .filter((entry) => entry.isFile() && entry.name.endsWith(BIN_ENCRYPTED_SUFFIX))
+      .map(async (entry) => {
+        const filePath = path.join(dir, entry.name);
+        const stats = await fs.stat(filePath);
+        const tokenId = entry.name.replace(/\.bin\.enc$/, "");
+        return {
+          tokenId,
+          fileName: entry.name,
+          size: stats.size,
+          createdAt: stats.birthtime.toISOString(),
+          updatedAt: stats.mtime.toISOString(),
+        };
+      }),
+  );
 
   return items.sort(
     (a, b) =>
@@ -296,47 +341,47 @@ export const listBinFiles = ({ user }) => {
   );
 };
 
-export const countBinFilesForUser = ({ user }) => {
-  migrateLegacyUserBinDirs(user);
+export const countBinFilesForUser = async ({ user }) => {
+  await ensureLegacyMigration(user);
   const dir = canonicalUserDir(user);
-  if (!fs.existsSync(dir)) {
+  if (!(await pathExists(dir))) {
     return 0;
   }
 
-  return fs
-    .readdirSync(dir, { withFileTypes: true })
+  const entries = await fs.readdir(dir, { withFileTypes: true });
+  return entries
     .filter((entry) => entry.isFile() && entry.name.endsWith(BIN_ENCRYPTED_SUFFIX))
     .length;
 };
 
-export const clearUserBinCache = ({ user }) => {
-  migrateLegacyUserBinDirs(user);
+export const clearUserBinCache = async ({ user }) => {
+  await ensureLegacyMigration(user);
   const dir = canonicalUserDir(user);
-  if (!fs.existsSync(dir)) {
+  if (!(await pathExists(dir))) {
     return { removedFiles: 0, removedDirs: 0 };
   }
 
   let removedFiles = 0;
   let removedDirs = 0;
 
-  const entries = fs.readdirSync(dir, { withFileTypes: true });
-  entries
-    .filter((entry) => entry.isFile() && entry.name.endsWith(BIN_ENCRYPTED_SUFFIX))
-    .forEach((entry) => {
-      fs.rmSync(path.join(dir, entry.name), { force: true });
-      removedFiles += 1;
-    });
+  const entries = await fs.readdir(dir, { withFileTypes: true });
+  for (const entry of entries.filter(
+    (candidate) => candidate.isFile() && candidate.name.endsWith(BIN_ENCRYPTED_SUFFIX),
+  )) {
+    await fs.rm(path.join(dir, entry.name), { force: true });
+    removedFiles += 1;
+  }
 
-  const remaining = fs.readdirSync(dir, { withFileTypes: true });
+  const remaining = await fs.readdir(dir, { withFileTypes: true });
   if (remaining.length === 0) {
-    fs.rmSync(dir, { recursive: true, force: true });
+    await fs.rm(dir, { recursive: true, force: true });
     removedDirs += 1;
   }
 
   return { removedFiles, removedDirs };
 };
 
-export const cleanupExpiredTrialUserCaches = () => {
+export const cleanupExpiredTrialUserCaches = async () => {
   const thresholdAt = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   const users = userRepository.listExpiredTrialUsers(thresholdAt);
 
@@ -344,14 +389,14 @@ export const cleanupExpiredTrialUserCaches = () => {
   let removedFiles = 0;
   let removedDirs = 0;
 
-  users.forEach((user) => {
-    const result = clearUserBinCache({ user });
+  for (const user of users) {
+    const result = await clearUserBinCache({ user });
     if (result.removedFiles > 0 || result.removedDirs > 0) {
       clearedUsers += 1;
       removedFiles += result.removedFiles;
       removedDirs += result.removedDirs;
     }
-  });
+  }
 
   return {
     scannedUsers: users.length,

@@ -15,6 +15,7 @@ export SESSION_COOKIE_HTTPONLY="${SESSION_COOKIE_HTTPONLY:-true}"
 export SESSION_COOKIE_SECURE="${SESSION_COOKIE_SECURE:-false}"
 export LEGACY_MAX_CONTENT_LENGTH="${LEGACY_MAX_CONTENT_LENGTH:-2097152}"
 export LEGACY_HTTP_TIMEOUT_SECONDS="${LEGACY_HTTP_TIMEOUT_SECONDS:-8}"
+export LEGACY_TRUST_PROXY="${LEGACY_TRUST_PROXY:-false}"
 
 if [[ "${ENABLE_LEGACY_FLASK:-}" != "1" ]]; then
   echo "[legacy-safe-start] refused: set ENABLE_LEGACY_FLASK=1 explicitly for temporary internal use."
@@ -22,7 +23,12 @@ if [[ "${ENABLE_LEGACY_FLASK:-}" != "1" ]]; then
   exit 1
 fi
 
+if [[ -z "${FLASK_SECRET_KEY:-}" ]]; then
+  echo "[legacy-safe-start] refused: FLASK_SECRET_KEY must be set explicitly for legacy Flask."
+  exit 1
+fi
+
 echo "[legacy-safe-start] starting legacy Flask on ${FLASK_RUN_HOST}:${FLASK_RUN_PORT}"
-echo "[legacy-safe-start] MAX_CONTENT_LENGTH=${LEGACY_MAX_CONTENT_LENGTH}, HTTP_TIMEOUT=${LEGACY_HTTP_TIMEOUT_SECONDS}s, SAMESITE=${SESSION_COOKIE_SAMESITE}, SECURE=${SESSION_COOKIE_SECURE}"
+echo "[legacy-safe-start] MAX_CONTENT_LENGTH=${LEGACY_MAX_CONTENT_LENGTH}, HTTP_TIMEOUT=${LEGACY_HTTP_TIMEOUT_SECONDS}s, SAMESITE=${SESSION_COOKIE_SAMESITE}, SECURE=${SESSION_COOKIE_SECURE}, TRUST_PROXY=${LEGACY_TRUST_PROXY}"
 
 python app.py

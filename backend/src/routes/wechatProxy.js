@@ -10,7 +10,7 @@ const router = Router();
 const PROXY_TIMEOUT_MS = 15000;
 const HORTOR_LOGIN_BODY_LIMIT = "64kb";
 const HORTOR_DEVICE_UNIQUE_ID_HEADER = "x-xyzw-device-unique-id";
-const HORTOR_DEVICE_UNIQUE_ID_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/;
+const HORTOR_DEVICE_UNIQUE_ID_PATTERN = /^[\w.:-]{1,128}$/;
 const QR_STATUS_BODY_SCHEMA = z.object({
   uuid: z.string().trim().min(1).max(256),
 });
@@ -19,6 +19,12 @@ const qrConnectLimiter = createRateLimiter({
   scope: "wechat_proxy_qrconnect",
   windowMs: 60 * 1000,
   max: 60,
+  blockMs: 5 * 60 * 1000,
+});
+const sharedWechatProxyLimiter = createRateLimiter({
+  scope: "wechat_proxy_shared",
+  windowMs: 60 * 1000,
+  max: 120,
   blockMs: 5 * 60 * 1000,
 });
 
@@ -41,6 +47,8 @@ const allowedHortorRequestOrigins = new Set(
     .map((item) => normalizeHttpOrigin(item)?.raw || "")
     .filter(Boolean),
 );
+
+router.use("/wechat-proxy", sharedWechatProxyLimiter);
 
 const ensureAllowedHortorSource = (req, res, next) => {
   const requestOrigin = String(req.get("origin") || "").trim();
@@ -133,8 +141,8 @@ router.get("/wechat-proxy/qrconnect", qrConnectLimiter, async (req, res) => {
     headers: {
       "User-Agent":
         "Mozilla/5.0 (Linux; Android 7.0; Mi-4c Build/NRD90M; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/53.0.2785.49 Mobile MQQBrowser/6.2 TBS/043632 Safari/537.36 MicroMessenger/6.6.1.1220(0x26060135) NetType/WIFI Language/zh_CN",
-      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-      Referer: "https://open.weixin.qq.com/",
+      "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+      "referer": "https://open.weixin.qq.com/",
     },
   });
 });
@@ -144,14 +152,14 @@ router.post(
   qrStatusLimiter,
   validateRequest({ body: QR_STATUS_BODY_SCHEMA }),
   async (req, res) => {
-    if (hasNonEmptyQueryValue(req.query?.["uuid"])) {
+    if (hasNonEmptyQueryValue(req.query?.uuid)) {
       return res.status(400).json({
         success: false,
         message: "uuid 不能通过 URL 参数传递",
       });
     }
 
-  const target = new URL("https://long.open.weixin.qq.com/connect/l/qrconnect");
+    const target = new URL("https://long.open.weixin.qq.com/connect/l/qrconnect");
     target.searchParams.set("uuid", req.body.uuid);
     target.searchParams.set("f", "url");
     target.searchParams.set("_", String(Date.now()));
@@ -161,8 +169,8 @@ router.post(
       headers: {
         "User-Agent":
           "Mozilla/5.0 (Linux; Android 7.0; Mi-4c Build/NRD90M; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/53.0.2785.49 Mobile MQQBrowser/6.2 TBS/043632 Safari/537.36 MicroMessenger/6.6.1.1220(0x26060135) NetType/WIFI Language/zh_CN",
-        Accept: "*/*",
-        Referer: "https://open.weixin.qq.com/",
+        "accept": "*/*",
+        "referer": "https://open.weixin.qq.com/",
       },
     });
   },
@@ -179,7 +187,7 @@ router.post(
     const rawDeviceUniqueId = String(
       req.get(HORTOR_DEVICE_UNIQUE_ID_HEADER) || "",
     ).trim();
-    if (hasNonEmptyQueryValue(req.query?.["deviceUniqueId"])) {
+    if (hasNonEmptyQueryValue(req.query?.deviceUniqueId)) {
       return res.status(400).json({
         success: false,
         message: "deviceUniqueId 不能通过 URL 参数传递",
@@ -205,9 +213,9 @@ router.post(
       headers: {
         "User-Agent":
           "Mozilla/5.0 (Linux; Android 12; 23117RK66C Build/V417IR; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/95.0.4638.74 Mobile Safari/537.36",
-        Accept: "*/*",
-        Origin: "https://open.weixin.qq.com",
-        Referer: "https://open.weixin.qq.com/",
+        "accept": "*/*",
+        "origin": "https://open.weixin.qq.com",
+        "referer": "https://open.weixin.qq.com/",
         "Content-Type": "text/plain; charset=utf-8",
       },
     });
