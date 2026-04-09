@@ -3360,6 +3360,47 @@ const applyLineup = async (lineup, options = {}) => {
         Number(targetHero?.fishId || 0) || Number(targetHero?.pearlId || 0),
       );
 
+    const getLatestFishSyncState = async () => {
+      const latestData = await fetchLatestData();
+      const latestHeroesData = latestData.heroes || {};
+      const latestTeamInfoData = latestData.teamInfo || {};
+      return {
+        latestHeroesData,
+        latestTeamInfoData,
+        latestPearlMap: latestData.pearlMap || {},
+        latestArtifactBooks: latestData.artifactBooks || {},
+        artifactToHero: buildArtifactToHeroMap(
+          latestHeroesData,
+          latestTeamInfoData,
+        ),
+      };
+    };
+
+    const isArtifactAssignedToTargetHero = (
+      targetHero,
+      expectedArtifactId,
+      heroesData = {},
+      teamInfoData = {},
+      artifactToHeroMap = {},
+    ) => {
+      const normalizedExpectedArtifactId = Number(expectedArtifactId || 0) || null;
+      const currentArtifactId = getCurrentArtifactIdForTargetHero(
+        targetHero,
+        heroesData,
+        teamInfoData,
+      );
+      if ((currentArtifactId || null) !== (normalizedExpectedArtifactId || null)) {
+        return false;
+      }
+      if (!normalizedExpectedArtifactId) {
+        return true;
+      }
+      const holderId = Number(
+        artifactToHeroMap?.[normalizedExpectedArtifactId] || 0,
+      ) || null;
+      return !holderId || holderId === Number(targetHero?.heroId || 0);
+    };
+
     const getEquipmentReview = (heroesData = {}) => {
       const mismatched = [];
 
@@ -3792,30 +3833,26 @@ const applyLineup = async (lineup, options = {}) => {
           return { success: true, repaired: attempt > 1 };
         }
 
-        const latestHeroesData = latestData.heroes || {};
-        const latestPearlMap = latestData.pearlMap || {};
-        const latestArtifactBooks = latestData.artifactBooks || {};
-        const artifactToHero = buildArtifactToHeroMap(
-          {},
-          latestData.teamInfo || {},
-        );
         const noopClearedTargetHeroIds = new Set();
         const noopReleasedArtifactIds = new Set();
 
         for (const targetHero of targetHeroes) {
+          const {
+            latestHeroesData: currentHeroesData,
+            latestTeamInfoData: currentTeamInfoData,
+            latestPearlMap: currentPearlMap,
+            latestArtifactBooks: currentArtifactBooks,
+            artifactToHero,
+          } = await getLatestFishSyncState();
           const expectedArtifactId = getArtifactIdForTargetHero(
             targetHero,
-            latestPearlMap,
-            latestArtifactBooks,
+            currentPearlMap,
+            currentArtifactBooks,
           );
-          const currentHeroData =
-            latestHeroesData[String(targetHero.heroId)] ||
-            latestHeroesData[targetHero.heroId] ||
-            {};
           const currentArtifactId = getCurrentArtifactIdForTargetHero(
             targetHero,
-            latestHeroesData,
-            latestData.teamInfo || {},
+            currentHeroesData,
+            currentTeamInfoData,
           );
           const currentHolderId = expectedArtifactId
             ? artifactToHero[expectedArtifactId]
@@ -3836,6 +3873,18 @@ const applyLineup = async (lineup, options = {}) => {
               await delay(COMMAND_DELAY);
             }
           } else {
+            if (
+              isArtifactAssignedToTargetHero(
+                targetHero,
+                expectedArtifactId,
+                currentHeroesData,
+                currentTeamInfoData,
+                artifactToHero,
+              )
+            ) {
+              continue;
+            }
+
             const targetHasCurrentArtifact =
               currentArtifactId && currentArtifactId !== Number(expectedArtifactId);
             const holderNeedsRelease =
@@ -3893,17 +3942,15 @@ const applyLineup = async (lineup, options = {}) => {
               await delay(COMMAND_DELAY);
             }
 
+            let loadState = null;
             if (targetHasCurrentArtifact || holderNeedsRelease) {
-              const verifyData = await fetchLatestData();
+              loadState = await getLatestFishSyncState();
               const verifyCurrentArtifactId = getCurrentArtifactIdForTargetHero(
                 targetHero,
-                verifyData.heroes || {},
-                verifyData.teamInfo || {},
+                loadState.latestHeroesData,
+                loadState.latestTeamInfoData,
               );
-              const verifyHolderId = buildArtifactToHeroMap(
-                {},
-                verifyData.teamInfo || {},
-              )[expectedArtifactId];
+              const verifyHolderId = loadState.artifactToHero[expectedArtifactId];
               const stillTargetOccupied =
                 verifyCurrentArtifactId
                 && verifyCurrentArtifactId !== Number(expectedArtifactId)
@@ -3918,6 +3965,18 @@ const applyLineup = async (lineup, options = {}) => {
               ) {
                 continue;
               }
+            }
+
+            if (
+              isArtifactAssignedToTargetHero(
+                targetHero,
+                expectedArtifactId,
+                loadState?.latestHeroesData || currentHeroesData,
+                loadState?.latestTeamInfoData || currentTeamInfoData,
+                loadState?.artifactToHero || artifactToHero,
+              )
+            ) {
+              continue;
             }
 
             await sendApplyActionCommand(
@@ -4114,29 +4173,27 @@ const applyLineup = async (lineup, options = {}) => {
       if (!lineupMatchedBeforeFishSync) {
         return "当前站位仍未匹配，已跳过鱼灵与鱼珠技能同步";
       }
-
-      const fishData = lineupDataBeforeFishSync;
-      const currentHeroes = fishData.heroes;
-      const pearlMap = fishData.pearlMap || {};
-      const artifactBooks = fishData.artifactBooks || {};
-
-      const artifactToHero = buildArtifactToHeroMap(
-        {},
-        fishData.teamInfo || {},
-      );
       const noopClearedTargetHeroIds = new Set();
       const noopReleasedArtifactIds = new Set();
-
-      const fishToArtifact = {};
-      for (const [fishId, book] of Object.entries(artifactBooks)) {
-        if (book.artifactId && book.artifactId !== -1) {
-          fishToArtifact[Number(fishId)] = book.artifactId;
-        }
-      }
 
       let fishApplied = 0;
       for (const targetHero of targetHeroes) {
         if (!targetHero.fishId && !targetHero.pearlId) continue;
+
+        const {
+          latestHeroesData: currentHeroes,
+          latestTeamInfoData,
+          latestPearlMap: pearlMap,
+          latestArtifactBooks: artifactBooks,
+          artifactToHero,
+        } = await getLatestFishSyncState();
+
+        const fishToArtifact = {};
+        for (const [fishId, book] of Object.entries(artifactBooks)) {
+          if (book.artifactId && book.artifactId !== -1) {
+            fishToArtifact[Number(fishId)] = book.artifactId;
+          }
+        }
 
         let artifactId = null;
         const pearlId = targetHero.pearlId || 0;
@@ -4157,11 +4214,19 @@ const applyLineup = async (lineup, options = {}) => {
         const currentArtifactId = getCurrentArtifactIdForTargetHero(
           targetHero,
           currentHeroes,
-          fishData.teamInfo || {},
+          latestTeamInfoData,
         );
         const currentHolderId = artifactToHero[artifactId];
 
-        if (currentHolderId === targetHero.heroId) {
+        if (
+          isArtifactAssignedToTargetHero(
+            targetHero,
+            artifactId,
+            currentHeroes,
+            latestTeamInfoData,
+            artifactToHero,
+          )
+        ) {
           continue;
         }
 
@@ -4219,17 +4284,15 @@ const applyLineup = async (lineup, options = {}) => {
           await delay(COMMAND_DELAY);
         }
 
+        let loadState = null;
         if (targetHasCurrentArtifact || holderNeedsRelease) {
-          const verifyData = await fetchLatestData();
+          loadState = await getLatestFishSyncState();
           const verifyCurrentArtifactId = getCurrentArtifactIdForTargetHero(
             targetHero,
-            verifyData.heroes || {},
-            verifyData.teamInfo || {},
+            loadState.latestHeroesData,
+            loadState.latestTeamInfoData,
           );
-          const verifyHolderId = buildArtifactToHeroMap(
-            {},
-            verifyData.teamInfo || {},
-          )[artifactId];
+          const verifyHolderId = loadState.artifactToHero[artifactId];
           if (
             (
               verifyCurrentArtifactId
@@ -4244,6 +4307,18 @@ const applyLineup = async (lineup, options = {}) => {
           ) {
             continue;
           }
+        }
+
+        if (
+          isArtifactAssignedToTargetHero(
+            targetHero,
+            artifactId,
+            loadState?.latestHeroesData || currentHeroes,
+            loadState?.latestTeamInfoData || latestTeamInfoData,
+            loadState?.artifactToHero || artifactToHero,
+          )
+        ) {
+          continue;
         }
 
         const applied = await sendApplyActionCommand(
