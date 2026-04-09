@@ -11,6 +11,7 @@
 当前前端工程已经具备企业化项目的一部分基础能力，包括：
 
 - 路由层面已经做到 `33/33` 页面级懒加载。
+- 游戏工作台相关页面已开始把性能治理从“只有路由懒加载”下沉到页内异步边界，`GameFeatures.vue` 与 `GameStatus.vue` 都出现了显式 `defineAsyncComponent` 的正向实践。
 - 项目具备统一入口、统一构建链路和基础设计 token 雏形。
 - `services/token/*` 已开始承接部分 store 逻辑拆分，说明仓库已经在向分层演进。
 - `APP_BREAKPOINTS`、`useResponsive()`、全局样式变量、主题切换机制都已存在，说明多端与主题治理具备进一步收口条件。
@@ -20,12 +21,13 @@
 - 大量页面和组件仍直接跨层调用 `store / api / utils / services`，模块边界偏薄。
 - `Pinia store` 中仍存在“状态 + 持久化 + 连接编排 + 协议命令 + 运行时同步”混载现象。
 - 路由虽然全量懒加载，但共享基础包仍然过大，首屏基础成本偏高。
+- `src/main.js` 的启动认证恢复、`src/router/guards.js` 的首次导航守卫初始化，以及工作台入口对 token 可用性的守卫阶段同步，仍位于关键路径。
 - `Naive UI` 与 `Arco` 处于混用状态，且混用不是个别遗留点，而是已经进入关键页面。
 - 颜色治理虽有 token 基础，但硬编码颜色、`!important`、内联样式和 DOM 直接写样式仍明显偏多。
 - PC / 移动端兼容更多依赖页面内媒体查询和局部 `scroll-x` 兜底，尚未形成统一的响应式治理体系。
 - 超大体量 `SFC / JS / TS` 文件数量过多，已经进入企业项目常见的维护风险区。
 
-结论：该项目已具备“可运行的中大型前端工程”基础，但距离“可持续治理的企业级前端工程”还有明显差距。最优先的工作不是新增功能，而是统一组件体系、压缩共享基础包、瘦身核心 store、收口样式逃逸、拆分超大文件。
+结论：该项目已具备“可运行的中大型前端工程”基础，但距离“可持续治理的企业级前端工程”还有明显差距。最优先的工作不是新增功能，而是统一组件体系、收拢认证初始化关键路径、压缩共享基础包、瘦身核心 store、收口样式逃逸、拆分超大文件。
 
 ## 二、量化审计快照
 
@@ -167,24 +169,47 @@
 
 - 路由懒加载覆盖率已经做到 `100%`，这点是明显优于许多同规模项目的。
 
+#### 当前版本已落地优化现状
+
+- 当前仓库对游戏工作台已经开始做页内异步边界治理，而不是完全停留在路由级懒加载。
+- `src/views/GameFeatures.vue` 已使用 `defineAsyncComponent` 显式异步加载 `GameStatus` 与 `GameInspector`，说明工作台主舞台已经开始主动控制首屏依赖面。
+- `src/components/GameStatus.vue` 已将多个重组件显式 `defineAsyncComponent` 化，并通过 `mountedSections`、`scheduleDailyExtrasMount()`、`requestIdleCallback / setTimeout` 延后挂载部分日常扩展区，说明页内重卡片和榜单模块不再全部抢占首屏同步装载。
+- `src/composables/useGameFeatureActions.js` 已有 `waitForTokenConnection()`；`initializeGameData()` 当前只做 `sendGetRoleInfo()` 与 `ensureBattleVersion()` 的轻量基础数据刷新；`battleVersion` 也已通过 `ensureBattleVersion()` 的按需获取与去重缓存路径处理，而不是在首屏阶段强制同步拉全量准备数据。
+- 这说明“进入游戏功能页固定白等几秒”的旧型问题已经开始被治理。因此，当前版本的主要性能债务不应再继续表述成“页面内固定等待是主因”，更值得优先盯住的是全局启动链路、共享基础包、全局样式成本，以及认证 / 导航关键路径。
+- 需要强调的是，这些都是积极进展，不等于企业级治理已经收口；当前工作台仍然只是完成了局部减压，尚未形成全局性能边界规范。
+
 #### 主要风险
 
 - `vite.config.js` 中将 `naive-ui` 并入 `vendor-vue`，导致基础共享包偏大。
 - `src/main.js` 全局引入 `@arco-design/web-vue/dist/arco.css`，即使实际 Arco 只在少数页面使用，也会带来全局样式成本。
-- `src/router/guards.js` 在首次导航中执行 `authStore.initializeAuth()`，会让首屏用户路径承担额外初始化成本。
+- `src/main.js` 的 `bootstrap()` 与 `src/router/guards.js` 的 `beforeEach` 都会 `await authStore.initializeAuth()`；虽然 `src/stores/auth.js` 已通过 `isInitialized / initPromise` 做幂等与去重保护，但认证恢复仍然位于应用启动与首次导航关键路径。
+- 进入 `GameFeatures / BattleReports / TaskControl / LineupAssistant` 时，`src/router/guards.js` 还会在特定条件下触发 `tokenStore.syncActivationBindingsFromServer()`，工作台入口的“是否能进入”仍部分依赖守卫阶段的远端同步。
 - 首页 `Home.vue` 虽然是懒加载页面，但首屏仍会连带消费较重的全局 UI Provider、主题系统和共享 vendor。
+
+#### 认证初始化仍在全局启动 / 导航关键路径
+
+- `src/main.js` 的 `bootstrap()` 在 `app.use(router)` 之前就会 `await authStore.initializeAuth()`，说明认证恢复已经进入应用启动主链路。
+- `src/router/guards.js` 的 `beforeEach` 又会 `await authStore.initializeAuth()`，说明导航守卫阶段也显式依赖认证初始化完成。
+- `src/stores/auth.js` 中的 `isInitialized / initPromise` 解决的是幂等与重复请求问题，并不等于架构已经解耦；从企业级性能视角看，首页打开、登录态恢复、首次导航的感知耗时仍然会明显依赖认证链路。
+- 对工作台入口来说，守卫阶段还承担了 token 可用性同步的一部分职责，这使“是否允许进入页面”和“是否顺手做远端同步”仍然耦合在同一条导航路径中。
 
 #### 企业级判断
 
-- 当前问题不在“有没有懒加载”，而在“共享包划分边界不够精细”。
+- 当前问题不在“有没有懒加载”，也不再主要是“页面内固定等待”；更核心的是共享包划分边界不够精细，全局启动链路、认证初始化与导航守卫职责尚未分离。
 - 这会带来首屏 JS/CSS 负担偏高、弱网场景波动更大、缓存失效率更高的问题。
 
 #### 建议
 
 - 把 `naive-ui` 从 `vendor-vue` 脱钩，单独成 chunk。
 - 评估 Arco 页面是否能收敛到单一迁移批次，避免主入口继续支付 Arco 全局样式成本。
-- 将首次导航中的认证恢复优化为“可感知且可降级”的初始化，不让所有公共页面同步等待最重链路。
+- 将“启动时认证恢复”“导航守卫权限判断”“工作台 token 可用性同步”三件事进一步解耦，把必须阻塞导航的校验与可延迟的同步 / 预热分开。
 - 为首页、登录、注册、价格页建立独立 bundle budget。
+
+#### 性能敏感页显式异步边界规则
+
+- `vite.config.js` 当前启用了 `unplugin-vue-components` 自动组件注册，这对开发效率有益，但也会让 code review 时不容易一眼分辨哪些组件属于同步依赖、哪些组件已经被显式异步化。
+- 结合当前仓库现状，`src/views/GameFeatures.vue` 与 `src/components/GameStatus.vue` 已经是正向示例：它们对重组件采用了显式 `defineAsyncComponent`，并配合局部延后挂载控制首屏负担。
+- 企业级标准下，性能敏感页面不应依赖自动组件注册去“隐式引入”重组件；重组件必须显式 `import / defineAsyncComponent`，首屏工作台、重榜单页、复杂俱乐部页、批量任务页应优先执行这一规范。
 
 ### 3.4 UI 组件体系是否统一
 
@@ -212,6 +237,7 @@
 
 - 立即冻结新增 Arco 使用点。
 - 将 `TokenImport` 相关页面和 `Profile.vue` 列为 UI 统一第一批改造范围。
+- 即便完成 `Naive UI` 收口，也不等于样式治理已经完成；`UnoCSS`、`SCSS token`、模板内联样式与 DOM 直写样式仍需单独定义职责边界。
 - 形成统一规范：
   - 新页面只允许使用主组件库。
   - 遗留组件迁移期间不允许同一页面新增第二套组件。
@@ -227,6 +253,12 @@
 
 - 设计 token 已存在，但业务页面和大组件仍有大量“绕过 token”的写法。
 - `hex`、`!important`、内联样式、DOM 直接写样式同时存在，说明治理尚未进入强约束阶段。
+
+#### 样式技术栈治理
+
+- 当前仓库的样式层实际上至少包含五类来源：组件库主题（`Naive UI / Arco`）、`SCSS` 变量与全局样式、`UnoCSS`（`src/main.js` 已引入 `virtual:uno.css`，且仓库存在 `uno.config.ts`）、模板内联样式，以及运行时 DOM `.style.*` 直写。
+- 这意味着企业级样式治理不只是“统一组件库”，还必须明确“允许哪些样式层负责什么”；否则即便统一了 `Naive UI`，依旧会继续在 utility class、inline style、DOM style 这几层失控。
+- 当前报告中的颜色问题、`!important`、内联样式和 DOM 直写样式，本质上都不是单点视觉瑕疵，而是样式职责尚未分层后的表征。
 
 #### 高频硬编码颜色文件
 
@@ -270,8 +302,15 @@
 
 #### 企业级判断
 
-- 当前状态属于“已具备 token 能力，但缺乏强制收口机制”。
+- 当前状态属于“已具备 token 能力，但缺乏对组件主题、SCSS、UnoCSS、inline style、DOM style 的强制收口机制”。
 - 这类项目在继续扩张后，颜色不一致、状态色语义漂移、暗色模式失真、移动端视觉密度失控的风险会持续放大。
+
+#### 企业级建议
+
+- `design token` 负责语义色、字号、间距、圆角、阴影等设计语义，不再允许业务页面绕开 token 自定义平行体系。
+- utility class 只负责快速布局、间距与对齐，不承载语义颜色与状态视觉。
+- inline style 仅允许极少数动态尺寸、动态位置或运行时百分比场景，不应继续承担通用视觉表达。
+- DOM style 视为例外机制，必须持续收缩，并优先替换为组件状态、样式类或 token 驱动的实现。
 
 ### 3.6 PC / 移动端兼容性风险
 
@@ -309,7 +348,27 @@
 5. 响应式策略要从“页面规则”升级为“组件协议”：
    - 表单、详情、数据卡、表格、筛选栏、工具栏各自定义 PC / Tablet / Mobile 的标准布局模式。
 
-### 3.7 大体量 SFC / TS / JS 文件维护风险
+### 3.7 可访问性基线
+
+#### 现状
+
+- 当前仓库并非完全没有可访问性意识。`src/assets/styles/global.scss` 已提供全局 `:focus-visible`，`Login / Register / ForgotPassword / MfaQrApprove` 等认证相关视图也已经使用 `aria-live` 与 `role="status" / "alert"` 反馈表单状态。
+- 这说明项目已经具备基础的焦点可见性与表单状态播报意识，可访问性不是零起点。
+
+#### 风险判断
+
+- 但当前仓库中未看到独立的 a11y lint / test / CI 基线；现有 `eslint.config.ts`、`playwright.config.ts` 与 `.github/workflows` 并未体现专门的可访问性工程化约束。
+- 这意味着可访问性目前主要依赖个别页面或开发者自觉，而不是形成了稳定的工程治理链路。
+
+#### 企业级建议
+
+- 将键盘可达性纳入基础验收，避免核心表单、列表、操作区只对鼠标路径友好。
+- 将焦点顺序与 focus ring 一致性纳入组件级规范，避免不同页面出现“可聚焦但不可见”或“视觉焦点漂移”。
+- 将状态色对比度纳入颜色治理范围，不把可访问性与视觉 token 治理割裂处理。
+- 为表单错误提示、成功提示与加载提示建立统一的 live region 规范，而不是零散复制 `aria-live` 片段。
+- 为 `Drawer / Modal / Tabs / Table` 这类复杂交互组件补齐键盘交互约束，并在 review checklist 与测试中持续检查。
+
+### 3.8 大体量 SFC / TS / JS 文件维护风险
 
 #### 超大文件清单
 
@@ -344,26 +403,30 @@
 ### P0：立即治理
 
 1. 统一 UI 组件体系，冻结所有新 Arco 入口，明确 Naive UI 为唯一主组件库。
-2. 重划共享 chunk，把 `naive-ui` 从 `vendor-vue` 中拆出，降低首页、登录、注册、价格页共享包负担。
-3. 建立颜色治理红线，停止新增硬编码 `hex`、`!important`、模板内联样式与 DOM `.style.*`。
-4. 对 `src/main.js` 的引导级 DOM 样式写法建立替代策略，避免入口层继续堆积临时视觉逻辑。
-5. 为 UI 库使用、样式 token 使用、chunk 大小建立 CI 级治理阈值。
+2. 收拢认证初始化关键路径，拆分“启动时认证恢复 / 导航守卫权限判断 / 工作台 token 可用性同步”，区分必须阻塞导航的校验与可延迟的同步 / 预热。
+3. 重划共享 chunk，把 `naive-ui` 从 `vendor-vue` 中拆出，降低首页、登录、注册、价格页共享包负担。
+4. 建立颜色治理红线，停止新增硬编码 `hex`、`!important`、模板内联样式与 DOM `.style.*`。
+5. 对 `src/main.js` 的引导级 DOM 样式写法建立替代策略，避免入口层继续堆积临时视觉逻辑。
+6. 为 UI 库使用、样式 token 使用、chunk 大小建立 CI 级治理阈值。
 
 ### P1：一阶段结构治理
 
 1. 拆分 `src/stores/tokenStore.ts`，将连接控制、消息派发、同步逻辑进一步下沉。
 2. 拆分 `src/stores/localTokenManager.js`，将导入导出、持久化、迁移与清洗解耦。
-3. 改造 `src/views/TokenImport/index.vue`，收回组件库混用与页面级过载编排。
-4. 改造 `src/views/BatchDailyTasks.vue`，将超大页面拆为页面壳、配置面板、执行面板、结果面板。
-5. 改造 `src/components/cards/Unlimitedlineup.vue`，从“巨型总控卡片”切回多个可测试子模块。
-6. 把 `component` 直调 `api` 与热点 `store` 的逻辑收回 `composables / services`。
+3. 建立样式技术栈分层规则，明确组件库主题、`SCSS token`、`UnoCSS`、inline style、DOM style 的职责边界。
+4. 为性能敏感页建立显式异步边界治理，禁止依赖自动组件注册隐式引入重组件。
+5. 改造 `src/views/TokenImport/index.vue`，收回组件库混用与页面级过载编排。
+6. 改造 `src/views/BatchDailyTasks.vue`，将超大页面拆为页面壳、配置面板、执行面板、结果面板。
+7. 改造 `src/components/cards/Unlimitedlineup.vue`，从“巨型总控卡片”切回多个可测试子模块。
+8. 把 `component` 直调 `api` 与热点 `store` 的逻辑收回 `composables / services`。
 
 ### P2：系统化治理
 
 1. 处理俱乐部 / 榜单类巨型 SFC 的结构与样式债务。
 2. 建立统一的表格到卡片响应式退化规则。
 3. 为大文件、bundle、样式逃逸建立持续化审计机制。
-4. 将本报告沉淀为季度复查模板，形成可重复治理流程。
+4. 建立可访问性工程化基线（lint / test / review checklist），把键盘、焦点、对比度和 live region 纳入持续治理。
+5. 将本报告沉淀为季度复查模板，形成可重复治理流程。
 
 ## 五、最值得优先处理的 10 个文件
 
@@ -449,10 +512,10 @@
 ## 八、我建议最先动的前 5 项
 
 1. 组件体系统一：冻结新增 Arco，明确单一主组件库。
-2. 共享 chunk 拆分：先把 `naive-ui` 从 `vendor-vue` 脱钩，并评估 Arco 全局样式成本。
-3. Store 职责瘦身：先拆 `tokenStore.ts`，再拆 `localTokenManager.js`。
-4. 颜色治理红线：建立 token 约束，停止新增 `hex / !important / inline style / DOM style`。
-5. 超大 SFC 拆分：优先处理 `Unlimitedlineup.vue`、`BatchDailyTasks.vue`、`TokenImport/index.vue`。
+2. 认证初始化关键路径收拢：把启动认证恢复、导航守卫权限判断、工作台 token 可用性同步拆开。
+3. 共享 chunk 拆分：先把 `naive-ui` 从 `vendor-vue` 脱钩，并评估 Arco 全局样式成本。
+4. Store 与工作台核心结构瘦身：先拆 `tokenStore.ts`，并把 `Unlimitedlineup.vue`、`BatchDailyTasks.vue`、`TokenImport/index.vue` 作为超大 SFC 第一批。
+5. 颜色治理红线与样式分层规则：建立 token 约束，停止新增 `hex / !important / inline style / DOM style`，同时收拢 utility class 的职责边界。
 
 ## 九、附录：重点量化清单
 
@@ -513,6 +576,7 @@
 如果只从“能否继续开发功能”看，当前项目没有立即阻断性问题；但如果从“是否符合企业级前端工程的长期治理标准”看，当前最主要的风险已经不是单点 bug，而是：
 
 - 共享基础包偏大；
+- 认证初始化与工作台入口同步仍位于启动 / 导航关键路径；
 - UI 体系未完全统一；
 - 核心 store 与关键页面职责过重；
 - 颜色和样式治理缺乏硬约束；
@@ -527,3 +591,5 @@
 - 最后拆巨型模块。
 
 这条路径对当前仓库最稳，也最符合企业项目“可持续治理、不中断业务”的节奏。
+
+同时也需要看到，当前版本并非停留在“问题原样存在”：游戏工作台已经开始通过页内异步边界、延后挂载与按需数据获取收敛旧型固定等待问题。这个进展说明项目已经出现针对性优化动作，但离企业级治理收口仍有距离，后续重心应转向启动链路解耦、样式分层、显式异步边界规则与可访问性基线的系统化落地。
