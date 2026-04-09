@@ -647,22 +647,19 @@ h6 {
 .page-shell-appear-active {
   transition:
     opacity 0.34s cubic-bezier(0.22, 1, 0.36, 1),
-    transform 0.34s cubic-bezier(0.22, 1, 0.36, 1),
-    filter 0.34s ease;
-  will-change: opacity, transform, filter;
+    transform 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform;
 }
 
 .page-shell-enter-from,
 .page-shell-appear-from {
   opacity: 0;
   transform: translate3d(0, 12px, 0) scale(0.996);
-  filter: blur(2px);
 }
 
 .page-shell-leave-to {
   opacity: 0;
   transform: translate3d(0, -8px, 0) scale(1.004);
-  filter: blur(2px);
 }
 
 .page-panel-enter-active,
@@ -670,22 +667,19 @@ h6 {
 .page-panel-appear-active {
   transition:
     opacity 0.28s cubic-bezier(0.25, 0.9, 0.4, 1),
-    transform 0.28s cubic-bezier(0.25, 0.9, 0.4, 1),
-    filter 0.28s ease;
-  will-change: opacity, transform, filter;
+    transform 0.28s cubic-bezier(0.25, 0.9, 0.4, 1);
+  will-change: opacity, transform;
 }
 
 .page-panel-enter-from,
 .page-panel-appear-from {
   opacity: 0;
   transform: translate3d(14px, 0, 0);
-  filter: blur(1px);
 }
 
 .page-panel-leave-to {
   opacity: 0;
   transform: translate3d(-10px, 0, 0);
-  filter: blur(1px);
 }
 
 @media (prefers-reduced-motion: reduce) {

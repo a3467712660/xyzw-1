@@ -14,6 +14,16 @@ import {
 import { APP_TITLE, mergeMatchedMeta } from "./meta";
 
 let guardsInstalled = false;
+const AUTH_INIT_BLOCKING_PATHS = new Set([
+  "/",
+  "/login",
+  "/register",
+  "/forgot-password",
+]);
+
+const shouldAwaitAuthInitialization = (to, mergedMeta) => {
+  return mergedMeta.requiresAuth || AUTH_INIT_BLOCKING_PATHS.has(String(to.path || ""));
+};
 
 export const setupRouterGuards = (router) => {
   if (guardsInstalled)
@@ -22,12 +32,14 @@ export const setupRouterGuards = (router) => {
   router.beforeEach(async (to) => {
     const authStore = useAuthStore();
     const tokenStore = useTokenStore();
-    await authStore.initializeAuth();
-
     const mergedMeta = mergeMatchedMeta(to.matched);
     document.title = mergedMeta.title
       ? `${mergedMeta.title} - ${APP_TITLE}`
       : APP_TITLE;
+
+    if (shouldAwaitAuthInitialization(to, mergedMeta)) {
+      await authStore.initializeAuth();
+    }
 
     if (to.name === "LegionWar" && !isNowInLegionWarTime()) {
       return getDefaultAuthenticatedPath(authStore.user);

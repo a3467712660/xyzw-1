@@ -374,7 +374,9 @@ const bootstrap = async () => {
 
   await initializeI18n();
   const authStore = useAuthStore();
-  await authStore.initializeAuth();
+  void authStore.initializeAuth().catch((error) => {
+    console.warn("[auth] background initialization failed:", error);
+  });
   setupRouterGuards(router);
   app.use(router);
   await router.isReady();

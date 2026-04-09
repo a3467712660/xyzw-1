@@ -163,7 +163,7 @@
       <n-layout-content class="app-shell__content-layout" :native-scrollbar="false">
         <div class="app-shell__content">
           <router-view v-slot="{ Component, route }">
-            <transition appear mode="out-in" name="page-panel">
+            <transition mode="out-in" name="page-panel">
               <component :is="Component" :key="route.fullPath"></component>
             </transition>
           </router-view>
