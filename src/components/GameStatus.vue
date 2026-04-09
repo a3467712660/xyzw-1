@@ -331,7 +331,6 @@ import {
   watch,
 } from "vue";
 import { useI18n } from "vue-i18n";
-import GameStatusIntelPanel from "@/components/game-status/GameStatusIntelPanel.vue";
 import GameStatusModuleRail from "@/components/game-status/GameStatusModuleRail.vue";
 import GameStatusModuleStage from "@/components/game-status/GameStatusModuleStage.vue";
 import {
@@ -366,6 +365,17 @@ const props = defineProps({
 
 const emit = defineEmits(["update:activeModule"]);
 
+const TeamFormation = defineAsyncComponent(
+  () => import("./Team/TeamFormation.vue"),
+);
+const DailyTaskStatus = defineAsyncComponent(
+  () => import("./Daily/DailyTaskStatus.vue"),
+);
+const ClubInfo = defineAsyncComponent(() => import("./Club/ClubInfo.vue"));
+const ClubCarKing = defineAsyncComponent(() => import("./ClubCarKing.vue"));
+const GameStatusIntelPanel = defineAsyncComponent(
+  () => import("@/components/game-status/GameStatusIntelPanel.vue"),
+);
 const BottleHelperCard = defineAsyncComponent(
   () => import("./cards/BottleHelperCard.vue"),
 );

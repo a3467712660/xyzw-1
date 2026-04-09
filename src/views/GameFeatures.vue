@@ -74,6 +74,7 @@
     >
       <n-drawer-content closable :title="t('gameFeatures.workbench.inspector.title')">
         <GameInspector
+          v-if="showInspectorDrawer"
           :connection-action-label="connectionActionLabel"
           :connection-status-text="connectionStatusText"
           :connection-tone="connectionPillTone"
@@ -97,7 +98,15 @@
 </template>
 
 <script setup>
-import { computed, markRaw, onMounted, onUnmounted, ref, watch } from "vue";
+import {
+  computed,
+  defineAsyncComponent,
+  markRaw,
+  onMounted,
+  onUnmounted,
+  ref,
+  watch,
+} from "vue";
 import { useRouter } from "vue-router";
 import { useMessage } from "naive-ui/es";
 import { useI18n } from "vue-i18n";
@@ -106,14 +115,12 @@ import {
   Flash,
   Speedometer,
 } from "@vicons/ionicons5";
-import GameStatus from "@/components/GameStatus.vue";
 import {
   buildGameStatusModules,
   findGameStatusModuleById,
   GAME_STATUS_MODULE_IDS,
 } from "@/components/game-status/moduleMeta";
 import GameCommandBar from "@/components/game-workbench-v2/GameCommandBar.vue";
-import GameInspector from "@/components/game-workbench-v2/GameInspector.vue";
 import GameModuleRail from "@/components/game-workbench-v2/GameModuleRail.vue";
 import GameStage from "@/components/game-workbench-v2/GameStage.vue";
 import { useGameFeatureActions } from "@/composables/useGameFeatureActions";
@@ -121,6 +128,11 @@ import { useResponsive } from "@/composables/useResponsive";
 import { useAuthStore } from "@/stores/auth";
 import { useTokenStore } from "@/stores/tokenStore";
 import { hasGameFeatureAccess } from "@/utils/accessScope";
+
+const GameStatus = defineAsyncComponent(() => import("@/components/GameStatus.vue"));
+const GameInspector = defineAsyncComponent(
+  () => import("@/components/game-workbench-v2/GameInspector.vue"),
+);
 
 const GROUP_ICONS = Object.freeze({
   operations: markRaw(Speedometer),
@@ -343,7 +355,6 @@ const connectionActionLabel = computed(() =>
 
 const {
   connectWebSocket,
-  initializeGameData,
   toggleConnection: toggleGameFeatureConnection,
 } = useGameFeatureActions({
   message,
@@ -417,11 +428,9 @@ onMounted(() => {
   if (tokenStore.selectedToken) {
     const status = tokenStore.getWebSocketStatus(tokenStore.selectedToken.id);
     updateLastActivity();
-    runAfterFirstPaint(async () => {
-      if (status !== "connected") {
-        connectWebSocket();
-      } else {
-        await initializeGameData();
+    runAfterFirstPaint(() => {
+      if (status !== "connected" && status !== "connecting") {
+        void connectWebSocket();
       }
     });
   }

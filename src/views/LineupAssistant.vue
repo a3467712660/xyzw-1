@@ -115,7 +115,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, watch } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { NIcon, useMessage } from "naive-ui/es";
@@ -240,6 +240,32 @@ const handleToggleConnection = async () => {
   await toggleConnection(connectionStatus.value);
 };
 
+const lastInitializedConnectionKey = ref("");
+
+const currentInitializationKey = computed(() => {
+  if (!tokenStore.selectedToken) {
+    return "";
+  }
+
+  const tokenId = tokenStore.selectedToken.id;
+  const connection = tokenStore.wsConnections[tokenId];
+  if (connection?.status !== "connected") {
+    return "";
+  }
+
+  return `${tokenId}:${connection.connectedAt || "connected"}`;
+});
+
+const initializeWorkbenchContextOnce = async () => {
+  const initKey = currentInitializationKey.value;
+  if (!initKey || initKey === lastInitializedConnectionKey.value) {
+    return;
+  }
+
+  lastInitializedConnectionKey.value = initKey;
+  await initializeGameData();
+};
+
 onMounted(() => {
   if (!tokenStore.hasUsableWorkbenchToken) {
     message.warning("当前没有已激活且未过期的 Token，请先前往 Token 管理完成激活");
@@ -252,34 +278,25 @@ onMounted(() => {
   }
 
   if (connectionStatus.value === "connected") {
-    initializeGameData();
+    void initializeWorkbenchContextOnce();
     return;
   }
 
   if (connectionStatus.value !== "connecting") {
-    connectWebSocket();
+    void connectWebSocket();
   }
 });
 
 watch(
-  () => tokenStore.selectedToken?.id,
-  (tokenId, oldTokenId) => {
-    if (!tokenId || tokenId === oldTokenId) {
+  currentInitializationKey,
+  (initKey, oldInitKey) => {
+    if (!initKey || initKey === oldInitKey) {
       return;
     }
 
-    const status = tokenStore.getWebSocketStatus(tokenId);
-    if (status === "connected") {
-      initializeGameData();
-    }
+    void initializeWorkbenchContextOnce();
   },
 );
-
-watch(connectionStatus, (status, oldStatus) => {
-  if (status === "connected" && oldStatus !== "connected") {
-    initializeGameData();
-  }
-});
 </script>
 
 <style scoped lang="scss">

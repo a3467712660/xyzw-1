@@ -11,7 +11,7 @@ export const RolePlugin = ({
     const tokenStore = useTokenStore();
     const version = Number(data?.body?.battleData?.version || 0) || null;
     if (version) {
-      tokenStore.setBattleVersion(version);
+      tokenStore.setBattleVersion(version, data.tokenId);
     }
     gameLogger.verbose(`收到战斗版本响应: ${data.tokenId}`, data.body);
   });

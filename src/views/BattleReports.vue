@@ -193,7 +193,7 @@ const activeModule = ref(REPORT_MODULE_IDS.saltField);
 const lastActivity = ref(null);
 const saltFieldSubTab = ref("warrank");
 const peachSubTab = ref("peach");
-const hasFetchedLegionOnce = ref(false);
+const lastLegionInitKey = ref("");
 
 const mountedModules = ref({
   peachGarden: false,
@@ -365,7 +365,6 @@ const connectionActionLabel = computed(() =>
 
 const {
   connectWebSocket,
-  initializeGameData,
   toggleConnection: toggleGameFeatureConnection,
 } = useGameFeatureActions({
   message,
@@ -409,6 +408,34 @@ const handleToggleConnection = async () => {
   updateLastActivity();
 };
 
+const currentLegionInitKey = computed(() => {
+  if (!tokenStore.selectedToken) {
+    return "";
+  }
+
+  const tokenId = tokenStore.selectedToken.id;
+  const connection = tokenStore.wsConnections[tokenId];
+  if (connection?.status !== "connected") {
+    return "";
+  }
+
+  return `${tokenId}:${connection.connectedAt || "connected"}`;
+});
+
+const initializeLegionInfoOnce = () => {
+  if (!tokenStore.selectedToken) {
+    return;
+  }
+
+  const initKey = currentLegionInitKey.value;
+  if (!initKey || initKey === lastLegionInitKey.value) {
+    return;
+  }
+
+  lastLegionInitKey.value = initKey;
+  tokenStore.sendMessage(tokenStore.selectedToken.id, "legion_getinfo");
+};
+
 watch(
   activeModule,
   (moduleId) => {
@@ -434,15 +461,12 @@ watch(
 );
 
 watch(
-  () =>
-    tokenStore.selectedToken
-      ? tokenStore.getWebSocketStatus(tokenStore.selectedToken.id)
-      : "disconnected",
-  (status) => {
-    if (status === "connected" && !hasFetchedLegionOnce.value && tokenStore.selectedToken) {
-      hasFetchedLegionOnce.value = true;
-      tokenStore.sendMessage(tokenStore.selectedToken.id, "legion_getinfo");
+  currentLegionInitKey,
+  (initKey) => {
+    if (!initKey) {
+      return;
     }
+    initializeLegionInfoOnce();
   },
 );
 
@@ -459,14 +483,11 @@ onMounted(() => {
     const status = tokenStore.getWebSocketStatus(tokenStore.selectedToken.id);
     updateLastActivity();
     if (status === "connected") {
-      tokenStore.sendMessage(tokenStore.selectedToken.id, "legion_getinfo");
-      hasFetchedLegionOnce.value = true;
+      initializeLegionInfoOnce();
     }
-    runAfterFirstPaint(async () => {
-      if (status !== "connected") {
-        connectWebSocket();
-      } else {
-        await initializeGameData();
+    runAfterFirstPaint(() => {
+      if (status !== "connected" && status !== "connecting") {
+        void connectWebSocket();
       }
     });
   }

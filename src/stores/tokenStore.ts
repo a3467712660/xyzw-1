@@ -142,6 +142,7 @@ export const useTokenStore = defineStore("tokens", () => {
     evoTowerInfo: null, // 怪异塔
     presetTeam: null,
     battleVersion: null as number | null, // 战斗版本号
+    battleVersionTokenId: null as string | null,
     studyStatus: {
       isAnswering: false,
       questionCount: 0,
@@ -637,6 +638,16 @@ export const useTokenStore = defineStore("tokens", () => {
     return getWebSocketClientById(wsConnections.value, tokenId);
   };
 
+  const battleCommands = new Set([
+    "fight_startareaarena",
+    "fight_startpvp",
+    "fight_starttower",
+    "fight_startboss",
+    "fight_startlegionboss",
+    "fight_startdungeon",
+  ]);
+  const battleVersionRequests = new Map<string, Promise<number>>();
+
   // 设置消息监听器
   const setMessageListener = (listener: any) => {
     if (selectedToken.value) {
@@ -681,18 +692,9 @@ export const useTokenStore = defineStore("tokens", () => {
     params = {},
     timeout = 5000,
   ) => {
-    // 为战斗相关命令自动注入 battleVersion
-    const battleCommands = [
-      "fight_startareaarena",
-      "fight_startpvp",
-      "fight_starttower",
-      "fight_startboss",
-      "fight_startlegionboss",
-      "fight_startdungeon",
-    ];
-    if (battleCommands.includes(cmd)) {
-      const battleVersion = gameData.value.battleVersion;
-      params = { battleVersion, ...params };
+    if (battleCommands.has(cmd)) {
+      const battleVersion = await ensureBattleVersion(tokenId);
+      params = { ...params, battleVersion };
       wsLogger.info(
         `⚔️ [战斗命令] 注入 battleVersion: ${battleVersion} [${cmd}]`,
       );
@@ -908,13 +910,63 @@ export const useTokenStore = defineStore("tokens", () => {
       });
     }
   };
-  const setBattleVersion = (version: number | null) => {
+  const setBattleVersion = (
+    version: number | null,
+    tokenId: string | null = null,
+  ) => {
     gameData.value.battleVersion = version;
+    gameData.value.battleVersionTokenId = tokenId;
     gameData.value.lastUpdated = new Date().toISOString();
   };
 
   const getBattleVersion = () => {
     return gameData.value.battleVersion;
+  };
+
+  const ensureBattleVersion = async (
+    tokenId: string,
+    options: { force?: boolean; timeout?: number } = {},
+  ) => {
+    const { force = false, timeout = 5000 } = options;
+
+    if (
+      !force
+      && gameData.value.battleVersion !== null
+      && gameData.value.battleVersionTokenId === tokenId
+    ) {
+      return gameData.value.battleVersion;
+    }
+
+    const pendingRequest = battleVersionRequests.get(tokenId);
+    if (pendingRequest) {
+      return pendingRequest;
+    }
+
+    const request = (async () => {
+      const response = await sendMessageWithPromiseById({
+        tokenId,
+        cmd: "fight_startlevel",
+        params: {},
+        timeout,
+        wsConnections: wsConnections.value,
+      });
+      const version = Number(response?.battleData?.version || 0);
+      if (!Number.isFinite(version) || version <= 0) {
+        throw new Error(`未收到有效的 battleVersion [${tokenId}]`);
+      }
+      setBattleVersion(version, tokenId);
+      return version;
+    })();
+
+    battleVersionRequests.set(tokenId, request);
+
+    try {
+      return await request;
+    } finally {
+      if (battleVersionRequests.get(tokenId) === request) {
+        battleVersionRequests.delete(tokenId);
+      }
+    }
   };
   const {
     cleanExpiredTokens,
@@ -1012,6 +1064,7 @@ export const useTokenStore = defineStore("tokens", () => {
     // battleVersion
     setBattleVersion,
     getBattleVersion,
+    ensureBattleVersion,
 
     // 调试工具方法
     validateToken,

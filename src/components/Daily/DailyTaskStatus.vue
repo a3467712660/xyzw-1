@@ -724,20 +724,22 @@ watch(settingsSnapshot, (snapshot) => {
 
 // 监听token选择变化
 watch(
-  () => tokenStore.selectedToken,
-  async (newToken, oldToken) => {
-    if (newToken && newToken !== oldToken) {
-      log(`切换到Token: ${newToken.name}`);
-
-      // 加载新token的设置
-      const saved = loadSettings(newToken.id);
-      if (saved)
-        Object.assign(settings, saved);
-
-      await scheduleRoleInfoRefresh();
+  () => tokenStore.selectedToken?.id,
+  async (newTokenId, oldTokenId) => {
+    if (!newTokenId || newTokenId === oldTokenId) {
+      return;
     }
+
+    if (tokenStore.selectedToken) {
+      log(`切换到Token: ${tokenStore.selectedToken.name}`);
+    }
+
+    const saved = loadSettings(newTokenId);
+    if (saved)
+      Object.assign(settings, saved);
+
+    await scheduleRoleInfoRefresh();
   },
-  { immediate: true },
 );
 
 watch(
@@ -774,17 +776,17 @@ watch(
 );
 
 onMounted(async () => {
-  if (tokenStore.selectedToken && isConnected.value) {
-    try {
-      await scheduleRoleInfoRefresh();
-    } catch {}
-  }
-
   const role = getCurrentRole();
   if (role) {
     const saved = loadSettings(role.roleId);
     if (saved)
       Object.assign(settings, saved);
+  }
+
+  if (tokenStore.selectedToken && isConnected.value) {
+    try {
+      await scheduleRoleInfoRefresh();
+    } catch {}
   }
 });
 

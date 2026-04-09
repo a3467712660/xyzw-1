@@ -13,6 +13,8 @@ const pickArenaTargetId = (targets) => {
   return targets?.roleId || targets?.id;
 };
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 export function useGameFeatureActions({
   message,
   router,
@@ -36,20 +38,47 @@ export function useGameFeatureActions({
     return tokenId;
   };
 
+  const waitForTokenConnection = async (
+    tokenId,
+    timeout = 8000,
+    interval = 150,
+  ) => {
+    const start = Date.now();
+
+    while (Date.now() - start < timeout) {
+      const status = tokenStore.getWebSocketStatus(tokenId);
+      if (status === "connected") {
+        return true;
+      }
+      if (status === "error") {
+        const lastError = tokenStore.wsConnections?.[tokenId]?.lastError?.error;
+        throw new Error(lastError || "WebSocket connection error");
+      }
+      await sleep(interval);
+    }
+
+    const finalStatus = tokenStore.getWebSocketStatus(tokenId);
+    if (finalStatus === "connected") {
+      return true;
+    }
+    if (finalStatus === "error") {
+      const lastError = tokenStore.wsConnections?.[tokenId]?.lastError?.error;
+      throw new Error(lastError || "WebSocket connection error");
+    }
+
+    return false;
+  };
+
   const initializeGameData = async () => {
     if (!tokenStore.selectedToken)
       return;
 
-    try {
-      const tokenId = tokenStore.selectedToken.id;
-      const res = await tokenStore.sendMessageWithPromise(
-        tokenId,
-        "fight_startlevel",
-      );
-      tokenStore.setBattleVersion(res?.battleData?.version);
-    } catch {
-      // 初始化失败只做静默处理
-    }
+    const tokenId = tokenStore.selectedToken.id;
+
+    await Promise.allSettled([
+      tokenStore.sendGetRoleInfo(tokenId),
+      tokenStore.ensureBattleVersion(tokenId),
+    ]);
   };
 
   const handleFeatureAction = async (featureType) => {
@@ -135,30 +164,34 @@ export function useGameFeatureActions({
     message.warning(t("gameFeatures.messages.notImplemented"));
   };
 
-  const connectWebSocket = () => {
+  const connectWebSocket = async () => {
     if (!tokenStore.selectedToken) {
       message.warning(t("gameFeatures.messages.selectOneTokenFirst"));
       router.push("/tokens");
-      return;
+      return false;
     }
 
     try {
       const tokenId = tokenStore.selectedToken.id;
       const token = tokenStore.selectedToken.token;
 
-      tokenStore.createWebSocketConnection(tokenId, token);
+      const connectionTask = tokenStore.createWebSocketConnection(tokenId, token);
       message.info(t("gameFeatures.messages.websocketConnecting"));
 
-      setTimeout(async () => {
-        const status = tokenStore.getWebSocketStatus(tokenId);
-        if (status === "connected") {
-          message.success(t("gameFeatures.messages.websocketConnected"));
-          await initializeGameData();
-        }
-      }, 2000);
+      await connectionTask;
+
+      const connected = await waitForTokenConnection(tokenId);
+      if (connected) {
+        message.success(t("gameFeatures.messages.websocketConnected"));
+        return true;
+      }
+
+      message.warning("连接超时");
+      return false;
     } catch (error) {
       console.error("WebSocket连接失败:", error);
       message.error(t("gameFeatures.messages.websocketConnectFailed"));
+      return false;
     }
   };
 
@@ -171,13 +204,13 @@ export function useGameFeatureActions({
     message.info(t("gameFeatures.messages.websocketDisconnected"));
   };
 
-  const toggleConnection = (connectionStatus) => {
+  const toggleConnection = async (connectionStatus) => {
     if (connectionStatus === "connected") {
       disconnectWebSocket();
       return;
     }
 
-    connectWebSocket();
+    await connectWebSocket();
   };
 
   return {
