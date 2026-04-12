@@ -2911,7 +2911,7 @@
     "actions": {
       "queryTarget": "查询对手",
       "startFight": "开始切磋",
-      "exportData": "导出数据",
+      "exportData": "导出图片",
       "exportRaw": "导出原始",
       "syncFromGame": "从游戏同步",
       "clearCurrent": "清空当前",
@@ -2964,6 +2964,29 @@
       "enemyDieRate": "敌方掉将率：",
       "winResult": "胜利",
       "lossResult": "失败"
+    },
+    "detail": {
+      "stageTitle": "战斗详情",
+      "overviewEyebrow": "DUEL DETAIL REPORT",
+      "overviewTitle": "切磋详细战报",
+      "recordCount": "战斗记录（共{count}次）",
+      "leftWins": "胜次数",
+      "leftPerfectWins": "胜满编",
+      "rightWins": "赢次数",
+      "rightPerfectWins": "赢满编",
+      "winRate": "胜率",
+      "exportReport": "导出战报图片",
+      "roundTitle": "第{index}次",
+      "roundMeta": "{roundCount}回合 · {frameCount}帧",
+      "victory": "胜利",
+      "defeat": "失败",
+      "tableHero": "英雄",
+      "tableHeal": "治疗",
+      "tableTakeDamage": "承伤",
+      "tableDamage": "输出",
+      "tableStatus": "状态",
+      "slotLabel": "{value}号位",
+      "starOrder": "{star}星 / {order}阶"
     },
     "empty": {
       "history": "暂无历史切磋记录",
@@ -3021,6 +3044,9 @@
       "rawExportFailed": "导出原始数据失败: {error}",
       "exportDomNotFound": "未找到要导出的内容",
       "exportImageFileName": "切磋结果.png",
+      "detailExportImageFileName": "切磋详细战报",
+      "exportImageSuccess": "导出成功",
+      "exportImagePagedSuccess": "导出成功，共 {count} 张图片",
       "exportImageFailedLog": "导出切磋结果图片失败:",
       "exportImageFailed": "导出图片失败，请重试"
     }

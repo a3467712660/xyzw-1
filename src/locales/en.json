@@ -2935,7 +2935,7 @@
     "actions": {
       "queryTarget": "Query Opponent",
       "startFight": "Start Duel",
-      "exportData": "Export Data",
+      "exportData": "Export Image",
       "exportRaw": "Export Raw",
       "syncFromGame": "Sync From Game",
       "clearCurrent": "Clear Current",
@@ -2988,6 +2988,29 @@
       "enemyDieRate": "Enemy KO Rate:",
       "winResult": "Win",
       "lossResult": "Loss"
+    },
+    "detail": {
+      "stageTitle": "Battle Detail",
+      "overviewEyebrow": "DUEL DETAIL REPORT",
+      "overviewTitle": "Detailed Duel Report",
+      "recordCount": "Battle Records ({count})",
+      "leftWins": "Left Wins",
+      "leftPerfectWins": "Perfect Wins",
+      "rightWins": "Right Wins",
+      "rightPerfectWins": "Perfect Wins",
+      "winRate": "Win Rate",
+      "exportReport": "Export Report Image",
+      "roundTitle": "Round {index}",
+      "roundMeta": "{roundCount} rounds · {frameCount} frames",
+      "victory": "Victory",
+      "defeat": "Defeat",
+      "tableHero": "Hero",
+      "tableHeal": "Heal",
+      "tableTakeDamage": "Taken",
+      "tableDamage": "Damage",
+      "tableStatus": "Status",
+      "slotLabel": "Slot {value}",
+      "starOrder": "{star} star / {order} tier"
     },
     "empty": {
       "history": "No duel history",
@@ -3045,6 +3068,9 @@
       "rawExportFailed": "Failed to export raw data: {error}",
       "exportDomNotFound": "Could not find content to export",
       "exportImageFileName": "duel-result.png",
+      "detailExportImageFileName": "duel-detail-report",
+      "exportImageSuccess": "Exported successfully",
+      "exportImagePagedSuccess": "Exported successfully, {count} images total",
       "exportImageFailedLog": "Failed to export duel result image:",
       "exportImageFailed": "Failed to export image. Please try again"
     }

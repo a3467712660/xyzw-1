@@ -42,6 +42,7 @@ declare module 'vue' {
     DreamHelperBattlePanel: typeof import('./src/components/cards/dream-helper/DreamHelperBattlePanel.vue')['default']
     DreamHelperCard: typeof import('./src/components/cards/DreamHelperCard.vue')['default']
     DreamHelperMerchantPanel: typeof import('./src/components/cards/dream-helper/DreamHelperMerchantPanel.vue')['default']
+    DuelBattleDetailReport: typeof import('./src/components/Common/DuelBattleDetailReport.vue')['default']
     FightHelperCard: typeof import('./src/components/cards/FightHelperCard.vue')['default']
     FightPvp: typeof import('./src/components/cards/FightPvp.vue')['default']
     FishHelperCard: typeof import('./src/components/cards/FishHelperCard.vue')['default']

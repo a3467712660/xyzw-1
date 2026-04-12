@@ -82,9 +82,8 @@ export const downloadCanvasAsPagedImages = (
     return 1;
   }
 
-  let page = 0;
+  let exportedPageCount = 0;
   for (let offsetY = 0; offsetY < height; offsetY += maxHeight) {
-    page += 1;
     const sliceHeight = Math.min(maxHeight, height - offsetY);
     const sliceCanvas = document.createElement("canvas");
     sliceCanvas.width = width;
@@ -109,10 +108,48 @@ export const downloadCanvasAsPagedImages = (
       sliceHeight,
     );
 
-    downloadCanvasAsImage(sliceCanvas, `${filenameBase}_${page}.png`);
+    if (isCanvasEffectivelyBlank(sliceCanvas)) {
+      continue;
+    }
+
+    exportedPageCount += 1;
+    downloadCanvasAsImage(sliceCanvas, `${filenameBase}_${exportedPageCount}.png`);
   }
 
-  return page;
+  return exportedPageCount;
+};
+
+const isCanvasEffectivelyBlank = (canvas) => {
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  if (!ctx) {
+    return false;
+  }
+
+  const width = canvas.width;
+  const height = canvas.height;
+  if (!width || !height) {
+    return true;
+  }
+
+  const sampleCols = Math.min(24, width);
+  const sampleRows = Math.min(48, height);
+  const stepX = Math.max(1, Math.floor(width / sampleCols));
+  const stepY = Math.max(1, Math.floor(height / sampleRows));
+
+  for (let y = 0; y < height; y += stepY) {
+    for (let x = 0; x < width; x += stepX) {
+      const data = ctx.getImageData(x, y, 1, 1).data;
+      const [r, g, b, a] = data;
+      if (a === 0) {
+        continue;
+      }
+      if (r < 248 || g < 248 || b < 248) {
+        return false;
+      }
+    }
+  }
+
+  return true;
 };
 
 const downloadBlob = (blob, filename) => {

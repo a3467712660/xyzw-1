@@ -1,3 +1,5 @@
+import { buildDuelDetailReport } from "@/utils/duelBattleDetailReport";
+
 export function useFightPvpActions({
   tokenStore,
   message,
@@ -9,6 +11,7 @@ export function useFightPvpActions({
   HeroFillInfo,
   countPearlOrangeSlots,
   getHeroInfo,
+  HERO_DICT,
   loading1,
   loadingText,
   queryDate,
@@ -60,6 +63,26 @@ export function useFightPvpActions({
       let ourTotalDieHeroCount = 0;
       let enemyTotalDieHeroCount = 0;
       const resultCount = [];
+      const rawBattles = [];
+      let selfRoleRaw = null;
+      let selfPresetTeamRaw = null;
+
+      const [roleInfoResult, presetTeamResult] = await Promise.allSettled([
+        tokenStore.sendGetRoleInfo(tokenId),
+        tokenStore.sendMessageWithPromise(tokenId, "presetteam_getinfo", {}, 8000),
+      ]);
+
+      if (roleInfoResult.status === "fulfilled") {
+        selfRoleRaw = roleInfoResult.value;
+      } else {
+        console.error("[FightPvp report] failed to load self role info:", roleInfoResult.reason);
+      }
+
+      if (presetTeamResult.status === "fulfilled") {
+        selfPresetTeamRaw = presetTeamResult.value;
+      } else {
+        console.error("[FightPvp report] failed to load self preset team:", presetTeamResult.reason);
+      }
 
       for (let i = 0; i < fightNum.value; i++) {
         const result = await tokenStore.sendMessageWithPromise(
@@ -77,15 +100,24 @@ export function useFightPvpActions({
           return;
         }
 
+        rawBattles.push(result.battleData);
+
+        const sponsorTeamInfo = Object.values(
+          result.battleData?.result?.sponsor?.teamInfo || {},
+        );
+        const acceptTeamInfo = Object.values(
+          result.battleData?.result?.accept?.teamInfo || {},
+        );
+
         let leftCount = 0;
-        result.battleData.result.sponsor.teamInfo.forEach((item) => {
+        sponsorTeamInfo.forEach((item) => {
           if (item.hp == 0)
             leftCount++;
         });
         ourTotalDieHeroCount += leftCount;
 
         let rightCount = 0;
-        result.battleData.result.accept.teamInfo.forEach((item) => {
+        acceptTeamInfo.forEach((item) => {
           if (item.hp == 0)
             rightCount++;
         });
@@ -109,11 +141,30 @@ export function useFightPvpActions({
         resultCount.push(tempObj);
       }
 
+      let report = null;
+      if (rawBattles.length > 0) {
+        try {
+          report = buildDuelDetailReport({
+            selfRoleRaw,
+            selfPresetTeamRaw,
+            enemyRoleRaw: lastTargetRawInfo.value,
+            battleResults: rawBattles,
+            formatPower,
+            HERO_DICT,
+            HeroFillInfo,
+          });
+        } catch (reportError) {
+          console.error("[FightPvp report]", reportError);
+        }
+      }
+
       const teamData = {
         winCount,
         ourTotalDieHeroCount,
         enemyTotalDieHeroCount,
         resultCount,
+        rawBattles,
+        report,
       };
       fightResult.value = teamData;
       message.success(t("fightPvpCard.messages.fightDone"));

@@ -344,8 +344,20 @@
           </div>
         </div>
 
+        <div
+          v-if="fightResult?.report"
+          ref="battleDetailExportRef"
+          class="battle-detail-export-section"
+        >
+          <DuelBattleDetailReport
+            :report="fightResult.report"
+            :export-mode="battleDetailExportMode"
+            @export="handleExport1"
+          ></DuelBattleDetailReport>
+        </div>
+
         <!-- 切磋结果卡片 -->
-        <div v-if="fightResult" class="info-card result-card">
+        <div v-else-if="fightResult" class="info-card result-card">
           <div class="card-title">
             <h4>{{ t("fightPvpCard.sections.fightResult") }}</h4>
             <div class="result-summary">
@@ -637,6 +649,7 @@ import { useI18n } from "vue-i18n";
 import { useTokenStore } from "@/stores/tokenStore";
 import { useAuthStore } from "@/stores/auth";
 import api from "@/api";
+import DuelBattleDetailReport from "@/components/Common/DuelBattleDetailReport.vue";
 import {
   loadFightHistoryFromLocalStorage,
   loadFightTargetListsFromLocalStorage,
@@ -667,7 +680,9 @@ import {
   LINEUP_RULES,
 } from "@/utils/HeroList";
 import { captureWithHtml2canvas } from "@/utils/html2canvasLoader";
-import { downloadCanvasAsImage } from "@/utils/imageExport";
+import {
+  downloadCanvasAsImage,
+} from "@/utils/imageExport";
 
 const props = defineProps({
   visible: {
@@ -696,6 +711,8 @@ const showModal = computed({
 });
 
 const exportDom = ref(null);
+const battleDetailExportRef = ref(null);
+const battleDetailExportMode = ref(false);
 const loading1 = ref(false);
 const loadingText = ref("");
 const topranklist = ref(null);
@@ -1876,6 +1893,7 @@ const { fetchfightPVP, fetchTargetInfo } = useFightPvpActions({
   HeroFillInfo,
   countPearlOrangeSlots,
   getHeroInfo,
+  HERO_DICT,
   loading1,
   loadingText,
   queryDate,
@@ -2029,51 +2047,76 @@ const getTargetInfo = () => {
 };
 
 const handleExport1 = async () => {
-  // 校验：确保DOM已正确绑定
-  if (!exportDom.value) {
-    message.error(t("fightPvpCard.messages.exportDomNotFound"));
-    return;
-  }
-
   try {
+    if (fightResult.value?.report && battleDetailExportRef.value) {
+      try {
+        battleDetailExportMode.value = true;
+        await new Promise((resolve) => setTimeout(resolve, 80));
+
+        const canvas = await captureWithHtml2canvas(battleDetailExportRef.value, {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: "#ffffff",
+          logging: false,
+          allowTaint: true,
+          taintTest: false,
+        });
+
+        const filenameBase = t("fightPvpCard.messages.detailExportImageFileName");
+        downloadCanvasAsImage(canvas, `${filenameBase}.png`);
+        message.success(t("fightPvpCard.messages.exportImageSuccess"));
+      } finally {
+        battleDetailExportMode.value = false;
+      }
+      return;
+    }
+
+    // 校验：确保DOM已正确绑定
+    if (!exportDom.value) {
+      message.error(t("fightPvpCard.messages.exportDomNotFound"));
+      return;
+    }
+
     // 获取结果列表元素
     const resultList = exportDom.value.querySelector(".result-list");
     let originalMaxHeight = "";
     let originalOverflow = "";
     let originalPaddingRight = "";
 
-    // 临时移除结果列表的高度限制，让所有结果都可见
-    if (resultList) {
-      originalMaxHeight = resultList.style.maxHeight;
-      originalOverflow = resultList.style.overflowY;
-      originalPaddingRight = resultList.style.paddingRight;
+    try {
+      // 临时移除结果列表的高度限制，让所有结果都可见
+      if (resultList) {
+        originalMaxHeight = resultList.style.maxHeight;
+        originalOverflow = resultList.style.overflowY;
+        originalPaddingRight = resultList.style.paddingRight;
 
-      resultList.style.maxHeight = "none";
-      resultList.style.overflowY = "visible";
-      resultList.style.paddingRight = "0";
+        resultList.style.maxHeight = "none";
+        resultList.style.overflowY = "visible";
+        resultList.style.paddingRight = "0";
+      }
+
+      // 等待DOM更新
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // 生成canvas并导出
+      const canvas = await captureWithHtml2canvas(exportDom.value, {
+        scale: 2, // 放大2倍，解决图片模糊问题
+        useCORS: true, // 允许跨域图片（若DOM内有远程图片，需开启）
+        backgroundColor: "#ffffff", // 避免透明背景（默认透明）
+        logging: false, // 关闭控制台日志
+        allowTaint: true, // 允许跨域图片
+        taintTest: false, // 关闭跨域测试
+      });
+
+      downloadCanvasAsImage(canvas, t("fightPvpCard.messages.exportImageFileName"));
+      message.success(t("fightPvpCard.messages.exportImageSuccess"));
+    } finally {
+      if (resultList) {
+        resultList.style.maxHeight = originalMaxHeight;
+        resultList.style.overflowY = originalOverflow;
+        resultList.style.paddingRight = originalPaddingRight;
+      }
     }
-
-    // 等待DOM更新
-    await new Promise((resolve) => setTimeout(resolve, 100));
-
-    // 生成canvas并导出
-    const canvas = await captureWithHtml2canvas(exportDom.value, {
-      scale: 2, // 放大2倍，解决图片模糊问题
-      useCORS: true, // 允许跨域图片（若DOM内有远程图片，需开启）
-      backgroundColor: "#ffffff", // 避免透明背景（默认透明）
-      logging: false, // 关闭控制台日志
-      allowTaint: true, // 允许跨域图片
-      taintTest: false, // 关闭跨域测试
-    });
-
-    // 恢复原始样式
-    if (resultList) {
-      resultList.style.maxHeight = originalMaxHeight;
-      resultList.style.overflowY = originalOverflow;
-      resultList.style.paddingRight = originalPaddingRight;
-    }
-
-    downloadCanvasAsImage(canvas, t("fightPvpCard.messages.exportImageFileName"));
   } catch (err) {
     console.error(t("fightPvpCard.messages.exportImageFailedLog"), err);
     message.error(t("fightPvpCard.messages.exportImageFailed"));
@@ -2392,6 +2435,12 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 20px;
+}
+
+.battle-detail-export-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 .info-card {
