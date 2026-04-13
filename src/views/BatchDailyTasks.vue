@@ -395,55 +395,19 @@
         </n-card>
       </div>
 
-      <!-- Right Column - Execution Log -->
-      <div class="right-column">
-        <n-card class="log-card">
-          <template #header>
-            <div class="custom-card-header">
-              <div class="card-title">
-                {{
-                  currentRunningTokenName
-                    ? `正在执行: ${currentRunningTokenName}`
-                    : "执行日志"
-                }}
-                <span class="log-count-meta">
-                  {{ logs.length }}/{{ batchSettings.maxLogEntries || 1000 }}
-                </span>
-              </div>
-              <div class="log-header-controls">
-                <n-checkbox size="small" v-model:checked="autoScrollLog">
-                  自动滚动
-                </n-checkbox>
-                <n-checkbox size="small" v-model:checked="filterErrorsOnly">
-                  只看错误
-                </n-checkbox>
-                <n-tag v-if="errorCount > 0" size="small" type="error">
-                  {{ errorCount }} 个错误
-                </n-tag>
-                <n-button size="small" @click="clearLogs"> 清空日志 </n-button>
-                <n-button size="small" @click="copyLogs"> 复制日志 </n-button>
-              </div>
-            </div>
-          </template>
-          <n-progress
-            processing
-            indicator-placement="inside"
-            type="line"
-            :percentage="currentProgress"
-          ></n-progress>
-          <div ref="logContainer" class="log-container">
-            <div
-              v-for="(log, index) in filteredLogs"
-              :key="index"
-              class="log-item"
-              :class="log.type"
-            >
-              <span class="time">{{ log.time }}</span>
-              <span class="message">{{ log.message }}</span>
-            </div>
-          </div>
-        </n-card>
-      </div>
+      <BatchDailyTasksLogPanel
+        v-model:auto-scroll-log="autoScrollLog"
+        v-model:filter-errors-only="filterErrorsOnly"
+        :current-progress="currentProgress"
+        :current-running-token-name="currentRunningTokenName"
+        :error-count="errorCount"
+        :filtered-logs="filteredLogs"
+        :logs="logs"
+        :max-log-entries="batchSettings.maxLogEntries || 1000"
+        :set-log-container="setBatchLogContainer"
+        @clear-logs="clearLogs"
+        @copy-logs="copyLogs"
+      ></BatchDailyTasksLogPanel>
     </div>
 
     <!-- Settings Modal -->
@@ -1897,6 +1861,7 @@ import { useWarGuessManager } from "@/composables/useWarGuessManager";
 import { DailyTaskRunner } from "@/utils/dailyTaskRunner";
 import { useMessage } from "naive-ui/es";
 import BatchDailyTasksHeader from "@/views/batch-daily-tasks/BatchDailyTasksHeader.vue";
+import BatchDailyTasksLogPanel from "@/views/batch-daily-tasks/BatchDailyTasksLogPanel.vue";
 import BatchDailyTasksTokenSelection from "@/views/batch-daily-tasks/BatchDailyTasksTokenSelection.vue";
 import { useBatchTokenSort } from "@/views/batch-daily-tasks/useBatchTokenSort";
 import {
@@ -2466,6 +2431,10 @@ const {
   logContainer,
   logs,
 } = batchLogManager;
+
+const setBatchLogContainer = (element) => {
+  logContainer.value = element;
+};
 
 // 注: boxTypeOptions, fishTypeOptions 已从 @/utils/batch 导入
 

@@ -900,17 +900,20 @@ for="fightCount"
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import {
-  NAvatar,
   NCheckbox,
   NCheckboxGroup,
-  NInput,
   NInputNumber,
-  NModal,
   NSelect,
   useMessage,
 } from "naive-ui/es";
+import {
+  formatClubRankPower,
+  formatClubRankScore,
+  getClubRankAllianceClass,
+  getClubRankRedQuenchClass,
+} from "@/components/Club/rank/clubRankFormatters.js";
 import { useTokenStore } from "@/stores/tokenStore";
 import { useClubWarrankRecords } from "@/composables/useClubWarrankRecords";
 import { useClubWarrankRanking } from "@/composables/useClubWarrankRanking";
@@ -940,20 +943,8 @@ defineProps({
 const message = useMessage();
 const tokenStore = useTokenStore();
 
-function formatPower(power) {
-  if (!power) return "0";
-  if (power >= 100000000) {
-    return `${(power / 100000000).toFixed(2)}亿`;
-  }
-  if (power >= 10000) {
-    return `${(power / 10000).toFixed(2)}万`;
-  }
-  return power.toString();
-}
-
-function formatScore(score) {
-  return score ? score.toFixed(0).toString() : "0";
-}
+const formatPower = formatClubRankPower;
+const formatScore = formatClubRankScore;
 
 const {
   ScoreShow,
@@ -1008,9 +999,7 @@ const {
 
 const {
   dieStats,
-  fetchTargetInfo,
   fightCount,
-  fightHistory,
   fightProgress,
   fightResult,
   handleDuel,
@@ -1018,8 +1007,6 @@ const {
   heroModealTemp,
   isFightCountValid,
   playerInfo,
-  queryLoading,
-  queryTargetId,
   resetFightResult,
   selectHeroInfo,
   showHeroModal,
@@ -1038,34 +1025,8 @@ const handleImageError = (event) => {
   event.target.style.display = "none";
 };
 
-// 联盟样式类
-const getAllianceClass = (alliance) => {
-  switch (alliance) {
-    case "大联盟":
-      return "alliance-large";
-    case "梦盟":
-      return "alliance-dream";
-    case "正义联盟":
-      return "alliance-xin-justice";
-    case "龙盟":
-      return "alliance-dragon";
-    case "未知联盟":
-      return "alliance-unknown";
-    default:
-      return "alliance-other";
-  }
-};
-
-// 红淬样式类
-const getRedQuenchClass = (redQuench) => {
-  if (redQuench >= 60) {
-    return "redquench-high";
-  } else if (redQuench >= 50) {
-    return "redquench-medium";
-  } else {
-    return "redquench-low";
-  }
-};
+const getAllianceClass = getClubRankAllianceClass;
+const getRedQuenchClass = getClubRankRedQuenchClass;
 
 // 暴露方法给父组件
 defineExpose({

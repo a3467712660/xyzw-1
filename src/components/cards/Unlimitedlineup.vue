@@ -212,215 +212,43 @@ class="stat-hp"
         :weapon="weapon"
       ></LineupSavedLineupsModal>
 
-      <n-modal
-        preset="card"
-        style="width: 700px; max-width: 90vw"
-        title="俱乐部科技"
+      <LineupTechModal
         v-model:show="techModalVisible"
-        :bordered="false"
-      >
-        <div v-if="selectedTechData" class="tech-modal-content">
-          <div
-            v-for="type in [1, 2, 3, 4, 5, 6]"
-            :key="type"
-            class="tech-type-section"
-          >
-            <div class="tech-type-header">
-              {{ LEGION_TECH_TYPE_NAME[type] }}
-            </div>
-            <div class="tech-items">
-              <div
-                v-for="techId in LEGION_TECH_TYPE_MAP[type]"
-                :key="techId"
-                class="tech-item"
-              >
-                <span class="tech-name">{{ LEGION_TECH_NAME[techId] }}</span>
-                <span class="tech-level">
-                  {{ selectedTechData[techId] || 0 }}/{{
-                    LEGION_TECH_MAX_LEVEL[techId]
-                  }}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div v-else class="no-tech-data">暂无科技数据</div>
-      </n-modal>
+        :selected-tech-data="selectedTechData"
+        :tech-max-level="LEGION_TECH_MAX_LEVEL"
+        :tech-name="LEGION_TECH_NAME"
+        :tech-type-map="LEGION_TECH_TYPE_MAP"
+        :tech-type-name="LEGION_TECH_TYPE_NAME"
+      ></LineupTechModal>
 
-      <n-modal
-        preset="card"
-        style="width: 600px; max-width: 90vw"
+      <LineupRefineModal
         v-model:show="refineModalVisible"
-        :bordered="false"
+        :get-attr-name="getAttrName"
+        :get-equip-bonus="getEquipBonus"
+        :get-equip-slots="getEquipSlots"
+        :loading="refineModalLoading"
+        :part-map="partMap"
+        :selected-hero-equipment="selectedHeroEquipment"
         :title="refineModalTitle"
-      >
-        <n-spin :show="refineModalLoading">
-          <div v-if="selectedHeroEquipment" class="refine-modal-content">
-            <div
-              v-for="partId in [1, 2, 3, 4]"
-              :key="partId"
-              class="equip-refine-section"
-            >
-              <div class="equip-header">
-                <span class="equip-name">{{ partMap[partId] }}</span>
-                <span class="equip-level">
-                  Lv.{{ selectedHeroEquipment[partId]?.level || 0 }}
-                </span>
-                <span v-if="selectedHeroEquipment[partId]" class="equip-bonus">
-                  +{{ getEquipBonus(partId) }}
-                  {{ partId === 1 ? "攻击" : partId === 3 ? "防御" : "血量" }}
-                </span>
-              </div>
-              <div class="slots-container">
-                <div
-                  v-for="slot in getEquipSlots(partId)"
-                  :key="slot.id"
-                  class="slot-item"
-                  :class="{
-                    locked: slot.isLocked,
-                    [`color-${slot.colorId}`]: slot.colorId > 0,
-                  }"
-                >
-                  <span class="slot-label">孔{{ slot.id }}</span>
-                  <div v-if="slot.attrId" class="slot-attr">
-                    <span class="attr-name">{{
-                      getAttrName(slot.attrId)
-                    }}</span>
-                    <span class="attr-value">+{{ slot.attrNum }}%</span>
-                  </div>
-                  <div v-else class="slot-empty">未淬炼</div>
-                  <n-tag
-v-if="slot.isLocked"
-size="small"
-type="warning"
-                    >锁定</n-tag
-                  >
-                </div>
-              </div>
-            </div>
-          </div>
-          <div v-else class="no-equipment">暂无装备数据</div>
-        </n-spin>
-      </n-modal>
+      ></LineupRefineModal>
 
-      <n-modal
-        preset="card"
-        style="width: 700px; max-width: 90vw"
+      <LineupExchangeModal
+        v-model:hero-search-keyword="heroSearchKeyword"
+        v-model:selected-country="selectedCountry"
+        v-model:selected-quality="selectedQuality"
         v-model:show="exchangeModalVisible"
-        :bordered="false"
-        :title="exchangeMode === 'add' ? '上阵英雄' : '更换武将'"
-      >
-        <div class="exchange-modal-content">
-          <div v-if="exchangeMode === 'exchange'" class="current-hero-info">
-            <span>当前武将：</span>
-            <n-tag size="large" type="primary">
-              {{
-                getHeroName(exchangeHero?.heroId) ||
-                `武将${exchangeHero?.heroId}`
-              }}
-            </n-tag>
-          </div>
-          <div v-else class="current-hero-info">
-            <span>上阵位置：</span>
-            <n-tag size="large" type="success">
-              位置 {{ getFirstEmptySlot() + 1 }}
-            </n-tag>
-          </div>
-          <NInput
-            clearable
-            placeholder="搜索武将名称..."
-            style="margin-bottom: 12px"
-            v-model:value="heroSearchKeyword"
-          ></NInput>
-          <div class="hero-filter-section">
-            <div class="filter-label">品质：</div>
-            <div class="filter-tags">
-              <n-tag
-                v-for="q in heroQualities"
-                :key="q"
-                style="cursor: pointer; margin-right: 8px"
-                :bordered="false"
-                :type="selectedQuality === q ? 'primary' : 'default'"
-                @click="selectedQuality = selectedQuality === q ? '全部' : q"
-              >
-                {{ q }}
-              </n-tag>
-            </div>
-          </div>
-          <div class="hero-filter-section">
-            <div class="filter-label">国家：</div>
-            <div class="filter-tags">
-              <n-tag
-                v-for="t in heroCountries"
-                :key="t"
-                style="cursor: pointer; margin-right: 8px"
-                :bordered="false"
-                :type="selectedCountry === t ? 'primary' : 'default'"
-                @click="selectedCountry = selectedCountry === t ? '全部' : t"
-              >
-                {{ t }}
-              </n-tag>
-            </div>
-          </div>
-          <n-spin :show="exchangeLoading">
-            <div class="hero-select-grid">
-              <div
-                v-for="hero in filteredHeroList"
-                :key="hero.id"
-                class="hero-select-item"
-                :class="{
-                  'selected': exchangeTargetHeroId === hero.id,
-                  'quality-red': hero.quality === '红将',
-                  'quality-orange': hero.quality === '橙将',
-                  'quality-purple': hero.quality === '紫将',
-                }"
-                @click="selectExchangeHero(hero)"
-              >
-                <div class="hero-select-avatar">
-                  <img v-if="hero.avatar" :alt="hero.name" :src="hero.avatar">
-                  <div v-else class="hero-placeholder">
-                    {{ hero.name?.substring(0, 2) || "?" }}
-                  </div>
-                </div>
-                <div class="hero-select-name">{{ hero.name }}</div>
-                <div class="hero-select-tags">
-                  <n-tag
-                    size="small"
-                    :bordered="false"
-                    :type="
-                      hero.quality === '红将'
-                        ? 'error'
-                        : hero.quality === '橙将'
-                          ? 'warning'
-                          : hero.quality === '紫将'
-                            ? 'info'
-                            : 'default'
-                    "
-                  >
-                    {{ hero.quality }}
-                  </n-tag>
-                  <n-tag size="small" type="default" :bordered="false">
-                    {{ hero.type }}
-                  </n-tag>
-                </div>
-              </div>
-            </div>
-          </n-spin>
-        </div>
-        <template #footer>
-          <div style="display: flex; justify-content: flex-end; gap: 8px">
-            <n-button @click="exchangeModalVisible = false">取消</n-button>
-            <n-button
-              type="primary"
-              :disabled="!exchangeTargetHeroId"
-              :loading="exchangeLoading"
-              @click="confirmHeroAction"
-            >
-              {{ exchangeMode === "add" ? "确认上阵" : "确认更换" }}
-            </n-button>
-          </div>
-        </template>
-      </n-modal>
+        :exchange-hero="exchangeHero"
+        :exchange-loading="exchangeLoading"
+        :exchange-mode="exchangeMode"
+        :exchange-target-hero-id="exchangeTargetHeroId"
+        :filtered-hero-list="filteredHeroList"
+        :get-first-empty-slot="getFirstEmptySlot"
+        :get-hero-name="getHeroName"
+        :hero-countries="heroCountries"
+        :hero-qualities="heroQualities"
+        @confirm="confirmHeroAction"
+        @select-hero="selectExchangeHero"
+      ></LineupExchangeModal>
     </template>
   </MyCard>
 </template>
@@ -438,7 +266,10 @@ import {
 } from "@/services/token/tokenOperationCoordination";
 import MyCard from "../Common/MyCard.vue";
 import LineupApplyProgressModal from "./lineup/LineupApplyProgressModal.vue";
+import LineupExchangeModal from "./lineup/LineupExchangeModal.vue";
+import LineupRefineModal from "./lineup/LineupRefineModal.vue";
 import LineupSavedLineupsModal from "./lineup/LineupSavedLineupsModal.vue";
+import LineupTechModal from "./lineup/LineupTechModal.vue";
 import {
   buildLineupCloudPrefKey,
   buildLineupStorageKey,
