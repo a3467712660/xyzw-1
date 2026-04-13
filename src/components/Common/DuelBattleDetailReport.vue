@@ -14,8 +14,8 @@
       <div class="battle-stage__panel">
         <div v-if="!exportMode" class="battle-stage__action-bar">
           <button
-            type="button"
             class="report-export-button report-export-button--primary"
+            type="button"
             @click="emit('export')"
           >
             {{ t("fightPvpCard.detail.exportReport") }}
@@ -29,8 +29,8 @@
                 <img
                   v-if="report.left?.headImg"
                   class="player-summary__avatar"
-                  :src="report.left.headImg"
                   :alt="report.left.name || t('fightPvpCard.common.unknownPlayer')"
+                  :src="report.left.headImg"
                 >
                 <div v-else class="player-summary__avatar player-summary__avatar--placeholder">
                   {{ buildNameFallback(report.left?.name) }}
@@ -55,8 +55,8 @@
                 <img
                   v-if="report.right?.headImg"
                   class="player-summary__avatar"
-                  :src="report.right.headImg"
                   :alt="report.right.name || t('fightPvpCard.common.unknownPlayer')"
+                  :src="report.right.headImg"
                 >
                 <div v-else class="player-summary__avatar player-summary__avatar--placeholder">
                   {{ buildNameFallback(report.right?.name) }}
@@ -76,8 +76,8 @@
                 <div class="board-hero__avatar">
                   <img
                     v-if="hero.heroAvatar"
-                    :src="hero.heroAvatar"
                     :alt="hero.heroName || t('fightPvpCard.common.unknownHero')"
+                    :src="hero.heroAvatar"
                   >
                   <span v-else>{{ buildNameFallback(hero.heroName) }}</span>
                 </div>
@@ -119,8 +119,8 @@
                 <div class="board-hero__avatar">
                   <img
                     v-if="hero.heroAvatar"
-                    :src="hero.heroAvatar"
                     :alt="hero.heroName || t('fightPvpCard.common.unknownHero')"
+                    :src="hero.heroAvatar"
                   >
                   <span v-else>{{ buildNameFallback(hero.heroName) }}</span>
                 </div>

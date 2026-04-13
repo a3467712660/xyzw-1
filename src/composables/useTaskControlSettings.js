@@ -89,6 +89,17 @@ export function useTaskControlSettings() {
     tokenIds: [],
   });
 
+  const updateSettingsForm = (updater) => {
+    if (typeof updater !== "function") {
+      return;
+    }
+    const currentValue = settingsForm.value;
+    const nextValue = updater(currentValue);
+    if (nextValue && nextValue !== currentValue) {
+      settingsForm.value = nextValue;
+    }
+  };
+
   const tokenOptions = computed(() =>
     tokenStore.gameTokens.map((token) => ({
       label: `${token.name} (${token.server || "-"})`,
@@ -338,26 +349,40 @@ export function useTaskControlSettings() {
     const key = String(tokenId || "").trim();
     if (!key)
       return;
-    if (!settingsForm.value.dailyRunnerByToken || typeof settingsForm.value.dailyRunnerByToken !== "object") {
-      settingsForm.value.dailyRunnerByToken = {};
-    }
-    if (!settingsForm.value.dailyRunnerByToken[key]) {
-      settingsForm.value.dailyRunnerByToken[key] = normalizeDailyRunnerSettings(settingsForm.value.dailyRunner);
-    }
+    updateSettingsForm((current) => {
+      const dailyRunnerByToken = current.dailyRunnerByToken && typeof current.dailyRunnerByToken === "object"
+        ? { ...current.dailyRunnerByToken }
+        : {};
+      if (!dailyRunnerByToken[key]) {
+        dailyRunnerByToken[key] = normalizeDailyRunnerSettings(current.dailyRunner);
+      }
+      return {
+        ...current,
+        dailyRunnerByToken,
+      };
+    });
   };
 
   const clearDailyRunnerOverride = (tokenId) => {
     const key = String(tokenId || "").trim();
     if (!key)
       return;
-    if (!settingsForm.value.dailyRunnerByToken || typeof settingsForm.value.dailyRunnerByToken !== "object") {
-      settingsForm.value.dailyRunnerByToken = {};
-      return;
-    }
-    if (settingsForm.value.dailyRunnerByToken[key]) {
-      delete settingsForm.value.dailyRunnerByToken[key];
-      settingsForm.value.dailyRunnerByToken = { ...settingsForm.value.dailyRunnerByToken };
-    }
+    updateSettingsForm((current) => {
+      const dailyRunnerByToken = current.dailyRunnerByToken && typeof current.dailyRunnerByToken === "object"
+        ? { ...current.dailyRunnerByToken }
+        : {};
+      if (!dailyRunnerByToken[key]) {
+        return {
+          ...current,
+          dailyRunnerByToken,
+        };
+      }
+      delete dailyRunnerByToken[key];
+      return {
+        ...current,
+        dailyRunnerByToken,
+      };
+    });
   };
 
   const resolveDailyRunnerSettingsForToken = (row, tokenId) => {
@@ -371,26 +396,40 @@ export function useTaskControlSettings() {
     const key = String(tokenId || "").trim();
     if (!key)
       return;
-    if (!settingsForm.value.smartCarByToken || typeof settingsForm.value.smartCarByToken !== "object") {
-      settingsForm.value.smartCarByToken = {};
-    }
-    if (!settingsForm.value.smartCarByToken[key]) {
-      settingsForm.value.smartCarByToken[key] = normalizeSmartCarSettings(settingsForm.value.smartCar);
-    }
+    updateSettingsForm((current) => {
+      const smartCarByToken = current.smartCarByToken && typeof current.smartCarByToken === "object"
+        ? { ...current.smartCarByToken }
+        : {};
+      if (!smartCarByToken[key]) {
+        smartCarByToken[key] = normalizeSmartCarSettings(current.smartCar);
+      }
+      return {
+        ...current,
+        smartCarByToken,
+      };
+    });
   };
 
   const clearSmartCarOverride = (tokenId) => {
     const key = String(tokenId || "").trim();
     if (!key)
       return;
-    if (!settingsForm.value.smartCarByToken || typeof settingsForm.value.smartCarByToken !== "object") {
-      settingsForm.value.smartCarByToken = {};
-      return;
-    }
-    if (settingsForm.value.smartCarByToken[key]) {
-      delete settingsForm.value.smartCarByToken[key];
-      settingsForm.value.smartCarByToken = { ...settingsForm.value.smartCarByToken };
-    }
+    updateSettingsForm((current) => {
+      const smartCarByToken = current.smartCarByToken && typeof current.smartCarByToken === "object"
+        ? { ...current.smartCarByToken }
+        : {};
+      if (!smartCarByToken[key]) {
+        return {
+          ...current,
+          smartCarByToken,
+        };
+      }
+      delete smartCarByToken[key];
+      return {
+        ...current,
+        smartCarByToken,
+      };
+    });
   };
 
   const resolveSmartCarSettingsForToken = (row, tokenId) => {
@@ -435,6 +474,7 @@ export function useTaskControlSettings() {
     settingsForm,
     showSettings,
     tokenOptions,
+    updateSettingsForm,
     weekDayOptions,
   };
 }

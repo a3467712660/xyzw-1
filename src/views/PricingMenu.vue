@@ -39,10 +39,10 @@
                 v-for="option in durationOptions"
                 :key="option.key"
                 class="pricing-duration-option"
-                :class="{ 'pricing-duration-option--active': option.key === selectedDurationKey }"
-                type="button"
                 role="tab"
+                type="button"
                 :aria-selected="option.key === selectedDurationKey"
+                :class="{ 'pricing-duration-option--active': option.key === selectedDurationKey }"
                 @click="selectedDurationKey = option.key"
               >
                 <strong>{{ option.shortLabel }}</strong>

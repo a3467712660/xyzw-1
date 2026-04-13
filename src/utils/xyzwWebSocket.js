@@ -5,7 +5,7 @@
 
 import { $CacheManager } from "@/stores/cache";
 import { bonProtocol, g_utils } from "./bonProtocol.js";
-import { wsLogger, gameLogger } from "./logger.js";
+import { gameLogger, wsLogger } from "./logger.js";
 
 /**
  * 错误码映射表
@@ -88,6 +88,8 @@ const formatBodyForLog = (body) => {
 
   return String(body);
 };
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
  * 命令注册器：保存每个 cmd 的默认体，发送时与 params 合并
@@ -298,9 +300,9 @@ export function registerDefaultCommands(reg) {
     .register("pearl_unloadskill")
 
     // 武将升级相关
-    .register("hero_heroupgradelevel") //武将升级
-    .register("hero_heroupgradeorder") //武将进阶
-    .register("hero_rebirth") //武将重新birth
+    .register("hero_heroupgradelevel") // 武将升级
+    .register("hero_heroupgradeorder") // 武将进阶
+    .register("hero_rebirth") // 武将重新birth
 
     // 升星相关
     .register("hero_heroupgradestar")
@@ -387,7 +389,7 @@ export function registerDefaultCommands(reg) {
     .register("towers_start")
     .register("towers_fight")
 
-    //发送游戏内消息
+    // 发送游戏内消息
     .register("system_sendchatmessage");
   registry.commands.set(
     "fight_startareaarena",
@@ -1128,7 +1130,6 @@ export class XyzwWebSocketClient {
       car_claimpartconsumerewardresp: "car_claimpartconsumereward",
       role_gettargetteamresp: "role_gettargetteam",
       activity_warorderclaimresp: "activity_recyclewarorderrewardclaim",
-      arena_getarearankresp: "arena_getarearank",
       bosstower_gethelprankresp: "bosstower_gethelprank",
       // 功法相关响应映射
       legacy_getinforesp: "legacy_getinfo",

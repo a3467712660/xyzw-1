@@ -1,24 +1,24 @@
-type TokenOperationLock = {
+interface TokenOperationLock {
   tokenId: string;
   lockId: string;
   source: string;
   startedAt: number;
   updatedAt: number;
   meta: Record<string, any>;
-};
+}
 
-type TokenRewardSync = {
+interface TokenRewardSync {
   tokenId: string;
   event: string;
   timestamp: number;
   meta: Record<string, any>;
-};
+}
 
-type CoordinationStore = {
+interface CoordinationStore {
   locks: Record<string, TokenOperationLock>;
   rewardSync: Record<string, TokenRewardSync>;
   busyEvents: Record<string, TokenRewardSync>;
-};
+}
 
 const STORE_KEY = "__XYZW_TOKEN_OPERATION_COORDINATION__";
 

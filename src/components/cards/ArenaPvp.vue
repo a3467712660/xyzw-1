@@ -97,15 +97,15 @@
           <div class="action-item">
             <span class="item-label">{{ t("arenaPvpCard.actions.preferredWinRate") }}</span>
             <n-input-number
+              clearable
               class="action-select"
               v-model:value="preferredWinRate"
               :disabled="loading || running"
-              :min="0"
               :max="100"
+              :min="0"
+              :placeholder="t('arenaPvpCard.placeholders.preferredWinRate')"
               :precision="0"
               :step="5"
-              clearable
-              :placeholder="t('arenaPvpCard.placeholders.preferredWinRate')"
             ></n-input-number>
           </div>
           <div class="action-item action-item-wide">
@@ -395,9 +395,9 @@ import {
   getArenaRecordStorageKey,
   getArenaSkipLineupsStorageKey,
   getArenaStatsStorageKey,
-  loadArenaPreferredWinRateFromLocal,
   getArenaSyncPrefKeyByScope,
   getArenaSyncUserScopeFromStorage,
+  loadArenaPreferredWinRateFromLocal,
   loadArenaSkipLineupsFromLocal,
   loadArenaStatsFromLocal,
   loadEncryptedArenaLocalValue,

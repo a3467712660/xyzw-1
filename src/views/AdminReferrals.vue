@@ -6,9 +6,9 @@
           <h1>{{ t("adminReferralsPage.title") }}</h1>
           <p>{{ t("adminReferralsPage.subtitle") }}</p>
         </div>
-        <n-button :loading="loading" @click="refreshAll">
+        <NButton :loading="loading" @click="refreshAll">
           {{ t("adminReferralsPage.actions.refresh") }}
-        </n-button>
+        </NButton>
       </div>
 
       <n-card embedded class="list-card">

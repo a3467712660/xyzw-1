@@ -345,13 +345,13 @@
         </div>
 
         <div
-          v-if="fightResult?.report"
           ref="battleDetailExportRef"
+          v-if="fightResult?.report"
           class="battle-detail-export-section"
         >
           <DuelBattleDetailReport
-            :report="fightResult.report"
             :export-mode="battleDetailExportMode"
+            :report="fightResult.report"
             @export="handleExport1"
           ></DuelBattleDetailReport>
         </div>

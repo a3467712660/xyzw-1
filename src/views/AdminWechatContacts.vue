@@ -62,7 +62,7 @@
 
             <div v-if="row.contactType !== 'landing_qr' && row.targetUrl" class="contact-card__target">
               <span>目标链接</span>
-              <a :href="row.targetUrl" rel="noreferrer" target="_blank">{{ row.targetUrl }}</a>
+              <a rel="noreferrer" target="_blank" :href="row.targetUrl">{{ row.targetUrl }}</a>
             </div>
 
             <div v-if="row.contactType === 'landing_qr'" class="contact-card__landing">
@@ -102,8 +102,8 @@
                     :precision="0"
                   ></n-input-number>
                   <n-button
-                    :loading="Boolean(rowSavingMap[row.id])"
                     tertiary
+                    :loading="Boolean(rowSavingMap[row.id])"
                     @click="saveSortOrder(row)"
                   >
                     保存排序
@@ -135,9 +135,9 @@
     </div>
 
     <n-modal
-      v-model:show="showModal"
-      preset="card"
       class="wechat-form-modal"
+      preset="card"
+      v-model:show="showModal"
       :mask-closable="false"
       :title="isEditing ? '编辑微信联系人' : '新增微信联系人'"
     >
@@ -145,18 +145,18 @@
         <div class="wechat-form__grid">
           <div class="field">
             <label>slug</label>
-            <n-input v-model:value="form.slug" placeholder="例如：vip-buy-wechat"></n-input>
+            <NInput placeholder="例如：vip-buy-wechat" v-model:value="form.slug"></NInput>
           </div>
           <div class="field">
             <label>标题</label>
-            <n-input v-model:value="form.title" placeholder="例如：联系管理员微信"></n-input>
+            <NInput placeholder="例如：联系管理员微信" v-model:value="form.title"></NInput>
           </div>
           <div class="field field--wide">
             <label>副标题</label>
-            <n-input
-              v-model:value="form.subtitle"
+            <NInput
               placeholder="例如：购买前请备注想开的版本和时长"
-            ></n-input>
+              v-model:value="form.subtitle"
+            ></NInput>
           </div>
           <div class="field">
             <label>联系类型</label>
@@ -182,7 +182,7 @@
         <div v-if="form.contactType === 'landing_qr'" class="wechat-form__block">
           <div class="field">
             <label>微信号</label>
-            <n-input v-model:value="form.wechatId" placeholder="例如：xyzw-admin"></n-input>
+            <NInput placeholder="例如：xyzw-admin" v-model:value="form.wechatId"></NInput>
           </div>
           <div class="field">
             <label>二维码图片</label>
@@ -216,12 +216,12 @@
         <div v-else class="wechat-form__block">
           <div class="field">
             <label>目标链接</label>
-            <n-input
+            <NInput
               v-model:value="form.targetUrl"
               :placeholder="form.contactType === 'wecom_kf_link'
                 ? 'https://work.weixin.qq.com/kfid/...'
                 : 'https://example.com/...'"
-            ></n-input>
+            ></NInput>
           </div>
         </div>
       </div>
@@ -244,9 +244,9 @@ import { NInput, useDialog, useMessage } from "naive-ui/es";
 import api from "@/api";
 import { useAuthStore } from "@/stores/auth";
 
-const QR_DATA_URL_PATTERN = /^data:image\/(?:png|jpe?g|webp);base64,[A-Za-z0-9+/=]+$/i;
+const QR_DATA_URL_PATTERN = /^data:image\/(?:png|jpe?g|webp);base64,[A-Z0-9+/=]+$/i;
 const SLUG_PATTERN = /^[a-z0-9-]+$/;
-const WECOM_KF_URL_PATTERN = /^https:\/\/work\.weixin\.qq\.com\/kfid\/[A-Za-z0-9_-]+(?:[/?#].*)?$/i;
+const WECOM_KF_URL_PATTERN = /^https:\/\/work\.weixin\.qq\.com\/kfid\/[\w-]+(?:[/?#].*)?$/i;
 const MAX_QR_FILE_SIZE = Math.floor(2.8 * 1024 * 1024);
 
 const authStore = useAuthStore();
@@ -635,8 +635,9 @@ const withRowSaving = async (rowId, fn) => {
 };
 
 const toggleIsActive = async (row, value) => {
+  const nextIsActive = value === true;
   const confirmToken = await ensureSensitiveActionConfirmed(
-    Boolean(value) ? "启用微信联系人" : "停用微信联系人",
+    nextIsActive ? "启用微信联系人" : "停用微信联系人",
   );
   if (!confirmToken) {
     return;
@@ -644,8 +645,12 @@ const toggleIsActive = async (row, value) => {
 
   await withRowSaving(row.id, async () => {
     try {
-      await api.admin.updateWechatContact(row.id, { isActive: Boolean(value) }, confirmToken);
-      message.success(Boolean(value) ? "联系人已启用" : "联系人已停用");
+      await api.admin.updateWechatContact(
+        row.id,
+        { isActive: nextIsActive },
+        confirmToken,
+      );
+      message.success(nextIsActive ? "联系人已启用" : "联系人已停用");
       await fetchContacts();
     } catch (error) {
       if (shouldResetConfirmCache(error)) {
@@ -657,8 +662,9 @@ const toggleIsActive = async (row, value) => {
 };
 
 const toggleShowInPricing = async (row, value) => {
+  const nextShowInPricing = value === true;
   const confirmToken = await ensureSensitiveActionConfirmed(
-    Boolean(value) ? "显示微信联系人到价格菜单" : "从价格菜单隐藏微信联系人",
+    nextShowInPricing ? "显示微信联系人到价格菜单" : "从价格菜单隐藏微信联系人",
   );
   if (!confirmToken) {
     return;
@@ -668,10 +674,12 @@ const toggleShowInPricing = async (row, value) => {
     try {
       await api.admin.updateWechatContact(
         row.id,
-        { showInPricing: Boolean(value) },
+        { showInPricing: nextShowInPricing },
         confirmToken,
       );
-      message.success(Boolean(value) ? "已显示到价格菜单" : "已从价格菜单隐藏");
+      message.success(
+        nextShowInPricing ? "已显示到价格菜单" : "已从价格菜单隐藏",
+      );
       await fetchContacts();
     } catch (error) {
       if (shouldResetConfirmCache(error)) {

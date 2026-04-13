@@ -1,4 +1,4 @@
-//英雄字典
+// 英雄字典
 export const HERO_DICT = {
   101: { name: "司马懿", type: "魏国", avatar: "/team/simayi.png" },
   102: { name: "郭嘉", type: "魏国", avatar: "/team/guojia.png" },
@@ -155,7 +155,7 @@ export const getLineupType = (heroList) => {
   return "其他";
 };
 
-//鱼珠字典
+// 鱼珠字典
 const PearlMap = {
   1033007: { name: "碎盾" },
   1033008: { name: "冥想" },
@@ -247,9 +247,9 @@ const FishMap = {
   1121: { name: "回响" },
 };
 
-export { FishMap, PearlMap, color };
+export { color, FishMap, PearlMap };
 
-//洗练颜色
+// 洗练颜色
 const color = {
   1: { color: "白色", value: "white" },
   2: { color: "绿色", value: "green" },
@@ -293,12 +293,12 @@ export const formatWeapon = (id) => {
  * @returns
  */
 export const HeroFillInfo = (obj) => {
-  let temp = {};
+  const temp = {};
   // 检查 obj 和 obj.heroes 是否存在
   if (obj && obj.heroes && typeof obj.heroes === "object") {
     Object.values(obj.heroes).forEach((hero) => {
       temp[hero.artifactId] = {
-        FishInfo: FishMap[(hero.artifactId + "").substring(0, 4)],
+        FishInfo: FishMap[(`${hero.artifactId}`).substring(0, 4)],
         artifactId: hero.artifactId,
       };
       // 获取鱼珠技能信息，先检查 appendSkill 是否存在

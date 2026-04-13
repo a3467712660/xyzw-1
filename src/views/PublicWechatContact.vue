@@ -1,6 +1,6 @@
 <template>
   <div class="wechat-contact-page">
-    <div class="wechat-contact-page__bg" aria-hidden="true"></div>
+    <div aria-hidden="true" class="wechat-contact-page__bg"></div>
 
     <div class="container wechat-contact-page__container">
       <button class="wechat-contact-page__back" type="button" @click="router.push('/pricing')">

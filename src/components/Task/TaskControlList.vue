@@ -204,18 +204,19 @@
                 :is="currentAdvancedComponent"
                 v-if="currentAdvancedComponent"
                 :arena-formation-options="arenaFormationOptions"
+                :arena-skip-lineup-options="arenaSkipLineupOptions"
                 :car-color-options="carColorOptions"
                 :clear-daily-runner-override="clearDailyRunnerOverride"
+                :clear-smart-car-override="clearSmartCarOverride"
+                :club-store-goods-options="clubStoreGoodsOptions"
                 :daily-selectable-options="dailySelectableOptions"
                 :helper-lineup-keyword-options="helperLineupKeywordOptions"
                 :on-daily-runner-editor-token-change="onDailyRunnerEditorTokenChange"
                 :on-smart-car-editor-token-change="onSmartCarEditorTokenChange"
-                :clear-smart-car-override="clearSmartCarOverride"
                 :settings-form="settingsForm"
-                :arena-skip-lineup-options="arenaSkipLineupOptions"
                 :t="t"
-                :club-store-goods-options="clubStoreGoodsOptions"
                 :token-options="tokenOptions"
+                :update-settings-form="updateSettingsForm"
               ></component>
               <div v-else class="advanced-empty">当前任务没有高级参数</div>
             </n-collapse-item>
@@ -315,6 +316,7 @@ const {
   settingsForm,
   showSettings,
   tokenOptions,
+  updateSettingsForm,
   weekDayOptions,
 } = useTaskControlSettings();
 const hasAdvancedSettings = computed(() =>

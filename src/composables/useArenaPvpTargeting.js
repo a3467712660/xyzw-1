@@ -52,7 +52,6 @@ export const sortArenaTargetsByWinRatePreference = (
   preferredWinRate = null,
   arenaRecords = [],
 ) => {
-
   const hasExplicitPreferredWinRate = !(
     preferredWinRate === null
     || preferredWinRate === undefined

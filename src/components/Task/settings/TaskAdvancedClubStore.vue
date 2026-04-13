@@ -5,20 +5,35 @@
       clearable
       filterable
       multiple
-      v-model:value="settingsForm.clubStore.goodsIds"
       :options="clubStoreGoodsOptions"
       :placeholder="t('taskControl.settings.placeholders.goodsIds')"
+      :value="settingsForm.clubStore.goodsIds"
+      @update:value="(value) => updateClubStoreField('goodsIds', value)"
     ></n-select>
   </n-form-item>
   <n-form-item :label="t('taskControl.settings.fields.onlyUnbought')">
-    <NSwitch v-model:value="settingsForm.clubStore.onlyUnbought"></NSwitch>
+    <NSwitch
+      :value="settingsForm.clubStore.onlyUnbought"
+      @update:value="(value) => updateClubStoreField('onlyUnbought', value)"
+    ></NSwitch>
   </n-form-item>
 </template>
 
 <script setup>
-defineProps({
+const props = defineProps({
   t: { type: Function, required: true },
   settingsForm: { type: Object, required: true },
   clubStoreGoodsOptions: { type: Array, required: true },
+  updateSettingsForm: { type: Function, required: true },
 });
+
+const updateClubStoreField = (field, value) => {
+  props.updateSettingsForm((current) => ({
+    ...current,
+    clubStore: {
+      ...current.clubStore,
+      [field]: value,
+    },
+  }));
+};
 </script>

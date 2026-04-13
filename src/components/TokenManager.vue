@@ -453,11 +453,11 @@ const requestPassphraseByDialog = ({
         h("div", { style: "display:flex;flex-direction:column;gap:12px;" }, [
           h("div", { style: "line-height:1.5;" }, String(prompt || "")),
           h(NInput, {
-            type: "password",
-            showPasswordOn: "click",
-            value: passphrase.value,
+            "type": "password",
+            "showPasswordOn": "click",
+            "value": passphrase.value,
             placeholder,
-            autofocus: true,
+            "autofocus": true,
             "onUpdate:value": (value) => {
               passphrase.value = String(value || "");
             },
@@ -720,7 +720,7 @@ const exportTokens = () => {
         h(
           NRadioGroup,
           {
-            value: selectedMode.value,
+            "value": selectedMode.value,
             "onUpdate:value": (value) => {
               selectedMode.value = String(value || "metadata");
             },
@@ -770,7 +770,7 @@ const exportTokens = () => {
               h(
                 NCheckbox,
                 {
-                  checked: plaintextRiskAccepted.value,
+                  "checked": plaintextRiskAccepted.value,
                   "onUpdate:checked": (checked) => {
                     plaintextRiskAccepted.value = Boolean(checked);
                   },
@@ -780,8 +780,8 @@ const exportTokens = () => {
                 },
               ),
               h(NInput, {
-                value: exportKeyword.value,
-                placeholder: t("tokenManager.exportWizard.keywordPlaceholder"),
+                "value": exportKeyword.value,
+                "placeholder": t("tokenManager.exportWizard.keywordPlaceholder"),
                 "onUpdate:value": (value) => {
                   exportKeyword.value = String(value || "");
                 },
@@ -790,10 +790,10 @@ const exportTokens = () => {
           : null,
         selectedMode.value === "encrypted"
           ? h(NInput, {
-              type: "password",
-              showPasswordOn: "click",
-              value: encryptPassphrase.value,
-              placeholder: t("tokenManager.exportWizard.passphrasePlaceholder"),
+              "type": "password",
+              "showPasswordOn": "click",
+              "value": encryptPassphrase.value,
+              "placeholder": t("tokenManager.exportWizard.passphrasePlaceholder"),
               "onUpdate:value": (value) => {
                 encryptPassphrase.value = String(value || "");
               },

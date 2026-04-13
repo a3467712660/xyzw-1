@@ -1,6 +1,9 @@
 <template>
   <n-form-item :label="t('taskControl.settings.fields.extraTasks')">
-    <n-checkbox-group v-model:value="settingsForm.dailySelectedTasks">
+    <n-checkbox-group
+      :value="settingsForm.dailySelectedTasks"
+      @update:value="updateDailySelectedTasks"
+    >
       <n-space wrap>
         <n-checkbox
           v-for="option in dailySelectableOptions"
@@ -15,51 +18,78 @@
 
   <n-divider title-placement="left">{{ t("taskControl.sections.dailyRunner") }}</n-divider>
   <n-form-item :label="t('taskControl.settings.fields.friendGold')">
-    <NSwitch v-model:value="settingsForm.dailyRunner.friendGoldEnable"></NSwitch>
+    <NSwitch
+      :value="settingsForm.dailyRunner.friendGoldEnable"
+      @update:value="(value) => updateDailyRunnerField('friendGoldEnable', value)"
+    ></NSwitch>
   </n-form-item>
   <n-form-item :label="t('taskControl.settings.fields.recruit')">
-    <NSwitch v-model:value="settingsForm.dailyRunner.recruitEnable"></NSwitch>
+    <NSwitch
+      :value="settingsForm.dailyRunner.recruitEnable"
+      @update:value="(value) => updateDailyRunnerField('recruitEnable', value)"
+    ></NSwitch>
   </n-form-item>
   <n-form-item :label="t('taskControl.settings.fields.payRecruit')">
-    <NSwitch v-model:value="settingsForm.dailyRunner.payRecruit"></NSwitch>
+    <NSwitch
+      :value="settingsForm.dailyRunner.payRecruit"
+      @update:value="(value) => updateDailyRunnerField('payRecruit', value)"
+    ></NSwitch>
   </n-form-item>
   <n-form-item :label="t('taskControl.settings.fields.openBox')">
-    <NSwitch v-model:value="settingsForm.dailyRunner.openBox"></NSwitch>
+    <NSwitch
+      :value="settingsForm.dailyRunner.openBox"
+      @update:value="(value) => updateDailyRunnerField('openBox', value)"
+    ></NSwitch>
   </n-form-item>
   <n-form-item :label="t('taskControl.settings.fields.freeFish')">
-    <NSwitch v-model:value="settingsForm.dailyRunner.freeFishEnable"></NSwitch>
+    <NSwitch
+      :value="settingsForm.dailyRunner.freeFishEnable"
+      @update:value="(value) => updateDailyRunnerField('freeFishEnable', value)"
+    ></NSwitch>
   </n-form-item>
   <n-form-item :label="t('taskControl.settings.fields.mengjing')">
-    <NSwitch v-model:value="settingsForm.dailyRunner.mengjingEnable"></NSwitch>
+    <NSwitch
+      :value="settingsForm.dailyRunner.mengjingEnable"
+      @update:value="(value) => updateDailyRunnerField('mengjingEnable', value)"
+    ></NSwitch>
   </n-form-item>
   <n-form-item :label="t('taskControl.settings.fields.dailyBoss')">
-    <NSwitch v-model:value="settingsForm.dailyRunner.dailyBossEnable"></NSwitch>
+    <NSwitch
+      :value="settingsForm.dailyRunner.dailyBossEnable"
+      @update:value="(value) => updateDailyRunnerField('dailyBossEnable', value)"
+    ></NSwitch>
   </n-form-item>
   <n-form-item :label="t('taskControl.settings.fields.legionBoss')">
-    <NSwitch v-model:value="settingsForm.dailyRunner.legionBossEnable"></NSwitch>
+    <NSwitch
+      :value="settingsForm.dailyRunner.legionBossEnable"
+      @update:value="(value) => updateDailyRunnerField('legionBossEnable', value)"
+    ></NSwitch>
   </n-form-item>
   <n-form-item :label="t('taskControl.settings.fields.legionBossTimes')">
     <n-input-number
       style="width: 100%"
-      v-model:value="settingsForm.dailyRunner.bossTimes"
       :max="4"
       :min="0"
+      :value="settingsForm.dailyRunner.bossTimes"
+      @update:value="(value) => updateDailyRunnerField('bossTimes', value)"
     ></n-input-number>
   </n-form-item>
   <n-form-item :label="t('taskControl.settings.fields.legionBossFormation')">
     <n-select
       clearable
-      v-model:value="settingsForm.dailyRunner.legionBossFormation"
       :options="arenaFormationOptions"
       :placeholder="t('taskControl.settings.placeholders.selectLegionBossFormation')"
+      :value="settingsForm.dailyRunner.legionBossFormation"
+      @update:value="(value) => updateDailyRunnerField('legionBossFormation', value)"
     ></n-select>
   </n-form-item>
   <n-form-item :label="t('taskControl.settings.fields.dailyBossFormation')">
     <n-select
       clearable
-      v-model:value="settingsForm.dailyRunner.dailyBossFormation"
       :options="arenaFormationOptions"
       :placeholder="t('taskControl.settings.placeholders.selectDailyBossFormation')"
+      :value="settingsForm.dailyRunner.dailyBossFormation"
+      @update:value="(value) => updateDailyRunnerField('dailyBossFormation', value)"
     ></n-select>
   </n-form-item>
 
@@ -68,60 +98,87 @@
     <n-select
       clearable
       filterable
-      v-model:value="settingsForm.dailyRunnerEditorTokenId"
       :options="tokenOptions"
       :placeholder="t('taskControl.settings.placeholders.selectAccountOverride')"
+      :value="settingsForm.dailyRunnerEditorTokenId"
       @update:value="onDailyRunnerEditorTokenChange"
     ></n-select>
   </n-form-item>
 
-  <template v-if="settingsForm.dailyRunnerEditorTokenId">
+  <template v-if="settingsForm.dailyRunnerEditorTokenId && currentDailyRunnerOverride">
     <n-form-item :label="t('taskControl.settings.fields.friendGold')">
-      <NSwitch v-model:value="settingsForm.dailyRunnerByToken[settingsForm.dailyRunnerEditorTokenId].friendGoldEnable"></NSwitch>
+      <NSwitch
+        :value="getDailyRunnerTokenValue('friendGoldEnable')"
+        @update:value="(value) => updateDailyRunnerTokenField('friendGoldEnable', value)"
+      ></NSwitch>
     </n-form-item>
     <n-form-item :label="t('taskControl.settings.fields.recruit')">
-      <NSwitch v-model:value="settingsForm.dailyRunnerByToken[settingsForm.dailyRunnerEditorTokenId].recruitEnable"></NSwitch>
+      <NSwitch
+        :value="getDailyRunnerTokenValue('recruitEnable')"
+        @update:value="(value) => updateDailyRunnerTokenField('recruitEnable', value)"
+      ></NSwitch>
     </n-form-item>
     <n-form-item :label="t('taskControl.settings.fields.payRecruit')">
-      <NSwitch v-model:value="settingsForm.dailyRunnerByToken[settingsForm.dailyRunnerEditorTokenId].payRecruit"></NSwitch>
+      <NSwitch
+        :value="getDailyRunnerTokenValue('payRecruit')"
+        @update:value="(value) => updateDailyRunnerTokenField('payRecruit', value)"
+      ></NSwitch>
     </n-form-item>
     <n-form-item :label="t('taskControl.settings.fields.openBox')">
-      <NSwitch v-model:value="settingsForm.dailyRunnerByToken[settingsForm.dailyRunnerEditorTokenId].openBox"></NSwitch>
+      <NSwitch
+        :value="getDailyRunnerTokenValue('openBox')"
+        @update:value="(value) => updateDailyRunnerTokenField('openBox', value)"
+      ></NSwitch>
     </n-form-item>
     <n-form-item :label="t('taskControl.settings.fields.freeFish')">
-      <NSwitch v-model:value="settingsForm.dailyRunnerByToken[settingsForm.dailyRunnerEditorTokenId].freeFishEnable"></NSwitch>
+      <NSwitch
+        :value="getDailyRunnerTokenValue('freeFishEnable')"
+        @update:value="(value) => updateDailyRunnerTokenField('freeFishEnable', value)"
+      ></NSwitch>
     </n-form-item>
     <n-form-item :label="t('taskControl.settings.fields.mengjing')">
-      <NSwitch v-model:value="settingsForm.dailyRunnerByToken[settingsForm.dailyRunnerEditorTokenId].mengjingEnable"></NSwitch>
+      <NSwitch
+        :value="getDailyRunnerTokenValue('mengjingEnable')"
+        @update:value="(value) => updateDailyRunnerTokenField('mengjingEnable', value)"
+      ></NSwitch>
     </n-form-item>
     <n-form-item :label="t('taskControl.settings.fields.dailyBoss')">
-      <NSwitch v-model:value="settingsForm.dailyRunnerByToken[settingsForm.dailyRunnerEditorTokenId].dailyBossEnable"></NSwitch>
+      <NSwitch
+        :value="getDailyRunnerTokenValue('dailyBossEnable')"
+        @update:value="(value) => updateDailyRunnerTokenField('dailyBossEnable', value)"
+      ></NSwitch>
     </n-form-item>
     <n-form-item :label="t('taskControl.settings.fields.legionBoss')">
-      <NSwitch v-model:value="settingsForm.dailyRunnerByToken[settingsForm.dailyRunnerEditorTokenId].legionBossEnable"></NSwitch>
+      <NSwitch
+        :value="getDailyRunnerTokenValue('legionBossEnable')"
+        @update:value="(value) => updateDailyRunnerTokenField('legionBossEnable', value)"
+      ></NSwitch>
     </n-form-item>
     <n-form-item :label="t('taskControl.settings.fields.legionBossTimes')">
       <n-input-number
         style="width: 100%"
-        v-model:value="settingsForm.dailyRunnerByToken[settingsForm.dailyRunnerEditorTokenId].bossTimes"
         :max="4"
         :min="0"
+        :value="getDailyRunnerTokenValue('bossTimes')"
+        @update:value="(value) => updateDailyRunnerTokenField('bossTimes', value)"
       ></n-input-number>
     </n-form-item>
     <n-form-item :label="t('taskControl.settings.fields.legionBossFormation')">
       <n-select
         clearable
-        v-model:value="settingsForm.dailyRunnerByToken[settingsForm.dailyRunnerEditorTokenId].legionBossFormation"
         :options="arenaFormationOptions"
         :placeholder="t('taskControl.settings.placeholders.selectLegionBossFormation')"
+        :value="getDailyRunnerTokenValue('legionBossFormation')"
+        @update:value="(value) => updateDailyRunnerTokenField('legionBossFormation', value)"
       ></n-select>
     </n-form-item>
     <n-form-item :label="t('taskControl.settings.fields.dailyBossFormation')">
       <n-select
         clearable
-        v-model:value="settingsForm.dailyRunnerByToken[settingsForm.dailyRunnerEditorTokenId].dailyBossFormation"
         :options="arenaFormationOptions"
         :placeholder="t('taskControl.settings.placeholders.selectDailyBossFormation')"
+        :value="getDailyRunnerTokenValue('dailyBossFormation')"
+        @update:value="(value) => updateDailyRunnerTokenField('dailyBossFormation', value)"
       ></n-select>
     </n-form-item>
     <n-form-item>
@@ -137,7 +194,9 @@
 </template>
 
 <script setup>
-defineProps({
+import { computed } from "vue";
+
+const props = defineProps({
   t: { type: Function, required: true },
   settingsForm: { type: Object, required: true },
   dailySelectableOptions: { type: Array, required: true },
@@ -145,5 +204,57 @@ defineProps({
   tokenOptions: { type: Array, required: true },
   onDailyRunnerEditorTokenChange: { type: Function, required: true },
   clearDailyRunnerOverride: { type: Function, required: true },
+  updateSettingsForm: { type: Function, required: true },
 });
+
+const currentDailyRunnerOverride = computed(() => {
+  const tokenId = String(props.settingsForm.dailyRunnerEditorTokenId || "").trim();
+  if (!tokenId) {
+    return null;
+  }
+  return props.settingsForm.dailyRunnerByToken?.[tokenId] || null;
+});
+
+const updateDailySelectedTasks = (value) => {
+  props.updateSettingsForm((current) => ({
+    ...current,
+    dailySelectedTasks: value,
+  }));
+};
+
+const updateDailyRunnerField = (field, value) => {
+  props.updateSettingsForm((current) => ({
+    ...current,
+    dailyRunner: {
+      ...current.dailyRunner,
+      [field]: value,
+    },
+  }));
+};
+
+const updateDailyRunnerTokenField = (field, value) => {
+  const tokenId = String(props.settingsForm.dailyRunnerEditorTokenId || "").trim();
+  if (!tokenId) {
+    return;
+  }
+
+  props.updateSettingsForm((current) => {
+    const dailyRunnerByToken = current.dailyRunnerByToken && typeof current.dailyRunnerByToken === "object"
+      ? { ...current.dailyRunnerByToken }
+      : {};
+
+    dailyRunnerByToken[tokenId] = {
+      ...current.dailyRunner,
+      ...dailyRunnerByToken[tokenId],
+      [field]: value,
+    };
+
+    return {
+      ...current,
+      dailyRunnerByToken,
+    };
+  });
+};
+
+const getDailyRunnerTokenValue = (field) => currentDailyRunnerOverride.value?.[field];
 </script>

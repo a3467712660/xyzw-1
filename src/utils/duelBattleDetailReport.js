@@ -55,7 +55,7 @@ const detectOneBasedSlots = (slotValues) => {
     return false;
   }
 
-  if (normalized.some((value) => value === 0)) {
+  if (normalized.includes(0)) {
     return false;
   }
 

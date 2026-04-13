@@ -484,7 +484,7 @@ const isRecoverableChunkLoadError = (error) => {
     "error loading dynamically imported module",
     "importing a module script failed",
     "unable to preload css for",
-  ].some(fragment => message.includes(fragment));
+  ].some((fragment) => message.includes(fragment));
 };
 
 const finishLogin = () => {
