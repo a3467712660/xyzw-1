@@ -1029,32 +1029,54 @@ const buildNameFallback = (name) => {
   }
 
   .battle-board {
-    grid-template-columns: 1fr;
-    gap: 14px;
+    grid-template-columns: minmax(0, 1fr) 68px minmax(0, 1fr);
+    gap: 6px;
   }
 
   .battle-board__center {
-    order: 2;
     font-size: 42px;
   }
 
   .hero-cluster {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .hero-cluster--right {
-    order: 3;
+    grid-template-columns: repeat(2, minmax(88px, 1fr));
+    grid-auto-rows: minmax(102px, auto);
+    gap: 8px 12px;
   }
 
   .overview-card__bottom {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 8px;
   }
 
-  .summary-group,
-  .summary-group--right,
-  .summary-rate {
-    align-items: center;
-    text-align: center;
+  .board-hero {
+    min-height: 102px;
+  }
+
+  .board-hero__avatar {
+    width: 70px;
+    height: 70px;
+    border-radius: 18px;
+  }
+
+  .board-hero__name {
+    font-size: 13px;
+  }
+
+  .board-hero__skills {
+    min-height: 24px;
+    font-size: 11px;
+  }
+
+  .summary-group {
+    font-size: 13px;
+  }
+
+  .summary-group__item strong {
+    font-size: 16px;
+  }
+
+  .summary-rate__value {
+    font-size: 28px;
   }
 }
 
@@ -1073,52 +1095,79 @@ const buildNameFallback = (name) => {
   }
 
   .battle-stage__panel {
-    padding: 12px 10px 16px;
+    padding: 12px 8px 16px;
   }
 
   .overview-card {
     border-radius: 20px;
-    padding: 14px 12px 16px;
+    padding: 14px 10px 14px;
   }
 
   .player-summary__name {
-    font-size: 16px;
-  }
-
-  .player-summary__power {
     font-size: 15px;
   }
 
+  .player-summary__power {
+    font-size: 14px;
+  }
+
   .player-summary__avatar {
-    width: 56px;
-    height: 56px;
+    width: 46px;
+    height: 46px;
+  }
+
+  .player-summary {
+    gap: 8px;
+  }
+
+  .battle-board {
+    margin-top: 14px;
+    grid-template-columns: minmax(0, 1fr) 52px minmax(0, 1fr);
+    gap: 4px;
+  }
+
+  .battle-board__center {
+    font-size: 34px;
   }
 
   .hero-cluster {
-    gap: 8px 10px;
-    grid-auto-rows: minmax(105px, auto);
+    grid-template-columns: repeat(2, minmax(70px, 1fr));
+    grid-auto-rows: minmax(88px, auto);
+    gap: 6px 8px;
   }
 
   .board-hero {
-    min-height: 104px;
+    min-height: 88px;
   }
 
   .board-hero__avatar {
-    width: 68px;
-    height: 68px;
-    border-radius: 18px;
+    width: 56px;
+    height: 56px;
+    border-radius: 16px;
+  }
+
+  .board-hero__name-row {
+    min-height: 28px;
   }
 
   .board-hero__name {
-    font-size: 13px;
+    font-size: 12px;
+  }
+
+  .board-hero__star,
+  .board-hero__level {
+    font-size: 10px;
   }
 
   .board-hero__skills {
-    font-size: 11px;
+    min-height: 20px;
+    font-size: 10px;
+    gap: 1px 4px;
   }
 
-  .summary-rate__value {
-    font-size: 26px;
+  .board-hero__pearl-dot {
+    width: 9px;
+    height: 9px;
   }
 
   .records-shell {
@@ -1126,8 +1175,29 @@ const buildNameFallback = (name) => {
   }
 
   .records-shell__title {
-    font-size: 24px;
+    font-size: 22px;
     margin-bottom: 10px;
+  }
+
+  .overview-card__bottom {
+    grid-template-columns: 1fr auto 1fr;
+    gap: 4px;
+  }
+
+  .summary-group {
+    font-size: 11px;
+  }
+
+  .summary-group__item strong {
+    font-size: 15px;
+  }
+
+  .summary-rate__label {
+    font-size: 12px;
+  }
+
+  .summary-rate__value {
+    font-size: 22px;
   }
 
   .round-card {
@@ -1136,8 +1206,9 @@ const buildNameFallback = (name) => {
   }
 
   .round-card__header {
-    flex-direction: column;
-    align-items: flex-start;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
   }
 
   .battle-table thead th,
@@ -1154,6 +1225,11 @@ const buildNameFallback = (name) => {
   .battle-table__number,
   .hero-row__name {
     font-size: 12px;
+  }
+
+  .hero-row__star,
+  .hero-row__level {
+    font-size: 10px;
   }
 
   .status-cell__bar {
