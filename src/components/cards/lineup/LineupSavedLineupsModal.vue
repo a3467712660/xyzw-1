@@ -113,12 +113,12 @@
                   :src="actions.getHeroAvatar(hero.heroId)"
                 >
                 <div v-else class="hero-avatar-placeholder">
-                  {{ actions.getHeroName(hero.heroId)?.[0] || "?" }}
+                  {{ resolveHeroName(hero.heroId).substring(0, 1) || "?" }}
                 </div>
                 <div class="hero-info-small">
                   <div class="hero-header-small">
                     <div class="hero-name-small">
-                      {{ actions.getHeroName(hero.heroId) || `武将${hero.heroId}` }}
+                      {{ resolveHeroName(hero.heroId) }}
                     </div>
                     <div v-if="hero.level" class="hero-level-small">
                       Lv.{{ actions.formatLevel(hero.level) }}
@@ -170,6 +170,8 @@
 </template>
 
 <script setup>
+import { getLineupHeroDisplayName } from "./lineupFormatters";
+
 const props = defineProps({
   actions: {
     type: Object,
@@ -223,6 +225,9 @@ const startDebugAndClose = (lineup) => {
   props.actions.startDebugApply(lineup);
   emit("update:show", false);
 };
+
+const resolveHeroName = (heroId) =>
+  getLineupHeroDisplayName(props.actions.getHeroName(heroId), heroId);
 </script>
 
 <style scoped lang="scss">

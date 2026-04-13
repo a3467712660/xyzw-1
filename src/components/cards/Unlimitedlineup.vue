@@ -156,7 +156,17 @@ import {
   APPLY_DEBUG_ABORT_ERROR_CODE,
   APPLY_DEBUG_STAGE_DEFS,
 } from "./lineup/lineupDebugStages";
-import { formatLineupPower } from "./lineup/lineupFormatters";
+import {
+  formatLineupPower,
+  getLineupFishInfoByArtifactId,
+  getLineupFishNameById,
+  getLineupHeroDisplayName,
+  getLineupPearlDataByArtifactId,
+  getLineupPearlSkillNameByArtifactId,
+  getLineupPearlSkillNameById,
+  getLineupSlotColors,
+  getLineupSlotColorsByArtifactId,
+} from "./lineup/lineupFormatters";
 import {
   buildSavedLineupStore,
   createLineupId,
@@ -860,22 +870,7 @@ const getHeroQuality = (heroId) => {
 };
 
 const getFishInfo = (artifactId) => {
-  if (!artifactId || artifactId === -1) return null;
-
-  for (const [fishId, book] of Object.entries(artifactBooks.value)) {
-    if (book.artifactId === artifactId) {
-      const fishData = FishMap[fishId];
-      if (fishData) {
-        return {
-          fishId: Number(fishId),
-          name: fishData.name,
-          artifactId: book.artifactId,
-          star: book.claimedStar || 0,
-        };
-      }
-    }
-  }
-  return null;
+  return getLineupFishInfoByArtifactId(artifactId, artifactBooks.value, FishMap);
 };
 
 const getFishNameByArtifactId = (artifactId) => {
@@ -884,57 +879,31 @@ const getFishNameByArtifactId = (artifactId) => {
 };
 
 const getFishNameById = (fishId) => {
-  if (!fishId) return null;
-  const fishData = FishMap[fishId];
-  return fishData ? fishData.name : `鱼灵${fishId}`;
+  return getLineupFishNameById(fishId, FishMap);
 };
 
 const getPearlSkillNameById = (skillId) => {
-  if (!skillId) return null;
-  const skillData = PearlMap[skillId];
-  return skillData ? skillData.name : null;
+  return getLineupPearlSkillNameById(skillId, PearlMap);
 };
 
 const getSlotColors = (slotMap) => {
-  if (!slotMap) return null;
-  const colors = [];
-  for (const slot of Object.values(slotMap)) {
-    if (slot.colorId) {
-      const colorData = color[slot.colorId];
-      colors.push(colorData ? colorData.value : "white");
-    }
-  }
-  return colors.length > 0 ? colors : null;
+  return getLineupSlotColors(slotMap, color);
 };
 
 const getPearlDataByArtifactId = (artifactId) => {
-  if (!artifactId || artifactId === -1) return null;
-  for (const [pearlId, pearlData] of Object.entries(pearlMap.value)) {
-    if (pearlData.artifactId === artifactId) {
-      return pearlData;
-    }
-  }
-  return null;
+  return getLineupPearlDataByArtifactId(artifactId, pearlMap.value);
 };
 
 const getPearlSkillNameByArtifactId = (artifactId) => {
-  const pearlData = getPearlDataByArtifactId(artifactId);
-  if (!pearlData || !pearlData.skillId) return null;
-  const skillData = PearlMap[pearlData.skillId];
-  return skillData ? skillData.name : null;
+  return getLineupPearlSkillNameByArtifactId(
+    artifactId,
+    pearlMap.value,
+    PearlMap,
+  );
 };
 
 const getSlotColorsByArtifactId = (artifactId) => {
-  const pearlData = getPearlDataByArtifactId(artifactId);
-  if (!pearlData || !pearlData.slotMap) return null;
-  const colors = [];
-  for (const slot of Object.values(pearlData.slotMap)) {
-    if (slot.colorId) {
-      const colorData = color[slot.colorId];
-      colors.push(colorData ? colorData.value : "white");
-    }
-  }
-  return colors.length > 0 ? colors : null;
+  return getLineupSlotColorsByArtifactId(artifactId, pearlMap.value, color);
 };
 
 const allHeroList = computed(() => {
@@ -942,7 +911,7 @@ const allHeroList = computed(() => {
     const heroInfo = HERO_DICT[hero.heroId] || {};
     return {
       id: Number(hero.heroId),
-      name: heroInfo.name || `武将${hero.heroId}`,
+      name: getLineupHeroDisplayName(heroInfo.name, hero.heroId),
       type: heroInfo.type || "未知",
       avatar: heroInfo.avatar || null,
       quality: getHeroQuality(Number(hero.heroId)),
@@ -1074,6 +1043,9 @@ const getHeroName = (heroId) => {
   return HERO_DICT[heroId]?.name || null;
 };
 
+const resolveHeroName = (heroId) =>
+  getLineupHeroDisplayName(getHeroName(heroId), heroId);
+
 const getHeroAvatar = (heroId) => {
   if (!heroId) return null;
   return HERO_DICT[heroId]?.avatar || null;
@@ -1132,7 +1104,7 @@ const getEquipSlots = (partId) => {
 };
 
 const showHeroRefineModal = async (hero) => {
-  refineModalTitle.value = `${getHeroName(hero.heroId) || `武将${hero.heroId}`} - 装备洗练`;
+  refineModalTitle.value = `${resolveHeroName(hero.heroId)} - 装备洗练`;
   refineModalVisible.value = true;
   refineModalLoading.value = true;
   selectedHeroEquipment.value = null;
@@ -1237,7 +1209,7 @@ const confirmHeroAction = () => {
       attachmentUid: targetHeroData?.attachmentUid || null,
     };
     message.success(
-      `${getHeroName(exchangeTargetHeroId.value)} 已上阵到位置 ${slot + 1}`,
+      `${resolveHeroName(exchangeTargetHeroId.value)} 已上阵到位置 ${slot + 1}`,
     );
   } else {
     if (!exchangeHero.value) {
@@ -1255,7 +1227,7 @@ const confirmHeroAction = () => {
       attachmentUid: originalAttachmentUid,
     };
     message.success(
-      `已将 ${getHeroName(exchangeHero.value.heroId)} 更换为 ${getHeroName(exchangeTargetHeroId.value)}`,
+      `已将 ${resolveHeroName(exchangeHero.value.heroId)} 更换为 ${resolveHeroName(exchangeTargetHeroId.value)}`,
     );
   }
 
@@ -1275,7 +1247,7 @@ const removeHero = (hero) => {
   }
 
   delete editingTeamHeroes.value[hero.position];
-  message.success(`${getHeroName(hero.heroId)} 已下阵`);
+  message.success(`${resolveHeroName(hero.heroId)} 已下阵`);
 };
 
 const onDragStart = (event, hero) => {
@@ -1333,7 +1305,7 @@ const onDrop = (event, targetHero) => {
   editingTeamHeroes.value[targetPos] = draggedHeroData;
 
   message.success(
-    `已将 ${getHeroName(draggedHero.heroId)} 与 ${getHeroName(targetHero.heroId)} 交换位置`,
+    `已将 ${resolveHeroName(draggedHero.heroId)} 与 ${resolveHeroName(targetHero.heroId)} 交换位置`,
   );
 
   draggedHeroId.value = null;
@@ -2282,7 +2254,7 @@ const applyLineup = async (lineup, options = {}) => {
         if (JSON.stringify(currentEquipment) !== JSON.stringify(targetEquipment)) {
           mismatched.push({
             heroId: Number(targetHero.heroId),
-            heroName: getHeroName(targetHero.heroId) || `武将${targetHero.heroId}`,
+            heroName: resolveHeroName(targetHero.heroId),
           });
         }
       }
@@ -2460,7 +2432,7 @@ const applyLineup = async (lineup, options = {}) => {
         }
 
         setApplyProgressStage(
-          `${stageLabel}：正在分析 ${getHeroName(targetHero.heroId) || `武将${targetHero.heroId}`}`,
+          `${stageLabel}：正在分析 ${resolveHeroName(targetHero.heroId)}`,
         );
 
         const latestData = await fetchLatestData();

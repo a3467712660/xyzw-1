@@ -532,215 +532,27 @@
       v-model:show="showTaskModal"
       :title="editingTask ? '编辑定时任务' : '新增定时任务'"
     >
-      <div class="settings-content">
-        <div class="settings-grid">
-          <div class="setting-item">
-            <label class="setting-label">任务名称</label>
-            <n-input
-              placeholder="请输入任务名称"
-              v-model:value="taskForm.name"
-            ></n-input>
-          </div>
-          <div class="setting-item">
-            <label class="setting-label">运行类型</label>
-            <n-radio-group
-              v-model:value="taskForm.runType"
-              @update:value="resetRunType"
-            >
-              <n-radio value="daily">每天固定时间</n-radio>
-              <n-radio value="cron">Cron表达式</n-radio>
-            </n-radio-group>
-          </div>
-          <div v-if="taskForm.runType === 'daily'" class="setting-item">
-            <label class="setting-label">运行时间</label>
-            <n-time-picker format="HH:mm" v-model:value="taskForm.runTime"></n-time-picker>
-          </div>
-          <div v-if="taskForm.runType === 'cron'" class="setting-item">
-            <label class="setting-label">Cron表达式</label>
-            <n-input
-              placeholder="请输入Cron表达式"
-              v-model:value="taskForm.cronExpression"
-              @input="parseCronExpression"
-            ></n-input>
-
-            <!-- Cron表达式解析结果 -->
-            <div v-if="taskForm.cronExpression" class="cron-parser">
-              <div v-if="cronValidation.valid" class="cron-validation success">
-                <n-text type="success">✓ {{ cronValidation.message }}</n-text>
-              </div>
-              <div v-else class="cron-validation error">
-                <n-text type="error">✗ {{ cronValidation.message }}</n-text>
-              </div>
-
-              <!-- 未来执行时间 -->
-              <div
-                v-if="cronValidation.valid && cronNextRuns.length > 0"
-                class="cron-next-runs"
-              >
-                <h4>未来5次执行时间：</h4>
-                <ul>
-                  <li v-for="(run, index) in cronNextRuns" :key="index">
-                    {{ run }}
-                  </li>
-                </ul>
-              </div>
-            </div>
-          </div>
-          <div class="setting-item">
-            <div class="setting-header-row">
-              <label class="setting-label">选择账号</label>
-              <n-space size="small">
-                <n-button size="small" @click="selectAllTokens">
-                  全选
-                </n-button>
-                <n-button size="small" @click="deselectAllTokens">
-                  全不选
-                </n-button>
-              </n-space>
-            </div>
-
-            <!-- 分组快速选择 (仅在定时任务中显示) -->
-            <div class="task-group-quick">
-              <div class="task-group-quick-head">
-                <div class="task-group-quick-text">快速选择分组：</div>
-                <n-button
-                  text
-                  size="tiny"
-                  type="primary"
-                  @click="showGroupManageModal = true"
-                >
-                  管理分组
-                </n-button>
-              </div>
-              <div v-if="tokenGroups.length === 0" class="task-group-empty">
-                暂无分组
-              </div>
-              <div class="task-group-buttons">
-                <n-button
-                  v-for="group in tokenGroups"
-                  :key="group.id"
-                  class="task-group-btn"
-                  size="small"
-                  :style="{ '--group-color': group.color }"
-                  :type="
-                    taskScheduleSelectedGroupIds.includes(group.id)
-                      ? 'primary'
-                      : 'default'
-                  "
-                  @click="
-                    () => {
-                      const index = taskScheduleSelectedGroupIds.indexOf(
-                        group.id,
-                      );
-                      const groupTokenIds = getValidGroupTokenIds(group.id);
-
-                      if (index > -1) {
-                        // 取消选择该分组
-                        taskScheduleSelectedGroupIds.splice(index, 1);
-                        taskForm.selectedTokens
-                          = taskForm.selectedTokens.filter(
-                            (id) => !groupTokenIds.includes(id),
-                          );
-                      }
-                      else {
-                        // 选择该分组
-                        taskScheduleSelectedGroupIds.push(group.id);
-                        groupTokenIds.forEach((id) => {
-                          if (!taskForm.selectedTokens.includes(id)) {
-                            taskForm.selectedTokens.push(id);
-                          }
-                        });
-                      }
-                    }
-                  "
-                >
-                  {{ group.name }}
-                </n-button>
-              </div>
-            </div>
-
-            <n-checkbox-group v-model:value="taskForm.selectedTokens">
-              <n-grid :cols="2" :x-gap="12" :y-gap="8">
-                <n-grid-item v-for="token in sortedTokens" :key="token.id">
-                  <n-checkbox :value="token.id">{{ token.name }}</n-checkbox>
-                </n-grid-item>
-              </n-grid>
-            </n-checkbox-group>
-          </div>
-          <div class="setting-item">
-            <div class="setting-header-row">
-              <label class="setting-label">选择任务</label>
-              <n-space size="small">
-                <n-button size="small" @click="selectAllTasks"> 全选 </n-button>
-                <n-button size="small" @click="deselectAllTasks">
-                  全不选
-                </n-button>
-              </n-space>
-            </div>
-
-            <n-checkbox-group v-model:value="taskForm.selectedTasks">
-              <n-tabs
-                animated
-                class="task-tabs"
-                default-value="daily"
-                size="small"
-                type="line"
-              >
-                <n-tab-pane
-                  v-for="group in taskGroupDefinitions"
-                  :key="group.name"
-                  :name="group.name"
-                  :tab="group.label"
-                >
-                  <n-grid :cols="2" :x-gap="12" :y-gap="8">
-                    <n-grid-item
-                      v-for="task in groupedAvailableTasks[group.name]"
-                      :key="task.value"
-                    >
-                      <n-checkbox :value="task.value">
-                        {{
-                          task.label
-                        }}
-                      </n-checkbox>
-                    </n-grid-item>
-                  </n-grid>
-                </n-tab-pane>
-
-                <n-tab-pane
-                  v-if="
-                    groupedAvailableTasks.other
-                      && groupedAvailableTasks.other.length > 0
-                  "
-                  name="other"
-                  tab="其他"
-                >
-                  <n-grid :cols="2" :x-gap="12" :y-gap="8">
-                    <n-grid-item
-                      v-for="task in groupedAvailableTasks.other"
-                      :key="task.value"
-                    >
-                      <n-checkbox :value="task.value">
-                        {{
-                          task.label
-                        }}
-                      </n-checkbox>
-                    </n-grid-item>
-                  </n-grid>
-                </n-tab-pane>
-              </n-tabs>
-            </n-checkbox-group>
-          </div>
-        </div>
-        <div class="modal-actions modal-actions-right">
-          <n-button
-            class="btn-mr"
-            @click="showTaskModal = false"
-          >
-            取消
-          </n-button>
-          <n-button type="primary" @click="saveTask">保存</n-button>
-        </div>
-      </div>
+      <BatchDailyTaskModalBody
+        :cron-next-runs="cronNextRuns"
+        :cron-validation="cronValidation"
+        :grouped-available-tasks="groupedAvailableTasks"
+        :sorted-tokens="sortedTokens"
+        :task-form="taskForm"
+        :task-group-definitions="taskGroupDefinitions"
+        :task-schedule-selected-group-ids="taskScheduleSelectedGroupIds"
+        :token-groups="tokenGroups"
+        @cancel="showTaskModal = false"
+        @deselect-all-tasks="deselectAllTasks"
+        @deselect-all-tokens="deselectAllTokens"
+        @open-group-manage="showGroupManageModal = true"
+        @parse-cron="parseCronExpression"
+        @reset-run-type="resetRunType"
+        @save="saveTask"
+        @select-all-tasks="selectAllTasks"
+        @select-all-tokens="selectAllTokens"
+        @toggle-task-group="toggleTaskScheduleGroup"
+        @update-task-form-field="updateTaskFormField"
+      ></BatchDailyTaskModalBody>
     </n-modal>
 
     <!-- Batch Settings Modal -->
@@ -1194,202 +1006,29 @@
     </n-modal>
 
     <!-- Token Group Management Modal -->
-    <n-modal
-      class="modal-w-800"
-      preset="card"
-      title="分组管理"
+    <BatchDailyTasksGroupManageModal
+      v-model:editing-group-color="editingGroupColor"
+      v-model:editing-group-name="editingGroupName"
+      v-model:new-group-color="newGroupColor"
+      v-model:new-group-name="newGroupName"
+      v-model:new-group-selected-tokens="newGroupSelectedTokens"
       v-model:show="showGroupManageModal"
-    >
-      <div class="settings-content">
-        <!-- 创建新分组 -->
-        <n-divider class="divider-section" title-placement="left">
-          创建新分组
-        </n-divider>
-        <div class="group-create-section">
-          <div class="group-create-row">
-            <n-input
-              class="input-w-200"
-              placeholder="输入分组名称"
-              size="small"
-              v-model:value="newGroupName"
-            ></n-input>
-            <div class="group-color-row">
-              <span class="group-color-label">选择颜色:</span>
-              <div class="group-color-list">
-                <div
-                  v-for="color in groupColors"
-                  :key="color"
-                  class="color-swatch color-swatch-md"
-                  :class="{ 'is-selected': newGroupColor === color }"
-                  :style="{ '--swatch-color': color }"
-                  @click="newGroupColor = color"
-                ></div>
-              </div>
-            </div>
-            <n-button size="small" type="primary" @click="createNewGroup">
-              创建分组
-            </n-button>
-          </div>
-
-          <!-- 选择包含的账号 -->
-          <div class="group-account-box">
-            <div class="group-account-header">
-              <span class="group-account-title">包含账号 ({{ newGroupSelectedTokens.length }})</span>
-              <n-space size="small">
-                <n-button size="tiny" @click="selectAllNewGroup">全选</n-button>
-                <n-button
-                  size="tiny"
-                  @click="deselectAllNewGroup"
-                >
-                  全不选
-                </n-button>
-              </n-space>
-            </div>
-            <div class="group-account-list">
-              <n-checkbox-group v-model:value="newGroupSelectedTokens">
-                <n-grid :cols="3" :x-gap="12" :y-gap="8">
-                  <n-grid-item v-for="token in sortedTokens" :key="token.id">
-                    <n-checkbox :value="token.id">{{ token.name }}</n-checkbox>
-                  </n-grid-item>
-                </n-grid>
-              </n-checkbox-group>
-            </div>
-          </div>
-        </div>
-
-        <!-- 分组列表 -->
-        <n-divider class="divider-section" title-placement="left">
-          分组列表
-        </n-divider>
-        <div class="group-list-container">
-          <div
-            v-for="group in tokenGroups"
-            :key="group.id"
-            class="group-list-item"
-          >
-            <div class="group-list-item-row">
-              <div class="group-list-main">
-                <!-- 编辑模式 -->
-                <div v-if="editingGroupId === group.id" class="group-edit-row">
-                  <n-input
-                    class="input-w-150"
-                    placeholder="分组名称"
-                    size="small"
-                    v-model:value="editingGroupName"
-                  ></n-input>
-                  <div class="group-color-list">
-                    <div
-                      v-for="color in groupColors"
-                      :key="color"
-                      class="color-swatch color-swatch-sm"
-                      :class="{ 'is-selected': editingGroupColor === color }"
-                      :style="{ '--swatch-color': color }"
-                      @click="editingGroupColor = color"
-                    ></div>
-                  </div>
-                  <n-button
-                    class="group-mini-btn"
-                    size="small"
-                    type="primary"
-                    @click="saveEditGroup"
-                  >
-                    保存
-                  </n-button>
-                  <n-button
-                    class="group-mini-btn"
-                    size="small"
-                    @click="cancelEditGroup"
-                  >
-                    取消
-                  </n-button>
-                </div>
-                <!-- 显示模式 -->
-                <div v-else>
-                  <div class="group-name-row">
-                    <div
-                      class="group-color-dot"
-                      :style="{ '--dot-color': group.color }"
-                    ></div>
-                    <span class="group-name-text">
-                      {{ group.name }}
-                    </span>
-                    <n-tag size="small" type="info">
-                      {{ getValidGroupTokenIds(group.id).length }} 个账号
-                    </n-tag>
-                  </div>
-                  <div class="group-token-tags">
-                    <div
-                      v-for="tokenId in getValidGroupTokenIds(group.id)"
-                      :key="tokenId"
-                      class="group-token-tag"
-                    >
-                      {{ tokens.find((t) => t.id === tokenId)?.name }}
-                      <n-button
-                        text
-                        size="tiny"
-                        type="error"
-                        @click="removeTokenFromSelectedGroup(group.id, tokenId)"
-                      >
-                        ×
-                      </n-button>
-                    </div>
-                  </div>
-                  <!-- 添加token到分组 -->
-                  <div class="group-add-token-row">
-                    <n-select
-                      filterable
-                      placeholder="添加账号到分组"
-                      size="small"
-                      :options="
-                        tokens
-                          .filter(
-                            (t) =>
-                              !getValidGroupTokenIds(group.id).includes(t.id),
-                          )
-                          .map((t) => ({ label: t.name, value: t.id }))
-                      "
-                      @update:value="
-                        (tokenId) => {
-                          if (tokenId) {
-                            addTokenToSelectedGroup(group.id, tokenId);
-                          }
-                        }
-                      "
-                    ></n-select>
-                  </div>
-                </div>
-              </div>
-
-              <!-- 操作按钮 -->
-              <div
-                v-if="editingGroupId !== group.id"
-                class="group-item-actions"
-              >
-                <n-button size="small" @click="startEditGroup(group.id)">
-                  编辑
-                </n-button>
-                <n-button
-                  size="small"
-                  type="error"
-                  @click="deleteGroup(group.id)"
-                >
-                  删除
-                </n-button>
-              </div>
-            </div>
-          </div>
-
-          <div v-if="tokenGroups.length === 0" class="group-empty-state">
-            暂无分组，请创建一个新分组
-          </div>
-        </div>
-
-        <!-- 关闭按钮 -->
-        <div class="modal-actions modal-actions-right">
-          <n-button @click="showGroupManageModal = false">关闭</n-button>
-        </div>
-      </div>
-    </n-modal>
+      :editing-group-id="editingGroupId"
+      :get-valid-group-token-ids="getValidGroupTokenIds"
+      :group-colors="groupColors"
+      :sorted-tokens="sortedTokens"
+      :token-groups="tokenGroups"
+      :tokens="tokens"
+      @add-token-to-group="addTokenToSelectedGroup"
+      @cancel-edit-group="cancelEditGroup"
+      @create-new-group="createNewGroup"
+      @delete-group="deleteGroup"
+      @deselect-all-new-group="deselectAllNewGroup"
+      @remove-token-from-group="removeTokenFromSelectedGroup"
+      @save-edit-group="saveEditGroup"
+      @select-all-new-group="selectAllNewGroup"
+      @start-edit-group="startEditGroup"
+    ></BatchDailyTasksGroupManageModal>
   </div>
 </template>
 
@@ -1425,7 +1064,9 @@ import { DailyTaskRunner } from "@/utils/dailyTaskRunner";
 import { useMessage } from "naive-ui/es";
 import BatchDailyTasksHeader from "@/views/batch-daily-tasks/BatchDailyTasksHeader.vue";
 import BatchDailyTasksLogPanel from "@/views/batch-daily-tasks/BatchDailyTasksLogPanel.vue";
+import BatchDailyTaskModalBody from "@/views/batch-daily-tasks/BatchDailyTaskModalBody.vue";
 import BatchDailyTaskSettingsForm from "@/views/batch-daily-tasks/BatchDailyTaskSettingsForm.vue";
+import BatchDailyTasksGroupManageModal from "@/views/batch-daily-tasks/BatchDailyTasksGroupManageModal.vue";
 import BatchDailyTasksToolbar from "@/views/batch-daily-tasks/BatchDailyTasksToolbar.vue";
 import BatchDailyTasksTokenSelection from "@/views/batch-daily-tasks/BatchDailyTasksTokenSelection.vue";
 import { useBatchTokenSort } from "@/views/batch-daily-tasks/useBatchTokenSort";
@@ -2042,6 +1683,30 @@ const handleBatchToolbarAction = (actionKey) => {
   }
 };
 
+const updateTaskFormField = (key, value) => {
+  taskForm[key] = value;
+};
+
+const toggleTaskScheduleGroup = (groupId) => {
+  const index = taskScheduleSelectedGroupIds.indexOf(groupId);
+  const groupTokenIds = getValidGroupTokenIds(groupId);
+
+  if (index > -1) {
+    taskScheduleSelectedGroupIds.splice(index, 1);
+    taskForm.selectedTokens = taskForm.selectedTokens.filter(
+      (tokenId) => !groupTokenIds.includes(tokenId),
+    );
+    return;
+  }
+
+  taskScheduleSelectedGroupIds.push(groupId);
+  groupTokenIds.forEach((tokenId) => {
+    if (!taskForm.selectedTokens.includes(tokenId)) {
+      taskForm.selectedTokens.push(tokenId);
+    }
+  });
+};
+
 const updateSettingsField = (target, key, value) => {
   if (target && key) {
     target[key] = value;
@@ -2481,52 +2146,6 @@ defineExpose({
   flex-wrap: nowrap;
 }
 
-/* Cron Parser Styles */
-.cron-parser {
-  margin-top: 12px;
-  padding: 12px;
-  background-color: var(--bg-tertiary);
-  border-radius: 8px;
-}
-
-.cron-validation {
-  margin-bottom: 12px;
-  padding: 8px;
-  border-radius: 4px;
-}
-
-.cron-validation.success {
-  background-color: rgba(24, 160, 88, 0.12);
-}
-
-.cron-validation.error {
-  background-color: rgba(235, 87, 87, 0.12);
-}
-
-.cron-next-runs h4 {
-  margin: 0 0 8px 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.cron-next-runs ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.cron-next-runs li {
-  padding: 6px 0;
-  font-size: 13px;
-  color: var(--text-secondary);
-  border-bottom: 1px solid var(--border-color);
-}
-
-.cron-next-runs li:last-child {
-  border-bottom: none;
-}
-
 .log-card :deep(.n-card__content) {
   flex: 1;
   display: flex;
@@ -2845,39 +2464,6 @@ defineExpose({
   grid-column: 1 / -1;
 }
 
-.color-swatch {
-  background-color: var(--swatch-color);
-  border: 2px solid #ddd;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.color-swatch.is-selected {
-  border: 3px solid #000;
-}
-
-.color-swatch-md {
-  width: 24px;
-  height: 24px;
-  transition: transform 0.2s;
-}
-
-.color-swatch-md:hover {
-  transform: scale(1.1);
-}
-
-.color-swatch-sm {
-  width: 20px;
-  height: 20px;
-}
-
-.group-color-dot {
-  background-color: var(--dot-color);
-  width: 16px;
-  height: 16px;
-  border-radius: 3px;
-}
-
 .apply-group-quick {
   margin-bottom: 12px;
   border-bottom: 1px solid var(--border-light);
@@ -3008,106 +2594,6 @@ defineExpose({
   color: var(--text-primary);
 }
 
-.setting-header-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-  gap: 8px;
-}
-
-.task-group-quick {
-  margin-bottom: 12px;
-}
-
-.task-group-quick-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-  gap: 8px;
-}
-
-.task-group-quick-text {
-  font-size: 12px;
-  color: var(--text-tertiary);
-}
-
-.task-group-empty {
-  font-size: 12px;
-  color: #ccc;
-}
-
-.task-group-buttons {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.tasks-list {
-  max-height: 600px;
-  overflow-y: auto;
-}
-
-.task-item {
-  margin-bottom: 16px;
-  padding: 12px;
-  border: 1px solid var(--surface-glass-border);
-  border-radius: 8px;
-  background: var(--surface-glass-strong);
-}
-
-.task-item-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-}
-
-.task-item-title {
-  font-weight: 700;
-}
-
-.task-item-row {
-  margin-bottom: 4px;
-}
-
-.task-item-row-last {
-  margin-bottom: 8px;
-}
-
-.task-item-label {
-  color: var(--text-tertiary);
-}
-
-.task-item-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.task-next-run {
-  font-weight: 700;
-}
-
-.task-next-run.is-near {
-  color: #ff4d4f;
-}
-
-.task-next-run.is-normal {
-  color: #1677ff;
-}
-
-.task-group-btn {
-  border-color: var(--group-color);
-}
-
-.task-empty-state,
-.group-empty-state {
-  text-align: center;
-  padding: 24px;
-  color: var(--text-tertiary);
-}
-
 .war-guess-toolbar {
   margin-bottom: 16px;
   display: flex;
@@ -3123,128 +2609,6 @@ defineExpose({
 .war-guess-table {
   height: 400px;
   flex: 1;
-}
-
-.group-create-section {
-  margin-bottom: 24px;
-}
-
-.group-create-row {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  margin-bottom: 12px;
-  flex-wrap: wrap;
-}
-
-.group-color-row {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.group-color-label {
-  font-size: 12px;
-}
-
-.group-color-list {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-}
-
-.group-account-box {
-  background: var(--surface-glass);
-  padding: 12px;
-  border-radius: 8px;
-  border: 1px solid var(--surface-glass-border);
-}
-
-.group-account-header {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 8px;
-  gap: 8px;
-}
-
-.group-account-title {
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.group-account-list {
-  max-height: 150px;
-  overflow-y: auto;
-}
-
-.group-list-container {
-  max-height: 500px;
-  overflow-y: auto;
-  border: 1px solid var(--surface-glass-border);
-  border-radius: 8px;
-  padding: 12px;
-}
-
-.group-list-item {
-  padding: 12px;
-  border: 1px solid var(--surface-glass-border);
-  border-radius: 6px;
-  margin-bottom: 12px;
-  background: var(--surface-glass);
-}
-
-.group-list-item-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 12px;
-}
-
-.group-list-main {
-  flex: 1;
-}
-
-.group-edit-row {
-  display: flex;
-  gap: 8px;
-}
-
-.group-mini-btn {
-  margin-right: 8px;
-}
-
-.group-name-row {
-  margin-bottom: 8px;
-}
-
-.group-name-text {
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.group-token-tags {
-  margin-bottom: 8px;
-  display: flex;
-  gap: 4px;
-  flex-wrap: wrap;
-}
-
-.group-token-tag {
-  font-size: 11px;
-}
-
-.group-add-token-row {
-  margin-top: 8px;
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.group-item-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  align-items: flex-end;
 }
 
 .setting-switches {
@@ -3376,17 +2740,6 @@ defineExpose({
   .page-header .actions {
     display: flex;
     gap: 8px;
-  }
-
-  .task-item-head,
-  .setting-header-row,
-  .task-group-quick-head {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .task-item-actions {
-    flex-wrap: wrap;
   }
 
   .log-card {
