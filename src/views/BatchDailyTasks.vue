@@ -41,358 +41,21 @@
           @toggle-sort="toggleSort"
         ></BatchDailyTasksTokenSelection>
 
-        <!-- Batch Functions -->
-        <n-card class="mt-16" title="批量功能列表">
-          <n-tabs animated type="line">
-            <n-tab-pane name="daily" tab="日常">
-              <n-space>
-                <n-button
-                  size="small"
-                  :disabled="isRunning || selectedTokens.length === 0"
-                  @click="claimHangUpRewards"
-                >
-                  领取挂机
-                </n-button>
-                <n-button
-                  size="small"
-                  :disabled="isRunning || selectedTokens.length === 0"
-                  @click="batchAddHangUpTime"
-                >
-                  一键加钟
-                </n-button>
-                <n-button
-                  size="small"
-                  :disabled="isRunning || selectedTokens.length === 0"
-                  @click="resetBottles"
-                >
-                  重置罐子
-                </n-button>
-                <n-button
-                  size="small"
-                  :disabled="isRunning || selectedTokens.length === 0"
-                  @click="batchlingguanzi"
-                >
-                  一键领取罐子
-                </n-button>
-                <n-button
-                  size="small"
-                  :disabled="isRunning || selectedTokens.length === 0"
-                  @click="batchclubsign"
-                >
-                  一键俱乐部签到
-                </n-button>
-                <n-button
-                  size="small"
-                  :disabled="isRunning || selectedTokens.length === 0"
-                  @click="batchClaimMailAttachment"
-                >
-                  一键领邮件
-                </n-button>
-                <n-button
-                  size="small"
-                  :disabled="isRunning || selectedTokens.length === 0"
-                  @click="batchStudy"
-                >
-                  一键答题
-                </n-button>
-                <n-button
-                  size="small"
-                  :disabled="
-                    isRunning
-                      || selectedTokens.length === 0
-                      || !isarenaActivityOpen
-                  "
-                  @click="batcharenafight"
-                >
-                  一键竞技场战斗3次
-                </n-button>
-                <n-button
-                  size="small"
-                  :disabled="
-                    isRunning
-                      || selectedTokens.length === 0
-                      || !isCarActivityOpen
-                  "
-                  @click="batchSmartSendCar"
-                >
-                  智能发车
-                </n-button>
-                <n-button
-                  size="small"
-                  :disabled="
-                    isRunning
-                      || selectedTokens.length === 0
-                      || !isCarActivityOpen
-                  "
-                  @click="batchClaimCars"
-                >
-                  一键收车
-                </n-button>
-                <n-button
-                  size="small"
-                  :disabled="isRunning || selectedTokens.length === 0"
-                  @click="store_purchase"
-                >
-                  一键黑市采购
-                </n-button>
-                <n-button
-                  size="small"
-                  :disabled="isRunning || selectedTokens.length === 0"
-                  @click="collection_claimfreereward"
-                >
-                  一键领取珍宝阁
-                </n-button>
-                <n-button
-                  size="small"
-                  :disabled="isRunning || selectedTokens.length === 0"
-                  @click="batchGenieSweep"
-                >
-                  一键灯神扫荡
-                </n-button>
-              </n-space>
-            </n-tab-pane>
-            <n-tab-pane name="dungeon" tab="副本">
-              <n-space>
-                <n-button
-                  size="small"
-                  :disabled="isRunning || selectedTokens.length === 0"
-                  @click="climbTower"
-                >
-                  一键爬塔
-                </n-button>
-                <n-button
-                  size="small"
-                  :disabled="
-                    isRunning
-                      || selectedTokens.length === 0
-                      || !ismengjingActivityOpen
-                  "
-                  @click="batchmengjing"
-                >
-                  一键梦境
-                </n-button>
-                <n-button
-                  size="small"
-                  :disabled="isRunning || selectedTokens.length === 0"
-                  @click="skinChallenge"
-                >
-                  一键换皮闯关
-                </n-button>
-                <n-button
-                  size="small"
-                  :disabled="isRunning || selectedTokens.length === 0"
-                  @click="batchClaimPeachTasks"
-                >
-                  一键领取蟠桃园任务
-                </n-button>
-                <n-button
-                  size="small"
-                  :disabled="
-                    isRunning
-                      || selectedTokens.length === 0
-                      || !ismengjingActivityOpen
-                  "
-                  @click="batchBuyDreamItems"
-                >
-                  一键购买梦境商品
-                </n-button>
-              </n-space>
-            </n-tab-pane>
-            <n-tab-pane name="baoku" tab="宝库">
-              <n-space>
-                <n-button
-                  size="small"
-                  :disabled="
-                    isRunning
-                      || selectedTokens.length === 0
-                      || !isbaokuActivityOpen
-                  "
-                  @click="batchbaoku13"
-                >
-                  一键宝库前3层
-                </n-button>
-                <n-button
-                  size="small"
-                  :disabled="
-                    isRunning
-                      || selectedTokens.length === 0
-                      || !isbaokuActivityOpen
-                  "
-                  @click="batchbaoku45"
-                >
-                  一键宝库4,5层
-                </n-button>
-              </n-space>
-            </n-tab-pane>
-            <n-tab-pane name="weirdTower" tab="怪异塔">
-              <n-space>
-                <n-button
-                  size="small"
-                  :disabled="
-                    isRunning
-                      || selectedTokens.length === 0
-                      || !isWeirdTowerActivityOpen
-                  "
-                  @click="climbWeirdTower"
-                >
-                  一键爬怪异塔
-                </n-button>
-                <n-button
-                  size="small"
-                  :disabled="
-                    isRunning
-                      || selectedTokens.length === 0
-                      || !isWeirdTowerActivityOpen
-                  "
-                  @click="batchUseItems"
-                >
-                  一键使用怪异塔道具
-                </n-button>
-                <n-button
-                  size="small"
-                  :disabled="
-                    isRunning
-                      || selectedTokens.length === 0
-                      || !isWeirdTowerActivityOpen
-                  "
-                  @click="batchMergeItems"
-                >
-                  一键怪异塔合成
-                </n-button>
-                <n-button
-                  size="small"
-                  :disabled="
-                    isRunning
-                      || selectedTokens.length === 0
-                      || !isWeirdTowerActivityOpen
-                  "
-                  @click="batchClaimFreeEnergy"
-                >
-                  一键领取怪异塔免费道具
-                </n-button>
-              </n-space>
-            </n-tab-pane>
-            <n-tab-pane name="resource" tab="资源">
-              <n-space>
-                <n-button
-                  size="small"
-                  :disabled="isRunning || selectedTokens.length === 0"
-                  @click="openHelperModal('box')"
-                >
-                  批量开箱
-                </n-button>
-                <n-button
-                  size="small"
-                  :disabled="isRunning || selectedTokens.length === 0"
-                  @click="batchClaimBoxPointReward"
-                >
-                  领取宝箱积分
-                </n-button>
-                <n-button
-                  size="small"
-                  :disabled="isRunning || selectedTokens.length === 0"
-                  @click="openHelperModal('fish')"
-                >
-                  批量钓鱼
-                </n-button>
-                <n-button
-                  size="small"
-                  :disabled="isRunning || selectedTokens.length === 0"
-                  @click="openHelperModal('recruit')"
-                >
-                  批量招募
-                </n-button>
-                <n-button
-                  size="small"
-                  :disabled="isRunning || selectedTokens.length === 0"
-                  @click="batchHeroUpgrade"
-                >
-                  一键英雄升星
-                </n-button>
-                <n-button
-                  size="small"
-                  :disabled="isRunning || selectedTokens.length === 0"
-                  @click="batchBookUpgrade"
-                >
-                  一键图鉴升星
-                </n-button>
-                <n-button
-                  size="small"
-                  :disabled="isRunning || selectedTokens.length === 0"
-                  @click="batchClaimStarRewards"
-                >
-                  一键领取图鉴奖励
-                </n-button>
-                <n-button
-                  size="small"
-                  :disabled="isRunning || selectedTokens.length === 0"
-                  @click="legion_storebuygoods"
-                >
-                  一键购买四圣碎片
-                </n-button>
-                <n-button
-                  size="small"
-                  :disabled="isRunning || selectedTokens.length === 0"
-                  @click="legionStoreBuySkinCoins"
-                >
-                  一键购买俱乐部5皮肤币
-                </n-button>
-              </n-space>
-            </n-tab-pane>
-            <n-tab-pane name="legacy" tab="功法">
-              <n-space>
-                <n-button
-                  size="small"
-                  :disabled="isRunning || selectedTokens.length === 0"
-                  @click="batchLegacyClaim"
-                >
-                  批量功法残卷领取
-                </n-button>
-                <n-button
-                  size="small"
-                  :disabled="isRunning || selectedTokens.length === 0"
-                  @click="showLegacyGiftModal = true"
-                >
-                  批量功法残卷赠送
-                </n-button>
-              </n-space>
-            </n-tab-pane>
-            <n-tab-pane name="monthly" tab="月度">
-              <n-space>
-                <n-button
-                  size="small"
-                  :disabled="isRunning || selectedTokens.length === 0"
-                  @click="batchTopUpFish"
-                >
-                  一键钓鱼补齐
-                </n-button>
-                <n-button
-                  size="small"
-                  :disabled="
-                    isRunning
-                      || selectedTokens.length === 0
-                      || !isarenaActivityOpen
-                  "
-                  @click="batchTopUpArena"
-                >
-                  一键竞技场补齐
-                </n-button>
-                <n-button
-                  size="small"
-                  :disabled="
-                    isRunning
-                      || selectedTokens.length === 0
-                      || !isWarGuessActivityOpen
-                  "
-                  :title="isWarGuessActivityOpen ? '' : warGuessActivityTip"
-                  @click="openWarGuessModal"
-                >
-                  月赛助威
-                </n-button>
-              </n-space>
-            </n-tab-pane>
-          </n-tabs>
-        </n-card>
+        <BatchDailyTasksToolbar
+          :is-baoku-activity-open="isbaokuActivityOpen"
+          :is-car-activity-open="isCarActivityOpen"
+          :is-running="isRunning"
+          :is-war-guess-activity-open="isWarGuessActivityOpen"
+          :is-weird-tower-activity-open="isWeirdTowerActivityOpen"
+          :isarena-activity-open="isarenaActivityOpen"
+          :ismengjing-activity-open="ismengjingActivityOpen"
+          :selected-token-count="selectedTokens.length"
+          :war-guess-activity-tip="warGuessActivityTip"
+          @open-helper="openHelperModal"
+          @open-legacy-gift="showLegacyGiftModal = true"
+          @open-war-guess="openWarGuessModal"
+          @run-action="handleBatchToolbarAction"
+        ></BatchDailyTasksToolbar>
       </div>
 
       <BatchDailyTasksLogPanel
@@ -418,63 +81,12 @@
       :title="`任务设置 - ${currentSettingsTokenName}`"
     >
       <div class="settings-content">
-        <div class="settings-grid">
-          <div class="setting-item">
-            <label class="setting-label">竞技场阵容</label>
-            <n-select
-              size="small"
-              v-model:value="currentSettings.arenaFormation"
-              :options="formationOptions"
-            ></n-select>
-          </div>
-          <div class="setting-item">
-            <label class="setting-label">爬塔阵容</label>
-            <n-select
-              size="small"
-              v-model:value="currentSettings.towerFormation"
-              :options="formationOptions"
-            ></n-select>
-          </div>
-          <div class="setting-item">
-            <label class="setting-label">BOSS阵容</label>
-            <n-select
-              size="small"
-              v-model:value="currentSettings.bossFormation"
-              :options="formationOptions"
-            ></n-select>
-          </div>
-          <div class="setting-item">
-            <label class="setting-label">BOSS次数</label>
-            <n-select
-              size="small"
-              v-model:value="currentSettings.bossTimes"
-              :options="bossTimesOptions"
-            ></n-select>
-          </div>
-          <div class="setting-switches">
-            <div class="switch-row">
-              <span class="switch-label">领罐子</span><n-switch v-model:value="currentSettings.claimBottle"></n-switch>
-            </div>
-            <div class="switch-row">
-              <span class="switch-label">领挂机</span><n-switch v-model:value="currentSettings.claimHangUp"></n-switch>
-            </div>
-            <div class="switch-row">
-              <span class="switch-label">竞技场</span><n-switch v-model:value="currentSettings.arenaEnable"></n-switch>
-            </div>
-            <div class="switch-row">
-              <span class="switch-label">开宝箱</span><n-switch v-model:value="currentSettings.openBox"></n-switch>
-            </div>
-            <div class="switch-row">
-              <span class="switch-label">领取邮件奖励</span><n-switch v-model:value="currentSettings.claimEmail"></n-switch>
-            </div>
-            <div class="switch-row">
-              <span class="switch-label">黑市购买物品</span><n-switch v-model:value="currentSettings.blackMarketPurchase"></n-switch>
-            </div>
-            <div class="switch-row">
-              <span class="switch-label">付费招募</span><n-switch v-model:value="currentSettings.payRecruit"></n-switch>
-            </div>
-          </div>
-        </div>
+        <BatchDailyTaskSettingsForm
+          :boss-times-options="bossTimesOptions"
+          :formation-options="formationOptions"
+          :settings="currentSettings"
+          @update-field="(key, value) => updateSettingsField(currentSettings, key, value)"
+        ></BatchDailyTaskSettingsForm>
         <div class="modal-actions modal-actions-right">
           <n-button type="primary" @click="saveSettings">保存设置</n-button>
         </div>
@@ -498,62 +110,13 @@
               v-model:value="currentTemplateName"
             ></n-input>
           </div>
-          <div class="setting-item">
-            <label class="setting-label">竞技场阵容</label>
-            <n-select
-              size="small"
-              v-model:value="currentTemplate.arenaFormation"
-              :options="formationOptions"
-            ></n-select>
-          </div>
-          <div class="setting-item">
-            <label class="setting-label">爬塔阵容</label>
-            <n-select
-              size="small"
-              v-model:value="currentTemplate.towerFormation"
-              :options="formationOptions"
-            ></n-select>
-          </div>
-          <div class="setting-item">
-            <label class="setting-label">BOSS阵容</label>
-            <n-select
-              size="small"
-              v-model:value="currentTemplate.bossFormation"
-              :options="formationOptions"
-            ></n-select>
-          </div>
-          <div class="setting-item">
-            <label class="setting-label">BOSS次数</label>
-            <n-select
-              size="small"
-              v-model:value="currentTemplate.bossTimes"
-              :options="bossTimesOptions"
-            ></n-select>
-          </div>
-          <div class="setting-switches">
-            <div class="switch-row">
-              <span class="switch-label">领罐子</span><n-switch v-model:value="currentTemplate.claimBottle"></n-switch>
-            </div>
-            <div class="switch-row">
-              <span class="switch-label">领挂机</span><n-switch v-model:value="currentTemplate.claimHangUp"></n-switch>
-            </div>
-            <div class="switch-row">
-              <span class="switch-label">竞技场</span><n-switch v-model:value="currentTemplate.arenaEnable"></n-switch>
-            </div>
-            <div class="switch-row">
-              <span class="switch-label">开宝箱</span><n-switch v-model:value="currentTemplate.openBox"></n-switch>
-            </div>
-            <div class="switch-row">
-              <span class="switch-label">领取邮件奖励</span><n-switch v-model:value="currentTemplate.claimEmail"></n-switch>
-            </div>
-            <div class="switch-row">
-              <span class="switch-label">黑市购买物品</span><n-switch v-model:value="currentTemplate.blackMarketPurchase"></n-switch>
-            </div>
-            <div class="switch-row">
-              <span class="switch-label">付费招募</span><n-switch v-model:value="currentTemplate.payRecruit"></n-switch>
-            </div>
-          </div>
         </div>
+        <BatchDailyTaskSettingsForm
+          :boss-times-options="bossTimesOptions"
+          :formation-options="formationOptions"
+          :settings="currentTemplate"
+          @update-field="(key, value) => updateSettingsField(currentTemplate, key, value)"
+        ></BatchDailyTaskSettingsForm>
         <div class="modal-actions modal-actions-right">
           <n-button
             class="btn-mr"
@@ -1862,6 +1425,8 @@ import { DailyTaskRunner } from "@/utils/dailyTaskRunner";
 import { useMessage } from "naive-ui/es";
 import BatchDailyTasksHeader from "@/views/batch-daily-tasks/BatchDailyTasksHeader.vue";
 import BatchDailyTasksLogPanel from "@/views/batch-daily-tasks/BatchDailyTasksLogPanel.vue";
+import BatchDailyTaskSettingsForm from "@/views/batch-daily-tasks/BatchDailyTaskSettingsForm.vue";
+import BatchDailyTasksToolbar from "@/views/batch-daily-tasks/BatchDailyTasksToolbar.vue";
 import BatchDailyTasksTokenSelection from "@/views/batch-daily-tasks/BatchDailyTasksTokenSelection.vue";
 import { useBatchTokenSort } from "@/views/batch-daily-tasks/useBatchTokenSort";
 import {
@@ -2434,6 +1999,53 @@ const {
 
 const setBatchLogContainer = (element) => {
   logContainer.value = element;
+};
+
+const batchToolbarActions = {
+  batchAddHangUpTime,
+  batchBuyDreamItems,
+  batchClaimBoxPointReward,
+  batchClaimCars,
+  batchClaimFreeEnergy,
+  batchClaimMailAttachment,
+  batchClaimPeachTasks,
+  batchClaimStarRewards,
+  batchGenieSweep,
+  batchHeroUpgrade,
+  batchLegacyClaim,
+  batchMergeItems,
+  batchStudy,
+  batchTopUpArena,
+  batchTopUpFish,
+  batchUseItems,
+  batcharenafight,
+  batchbaoku13,
+  batchbaoku45,
+  batchclubsign,
+  batchlingguanzi,
+  batchmengjing,
+  climbTower,
+  climbWeirdTower,
+  collection_claimfreereward,
+  claimHangUpRewards,
+  legionStoreBuySkinCoins,
+  legion_storebuygoods,
+  resetBottles,
+  skinChallenge,
+  store_purchase,
+};
+
+const handleBatchToolbarAction = (actionKey) => {
+  const action = batchToolbarActions[actionKey];
+  if (typeof action === "function") {
+    action();
+  }
+};
+
+const updateSettingsField = (target, key, value) => {
+  if (target && key) {
+    target[key] = value;
+  }
 };
 
 // 注: boxTypeOptions, fishTypeOptions 已从 @/utils/batch 导入

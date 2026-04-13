@@ -15,166 +15,40 @@
     </template>
     <template #default>
       <div class="lineup-container">
-        <div class="toolbar">
-          <n-button
-            size="small"
-            type="primary"
-            :loading="loading"
-            @click="refreshTeamInfo"
-          >
-            刷新数据
-          </n-button>
-          <n-button
-            size="small"
-            :disabled="editingHeroes.length === 0"
-            @click="saveCurrentLineup"
-          >
-            保存阵容
-          </n-button>
-          <n-button
-            size="small"
-            type="success"
-            :disabled="editingHeroes.length >= 5"
-            @click="openAddHeroModal"
-          >
-            上阵英雄
-          </n-button>
-          <n-button
-            size="small"
-            type="info"
-            @click="savedLineupsModalVisible = true"
-          >
-            已保存阵容 ({{ savedLineups.length }})
-          </n-button>
-        </div>
+        <LineupToolbar
+          :editing-hero-count="editingHeroes.length"
+          :loading="loading"
+          :saved-lineup-count="savedLineups.length"
+          @add-hero="openAddHeroModal"
+          @refresh="refreshTeamInfo"
+          @save-lineup="saveCurrentLineup"
+          @show-saved-lineups="savedLineupsModalVisible = true"
+        ></LineupToolbar>
 
-        <div class="quick-switch-section">
-          <h4>阵容槽位</h4>
-          <div class="team-selector">
-            <n-button
-              v-for="teamId in availableTeams"
-              :key="teamId"
-              size="small"
-              :loading="switchingTeamId === teamId"
-              :type="currentTeamId === teamId ? 'primary' : 'default'"
-              @click="switchTeam(teamId)"
-            >
-              阵容{{ teamId }}
-            </n-button>
-          </div>
-        </div>
-
-        <div v-if="currentTeamInfo" class="current-team-section">
-          <h4>
-            编辑阵容 (阵容槽位{{ currentTeamId }})
-            <span class="drag-tip">拖拽调整站位</span>
-          </h4>
-          <div class="heroes-grid">
-            <div
-              v-for="hero in editingHeroes"
-              :key="`${hero.heroId}-${hero.position}`"
-              class="hero-item"
-              draggable="true"
-              :class="{
-                'dragging': draggedHeroId === hero.heroId,
-                'drag-over': dragOverPosition === hero.position,
-              }"
-              @dragend="onDragEnd"
-              @dragleave="onDragLeave"
-              @dragover.prevent="onDragOver($event, hero)"
-              @dragstart="onDragStart($event, hero)"
-              @drop="onDrop($event, hero)"
-            >
-              <div class="hero-position">{{ hero.position + 1 }}</div>
-              <div class="hero-left" @click="showHeroRefineModal(hero)">
-                <div class="hero-avatar">
-                  <img
-                    v-if="getHeroAvatar(hero.heroId)"
-                    :alt="getHeroName(hero.heroId)"
-                    :src="getHeroAvatar(hero.heroId)"
-                  >
-                  <div v-else class="hero-placeholder">
-                    {{ getHeroName(hero.heroId)?.substring(0, 2) || "?" }}
-                  </div>
-                </div>
-                <div class="hero-avatar-info">
-                  <div class="hero-name-small-inline">
-                    {{ getHeroName(hero.heroId) || `武将${hero.heroId}` }}
-                  </div>
-                  <div v-if="hero.level" class="hero-level-small-inline">
-                    Lv.{{ hero.level }}
-                  </div>
-                </div>
-              </div>
-              <div class="hero-info" @click="showHeroRefineModal(hero)">
-                <div v-if="getFishInfo(hero.artifactId)" class="hero-fish">
-                  {{ getFishInfo(hero.artifactId).name }}
-                  <span
-                    v-if="getPearlSkillNameByArtifactId(hero.artifactId)"
-                    class="hero-fish-skill-inline"
-                  >
-                    {{ getPearlSkillNameByArtifactId(hero.artifactId) }}
-                  </span>
-                  <span
-                    v-if="getSlotColorsByArtifactId(hero.artifactId)"
-                    class="hero-fish-slots-inline"
-                  >
-                    <span
-                      v-for="(color, idx) in getSlotColorsByArtifactId(
-                        hero.artifactId,
-                      )"
-                      :key="idx"
-                      class="slot-dot-small"
-                      :style="{ backgroundColor: color }"
-                    ></span>
-                  </span>
-                </div>
-                <div v-if="hero.power" class="hero-stats">
-                  <div class="stat-row">
-                    <span class="stat-power"
-                      >战力{{ formatPower(hero.power) }}</span
-                    >
-                    <span
-v-if="hero.speed"
-class="stat-speed"
-                      >速度{{ hero.speed }}</span
-                    >
-                  </div>
-                  <div class="stat-row">
-                    <span
-v-if="hero.attack"
-class="stat-attack"
-                      >攻击{{ formatPower(hero.attack) }}</span
-                    >
-                    <span
-v-if="hero.hp"
-class="stat-hp"
-                      >血量{{ formatPower(hero.hp) }}</span
-                    >
-                  </div>
-                </div>
-              </div>
-              <div class="hero-actions">
-                <n-button
-                  class="exchange-btn"
-                  size="tiny"
-                  type="warning"
-                  @click.stop="openExchangeModal(hero)"
-                >
-                  更换
-                </n-button>
-                <n-button
-                  class="remove-btn"
-                  size="tiny"
-                  type="error"
-                  @click.stop="removeHero(hero)"
-                >
-                  下阵
-                </n-button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <LineupSlotList
+          :available-teams="availableTeams"
+          :current-team-id="currentTeamId"
+          :current-team-info="currentTeamInfo"
+          :drag-over-position="dragOverPosition"
+          :dragged-hero-id="draggedHeroId"
+          :editing-heroes="editingHeroes"
+          :format-power="formatPower"
+          :get-fish-info="getFishInfo"
+          :get-hero-avatar="getHeroAvatar"
+          :get-hero-name="getHeroName"
+          :get-pearl-skill-name-by-artifact-id="getPearlSkillNameByArtifactId"
+          :get-slot-colors-by-artifact-id="getSlotColorsByArtifactId"
+          :switching-team-id="switchingTeamId"
+          @drag-end="onDragEnd"
+          @drag-leave="onDragLeave"
+          @drag-over="onDragOver"
+          @drag-start="onDragStart"
+          @drop="onDrop"
+          @open-exchange="openExchangeModal"
+          @open-refine="showHeroRefineModal"
+          @remove-hero="removeHero"
+          @switch-team="switchTeam"
+        ></LineupSlotList>
       </div>
 
       <LineupApplyProgressModal
@@ -269,7 +143,9 @@ import LineupApplyProgressModal from "./lineup/LineupApplyProgressModal.vue";
 import LineupExchangeModal from "./lineup/LineupExchangeModal.vue";
 import LineupRefineModal from "./lineup/LineupRefineModal.vue";
 import LineupSavedLineupsModal from "./lineup/LineupSavedLineupsModal.vue";
+import LineupSlotList from "./lineup/LineupSlotList.vue";
 import LineupTechModal from "./lineup/LineupTechModal.vue";
+import LineupToolbar from "./lineup/LineupToolbar.vue";
 import {
   buildLineupCloudPrefKey,
   buildLineupStorageKey,
@@ -280,6 +156,7 @@ import {
   APPLY_DEBUG_ABORT_ERROR_CODE,
   APPLY_DEBUG_STAGE_DEFS,
 } from "./lineup/lineupDebugStages";
+import { formatLineupPower } from "./lineup/lineupFormatters";
 import {
   buildSavedLineupStore,
   createLineupId,
@@ -326,16 +203,7 @@ const COMMAND_DELAY = 500;
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const formatPower = (power) => {
-  if (!power) return "0";
-  if (power >= 100000000) {
-    return `${(power / 100000000).toFixed(2)}亿`;
-  }
-  if (power >= 10000) {
-    return `${(power / 10000).toFixed(2)}万`;
-  }
-  return power.toString();
-};
+const formatPower = formatLineupPower;
 
 const state = ref({
   isRunning: false,
