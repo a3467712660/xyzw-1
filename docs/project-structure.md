@@ -48,11 +48,19 @@
 - `backend/src/modules/`
   - 后端按业务域拆模块（推荐新功能优先放此处）。
 
+- `backend/src/services/taskControlScheduler/`
+  - 任务控制调度的局部 helper 目录。
+  - 放 Cron 判定、日志脱敏、网络重试分类等调度专用纯工具；`taskControlSchedulerService.js` 继续保留为入口 facade。
+
 - `src/router/modules/`
   - 前端路由按领域拆分。
 
 - `src/stores/modules/`
   - 前端状态按领域拆分。
+
+- `src/views/batch-daily-tasks/`
+  - 批量日常任务页的局部页面块与排序 helper。
+  - 用于承接页面壳、账号选择区等视图层拆分，避免主页面文件继续堆积。
 
 ## 命名统一约定
 

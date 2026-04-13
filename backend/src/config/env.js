@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { threadId } from "node:worker_threads";
 import dotenv from "dotenv";
 import {
   LOOPBACK_HOST_ALLOWLIST,
@@ -21,6 +22,23 @@ const resolveBackendPath = (input, fallback) => {
     return fallback;
   }
   return path.isAbsolute(raw) ? raw : path.resolve(backendRoot, raw);
+};
+
+const applyTestWorkerPathSuffix = (resolvedPath, nodeEnvValue) => {
+  if (nodeEnvValue !== "test") {
+    return resolvedPath;
+  }
+  if (/-pid\d+-worker\d+(?:\.[^./]+)?$/.test(resolvedPath)) {
+    return resolvedPath;
+  }
+
+  const ext = path.extname(resolvedPath);
+  const suffix = `-pid${process.pid}-worker${threadId}`;
+  if (!ext) {
+    return `${resolvedPath}${suffix}`;
+  }
+
+  return `${resolvedPath.slice(0, -ext.length)}${suffix}${ext}`;
 };
 
 const isBlank = (value) => String(value || "").trim().length === 0;
@@ -199,13 +217,19 @@ const protectedAdminIdentities = String(
   .split(",")
   .map((item) => item.trim().toLowerCase())
   .filter(Boolean);
-const dbPath = resolveBackendPath(
-  process.env.DB_PATH,
-  path.resolve(backendRoot, "data", "xyzw.sqlite.bin"),
+const dbPath = applyTestWorkerPathSuffix(
+  resolveBackendPath(
+    process.env.DB_PATH,
+    path.resolve(backendRoot, "data", "xyzw.sqlite.bin"),
+  ),
+  nodeEnv,
 );
-const binStoragePath = resolveBackendPath(
-  process.env.BIN_STORAGE_PATH,
-  path.resolve(backendRoot, "data", "bin-storage"),
+const binStoragePath = applyTestWorkerPathSuffix(
+  resolveBackendPath(
+    process.env.BIN_STORAGE_PATH,
+    path.resolve(backendRoot, "data", "bin-storage"),
+  ),
+  nodeEnv,
 );
 const backendErrorLogPath = resolveBackendPath(
   process.env.BACKEND_ERROR_LOG_PATH,

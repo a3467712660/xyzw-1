@@ -10,7 +10,7 @@
     "init-admin-mfa": "node src/scripts/initAdminMfa.js",
     "incident:revoke-all-sessions": "node src/scripts/revokeAllSessions.js",
     "incident:invalidate-sensitive-codes": "node src/scripts/invalidateSensitiveCodes.js",
-    "test": "JWT_SECRET=test-jwt-secret AES_KEY=test-aes-key CSRF_SECRET=test-csrf-secret INVITE_CODE_PEPPER=test-invite-pepper ACTIVATION_CODE_PEPPER=test-activation-pepper PASSWORD_RESET_CODE_PEPPER=test-password-reset-pepper DB_PATH=./data/test.sqlite.bin BIN_STORAGE_PATH=./data/test-bin node --test"
+    "test": "NODE_ENV=test JWT_SECRET=test-jwt-secret AES_KEY=test-aes-key CSRF_SECRET=test-csrf-secret INVITE_CODE_PEPPER=test-invite-pepper ACTIVATION_CODE_PEPPER=test-activation-pepper PASSWORD_RESET_CODE_PEPPER=test-password-reset-pepper DB_PATH=./data/test.sqlite.bin BIN_STORAGE_PATH=./data/test-bin node --test"
   },
   "dependencies": {
     "better-sqlite3": "^12.8.0",

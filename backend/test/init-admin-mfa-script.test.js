@@ -3,6 +3,7 @@ import test from "node:test";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { env } from "../src/config/env.js";
 import { initDatabase } from "../src/db/database.js";
 import { nowIso } from "../src/db/sql.js";
 import { run, query } from "../src/db/client.js";
@@ -55,6 +56,8 @@ test("initAdminMfa script enables admin MFA and records security event", async (
     env: {
       ...process.env,
       ADMIN_USERNAME: username,
+      BIN_STORAGE_PATH: env.binStoragePath,
+      DB_PATH: env.dbPath,
     },
     encoding: "utf8",
   });

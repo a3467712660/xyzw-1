@@ -1,6 +1,7 @@
 import { reactive, ref } from "vue";
 
 export function useClubWarrankDuel({
+  buildPlayerInfo,
   HERO_DICT,
   HeroFillInfo,
   formatPower,
@@ -225,7 +226,7 @@ export function useClubWarrankDuel({
         || result.roleInfo.maxPower
         || 0;
 
-      playerInfo.value = {
+      const basePlayerInfo = {
         id: roleId,
         name: result.roleInfo.name,
         headImg: result.roleInfo.headImg,
@@ -244,6 +245,22 @@ export function useClubWarrankDuel({
         legionMaxRed,
         heroList: heroAndholdAndRed.heroList,
         legacy: result.roleInfo.legacy?.color || 0,
+      };
+      const extraPlayerInfo =
+        typeof buildPlayerInfo === "function"
+          ? buildPlayerInfo({
+              basePlayerInfo,
+              heroAndholdAndRed,
+              result,
+              roleId,
+            })
+          : {};
+
+      playerInfo.value = {
+        ...basePlayerInfo,
+        ...(extraPlayerInfo && typeof extraPlayerInfo === "object"
+          ? extraPlayerInfo
+          : {}),
       };
 
       showPlayerInfoModal.value = true;
