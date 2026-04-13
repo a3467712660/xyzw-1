@@ -35,6 +35,7 @@ import {
   createConnectionMonitor,
 } from "@/services/token/tokenMaintenanceService";
 import { createTokenGameDataReader } from "@/services/token/tokenGameDataReader";
+import { createTokenStoreRuntimeCoordinator } from "@/services/token/tokenStoreRuntime";
 import { syncRandomSeedFromStatisticsById } from "@/services/token/tokenRuntimeSyncService";
 import {
   activeConnections,
@@ -715,10 +716,16 @@ export const useTokenStore = defineStore("tokens", () => {
     clearCrossTabConnectionState,
     logger: wsLogger,
   });
+  const runtimeCoordinator = createTokenStoreRuntimeCoordinator();
+  let crossTabListenerCleanup: (() => void) | null = null;
 
   // 监听localStorage变化（跨标签页通信）
   const setupCrossTabListener = () => {
-    subscribeCrossTabConnectionEvents({
+    if (crossTabListenerCleanup) {
+      return crossTabListenerCleanup;
+    }
+
+    const unsubscribe = subscribeCrossTabConnectionEvents({
       currentSessionId,
       wsConnections,
       logger: wsLogger,
@@ -726,35 +733,80 @@ export const useTokenStore = defineStore("tokens", () => {
         closeWebSocketConnectionAsync(tokenId);
       },
     });
+
+    crossTabListenerCleanup = () => {
+      unsubscribe();
+      crossTabListenerCleanup = null;
+    };
+
+    return crossTabListenerCleanup;
   };
 
   // 初始化
-  const initTokenStore = () => {
+  const disposeRuntime = async (
+    options: { closeConnections?: boolean } = {},
+  ) => {
+    const { closeConnections = false } = options;
+
+    if (closeConnections) {
+      await Promise.all(
+        Object.keys(wsConnections.value).map((tokenId) =>
+          closeWebSocketConnectionAsync(tokenId).catch((error) => {
+            wsLogger.warn(
+              `清理旧连接失败 [${tokenId}]: ${error?.message || "unknown"}`,
+            );
+          }),
+        ),
+      );
+    }
+
+    await runtimeCoordinator.dispose();
+  };
+
+  const initTokenStore = async () => {
     const userId = getEffectiveUserId();
-    if (userId) {
-      // 老数据迁移：把未绑定账号的 token/group 归属到当前账号。
-      allGameTokens.value = allGameTokens.value.map((token) =>
-        token.ownerId ? token : { ...token, ownerId: userId },
-      );
-      allTokenGroups.value = allTokenGroups.value.map((group) =>
-        group.ownerId ? group : { ...group, ownerId: userId },
-      );
+    const normalizedUserId = String(userId || "").trim();
+    const initializedUserId = runtimeCoordinator.getInitializedUserId();
+
+    if (
+      runtimeCoordinator.isInitialized()
+      && initializedUserId !== normalizedUserId
+    ) {
+      await disposeRuntime({ closeConnections: true });
     }
 
-    // 清理过期token
-    cleanExpiredTokens();
-    // 启动连接监控
-    connectionMonitor.startMonitoring();
+    await runtimeCoordinator.initialize({
+      userId: normalizedUserId,
+      setup: ({ registerCleanup }) => {
+        if (userId) {
+          // 老数据迁移：把未绑定账号的 token/group 归属到当前账号。
+          allGameTokens.value = allGameTokens.value.map((token) =>
+            token.ownerId ? token : { ...token, ownerId: userId },
+          );
+          allTokenGroups.value = allTokenGroups.value.map((group) =>
+            group.ownerId ? group : { ...group, ownerId: userId },
+          );
+        }
 
-    // 设置跨标签页监听
-    setupCrossTabListener();
-    tokenLogger.info("Token Store 初始化完成，连接监控已启动");
+        cleanExpiredTokens();
 
-    if (userId && gameTokens.value.length > 0) {
-      void syncActivationBindingsFromServer().catch((error: any) => {
-        tokenLogger.warn(`激活绑定同步失败: ${error?.message || "unknown"}`);
-      });
-    }
+        connectionMonitor.startMonitoring();
+        registerCleanup(() => {
+          connectionMonitor.stopMonitoring();
+        });
+
+        registerCleanup(setupCrossTabListener());
+        tokenLogger.info("Token Store 初始化完成，连接监控已启动");
+
+        if (userId && gameTokens.value.length > 0) {
+          void syncActivationBindingsFromServer().catch((error: any) => {
+            tokenLogger.warn(
+              `激活绑定同步失败: ${error?.message || "unknown"}`,
+            );
+          });
+        }
+      },
+    });
   };
   const setBattleVersion = (
     version: number | null,
@@ -902,6 +954,7 @@ export const useTokenStore = defineStore("tokens", () => {
     cleanExpiredTokens,
     upgradeTokenToPermanent,
     initTokenStore,
+    disposeRuntime,
     syncActivationBindingsFromServer,
     markBinSourceState,
     isTokenActivationExpired,

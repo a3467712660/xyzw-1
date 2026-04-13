@@ -201,11 +201,15 @@ const buildJobsForRows = (rows) => {
   });
 };
 
+export const stopScheduledJobs = () => {
+  jobs.forEach((job) => job.stop());
+  jobs.clear();
+};
+
 export const syncScheduledJobs = () => {
   const rows = taskRepository.listTaskConfigsForSchedule();
 
-  jobs.forEach((job) => job.stop());
-  jobs.clear();
+  stopScheduledJobs();
 
   buildJobsForRows(rows);
 };

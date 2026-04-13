@@ -74,7 +74,28 @@ const cleanupLogsOnce = () => {
   console.log(`[log-cleanup] done in ${durationMs}ms`, summary);
 };
 
+let cleanupTimeout = null;
+let cleanupInterval = null;
+
+const stopTimers = () => {
+  if (cleanupTimeout) {
+    clearTimeout(cleanupTimeout);
+    cleanupTimeout = null;
+  }
+  if (cleanupInterval) {
+    clearInterval(cleanupInterval);
+    cleanupInterval = null;
+  }
+};
+
 export const startLogCleanupJob = () => {
+  if (cleanupTimeout || cleanupInterval) {
+    return {
+      stop: stopTimers,
+      isRunning: () => Boolean(cleanupTimeout || cleanupInterval),
+    };
+  }
+
   const run = () => {
     try {
       cleanupLogsOnce();
@@ -87,15 +108,21 @@ export const startLogCleanupJob = () => {
   run();
 
   const firstDelay = msUntilNextCleanup();
-  const firstTimer = setTimeout(() => {
+  cleanupTimeout = setTimeout(() => {
     run();
-    const interval = setInterval(run, DAY_MS);
-    if (typeof interval.unref === "function") {
-      interval.unref();
+    cleanupTimeout = null;
+    cleanupInterval = setInterval(run, DAY_MS);
+    if (typeof cleanupInterval.unref === "function") {
+      cleanupInterval.unref();
     }
   }, firstDelay);
 
-  if (typeof firstTimer.unref === "function") {
-    firstTimer.unref();
+  if (typeof cleanupTimeout.unref === "function") {
+    cleanupTimeout.unref();
   }
+
+  return {
+    stop: stopTimers,
+    isRunning: () => Boolean(cleanupTimeout || cleanupInterval),
+  };
 };

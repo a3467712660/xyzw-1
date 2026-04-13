@@ -1928,7 +1928,26 @@ const runSchedulerTick = async () => {
 };
 
 export const startTaskControlSchedulerJob = () => {
-  if (schedulerTimer) return;
+  if (schedulerTimer) {
+    return {
+      stop: () => {
+        if (!schedulerTimer) return;
+        clearInterval(schedulerTimer);
+        schedulerTimer = null;
+      },
+      isRunning: () => Boolean(schedulerTimer),
+      waitForIdle: async (timeoutMs = 5000) => {
+        const startedAt = Date.now();
+        while (schedulerRunning) {
+          if (Date.now() - startedAt >= timeoutMs) {
+            return false;
+          }
+          await sleep(50);
+        }
+        return true;
+      },
+    };
+  }
   // eslint-disable-next-line no-console
   console.log("[task-control-scheduler] started (backend-native beta)");
   runSchedulerTick();
@@ -1936,4 +1955,23 @@ export const startTaskControlSchedulerJob = () => {
   if (typeof schedulerTimer.unref === "function") {
     schedulerTimer.unref();
   }
+
+  return {
+    stop: () => {
+      if (!schedulerTimer) return;
+      clearInterval(schedulerTimer);
+      schedulerTimer = null;
+    },
+    isRunning: () => Boolean(schedulerTimer),
+    waitForIdle: async (timeoutMs = 5000) => {
+      const startedAt = Date.now();
+      while (schedulerRunning) {
+        if (Date.now() - startedAt >= timeoutMs) {
+          return false;
+        }
+        await sleep(50);
+      }
+      return true;
+    },
+  };
 };

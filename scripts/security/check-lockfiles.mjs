@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 
 const rootDir = process.cwd();
+const OFFICIAL_NPM_REGISTRY_HOST = "registry.npmjs.org";
 
 const errors = [];
 
@@ -55,6 +56,53 @@ const checkLockfile = (lock, lockPath, expectedName) => {
 
 checkLockfile(rootLock, "package-lock.json", rootPkg?.name);
 checkLockfile(backendLock, "backend/package-lock.json", backendPkg?.name);
+
+const walkResolvedUrls = (value, visitor) => {
+  if (!value || typeof value !== "object") {
+    return;
+  }
+
+  if (Array.isArray(value)) {
+    value.forEach((item) => walkResolvedUrls(item, visitor));
+    return;
+  }
+
+  Object.entries(value).forEach(([key, nestedValue]) => {
+    if (key === "resolved" && typeof nestedValue === "string") {
+      visitor(nestedValue);
+      return;
+    }
+    walkResolvedUrls(nestedValue, visitor);
+  });
+};
+
+const checkResolvedRegistryHosts = (lock, lockPath) => {
+  if (!lock) return;
+
+  walkResolvedUrls(lock, (resolvedUrl) => {
+    const raw = String(resolvedUrl || "").trim();
+    if (!raw || !/^https?:\/\//i.test(raw)) {
+      return;
+    }
+
+    let parsed;
+    try {
+      parsed = new URL(raw);
+    } catch (error) {
+      errors.push(`${lockPath} has invalid resolved URL: ${raw} (${error.message})`);
+      return;
+    }
+
+    if (parsed.hostname !== OFFICIAL_NPM_REGISTRY_HOST) {
+      errors.push(
+        `${lockPath} contains non-official registry host: ${parsed.hostname} (${raw})`,
+      );
+    }
+  });
+};
+
+checkResolvedRegistryHosts(rootLock, "package-lock.json");
+checkResolvedRegistryHosts(backendLock, "backend/package-lock.json");
 
 const forbiddenLocks = ["pnpm-lock.yaml", "yarn.lock", "backend/pnpm-lock.yaml", "backend/yarn.lock"];
 for (const relativePath of forbiddenLocks) {

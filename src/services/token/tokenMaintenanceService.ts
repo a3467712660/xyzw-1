@@ -142,57 +142,83 @@ export const createConnectionMonitor = ({
   closeWebSocketConnectionAsync,
   clearCrossTabConnectionState,
   logger,
-}: ConnectionMonitorDeps) => ({
-  startMonitoring: () => {
-    setInterval(() => {
-      const {
-        staleHeartbeatTokenIds,
-        expiredLockTokenIds,
-        expiredCrossTabTokenIds,
-      } = getExpiredConnectionMonitorEntries(
-        wsConnections.value,
-        connectionLocks.value,
-        activeConnections.value,
-      );
+}: ConnectionMonitorDeps) => {
+  let monitorTimer: ReturnType<typeof setInterval> | null = null;
 
-      staleHeartbeatTokenIds.forEach((tokenId) => {
-        logger.warn(`检测到连接可能已断开: ${tokenId}`);
-        wsConnections.value[tokenId]?.client?.sendHeartbeat?.();
-      });
-
-      expiredLockTokenIds.forEach((tokenId) => {
-        delete connectionLocks.value[tokenId];
-        logger.debug(`清理过期连接锁: ${tokenId}`);
-      });
-
-      expiredCrossTabTokenIds.forEach((tokenId) => {
-        logger.debug(`清理过期跨标签页状态: ${tokenId}`);
-        clearCrossTabConnectionState({ tokenId, activeConnections });
-      });
-    }, 10000);
-  },
-
-  getStats: () => {
-    return getConnectionMonitorStats(
+  const runMonitor = () => {
+    const {
+      staleHeartbeatTokenIds,
+      expiredLockTokenIds,
+      expiredCrossTabTokenIds,
+    } = getExpiredConnectionMonitorEntries(
       wsConnections.value,
       connectionLocks.value,
       activeConnections.value,
     );
-  },
 
-  forceCleanup: async () => {
-    logger.info("开始强制清理所有连接...");
-
-    await Promise.all(
-      Object.keys(wsConnections.value).map((tokenId) =>
-        closeWebSocketConnectionAsync(tokenId),
-      ),
-    );
-
-    Object.keys(activeConnections.value).forEach((tokenId) => {
-      clearCrossTabConnectionState({ tokenId, activeConnections });
+    staleHeartbeatTokenIds.forEach((tokenId) => {
+      logger.warn(`检测到连接可能已断开: ${tokenId}`);
+      wsConnections.value[tokenId]?.client?.sendHeartbeat?.();
     });
 
-    logger.info("强制清理完成");
-  },
-});
+    expiredLockTokenIds.forEach((tokenId) => {
+      delete connectionLocks.value[tokenId];
+      logger.debug(`清理过期连接锁: ${tokenId}`);
+    });
+
+    expiredCrossTabTokenIds.forEach((tokenId) => {
+      logger.debug(`清理过期跨标签页状态: ${tokenId}`);
+      clearCrossTabConnectionState({ tokenId, activeConnections });
+    });
+  };
+
+  return {
+    startMonitoring: () => {
+      if (monitorTimer) {
+        return;
+      }
+
+      monitorTimer = setInterval(() => {
+        runMonitor();
+      }, 10000);
+
+      if (typeof monitorTimer.unref === "function") {
+        monitorTimer.unref();
+      }
+    },
+
+    stopMonitoring: () => {
+      if (!monitorTimer) {
+        return;
+      }
+      clearInterval(monitorTimer);
+      monitorTimer = null;
+    },
+
+    isMonitoring: () => Boolean(monitorTimer),
+
+    getStats: () => {
+      return getConnectionMonitorStats(
+        wsConnections.value,
+        connectionLocks.value,
+        activeConnections.value,
+      );
+    },
+
+    forceCleanup: async () => {
+      logger.info("开始强制清理所有连接...");
+
+      await Promise.all(
+        Object.keys(wsConnections.value).map((tokenId) =>
+          closeWebSocketConnectionAsync(tokenId),
+        ),
+      );
+
+      Object.keys(activeConnections.value).forEach((tokenId) => {
+        clearCrossTabConnectionState({ tokenId, activeConnections });
+      });
+
+      logger.info("强制清理完成");
+    },
+  };
+};

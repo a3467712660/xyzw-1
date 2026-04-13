@@ -5,6 +5,7 @@ import Database from "better-sqlite3";
 import { env } from "../config/env.js";
 
 let db;
+let currentDbPath = "";
 
 const ensureDir = (filePath) => {
   const dir = path.dirname(filePath);
@@ -14,10 +15,21 @@ const ensureDir = (filePath) => {
 };
 
 export const initDatabase = () => {
-  ensureDir(env.dbPath);
+  const nextDbPath = path.resolve(env.dbPath);
+
+  if (db && db.open !== false && currentDbPath === nextDbPath) {
+    return db;
+  }
+
+  if (db && db.open !== false && currentDbPath !== nextDbPath) {
+    db.close();
+  }
+
+  ensureDir(nextDbPath);
 
   // better-sqlite3 如果文件不存在会自动创建
-  db = new Database(env.dbPath);
+  db = new Database(nextDbPath);
+  currentDbPath = nextDbPath;
   db.pragma("foreign_keys = ON");
 
   // 性能优化设置
@@ -1109,10 +1121,23 @@ const createSchema = () => {
 };
 
 export const getDb = () => {
-  if (!db) {
+  if (!db || db.open === false) {
     throw new Error("Database not initialized");
   }
   return db;
+};
+
+export const closeDatabase = () => {
+  if (!db) {
+    currentDbPath = "";
+    return;
+  }
+
+  if (db.open !== false) {
+    db.close();
+  }
+  db = undefined;
+  currentDbPath = "";
 };
 
 // better-sqlite3 自动持久化到磁盘，不再需要手动调用 persist

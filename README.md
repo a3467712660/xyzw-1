@@ -113,8 +113,8 @@ ENABLE_LEGACY_FLASK=1 bash ./start-safe.sh
 ### 2. 安装依赖
 
 ```bash
-npm install
-npm --prefix backend install
+npm ci
+npm --prefix backend ci
 ```
 
 ### 3. 配置后端环境变量

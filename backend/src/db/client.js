@@ -9,6 +9,7 @@ const writeSafetyLogPath = path.resolve(path.dirname(env.dbPath), "db-write-safe
 const WRITE_SAFETY_LOG_FILE_MODE = 0o600;
 const SENSITIVE_KEYWORDS = ["password", "token", "secret", "code", "cookie", "authorization"];
 let backupTimer = null;
+let backupHandle = null;
 
 const ensureDir = (filePath) => {
   const dir = path.dirname(filePath);
@@ -167,7 +168,7 @@ export const scheduleDailyBackup = () => {
     return null;
   }
   if (backupTimer) {
-    return;
+    return backupHandle;
   }
 
   backupTimer = setInterval(() => {
@@ -186,6 +187,20 @@ export const scheduleDailyBackup = () => {
   if (typeof backupTimer.unref === "function") {
     backupTimer.unref();
   }
+
+  backupHandle = {
+    stop: () => {
+      if (!backupTimer) {
+        return;
+      }
+      clearInterval(backupTimer);
+      backupTimer = null;
+      backupHandle = null;
+    },
+    isScheduled: () => Boolean(backupTimer),
+  };
+
+  return backupHandle;
 };
 
 export const query = (sql, params = {}) => {

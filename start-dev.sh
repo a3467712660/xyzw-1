@@ -9,6 +9,14 @@ BACKEND_PORT="${BACKEND_PORT:-8787}"
 BACKEND_HEALTH_URL="http://127.0.0.1:${BACKEND_PORT}/health"
 HEALTH_RETRY_COUNT=20
 HEALTH_RETRY_INTERVAL_SEC=0.5
+NODE_REQUIRE_CHECK_SCRIPT='
+const { createRequire } = require("module");
+const baseDir = process.argv[1];
+const request = createRequire(`${baseDir}/package.json`);
+for (const pkg of process.argv.slice(2)) {
+  request.resolve(pkg);
+}
+'
 
 cleanup() {
   if [[ -n "${BACKEND_PID}" ]] && kill -0 "${BACKEND_PID}" 2>/dev/null; then
@@ -29,15 +37,47 @@ if [[ ! -f "${BACKEND_ENV_FILE}" ]]; then
   exit 1
 fi
 
-if [[ ! -d node_modules ]]; then
-  echo "[setup] Installing frontend dependencies..."
-  npm install
-fi
+check_dependency_health() {
+  local base_dir="$1"
+  shift
+  node -e "${NODE_REQUIRE_CHECK_SCRIPT}" "${base_dir}" "$@" >/dev/null 2>&1
+}
 
-if [[ ! -d backend/node_modules ]]; then
-  echo "[setup] Installing backend dependencies..."
-  npm --prefix backend install
-fi
+ensure_frontend_dependencies() {
+  if [[ ! -d node_modules ]]; then
+    echo "[setup] Frontend dependencies missing, running npm ci..."
+    npm ci
+    return
+  fi
+
+  if ! check_dependency_health "${ROOT_DIR}" \
+    "vite/package.json" \
+    "jiti/package.json" \
+    "@eslint/plugin-kit/package.json"
+  then
+    echo "[setup] Frontend dependencies incomplete or corrupted, running npm ci..."
+    npm ci
+  fi
+}
+
+ensure_backend_dependencies() {
+  if [[ ! -d backend/node_modules ]]; then
+    echo "[setup] Backend dependencies missing, running npm --prefix backend ci..."
+    npm --prefix backend ci
+    return
+  fi
+
+  if ! check_dependency_health "${ROOT_DIR}/backend" \
+    "express/package.json" \
+    "better-sqlite3/package.json"
+  then
+    echo "[setup] Backend dependencies incomplete or corrupted, running npm --prefix backend ci..."
+    npm --prefix backend ci
+  fi
+}
+
+ensure_frontend_dependencies
+ensure_backend_dependencies
 
 wait_backend_healthy() {
   local attempt=1

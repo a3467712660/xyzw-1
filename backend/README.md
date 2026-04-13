@@ -14,7 +14,7 @@ XYZW Web Helper 的 Node.js 后端服务，提供认证、角色管理、任务�
 ### 1. 安装依赖
 
 ```bash
-npm --prefix backend install
+npm --prefix backend ci
 ```
 
 ### 2. 配置环境变量
