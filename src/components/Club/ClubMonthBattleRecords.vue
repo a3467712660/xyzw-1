@@ -16,34 +16,27 @@
         </div>
 
         <!-- 功能操作区 -->
-        <div class="header-actions">
-          <NRadioGroup size="small" v-model:value="currentStyle">
-            <NRadioButton value="default">默认</NRadioButton>
-            <NRadioButton value="style1">样式一</NRadioButton>
-            <NRadioButton value="style2">样式二</NRadioButton>
-          </NRadioGroup>
-          <n-button size="small" :disabled="loading" @click="handleRefresh">
-            <template #icon>
-              <n-icon>
-                <Refresh></Refresh>
-              </n-icon>
-            </template>
-            刷新
-          </n-button>
-          <n-button
-            size="small"
-            type="primary"
-            :disabled="!monthlyBattleRecords || loading"
-            @click="handleExport"
-          >
-            <template #icon>
-              <n-icon>
-                <Copy></Copy>
-              </n-icon>
-            </template>
-            导出
-          </n-button>
-        </div>
+        <ClubBattleRecordToolbar
+          :can-export="Object.keys(monthlyBattleRecords || {}).length > 0"
+          :current-style="currentStyle"
+          :loading="loading"
+          :show-date-picker="false"
+          :style-options="styleOptions"
+          @export="handleExport"
+          @refresh="handleRefresh"
+          @update:current-style="currentStyle = $event"
+        >
+          <template #right-prefix>
+            <ClubBattleResultBadge
+              tone="info"
+              :text="`统计日期: ${currentMonthDisplay}`"
+            ></ClubBattleResultBadge>
+            <ClubBattleResultBadge
+              tone="warning"
+              :text="`总参战成员: ${monthlyStats.totalMembers}`"
+            ></ClubBattleResultBadge>
+          </template>
+        </ClubBattleRecordToolbar>
       </div>
 
       <div class="battle-records-content">
@@ -820,7 +813,17 @@
 
 <script setup>
 import { computed, onMounted, ref, watch } from "vue";
-import { NRadioButton, NRadioGroup, useMessage } from "naive-ui/es";
+import { useMessage } from "naive-ui/es";
+import ClubBattleRecordToolbar from "@/components/Club/records/ClubBattleRecordToolbar.vue";
+import ClubBattleResultBadge from "@/components/Club/records/ClubBattleResultBadge.vue";
+import {
+  formatClubBattleKD,
+  formatClubBattleShortDate,
+  getClubBattleDeathColor,
+  getClubBattleKillColor,
+  getClubBattleOccupyColor,
+  getClubBattleReviveColor,
+} from "@/components/Club/records/clubBattleRecordFormatters.js";
 import { useTokenStore } from "@/stores/tokenStore";
 import { captureWithHtml2canvas } from "@/utils/html2canvasLoader";
 import { downloadCanvasAsImage } from "@/utils/imageExport";
@@ -828,7 +831,7 @@ import {
   getStringPreference,
   setStringPreference,
 } from "@/services/preferences/localPreferences";
-import { Copy, DocumentText, Refresh } from "@vicons/ionicons5";
+import { DocumentText } from "@vicons/ionicons5";
 
 defineProps({
   inline: {
@@ -895,9 +898,7 @@ const getCurrentMonthBattleDates = () => {
 };
 
 // 格式化短日期显示 (MM/DD)
-const formatShortDate = (date) => {
-  return date.split("/").slice(1).join("/");
-};
+const formatShortDate = formatClubBattleShortDate;
 
 // 本月统计数据
 const monthlyStats = computed(() => {
@@ -1023,6 +1024,12 @@ const currentStyle = ref(
   getStringPreference("club_month_battle_records_style", "default"),
 );
 
+const styleOptions = [
+  { label: "默认", value: "default" },
+  { label: "样式一", value: "style1" },
+  { label: "样式二", value: "style2" },
+];
+
 watch(currentStyle, (newStyle) => {
   setStringPreference("club_month_battle_records_style", newStyle);
 });
@@ -1077,9 +1084,7 @@ const monthlyKDRank = computed(() => {
   return [...sortedMembers.value]
     .map((m) => ({
       ...m,
-      kd: Number.parseFloat(
-        m.totalWinCnt && m.totalLoseCnt ? m.totalWinCnt / m.totalLoseCnt : 0.0,
-      ).toFixed(2),
+      kd: formatClubBattleKD(m.totalWinCnt, m.totalLoseCnt),
     }))
     .sort((a, b) => b.kd - a.kd)
     .slice(0, 3);
@@ -1110,28 +1115,17 @@ const getPercent = (val, max) => {
 };
 
 // Colors
-const getKillColor = (val) => {
-  if (val >= 200) return "rgba(76, 175, 80, 0.3)"; // Adjusted threshold for monthly
-  if (val >= 80) return "rgba(139, 195, 74, 0.3)";
-  return "transparent";
-};
+const getKillColor = (val) =>
+  getClubBattleKillColor(val, { high: 200, medium: 80 });
 
-const getOccupyColor = (val) => {
-  if (val >= 200) return "rgba(255, 204, 128, 0.3)";
-  if (val >= 100) return "rgba(255, 224, 178, 0.3)";
-  return "transparent";
-};
+const getOccupyColor = (val) =>
+  getClubBattleOccupyColor(val, { high: 200, medium: 100 });
 
-const getDeathColor = (val) => {
-  if (val >= 80) return "rgba(239, 154, 154, 0.3)";
-  if (val >= 40) return "rgba(255, 205, 210, 0.3)";
-  return "transparent";
-};
+const getDeathColor = (val) =>
+  getClubBattleDeathColor(val, { high: 80, medium: 40 });
 
-const getReviveColor = (val) => {
-  if (val >= 40) return "rgba(200, 230, 201, 0.3)";
-  return "transparent";
-};
+const getReviveColor = (val) =>
+  getClubBattleReviveColor(val, { high: 40 });
 
 // 当前月份显示
 const currentMonthDisplay = computed(() => {

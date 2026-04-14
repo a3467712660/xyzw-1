@@ -62,9 +62,17 @@
   - 批量日常任务页的局部页面块与排序 helper。
   - 用于承接页面壳、账号选择区、任务 modal body、分组管理、模板管理、梦境购买、月赛助威等视图层拆分，避免主页面文件继续堆积。
 
+- `src/components/cards/lineup/`
+  - 阵容助手的局部展示组件与纯 helper。
+  - 用于承接已保存阵容列表、应用进度面板、鱼灵/鱼珠/装备显示 helper 等展示层拆分，避免 `Unlimitedlineup.vue` 回到巨型视图文件。
+
 - `src/components/cards/pvp/`
   - PVP 卡片的局部展示组件与纯 formatter。
   - 用于承接切磋工具条、历史/记录列表、排行壳、武将详情弹层等展示层拆分，避免 `FightPvp.vue`、`ArenaPvp.vue` 继续堆积。
+
+- `src/components/Club/records/`
+  - 俱乐部战绩页共用的工具条、badge 与纯 formatter。
+  - 用于承接 `PeachBattleRecords`、`ClubBattleRecords`、`ClubMonthBattleRecords` 之间真正重复的展示层逻辑，避免把查询与导出编排重新塞回页面里。
 
 ## 命名统一约定
 

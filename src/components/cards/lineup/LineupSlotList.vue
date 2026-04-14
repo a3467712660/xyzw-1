@@ -46,7 +46,7 @@
                 :src="getHeroAvatar(hero.heroId)"
               >
               <div v-else class="hero-placeholder">
-                {{ resolveHeroName(hero.heroId).substring(0, 2) || "?" }}
+                {{ getHeroAvatarText(hero) }}
               </div>
             </div>
             <div class="hero-avatar-info">
@@ -73,16 +73,27 @@
                 ></span>
               </span>
             </div>
-            <div v-if="hero.power" class="hero-stats">
-              <div class="stat-row">
-                <span class="stat-power">战力{{ formatPower(hero.power) }}</span>
-                <span v-if="hero.speed" class="stat-speed">速度{{ hero.speed }}</span>
-              </div>
-              <div class="stat-row">
-                <span v-if="hero.attack" class="stat-attack">
-                  攻击{{ formatPower(hero.attack) }}
+            <div
+              v-if="getHeroStats(hero).primary.length || getHeroStats(hero).secondary.length"
+              class="hero-stats"
+            >
+              <div v-if="getHeroStats(hero).primary.length" class="stat-row">
+                <span
+                  v-for="item in getHeroStats(hero).primary"
+                  :key="`${hero.heroId}-${item.className}`"
+                  :class="item.className"
+                >
+                  {{ item.text }}
                 </span>
-                <span v-if="hero.hp" class="stat-hp">血量{{ formatPower(hero.hp) }}</span>
+              </div>
+              <div v-if="getHeroStats(hero).secondary.length" class="stat-row">
+                <span
+                  v-for="item in getHeroStats(hero).secondary"
+                  :key="`${hero.heroId}-${item.className}`"
+                  :class="item.className"
+                >
+                  {{ item.text }}
+                </span>
               </div>
             </div>
           </div>
@@ -112,9 +123,11 @@
 
 <script setup>
 import {
-  formatLineupFishCaption,
-  getLineupHeroDisplayName,
-} from "./lineupFormatters";
+  buildLineupHeroStatGroups,
+  getLineupDisplayAvatarText,
+  resolveLineupDisplayHeroName,
+} from "./lineupDisplayHelpers";
+import { formatLineupFishCaption } from "./lineupFormatters";
 
 const props = defineProps({
   availableTeams: {
@@ -184,13 +197,18 @@ defineEmits([
 ]);
 
 const resolveHeroName = (heroId) =>
-  getLineupHeroDisplayName(props.getHeroName(heroId), heroId);
+  resolveLineupDisplayHeroName(heroId, props.getHeroName);
+
+const getHeroAvatarText = (hero) =>
+  getLineupDisplayAvatarText(resolveHeroName(hero.heroId), 2);
 
 const getFishCaption = (artifactId) =>
   formatLineupFishCaption(
     props.getFishInfo(artifactId)?.name,
     props.getPearlSkillNameByArtifactId(artifactId),
   );
+
+const getHeroStats = (hero) => buildLineupHeroStatGroups(hero, props.formatPower);
 </script>
 
 <style scoped lang="scss">

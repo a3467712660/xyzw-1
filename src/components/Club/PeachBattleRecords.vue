@@ -18,61 +18,25 @@
       <div v-if="battleRecords && battleRecords.ownClub" class="stats-section">
         <div class="stat-item">
           <span class="stat-label">查询日期:</span>
-          <n-tag type="info">{{ queryDate }}</n-tag>
+          <ClubBattleResultBadge tone="info" :text="queryDate"></ClubBattleResultBadge>
         </div>
       </div>
     </div>
 
     <!-- 功能操作区 -->
-    <div class="function-section">
-      <div class="function-left">
-        <div class="export-options">
-          <NRadioGroup size="small" v-model:value="currentStyle">
-            <NRadioButton value="default">默认</NRadioButton>
-            <NRadioButton value="style1">样式一</NRadioButton>
-            <NRadioButton value="style2">样式二</NRadioButton>
-          </NRadioGroup>
-        </div>
-      </div>
-
-      <div class="function-right">
-        <a-date-picker
-          format="YYYY/MM/DD"
-          value-format="YYYY/MM/DD"
-          v-model:value="queryDate"
-          :default-value="queryDate"
-          :disabled-date="disabledDate"
-          @change="fetchBattleRecordsByDate"
-        ></a-date-picker>
-        <n-button
-          class="action-btn refresh-btn"
-          size="small"
-          :disabled="loading"
-          @click="handleRefresh"
-        >
-          <template #icon>
-            <n-icon>
-              <Refresh></Refresh>
-            </n-icon>
-          </template>
-          刷新
-        </n-button>
-        <n-button
-          class="action-btn export-btn"
-          size="small"
-          type="primary"
-          :disabled="!battleRecords || loading"
-          @click="handleExport"
-        >
-          <template #icon>
-            <n-icon>
-              <Copy></Copy>
-            </n-icon>
-          </template>
-          导出
-        </n-button>
-      </div>
-    </div>
+    <ClubBattleRecordToolbar
+      :can-export="Boolean(battleRecords)"
+      :current-style="currentStyle"
+      :disabled-date="disabledDate"
+      :loading="loading"
+      :query-date="queryDate"
+      :style-options="styleOptions"
+      @change-date="fetchBattleRecordsByDate"
+      @export="handleExport"
+      @refresh="handleRefresh"
+      @update:current-style="currentStyle = $event"
+      @update:query-date="queryDate = $event"
+    ></ClubBattleRecordToolbar>
 
     <div class="battle-records-content">
       <!-- 加载状态 -->
@@ -1242,7 +1206,16 @@
 
 <script setup>
 import { onMounted, ref, watch } from "vue";
-import { NRadioButton, NRadioGroup, useMessage } from "naive-ui/es";
+import { useMessage } from "naive-ui/es";
+import ClubBattleRecordToolbar from "@/components/Club/records/ClubBattleRecordToolbar.vue";
+import ClubBattleResultBadge from "@/components/Club/records/ClubBattleResultBadge.vue";
+import {
+  formatClubBattleCompactDate,
+  formatClubBattleKD,
+  formatClubBattlePower,
+  getClubBattleKillColor,
+  getClubBattleReviveColor,
+} from "@/components/Club/records/clubBattleRecordFormatters.js";
 import { useTokenStore } from "@/stores/tokenStore";
 import { captureWithHtml2canvas } from "@/utils/html2canvasLoader";
 import { downloadCanvasAsPagedImages } from "@/utils/imageExport";
@@ -1250,7 +1223,7 @@ import {
   getStringPreference,
   setStringPreference,
 } from "@/services/preferences/localPreferences";
-import { Copy, DocumentText, Refresh } from "@vicons/ionicons5";
+import { DocumentText } from "@vicons/ionicons5";
 
 // 获取最近的周日日期
 // 如果今天是周日，返回今天的日期；否则返回上周日的日期
@@ -1288,6 +1261,12 @@ const currentStyle = ref(
   getStringPreference("peach_battle_records_style", "default"),
 );
 
+const styleOptions = [
+  { label: "默认", value: "default" },
+  { label: "样式一", value: "style1" },
+  { label: "样式二", value: "style2" },
+];
+
 watch(currentStyle, (newStyle) => {
   setStringPreference("peach_battle_records_style", newStyle);
 });
@@ -1302,24 +1281,9 @@ const battleRecords = ref(null);
 const queryDate = ref(getLastSunday());
 
 // 格式化战力
-const formatPower = (power) => {
-  if (!power) return "0";
-  if (power >= 100000000) {
-    return `${(power / 100000000).toFixed(2)}亿`;
-  }
-  if (power >= 10000) {
-    return `${(power / 10000).toFixed(2)}万`;
-  }
-  return power.toString();
-};
+const formatPower = formatClubBattlePower;
 
-const formatDateToShort = (dateStr) => {
-  if (!dateStr) return "";
-  const parts = dateStr.split("/");
-  if (parts.length !== 3) return dateStr;
-  const [year, month, day] = parts;
-  return year.slice(2) + month + day;
-};
+const formatDateToShort = formatClubBattleCompactDate;
 
 // 获取最大击杀数
 const getMaxKills = (clubData) => {
@@ -1333,16 +1297,9 @@ const getPercent = (val, max) => {
   return Math.min(100, (val / max) * 100);
 };
 
-const getKillColor = (val) => {
-  if (val >= 50) return "rgba(76, 175, 80, 0.3)";
-  if (val >= 20) return "rgba(139, 195, 74, 0.3)";
-  return "transparent";
-};
+const getKillColor = (val) => getClubBattleKillColor(val);
 
-const getReviveColor = (val) => {
-  if (val >= 10) return "rgba(200, 230, 201, 0.3)";
-  return "transparent";
-};
+const getReviveColor = (val) => getClubBattleReviveColor(val, { high: 10 });
 
 // 处理图片加载错误
 const handleImageError = (event) => {
@@ -1512,7 +1469,7 @@ const fetchBattleRecords = async () => {
     );
     const ownTotalKD =
       ownTotalRevives > 0
-        ? Number.parseFloat((ownTotalKills / ownTotalRevives).toFixed(2))
+        ? Number(formatClubBattleKD(ownTotalKills, ownTotalRevives))
         : 0;
     const ownTotalPower = processedOwnRecords.reduce(
       (sum, player) => sum + (player.roleInfo.power || 0),
@@ -1530,9 +1487,7 @@ const fetchBattleRecords = async () => {
     );
     const opponentTotalKD =
       opponentTotalRevives > 0
-        ? Number.parseFloat(
-            (opponentTotalKills / opponentTotalRevives).toFixed(2),
-          )
+        ? Number(formatClubBattleKD(opponentTotalKills, opponentTotalRevives))
         : 0;
     const opponentTotalPower = processedOpponentRecords.reduce(
       (sum, player) => sum + (player.roleInfo.power || 0),

@@ -17,79 +17,35 @@
       >
         <div class="stat-item">
           <span class="stat-label">查询日期:</span>
-          <n-tag type="info">{{ queryDate }}</n-tag>
+          <ClubBattleResultBadge tone="info" :text="queryDate"></ClubBattleResultBadge>
         </div>
         <div class="stat-item">
           <span class="stat-label">总人数:</span>
-          <n-tag type="success">{{
-            battleRecords.roleDetailsList.length
-          }}</n-tag>
+          <ClubBattleResultBadge
+            tone="success"
+            :text="String(battleRecords.roleDetailsList.length)"
+          ></ClubBattleResultBadge>
         </div>
       </div>
     </div>
 
     <!-- 功能操作区 -->
-    <div class="function-section">
-      <div class="function-left">
-        <div class="export-options">
-          <NRadioGroup size="small" v-model:value="currentStyle">
-            <NRadioButton
-              v-for="option in styleOptions"
-              :key="option.value"
-              :value="option.value"
-            >
-              {{ option.label }}
-            </NRadioButton>
-          </NRadioGroup>
-          <NCheckboxGroup
-            name="group-exportmethod"
-            size="small"
-            v-model:value="exportmethod"
-          >
-            <NCheckbox value="1">表格导出</NCheckbox>
-            <NCheckbox value="2">图片导出</NCheckbox>
-          </NCheckboxGroup>
-        </div>
-      </div>
-
-      <div class="function-right">
-        <a-date-picker
-          format="YYYY/MM/DD"
-          value-format="YYYY/MM/DD"
-          v-model:value="queryDate"
-          :default-value="queryDate"
-          :disabled-date="disabledDate"
-          @change="fetchBattleRecordsByDate"
-        ></a-date-picker>
-        <n-button
-          class="action-btn refresh-btn"
-          size="small"
-          :disabled="loading"
-          @click="handleRefresh"
-        >
-          <template #icon>
-            <n-icon>
-              <Refresh></Refresh>
-            </n-icon>
-          </template>
-          刷新
-        </n-button>
-        <n-button
-          class="action-btn export-btn"
-          size="small"
-          type="primary"
-          :disabled="!battleRecords || loading"
-          @click="handleExport"
-        >
-          <template #icon>
-            <n-icon>
-              <Copy></Copy>
-            </n-icon>
-          </template>
-          导出
-        </n-button>
-      </div>
-    </div>
+    <ClubBattleRecordToolbar
+      :can-export="Boolean(battleRecords)"
+      :current-style="currentStyle"
+      :disabled-date="disabledDate"
+      :export-methods="exportmethod"
+      :loading="loading"
+      :query-date="queryDate"
+      :show-export-methods="true"
+      :style-options="styleOptions"
+      @change-date="fetchBattleRecordsByDate"
+      @export="handleExport"
+      @refresh="handleRefresh"
+      @update:current-style="currentStyle = $event"
+      @update:export-methods="exportmethod = $event"
+      @update:query-date="queryDate = $event"
+    ></ClubBattleRecordToolbar>
 
     <div class="battle-records-content">
       <!-- 加载状态 -->
@@ -914,13 +870,16 @@
 
 <script setup>
 import { computed, onMounted, ref, watch } from "vue";
+import { useMessage } from "naive-ui/es";
+import ClubBattleRecordToolbar from "@/components/Club/records/ClubBattleRecordToolbar.vue";
+import ClubBattleResultBadge from "@/components/Club/records/ClubBattleResultBadge.vue";
 import {
-  NCheckbox,
-  NCheckboxGroup,
-  NRadioButton,
-  NRadioGroup,
-  useMessage,
-} from "naive-ui/es";
+  formatClubBattleKD,
+  getClubBattleDeathColor,
+  getClubBattleKillColor,
+  getClubBattleOccupyColor,
+  getClubBattleReviveColor,
+} from "@/components/Club/records/clubBattleRecordFormatters.js";
 import { useTokenStore } from "@/stores/tokenStore";
 import { captureWithHtml2canvas } from "@/utils/html2canvasLoader";
 import { downloadCanvasAsImage } from "@/utils/imageExport";
@@ -928,7 +887,7 @@ import {
   getStringPreference,
   setStringPreference,
 } from "@/services/preferences/localPreferences";
-import { Copy, DocumentText, Refresh } from "@vicons/ionicons5";
+import { DocumentText } from "@vicons/ionicons5";
 import {
   copyToClipboard,
   formatBattleRecordsForExport,
@@ -966,9 +925,7 @@ const playerRows = computed(() => {
   if (!battleRecords.value?.roleDetailsList) return [];
   return battleRecords.value.roleDetailsList.map((member, index) => ({
     ...member,
-    kd: Number.parseFloat(
-      member.winCnt && member.loseCnt ? member.winCnt / member.loseCnt : 0.0,
-    ).toFixed(2),
+    kd: formatClubBattleKD(member.winCnt, member.loseCnt),
     rank: index + 1,
     reviveCnt: Math.max((member.loseCnt || 0) - 6, 0),
     survivalCnt: member.loseCnt || 0,
@@ -1005,7 +962,7 @@ const totalKD = computed(() => {
     0,
   );
   if (totalLosses === 0) return 0;
-  return (totalKills / totalLosses).toFixed(2);
+  return formatClubBattleKD(totalKills, totalLosses);
 });
 
 // 计算属性：击杀榜 Top3
@@ -1205,28 +1162,13 @@ const style4RankPanels = computed(() => [
   },
 ]);
 
-const getKillColor = (val) => {
-  if (val >= 50) return "rgba(76, 175, 80, 0.3)";
-  if (val >= 20) return "rgba(139, 195, 74, 0.3)";
-  return "transparent";
-};
+const getKillColor = (val) => getClubBattleKillColor(val);
 
-const getOccupyColor = (val) => {
-  if (val >= 100) return "rgba(255, 204, 128, 0.3)";
-  if (val >= 50) return "rgba(255, 224, 178, 0.3)";
-  return "transparent";
-};
+const getOccupyColor = (val) => getClubBattleOccupyColor(val);
 
-const getDeathColor = (val) => {
-  if (val >= 20) return "rgba(239, 154, 154, 0.3)";
-  if (val >= 10) return "rgba(255, 205, 210, 0.3)";
-  return "transparent";
-};
+const getDeathColor = (val) => getClubBattleDeathColor(val);
 
-const getReviveColor = (val) => {
-  if (val >= 5) return "rgba(200, 230, 201, 0.3)";
-  return "transparent";
-};
+const getReviveColor = (val) => getClubBattleReviveColor(val);
 
 // 处理图片加载错误
 const handleImageError = (event) => {
