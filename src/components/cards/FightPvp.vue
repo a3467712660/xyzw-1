@@ -15,182 +15,33 @@
         </div>
       </div>
 
-      <!-- 操作区域 -->
-      <div class="action-section">
-        <div class="input-group">
-          <n-input
-            class="target-input"
-            size="medium"
-            type="text"
-            v-model:value="targetId"
-            :placeholder="t('fightPvpCard.placeholders.targetId')"
-          ></n-input>
-          <n-button
-            size="medium"
-            type="primary"
-            :disabled="loading1 || !targetId"
-            @click="getTargetInfo"
-          >
-            <template #icon>
-              <n-icon>
-                <Refresh></Refresh>
-              </n-icon>
-            </template>
-            {{ t("fightPvpCard.actions.queryTarget") }}
-          </n-button>
-        </div>
+      <FightPvpToolbar
+        v-model:fight-num="fightNum"
+        v-model:target-id="targetId"
+        :has-member-data="Boolean(memberData)"
+        :has-target-raw-info="Boolean(lastTargetRawInfo)"
+        :loading="loading1"
+        :options="options"
+        :t="t"
+        @export-data="handleExport1"
+        @export-raw="exportCurrentTargetRawData"
+        @normalize-fight-num="handleFightNumChange"
+        @query-target="getTargetInfo"
+        @start-fight="fightPVPRefresh"
+      ></FightPvpToolbar>
 
-        <div class="fight-options">
-          <div class="option-item">
-            <span class="option-label">{{ t("fightPvpCard.labels.fightCount") }}</span>
-            <n-select
-              allow-create
-              filterable
-              tag
-              class="fight-count-select"
-              size="medium"
-              v-model:value="fightNum"
-              :options="options"
-              :placeholder="t('fightPvpCard.placeholders.fightCount')"
-              @update:value="handleFightNumChange"
-            ></n-select>
-          </div>
-
-          <div class="option-actions">
-            <n-button
-              size="medium"
-              type="success"
-              :disabled="loading1 || !targetId || !memberData"
-              @click="fightPVPRefresh"
-            >
-              <template #icon>
-                <n-icon>
-                  <Trophy></Trophy>
-                </n-icon>
-              </template>
-              {{ t("fightPvpCard.actions.startFight") }}
-            </n-button>
-
-            <n-button
-              size="medium"
-              type="default"
-              :disabled="loading1 || !memberData"
-              @click="handleExport1"
-            >
-              <template #icon>
-                <n-icon>
-                  <Copy></Copy>
-                </n-icon>
-              </template>
-              {{ t("fightPvpCard.actions.exportData") }}
-            </n-button>
-
-            <n-button
-              size="medium"
-              type="default"
-              :disabled="loading1 || !lastTargetRawInfo"
-              @click="exportCurrentTargetRawData"
-            >
-              <template #icon>
-                <n-icon>
-                  <DocumentText></DocumentText>
-                </n-icon>
-              </template>
-              {{ t("fightPvpCard.actions.exportRaw") }}
-            </n-button>
-          </div>
-        </div>
-      </div>
-
-      <!-- 目标列表（历史/好友） -->
-      <div class="history-section">
-        <div class="history-header">
-          <div class="history-tabs">
-            <n-button
-              size="small"
-              :type="activeTargetListTab === 'history' ? 'primary' : 'default'"
-              @click="activeTargetListTab = 'history'"
-            >
-              {{ t("fightPvpCard.targetLists.history") }}
-            </n-button>
-            <n-button
-              size="small"
-              :type="activeTargetListTab === 'friends' ? 'primary' : 'default'"
-              @click="activeTargetListTab = 'friends'"
-            >
-              {{ t("fightPvpCard.targetLists.friends") }}
-            </n-button>
-          </div>
-          <div class="history-header-actions">
-            <n-button
-              size="small"
-              type="info"
-              :disabled="loading1"
-              :loading="syncingTargetLists"
-              @click="syncTargetListsFromGame"
-            >
-              {{ t("fightPvpCard.actions.syncFromGame") }}
-            </n-button>
-            <n-button
-              text
-              size="small"
-              type="error"
-              :disabled="currentTabRecords.length === 0"
-              @click="clearCurrentTabRecords"
-            >
-              {{ t("fightPvpCard.actions.clearCurrent") }}
-            </n-button>
-          </div>
-        </div>
-        <div v-if="currentTabRecords.length > 0" class="history-list">
-          <div
-            v-for="item in currentTabRecords"
-            :key="item.id"
-            class="history-item"
-          >
-            <n-avatar
-              round
-              class="history-avatar"
-              :size="38"
-              :src="item.headImg"
-            ></n-avatar>
-            <div class="history-content">
-              <div class="history-name-row">
-                <span class="history-name">{{ item.name || t("fightPvpCard.common.unknownPlayer") }}</span>
-                <span class="history-id">ID: {{ item.id }}</span>
-              </div>
-              <div class="history-meta">
-                <span>{{ t("fightPvpCard.labels.serverName", { value: item.serverName || t('fightPvpCard.common.unknown') }) }}</span>
-                <span>{{ t("fightPvpCard.labels.redCount", { value: item.red ?? 0 }) }}</span>
-                <span>{{ t("fightPvpCard.labels.updatedAt") }}
-                  {{ formatUpdatedAt(item.updatedAt) }}</span>
-              </div>
-            </div>
-            <div class="history-actions">
-              <n-button size="small" type="primary" @click="useHistoryTarget(item)">
-                {{ t("fightPvpCard.actions.use") }}
-              </n-button>
-              <n-button
-                quaternary
-                size="small"
-                type="error"
-                @click="removeCurrentTabRecord(item.id)"
-              >
-                {{ t("fightPvpCard.actions.delete") }}
-              </n-button>
-            </div>
-          </div>
-        </div>
-        <n-empty
-          v-else
-          size="small"
-          :description="
-            activeTargetListTab === 'history'
-              ? t('fightPvpCard.empty.history')
-              : t('fightPvpCard.empty.friends')
-          "
-        ></n-empty>
-      </div>
+      <FightPvpHistoryPanel
+        v-model:active-tab="activeTargetListTab"
+        :format-updated-at="formatUpdatedAt"
+        :loading="loading1"
+        :records="currentTabRecords"
+        :syncing="syncingTargetLists"
+        :t="t"
+        @clear="clearCurrentTabRecords"
+        @remove="removeCurrentTabRecord"
+        @sync="syncTargetListsFromGame"
+        @use-target="useHistoryTarget"
+      ></FightPvpHistoryPanel>
 
       <!-- 加载状态 -->
       <div v-if="loading1" class="loading-section">
@@ -463,182 +314,14 @@
       </div>
     </div>
 
-    <!-- 武将详情模态框 -->
-    <n-modal
-      class="hero-detail-modal modal-w-600"
-      preset="card"
-      size="large"
+    <FightPvpHeroDetailModal
       v-model:show="showHeroModal"
-      :bordered="false"
-      :segmented="{ content: 'soft', footer: 'soft' }"
-      :title="t('fightPvpCard.heroModal.title')"
-    >
-      <template #header-extra>
-        <span class="hero-id">{{ t("fightPvpCard.heroModal.heroId", { value: heroModealTemp?.heroId }) }}</span>
-      </template>
-
-      <div v-if="heroModealTemp" class="hero-modal-content">
-        <div class="hero-modal-header">
-          <div class="hero-modal-avatar">
-            <img
-              v-if="heroModealTemp.heroAvate"
-              :alt="heroModealTemp.heroName"
-              :src="heroModealTemp.heroAvate"
-            >
-          </div>
-          <div class="hero-modal-basic">
-            <h3 class="hero-modal-name">{{ heroModealTemp.heroName }}</h3>
-            <div class="hero-modal-stats">
-              <span class="stat-item">{{ heroModealTemp.power }}</span>
-              <span class="stat-item">{{ t("fightPvpCard.heroModal.level", { value: heroModealTemp.level }) }}</span>
-              <span class="stat-item">{{ t("fightPvpCard.heroModal.star", { value: heroModealTemp.star }) }}</span>
-              <n-tag :type="heroModealTemp.HolyBeast ? 'success' : 'warning'">
-                {{ heroModealTemp.HolyBeast ? t("fightPvpCard.heroModal.activated") : t("fightPvpCard.heroModal.notActivated") }}
-              </n-tag>
-            </div>
-          </div>
-        </div>
-
-        <div class="hero-modal-details">
-          <n-descriptions bordered column="3" label-placement="left">
-            <n-descriptions-item :label="t('fightPvpCard.heroModal.labels.power')">
-              {{ heroModealTemp.power }}
-            </n-descriptions-item>
-            <n-descriptions-item :label="t('fightPvpCard.heroModal.labels.level')">
-              {{ heroModealTemp.level }}
-            </n-descriptions-item>
-            <n-descriptions-item :label="t('fightPvpCard.heroModal.labels.star')">
-              {{ heroModealTemp.star }}
-            </n-descriptions-item>
-            <n-descriptions-item :label="t('fightPvpCard.heroModal.labels.hole')">
-              {{ heroModealTemp.hole }}
-            </n-descriptions-item>
-            <n-descriptions-item :label="t('fightPvpCard.heroModal.labels.red')">
-              {{ heroModealTemp.red }}
-            </n-descriptions-item>
-            <n-descriptions-item :label="t('fightPvpCard.heroModal.labels.holyBeastStatus')">
-              {{ heroModealTemp.HolyBeast ? t("fightPvpCard.heroModal.activated") : t("fightPvpCard.heroModal.notActivated") }}
-            </n-descriptions-item>
-            <n-descriptions-item
-              v-if="heroModealTemp.HolyBeast"
-              :label="t('fightPvpCard.heroModal.labels.holyBeastLevel')"
-            >
-              {{ heroModealTemp.HBlevel }}
-            </n-descriptions-item>
-            <n-descriptions-item :label="t('fightPvpCard.heroModal.labels.fishInfo')">
-              {{
-                heroModealTemp?.PearlInfo?.FishInfo?.name != undefined
-                  ? heroModealTemp.PearlInfo?.FishInfo?.name
-                  : t("fightPvpCard.common.none")
-              }}
-            </n-descriptions-item>
-            <n-descriptions-item :label="t('fightPvpCard.heroModal.labels.pearlSkill')">
-              {{
-                heroModealTemp?.PearlInfo?.PearlSkill?.name != undefined
-                  ? heroModealTemp.PearlInfo?.PearlSkill?.name
-                  : t("fightPvpCard.common.none")
-              }}
-            </n-descriptions-item>
-            <n-descriptions-item :label="t('fightPvpCard.heroModal.labels.pearlWash')">
-              <div v-if="heroModealTemp?.PearlInfo?.slotMap?.length > 0">
-                <div
-                  v-for="item in heroModealTemp.PearlInfo.slotMap"
-                  :key="item.id"
-                  class="ModalEquipment"
-                  :style="{ '--equip-color': item.value }"
-                ></div>
-              </div>
-              <div v-else>{{ t("fightPvpCard.common.none") }}</div>
-            </n-descriptions-item>
-          </n-descriptions>
-        </div>
-
-        <div class="hero-modal-equipment">
-          <h4 class="section-title">{{ t("fightPvpCard.heroModal.equipmentTitle") }}</h4>
-          <div class="equipment-grid">
-            <div class="equipment-item">
-              <span class="equipment-label">{{ t("fightPvpCard.heroModal.equipment.weapon") }}</span>
-              <div class="equipment-slots">
-                <div
-                  v-for="(item, idx) in getEquipmentQuenchSlots(
-                    heroModealTemp.equipment,
-                    0,
-                  )"
-                  :key="idx"
-                  class="equipment-slot"
-                  :class="{
-                    'red-slot': isRedQuenchSlot(item, heroModealTemp.equipment),
-                    'orange-slot': isOrangeQuenchSlot(item, heroModealTemp.equipment),
-                  }"
-                ></div>
-              </div>
-            </div>
-            <div class="equipment-item">
-              <span class="equipment-label">{{ t("fightPvpCard.heroModal.equipment.clothes") }}</span>
-              <div class="equipment-slots">
-                <div
-                  v-for="(item, idx) in getEquipmentQuenchSlots(
-                    heroModealTemp.equipment,
-                    1,
-                  )"
-                  :key="idx"
-                  class="equipment-slot"
-                  :class="{
-                    'red-slot': isRedQuenchSlot(item, heroModealTemp.equipment),
-                    'orange-slot': isOrangeQuenchSlot(item, heroModealTemp.equipment),
-                  }"
-                ></div>
-              </div>
-            </div>
-            <div class="equipment-item">
-              <span class="equipment-label">{{ t("fightPvpCard.heroModal.equipment.helmet") }}</span>
-              <div class="equipment-slots">
-                <div
-                  v-for="(item, idx) in getEquipmentQuenchSlots(
-                    heroModealTemp.equipment,
-                    2,
-                  )"
-                  :key="idx"
-                  class="equipment-slot"
-                  :class="{
-                    'red-slot': isRedQuenchSlot(item, heroModealTemp.equipment),
-                    'orange-slot': isOrangeQuenchSlot(item, heroModealTemp.equipment),
-                  }"
-                ></div>
-              </div>
-            </div>
-            <div class="equipment-item">
-              <span class="equipment-label">{{ t("fightPvpCard.heroModal.equipment.mount") }}</span>
-              <div class="equipment-slots">
-                <div
-                  v-for="(item, idx) in getEquipmentQuenchSlots(
-                    heroModealTemp.equipment,
-                    3,
-                  )"
-                  :key="idx"
-                  class="equipment-slot"
-                  :class="{
-                    'red-slot': isRedQuenchSlot(item, heroModealTemp.equipment),
-                    'orange-slot': isOrangeQuenchSlot(item, heroModealTemp.equipment),
-                  }"
-                ></div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <template #footer>
-        <div class="modal-footer">
-          <n-button
-            type="default"
-            @click="showHeroModal = false"
-          >
-            {{ t("fightPvpCard.actions.close") }}
-          </n-button>
-        </div>
-      </template>
-    </n-modal>
+      :get-equipment-quench-slots="getEquipmentQuenchSlots"
+      :hero="heroModealTemp"
+      :is-orange-quench-slot="isOrangeQuenchSlot"
+      :is-red-quench-slot="isRedQuenchSlot"
+      :t="t"
+    ></FightPvpHeroDetailModal>
   </div>
 </template>
 
@@ -650,6 +333,9 @@ import { useTokenStore } from "@/stores/tokenStore";
 import { useAuthStore } from "@/stores/auth";
 import api from "@/api";
 import DuelBattleDetailReport from "@/components/Common/DuelBattleDetailReport.vue";
+import FightPvpHeroDetailModal from "@/components/cards/pvp/FightPvpHeroDetailModal.vue";
+import FightPvpHistoryPanel from "@/components/cards/pvp/FightPvpHistoryPanel.vue";
+import FightPvpToolbar from "@/components/cards/pvp/FightPvpToolbar.vue";
 import {
   loadFightHistoryFromLocalStorage,
   loadFightTargetListsFromLocalStorage,
@@ -660,13 +346,15 @@ import {
 } from "@/services/preferences/fightPvpStorage";
 import { useFightPvpActions } from "@/composables/useFightPvpActions";
 import { useFightPvpTargetSync } from "@/composables/useFightPvpTargetSync";
-import { triggerBlobDownload } from "@/utils/download";
 import {
-  Copy,
-  DocumentText,
-  Refresh,
-  Trophy,
-} from "@vicons/ionicons5";
+  countFightPvpPearlOrangeSlots,
+  formatFightPvpPower,
+  formatFightPvpUpdatedAt,
+  getFightPvpEquipmentQuenchSlots,
+  isFightPvpOrangeQuenchSlot,
+  isFightPvpRedQuenchSlot,
+} from "@/components/cards/pvp/fightPvpFormatters";
+import { triggerBlobDownload } from "@/utils/download";
 
 import {
   gettoday,
@@ -920,15 +608,11 @@ const getHeadImgFromObject = (obj) =>
 const getRedFromObject = (obj) =>
   Number(obj?.red ?? obj?.redQuench ?? obj?.redCount ?? 0) || 0;
 
-const formatUpdatedAt = (updatedAt) => {
-  const date = new Date(Number(updatedAt) || Date.now());
-  const localeValue = typeof locale?.value === "string" ? locale.value : undefined;
-  try {
-    return date.toLocaleString(localeValue);
-  } catch {
-    return date.toLocaleString();
-  }
-};
+const formatUpdatedAt = (updatedAt) =>
+  formatFightPvpUpdatedAt(
+    updatedAt,
+    typeof locale?.value === "string" ? locale.value : undefined,
+  );
 
 const getQuenchColorLevel = (quench) => {
   const normalizeColorText = (value) => {
@@ -1115,31 +799,10 @@ const getEffectiveQuenchMap = (equip) => {
     : secondary;
 };
 
-const getEquipmentQuenchSlots = (heroEquipment, index) => {
-  const equip = Object.values(heroEquipment || {})[index];
-  return parseQuenchCollection(getEffectiveQuenchMap(equip));
-};
-
-const isRedQuenchSlot = (slot, heroEquipment) => {
-  const level = getQuenchColorLevel(slot);
-  const palette = getEquipmentPalette(heroEquipment || {});
-  return level >= palette.redThreshold;
-};
-
-const isOrangeQuenchSlot = (slot, heroEquipment) => {
-  const level = getQuenchColorLevel(slot);
-  const palette = getEquipmentPalette(heroEquipment || {});
-  return level === palette.orangeLevel;
-};
-
-const countPearlOrangeSlots = (slotMap) => {
-  if (!Array.isArray(slotMap))
-    return 0;
-  return slotMap.reduce(
-    (count, slot) => count + (Number(slot?.colorId || 0) === 5 ? 1 : 0),
-    0,
-  );
-};
+const getEquipmentQuenchSlots = getFightPvpEquipmentQuenchSlots;
+const isRedQuenchSlot = isFightPvpRedQuenchSlot;
+const isOrangeQuenchSlot = isFightPvpOrangeQuenchSlot;
+const countPearlOrangeSlots = countFightPvpPearlOrangeSlots;
 
 const calculateRedCountFromHeroes = (heroes) => {
   if (!heroes || typeof heroes !== "object")
@@ -1846,17 +1509,7 @@ const currentPageData = computed(() => {
   return Object.fromEntries(entries.slice(startIndex, endIndex));
 });
 // 格式化战力
-const formatPower = (power) => {
-  if (!power)
-    return "0";
-  if (power >= 100000000) {
-    return `${(power / 100000000).toFixed(2)}亿`;
-  }
-  if (power >= 10000) {
-    return `${(power / 10000).toFixed(2)}万`;
-  }
-  return power.toString();
-};
+const formatPower = formatFightPvpPower;
 
 // 获取战斗样式类
 const getBattleClass = (battle) => {
@@ -2277,142 +1930,6 @@ onBeforeUnmount(() => {
   margin: 0;
   font-size: 14px;
   color: var(--text-secondary);
-}
-
-.action-section {
-  margin-bottom: 24px;
-}
-
-.action-section .input-group {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
-.action-section .input-group .target-input {
-  flex: 1;
-}
-
-.action-section .fight-options {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 16px;
-}
-
-.action-section .fight-options .option-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.action-section .fight-options .option-item .option-label {
-  font-size: 14px;
-  color: var(--text-secondary);
-}
-
-.action-section .fight-options .option-item .fight-count-select {
-  width: 120px;
-}
-
-.action-section .fight-options .option-actions {
-  display: flex;
-  gap: 12px;
-}
-
-.history-section {
-  margin-bottom: 20px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-light);
-  border-radius: var(--border-radius-medium);
-  padding: 12px;
-}
-
-.history-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 10px;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.history-header h4 {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.history-tabs {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.history-header-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.history-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  max-height: 260px;
-  overflow-y: auto;
-}
-
-.history-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-light);
-  border-radius: var(--border-radius-medium);
-}
-
-.history-content {
-  min-width: 0;
-  flex: 1;
-}
-
-.history-name-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 4px;
-}
-
-.history-name {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.history-id {
-  font-size: 12px;
-  color: var(--text-tertiary);
-}
-
-.history-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-.history-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
 }
 
 .loading-section {
@@ -2984,149 +2501,8 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
 }
 
-/* 英雄详情模态框样式 */
-.hero-detail-modal .hero-modal-content {
-  padding: 20px 0;
-}
-
-.hero-modal-header {
-  display: flex;
-  gap: 24px;
-  align-items: center;
-  margin-bottom: 24px;
-  padding-bottom: 20px;
-  border-bottom: 1px solid var(--border-light);
-}
-
-@media (max-width: 768px) {
-  .hero-modal-header {
-    flex-direction: column;
-    text-align: center;
-  }
-}
-
-.hero-modal-avatar {
-  flex-shrink: 0;
-}
-
-.hero-modal-avatar img {
-  width: 120px;
-  height: 120px;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 3px solid var(--primary-color-light);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-}
-
-.hero-modal-basic {
-  flex: 1;
-}
-
-.hero-modal-name {
-  margin: 0 0 12px 0;
-  font-size: 24px;
-  font-weight: 600;
-}
-
-.hero-modal-stats {
-  display: flex;
-  gap: 16px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.hero-modal-stats .stat-item {
-  font-size: 14px;
-  color: var(--text-primary);
-}
-
-.hero-modal-stats .stat-item:first-child {
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--primary-color);
-}
-
-.hero-modal-details {
-  margin-bottom: 24px;
-}
-
-.hero-modal-equipment .section-title {
-  margin: 0 0 16px 0;
-  font-size: 16px;
-  font-weight: 600;
-}
-
-.equipment-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 16px;
-}
-
-.equipment-item {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.equipment-label {
-  font-size: 14px;
-  color: var(--text-secondary);
-}
-
-.equipment-slots {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.equipment-slot {
-  width: 20px;
-  height: 20px;
-  border: 1px solid #d1d5db;
-  border-radius: 4px;
-  transition: all 0.2s ease;
-}
-
-.equipment-slot.red-slot {
-  background-color: #ef4444;
-  border-color: #ef4444;
-  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2);
-}
-
-.equipment-slot.orange-slot {
-  background-color: #f59e0b;
-  border-color: #f59e0b;
-  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2);
-}
-
-.orange-count {
-  color: #d97706;
-}
-
-/* 鱼珠洗练样式 */
-.ModalEquipment {
-  display: inline-block;
-  width: 18px;
-  height: 18px;
-  background-color: var(--equip-color);
-  margin-right: 5px;
-  border-radius: 2px;
-  border: 1px solid rgba(0, 0, 0, 0.1);
-}
-
-.modal-footer {
-  display: flex;
-  justify-content: center;
-  gap: 12px;
-}
-
 /* 响应式设计 */
 @media (max-width: 1024px) {
-  .action-section .fight-options {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
   .heroes-card .heroes-grid {
     grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   }
@@ -3141,20 +2517,6 @@ onBeforeUnmount(() => {
     flex-direction: column;
     text-align: center;
     gap: 12px;
-  }
-
-  .action-section .input-group {
-    flex-direction: column;
-  }
-
-  .history-item {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .history-actions {
-    width: 100%;
-    justify-content: flex-end;
   }
 
   .result-card .card-title .result-summary {

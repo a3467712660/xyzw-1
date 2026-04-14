@@ -129,248 +129,37 @@
       </div>
     </n-modal>
 
-    <!-- Apply Template Modal -->
-    <n-modal
-      class="modal-w-600"
-      preset="card"
-      title="应用任务模板"
+    <BatchDailyTasksApplyTemplateModal
+      v-model:selected-template-id="selectedTemplateId"
+      v-model:selected-tokens-for-apply="selectedTokensForApply"
       v-model:show="showApplyTemplateModal"
-    >
-      <div class="settings-content">
-        <div class="settings-grid">
-          <div class="setting-item">
-            <label class="setting-label">选择模板</label>
-            <n-select
-              class="input-w-full"
-              label-field="name"
-              placeholder="请选择要应用的模板"
-              size="small"
-              value-field="id"
-              v-model:value="selectedTemplateId"
-              :options="taskTemplates"
-            ></n-select>
-          </div>
-          <div class="setting-item">
-            <label class="setting-label">选择账号</label>
+      :is-all-selected="isAllSelectedForApply"
+      :is-indeterminate="isIndeterminateForApply"
+      :sorted-tokens="sortedTokens"
+      :task-templates="taskTemplates"
+      :token-groups="tokenGroups"
+      @append-group-tokens="appendGroupTokensForApply"
+      @apply="applyTemplate"
+      @select-all="handleSelectAllForApply"
+    ></BatchDailyTasksApplyTemplateModal>
 
-            <!-- 分组快速选择 -->
-            <div class="apply-group-quick">
-              <div class="apply-group-quick-label">快速选择分组：</div>
-              <div class="apply-group-buttons">
-                <n-button
-                  v-for="group in tokenGroups"
-                  :key="group.id"
-                  ghost
-                  class="apply-group-btn"
-                  size="small"
-                  :style="{ '--group-color': group.color }"
-                  @click="
-                    () => {
-                      const groupTokenIds = getValidGroupTokenIds(group.id);
-                      groupTokenIds.forEach((id) => {
-                        if (!selectedTokensForApply.includes(id)) {
-                          selectedTokensForApply.push(id);
-                        }
-                      });
-                    }
-                  "
-                >
-                  {{ group.name }}
-                </n-button>
-                <div v-if="tokenGroups.length === 0" class="apply-group-empty">
-                  暂无分组
-                </div>
-              </div>
-            </div>
-
-            <n-checkbox
-              :checked="isAllSelectedForApply"
-              :indeterminate="isIndeterminateForApply"
-              @update:checked="handleSelectAllForApply"
-            >
-              全选
-            </n-checkbox>
-            <n-checkbox-group
-              class="apply-token-checklist"
-              v-model:value="selectedTokensForApply"
-            >
-              <n-grid :cols="2" :x-gap="12" :y-gap="8">
-                <n-grid-item v-for="token in sortedTokens" :key="token.id">
-                  <n-checkbox :value="token.id">{{ token.name }}</n-checkbox>
-                </n-grid-item>
-              </n-grid>
-            </n-checkbox-group>
-          </div>
-        </div>
-        <div class="modal-actions modal-actions-right">
-          <n-button @click="showApplyTemplateModal = false">取消</n-button>
-          <n-button
-            type="success"
-            :disabled="
-              !selectedTemplateId || selectedTokensForApply.length === 0
-            "
-            @click="applyTemplate"
-          >
-            应用模板
-          </n-button>
-        </div>
-      </div>
-    </n-modal>
-
-    <!-- Template Manager Modal -->
-    <n-modal
-      class="modal-w-800"
-      preset="card"
-      title="任务模板管理"
+    <BatchDailyTasksTemplateManagerModal
       v-model:show="showTemplateManagerModal"
-    >
-      <div class="settings-content">
-        <div class="template-header-row">
-          <div class="template-header-actions">
-            <n-button
-              type="primary"
-              @click="openNewTemplateModal"
-            >
-              新增模板
-            </n-button>
-            <n-button
-              class="btn-ml"
-              type="success"
-              @click="openApplyTemplateModal"
-            >
-              应用模板
-            </n-button>
-            <n-button
-              class="btn-ml"
-              type="info"
-              @click="openAccountTemplateModal"
-            >
-              查看账号模板引用
-            </n-button>
-          </div>
-          <n-input
-            class="template-search-input"
-            placeholder="搜索模板"
-            size="small"
-          ></n-input>
-        </div>
+      :filtered-task-templates="filteredTaskTemplates"
+      @delete-template="deleteTaskTemplate"
+      @edit-template="openEditTemplateModal"
+      @open-account-template="openAccountTemplateModal"
+      @open-apply-template="openApplyTemplateModal"
+      @open-new-template="openNewTemplateModal"
+    ></BatchDailyTasksTemplateManagerModal>
 
-        <!-- Template List -->
-        <div class="template-list template-list-box">
-          <n-card
-            v-for="template in filteredTaskTemplates"
-            :key="template.id"
-            class="template-item-card"
-            size="small"
-          >
-            <div class="template-item-row">
-              <div>
-                <h4 class="template-item-title">
-                  {{ template.name }}
-                </h4>
-                <div class="template-item-meta">
-                  创建时间: {{ new Date(template.createdAt).toLocaleString() }}
-                  <span v-if="template.updatedAt">, 更新时间:
-                    {{ new Date(template.updatedAt).toLocaleString() }}</span>
-                </div>
-              </div>
-              <div class="template-item-actions">
-                <n-button
-                  size="small"
-                  @click="openEditTemplateModal(template)"
-                >
-                  编辑
-                </n-button>
-                <n-button
-                  size="small"
-                  type="error"
-                  @click="deleteTaskTemplate(template.id)"
-                >
-                  删除
-                </n-button>
-              </div>
-            </div>
-          </n-card>
-          <div
-            v-if="filteredTaskTemplates.length === 0"
-            class="template-empty-state"
-          >
-            暂无模板
-          </div>
-        </div>
-
-        <!-- Actions -->
-        <div class="modal-actions modal-actions-right">
-          <n-button @click="showTemplateManagerModal = false">关闭</n-button>
-        </div>
-      </div>
-    </n-modal>
-
-    <!-- Account Template References Modal -->
-    <n-modal
-      class="modal-w-800"
-      preset="card"
-      title="账号模板引用查看"
+    <BatchDailyTasksAccountTemplateModal
+      v-model:selected-template-for-filter="selectedTemplateForFilter"
       v-model:show="showAccountTemplateModal"
-    >
-      <div class="settings-content">
-        <div class="template-header-row">
-          <div>
-            <span>共 {{ filteredAccountTemplates.length }} 个账号</span>
-          </div>
-          <div class="account-filter-row">
-            <label class="account-filter-label">按模板筛选:</label>
-            <n-select
-              class="account-filter-select"
-              label-field="name"
-              placeholder="全部模板"
-              size="small"
-              value-field="id"
-              v-model:value="selectedTemplateForFilter"
-              :options="taskTemplates"
-              @update:value="filterAccountTemplates"
-            ></n-select>
-          </div>
-        </div>
-
-        <!-- Account Template List -->
-        <div class="account-template-list template-list-box">
-          <n-card
-            v-for="item in filteredAccountTemplates"
-            :key="item.tokenId"
-            class="template-item-card"
-            size="small"
-          >
-            <div class="template-item-row">
-              <div>
-                <h4 class="template-item-title-small">
-                  {{ item.tokenName }}
-                </h4>
-              </div>
-              <div>
-                <n-tag
-                  size="small"
-                  :type="item.templateId ? 'success' : 'default'"
-                >
-                  {{ item.templateName }}
-                </n-tag>
-              </div>
-            </div>
-          </n-card>
-          <div
-            v-if="filteredAccountTemplates.length === 0"
-            class="template-empty-state"
-          >
-            暂无账号数据
-          </div>
-        </div>
-
-        <!-- Actions -->
-        <div class="modal-actions modal-actions-right">
-          <n-button @click="showAccountTemplateModal = false">关闭</n-button>
-        </div>
-      </div>
-    </n-modal>
+      :filtered-account-templates="filteredAccountTemplates"
+      :task-templates="taskTemplates"
+      @filter-account-templates="filterAccountTemplates"
+    ></BatchDailyTasksAccountTemplateModal>
 
     <!-- Legacy Gift Modal -->
     <n-modal
@@ -448,64 +237,16 @@
       </div>
     </n-modal>
 
-    <!-- Dream Buy Modal -->
-    <n-modal
-      class="modal-w-600"
-      preset="card"
-      title="梦境商品购买配置"
+    <BatchDailyTasksDreamBuyModal
       v-model:show="showDreamBuyModal"
-    >
-      <div class="settings-content">
-        <div class="settings-grid">
-          <n-alert show-icon class="dream-alert" type="info">
-            请勾选需要购买的商品。只会购买列表中存在的商品。
-          </n-alert>
-
-          <div class="dream-actions-row">
-            <n-button size="small" type="warning" @click="selectGoldItems">
-              一键勾选金币商品
-            </n-button>
-            <n-button size="small" @click="selectAllItems"> 全选所有 </n-button>
-            <n-button size="small" @click="clearAllItems"> 清空选择 </n-button>
-          </div>
-
-          <div
-            v-for="(merchant, id) in merchantConfig"
-            :key="id"
-            class="dream-merchant-block"
-          >
-            <div class="dream-merchant-title">{{ merchant.name }}</div>
-            <n-grid :cols="3" :x-gap="12" :y-gap="8">
-              <n-grid-item v-for="(item, index) in merchant.items" :key="index">
-                <n-checkbox
-                  :checked="dreamBuyList.includes(`${id}-${index}`)"
-                  :value="`${id}-${index}`"
-                  @update:checked="
-                    (checked) => toggleDreamItem(`${id}-${index}`, checked)
-                  "
-                >
-                  {{ item }}
-                </n-checkbox>
-              </n-grid-item>
-            </n-grid>
-          </div>
-        </div>
-        <div class="modal-actions modal-actions-right">
-          <n-button
-            class="btn-mr"
-            @click="showDreamBuyModal = false"
-          >
-            取消
-          </n-button>
-          <n-button
-            type="primary"
-            @click="saveDreamBuyConfig"
-          >
-            保存配置
-          </n-button>
-        </div>
-      </div>
-    </n-modal>
+      :dream-buy-list="dreamBuyList"
+      :merchant-config="merchantConfig"
+      @clear-all-items="clearAllItems"
+      @save="saveDreamBuyConfig"
+      @select-all-items="selectAllItems"
+      @select-gold-items="selectGoldItems"
+      @toggle-item="toggleDreamItem"
+    ></BatchDailyTasksDreamBuyModal>
 
     <!-- Tasks List Modal -->
     <n-modal
@@ -952,58 +693,18 @@
       </div>
     </n-modal>
 
-    <!-- War Guess Modal -->
-    <n-modal
-      class="modal-w-800"
-      preset="card"
-      title="月赛助威"
+    <BatchDailyTasksWarGuessModal
+      v-model:selected-war-guess-legion-id="selectedWarGuessLegionId"
       v-model:show="showWarGuessModal"
-    >
-      <div class="settings-content">
-        <div class="settings-grid settings-grid-block">
-          <div class="war-guess-toolbar">
-            <span class="war-guess-label">拍手器:</span>
-            <n-input-number
-              class="input-w-120"
-              placeholder="拍手器"
-              v-model:value="warGuessCoin"
-              :max="20"
-              :min="1"
-            >
-            </n-input-number>
-            <n-button
-              type="primary"
-              :disabled="!selectedWarGuessLegionId || isRunning"
-              @click="handleWarGuessCheer"
-            >
-              助威
-            </n-button>
-            <n-button :loading="warGuessLoading" @click="fetchWarGuessRank">
-              刷新数据
-            </n-button>
-          </div>
-
-          <n-data-table
-            flex-height
-            class="war-guess-table"
-            :checked-row-keys="
-              selectedWarGuessLegionId ? [selectedWarGuessLegionId] : []
-            "
-            :columns="warGuessColumns"
-            :data="warGuessList"
-            :loading="warGuessLoading"
-            :row-key="(row) => row.id"
-            :row-props="warGuessRowProps"
-            @update:checked-row-keys="
-              (keys) => (selectedWarGuessLegionId = keys[0])
-            "
-          ></n-data-table>
-        </div>
-        <div class="modal-actions modal-actions-right">
-          <n-button @click="showWarGuessModal = false">关闭</n-button>
-        </div>
-      </div>
-    </n-modal>
+      v-model:war-guess-coin="warGuessCoin"
+      :is-running="isRunning"
+      :war-guess-columns="warGuessColumns"
+      :war-guess-list="warGuessList"
+      :war-guess-loading="warGuessLoading"
+      :war-guess-row-props="warGuessRowProps"
+      @cheer="handleWarGuessCheer"
+      @refresh="fetchWarGuessRank"
+    ></BatchDailyTasksWarGuessModal>
 
     <!-- Token Group Management Modal -->
     <BatchDailyTasksGroupManageModal
@@ -1062,13 +763,18 @@ import { useTokenGroupManager } from "@/composables/useTokenGroupManager";
 import { useWarGuessManager } from "@/composables/useWarGuessManager";
 import { DailyTaskRunner } from "@/utils/dailyTaskRunner";
 import { useMessage } from "naive-ui/es";
+import BatchDailyTasksAccountTemplateModal from "@/views/batch-daily-tasks/BatchDailyTasksAccountTemplateModal.vue";
+import BatchDailyTasksApplyTemplateModal from "@/views/batch-daily-tasks/BatchDailyTasksApplyTemplateModal.vue";
 import BatchDailyTasksHeader from "@/views/batch-daily-tasks/BatchDailyTasksHeader.vue";
+import BatchDailyTasksDreamBuyModal from "@/views/batch-daily-tasks/BatchDailyTasksDreamBuyModal.vue";
 import BatchDailyTasksLogPanel from "@/views/batch-daily-tasks/BatchDailyTasksLogPanel.vue";
 import BatchDailyTaskModalBody from "@/views/batch-daily-tasks/BatchDailyTaskModalBody.vue";
 import BatchDailyTaskSettingsForm from "@/views/batch-daily-tasks/BatchDailyTaskSettingsForm.vue";
 import BatchDailyTasksGroupManageModal from "@/views/batch-daily-tasks/BatchDailyTasksGroupManageModal.vue";
+import BatchDailyTasksTemplateManagerModal from "@/views/batch-daily-tasks/BatchDailyTasksTemplateManagerModal.vue";
 import BatchDailyTasksToolbar from "@/views/batch-daily-tasks/BatchDailyTasksToolbar.vue";
 import BatchDailyTasksTokenSelection from "@/views/batch-daily-tasks/BatchDailyTasksTokenSelection.vue";
+import BatchDailyTasksWarGuessModal from "@/views/batch-daily-tasks/BatchDailyTasksWarGuessModal.vue";
 import { useBatchTokenSort } from "@/views/batch-daily-tasks/useBatchTokenSort";
 import {
   ARENA_LINEUP_PRESET_OPTIONS,
@@ -1681,6 +1387,15 @@ const handleBatchToolbarAction = (actionKey) => {
   if (typeof action === "function") {
     action();
   }
+};
+
+const appendGroupTokensForApply = (groupId) => {
+  const groupTokenIds = getValidGroupTokenIds(groupId);
+  const nextSelectedTokens = new Set(selectedTokensForApply.value || []);
+  groupTokenIds.forEach((tokenId) => {
+    nextSelectedTokens.add(tokenId);
+  });
+  selectedTokensForApply.value = [...nextSelectedTokens];
 };
 
 const updateTaskFormField = (key, value) => {
@@ -2462,153 +2177,6 @@ defineExpose({
 
 .info-item-full {
   grid-column: 1 / -1;
-}
-
-.apply-group-quick {
-  margin-bottom: 12px;
-  border-bottom: 1px solid var(--border-light);
-  padding-bottom: 8px;
-}
-
-.apply-group-quick-label {
-  font-size: 12px;
-  color: var(--text-tertiary);
-  margin-bottom: 8px;
-}
-
-.apply-group-buttons {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.apply-group-btn {
-  border-color: var(--group-color);
-  color: var(--group-color);
-}
-
-.apply-group-empty {
-  font-size: 12px;
-  color: #ccc;
-}
-
-.apply-token-checklist {
-  margin-top: 8px;
-}
-
-.template-header-row {
-  margin-bottom: 16px;
-}
-
-.template-header-actions {
-  display: flex;
-  align-items: center;
-}
-
-.template-search-input {
-  width: 200px;
-}
-
-.template-list-box {
-  max-height: 400px;
-  overflow-y: auto;
-}
-
-.template-item-card {
-  margin-bottom: 12px;
-  padding: 12px;
-  border: 1px solid var(--surface-glass-border);
-  border-radius: 8px;
-  background: var(--surface-glass);
-}
-
-.template-item-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-}
-
-.template-item-title {
-  margin: 0 0 4px 0;
-  color: var(--text-primary);
-}
-
-.template-item-title-small {
-  margin: 0;
-  color: var(--text-primary);
-}
-
-.template-item-meta {
-  color: var(--text-tertiary);
-  font-size: 12px;
-}
-
-.template-item-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.template-empty-state {
-  text-align: center;
-  color: var(--text-tertiary);
-  padding: 24px;
-}
-
-.account-filter-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.account-filter-label {
-  font-size: 14px;
-  color: var(--text-secondary);
-}
-
-.account-filter-select {
-  width: 200px;
-}
-
-.dream-alert {
-  margin-bottom: 16px;
-}
-
-.dream-actions-row {
-  margin-bottom: 16px;
-  display: flex;
-  gap: 12px;
-}
-
-.dream-merchant-block {
-  margin-bottom: 16px;
-  padding: 12px;
-  border: 1px solid var(--surface-glass-border);
-  border-radius: 8px;
-  background: var(--surface-glass);
-}
-
-.dream-merchant-title {
-  margin-bottom: 8px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.war-guess-toolbar {
-  margin-bottom: 16px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.war-guess-label {
-  font-size: 16px;
-}
-
-.war-guess-table {
-  height: 400px;
-  flex: 1;
 }
 
 .setting-switches {

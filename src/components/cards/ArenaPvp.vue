@@ -13,363 +13,75 @@
         </div>
       </div>
 
-      <div class="summary-grid">
-        <div class="summary-item">
-          <span class="label">{{ t("arenaPvpCard.summary.status") }}</span>
-          <span class="value" :class="isArenaActivityOpen ? 'ok' : 'danger'">
-            {{
-              isArenaActivityOpen
-                ? t("arenaPvpCard.summary.open")
-                : t("arenaPvpCard.summary.closed")
-            }}
-          </span>
-        </div>
-        <div class="summary-item">
-          <span class="label">{{ t("arenaPvpCard.summary.ticket") }}</span>
-          <span class="value">{{ arenaTicketCount }}</span>
-        </div>
-        <div class="summary-item">
-          <span class="label">{{ t("arenaPvpCard.summary.score") }}</span>
-          <span class="value score-with-delta">
-            {{ myArenaScoreDisplay }}
-            <span
-              class="score-delta-mini"
-              :class="{
-                positive: todayArenaScoreDelta > 0,
-                negative: todayArenaScoreDelta < 0,
-                neutral: todayArenaScoreDelta === 0,
-              }"
-            >
-              {{ todayArenaScoreDelta > 0 ? `+${todayArenaScoreDelta}` : `${todayArenaScoreDelta}` }}
-            </span>
-          </span>
-        </div>
-        <div class="summary-item">
-          <span class="label">{{ t("arenaPvpCard.summary.rank") }}</span>
-          <span class="value" :class="{ ok: isMyArenaRankTop20 }">{{ myArenaRankDisplay }}</span>
-        </div>
-      </div>
+      <ArenaPvpToolbar
+        v-model:fight-count="fightCount"
+        v-model:manual-assign-lineup="manualAssignLineup"
+        v-model:manual-assign-name="manualAssignName"
+        v-model:manual-assign-role-id="manualAssignRoleId"
+        v-model:manual-assign-target-id="manualAssignTargetId"
+        v-model:preferred-win-rate="preferredWinRate"
+        v-model:selected-formation="selectedFormation"
+        v-model:skip-lineup-rules="skipLineupRules"
+        :arena-ticket-count="arenaTicketCount"
+        :battle-logs="battleLogs"
+        :fight-count-options="fightCountOptions"
+        :format-score-delta="formatScoreDelta"
+        :formation-options="formationOptions"
+        :get-lineup-class="getLineupClass"
+        :get-score-delta-class="getScoreDeltaClass"
+        :is-arena-activity-open="isArenaActivityOpen"
+        :is-connected="isConnected"
+        :is-my-arena-rank-top20="isMyArenaRankTop20"
+        :last-updated-label="lastUpdatedLabel"
+        :lineup-preset-options="lineupPresetOptions"
+        :loading="loading"
+        :manual-lineup-entries="manualLineupEntries"
+        :manual-lineup-target-options="manualLineupTargetOptions"
+        :my-arena-rank-display="myArenaRankDisplay"
+        :my-arena-score-display="myArenaScoreDisplay"
+        :running="running"
+        :t="t"
+        :today-arena-score-delta="todayArenaScoreDelta"
+        @refresh="refreshArenaData()"
+        @remove-manual-lineup="removeManualLineupType"
+        @run-battles="runArenaBattles"
+        @save-manual="handleSaveManualLineup"
+      ></ArenaPvpToolbar>
 
-      <div class="action-section">
-        <div class="action-row">
-          <div class="action-item">
-            <span class="item-label">{{ t("arenaPvpCard.actions.formation") }}</span>
-            <n-select
-              class="action-select"
-              v-model:value="selectedFormation"
-              :disabled="loading || running"
-              :options="formationOptions"
-            ></n-select>
-          </div>
-          <div class="action-item">
-            <span class="item-label">{{ t("arenaPvpCard.actions.fightCount") }}</span>
-            <n-select
-              class="action-select"
-              v-model:value="fightCount"
-              :disabled="loading || running"
-              :options="fightCountOptions"
-            ></n-select>
-          </div>
-          <n-button
-            type="primary"
-            :disabled="running"
-            :loading="loading"
-            @click="refreshArenaData()"
-          >
-            <template #icon>
-              <n-icon><Refresh></Refresh></n-icon>
-            </template>
-            {{ t("arenaPvpCard.actions.refresh") }}
-          </n-button>
-          <n-button
-            type="success"
-            :disabled="loading || !isConnected"
-            :loading="running"
-            @click="runArenaBattles"
-          >
-            <template #icon>
-              <n-icon><Trophy></Trophy></n-icon>
-            </template>
-            {{ t("arenaPvpCard.actions.start") }}
-          </n-button>
-        </div>
-        <div class="action-row action-row-sub">
-          <div class="action-item">
-            <span class="item-label">{{ t("arenaPvpCard.actions.preferredWinRate") }}</span>
-            <n-input-number
-              clearable
-              class="action-select"
-              v-model:value="preferredWinRate"
-              :disabled="loading || running"
-              :max="100"
-              :min="0"
-              :placeholder="t('arenaPvpCard.placeholders.preferredWinRate')"
-              :precision="0"
-              :step="5"
-            ></n-input-number>
-          </div>
-          <div class="action-item action-item-wide">
-            <span class="item-label">{{ t("arenaPvpCard.actions.skipLineups") }}</span>
-            <n-select
-              filterable
-              multiple
-              tag
-              class="action-select wide"
-              v-model:value="skipLineupRules"
-              :disabled="loading || running"
-              :options="skipLineupOptions"
-              :placeholder="t('arenaPvpCard.placeholders.skipLineups')"
-            ></n-select>
-          </div>
-        </div>
-        <div class="action-row action-row-sub">
-          <div class="action-item">
-            <span class="item-label">{{ t("arenaPvpCard.actions.manualTarget") }}</span>
-            <n-select
-              clearable
-              filterable
-              class="action-select"
-              v-model:value="manualAssignTargetId"
-              :disabled="loading || running"
-              :options="manualLineupTargetOptions"
-              :placeholder="t('arenaPvpCard.placeholders.manualTarget')"
-            ></n-select>
-          </div>
-          <div class="action-item">
-            <span class="item-label">{{ t("arenaPvpCard.actions.manualRoleId") }}</span>
-            <n-input
-              v-model:value="manualAssignRoleId"
-              :disabled="loading || running"
-              :placeholder="t('arenaPvpCard.placeholders.manualRoleId')"
-            ></n-input>
-          </div>
-          <div class="action-item">
-            <span class="item-label">{{ t("arenaPvpCard.actions.manualName") }}</span>
-            <n-input
-              v-model:value="manualAssignName"
-              :disabled="loading || running"
-              :placeholder="t('arenaPvpCard.placeholders.manualName')"
-            ></n-input>
-          </div>
-          <div class="action-item">
-            <span class="item-label">{{ t("arenaPvpCard.actions.manualLineup") }}</span>
-            <n-select
-              filterable
-              tag
-              class="action-select"
-              v-model:value="manualAssignLineup"
-              :disabled="loading || running"
-              :options="lineupPresetOptions"
-            ></n-select>
-          </div>
-          <n-button :disabled="loading || running" @click="handleSaveManualLineup">
-            {{ t("arenaPvpCard.actions.saveManual") }}
-          </n-button>
-        </div>
-        <div v-if="manualLineupEntries.length > 0" class="manual-lineup-list">
-          <div v-for="item in manualLineupEntries" :key="item.key" class="manual-lineup-item">
-            <span class="manual-lineup-key">{{ item.key }}</span>
-            <span class="lineup-pill" :class="getLineupClass(item.lineupType)">
-              {{ item.lineupType }}
-            </span>
-            <n-button tertiary size="tiny" @click="removeManualLineupType(item.key)">
-              {{ t("arenaPvpCard.actions.delete") }}
-            </n-button>
-          </div>
-        </div>
-        <div v-if="lastUpdatedLabel" class="updated-at">
-          {{ t("arenaPvpCard.labels.updatedAt", { value: lastUpdatedLabel }) }}
-        </div>
-      </div>
+      <ArenaPvpRecordPanel
+        :get-lineup-class="getLineupClass"
+        :get-record-type-label="getArenaRecordTypeLabel"
+        :get-score-delta-class="getScoreDeltaClass"
+        :is-connected="isConnected"
+        :is-exporting-image="isExportingArenaImage"
+        :loading="loading"
+        :record-based-opponent-win-rates="recordBasedOpponentWinRates"
+        :record-based-win-rate="recordBasedWinRate"
+        :record-syncing="recordSyncing"
+        :records="arenaRecords"
+        :resolve-corrected-record-lineup-type="resolveCorrectedRecordLineupType"
+        :resolve-record-avatar="resolveArenaRecordAvatar"
+        :running="running"
+        :set-export-ref="setArenaRecordExportRef"
+        :t="t"
+        @clear-records="clearArenaRecords"
+        @export-image="handleExportArenaRecordsImage"
+        @pull-records="handlePullArenaBattleRecords"
+        @record-avatar-error="handleArenaRecordAvatarError"
+      ></ArenaPvpRecordPanel>
 
-      <div class="log-section">
-        <div class="section-title">{{ t("arenaPvpCard.sections.logs") }}</div>
-        <div v-if="battleLogs.length > 0" class="logs">
-          <div v-for="log in battleLogs" :key="log.id" class="log-row">
-            <span class="time">{{ log.time }}</span>
-            <span class="content">{{ log.text }}</span>
-          </div>
-        </div>
-        <n-empty
-          v-else
-          size="small"
-          :description="t('arenaPvpCard.empty.logs')"
-        ></n-empty>
-      </div>
-
-      <div
-        ref="arenaRecordExportRef"
-        class="record-section"
-        :class="{ 'is-exporting-image': isExportingArenaImage }"
-      >
-        <div class="section-title record-title-row">
-          <span>{{ t("arenaPvpCard.sections.records") }}</span>
-          <div class="record-actions">
-            <n-button
-              size="small"
-              :disabled="loading || running || !isConnected"
-              :loading="recordSyncing"
-              @click="handlePullArenaBattleRecords"
-            >
-              {{ t("arenaPvpCard.actions.pullRecords") }}
-            </n-button>
-            <n-button size="small" :disabled="arenaRecords.length === 0" @click="handleExportArenaRecordsImage">
-              {{ t("arenaPvpCard.actions.exportImage") }}
-            </n-button>
-            <n-button tertiary size="small" :disabled="arenaRecords.length === 0" @click="clearArenaRecords">
-              {{ t("arenaPvpCard.actions.clearRecords") }}
-            </n-button>
-          </div>
-        </div>
-        <div class="record-rate-panel">
-          <span>{{ t("arenaPvpCard.labels.recordRate", { value: recordBasedWinRate.rate }) }}</span>
-          <span>{{ t("arenaPvpCard.labels.recordTotal", { value: recordBasedWinRate.total }) }}</span>
-          <span class="win">{{ t("arenaPvpCard.labels.recordWins", { value: recordBasedWinRate.wins }) }}</span>
-          <span class="loss">{{ t("arenaPvpCard.labels.recordLosses", { value: recordBasedWinRate.losses }) }}</span>
-        </div>
-        <div v-if="recordBasedOpponentWinRates.length > 0" class="record-opponent-rates">
-          <div
-            v-for="item in recordBasedOpponentWinRates"
-            :key="item.name"
-            class="record-opponent-rate-item"
-          >
-            <span class="name">{{ item.name }}</span>
-            <span class="rate">{{ item.rate }}%</span>
-            <span class="detail">{{ item.wins }}/{{ item.total }}</span>
-          </div>
-        </div>
-        <div v-if="arenaRecords.length > 0" class="record-list">
-          <div v-for="item in arenaRecords" :key="item.id" class="record-row">
-            <div class="record-avatar">
-              <img
-                v-if="resolveArenaRecordAvatar(item)"
-                alt="record-avatar"
-                class="record-avatar-img"
-                :src="resolveArenaRecordAvatar(item)"
-                @error="handleArenaRecordAvatarError(item)"
-              >
-              <span v-else class="record-avatar-fallback">
-                {{ (item.name || "?").slice(0, 1) }}
-              </span>
-            </div>
-            <span class="record-type" :class="item.type === '攻' ? 'attack' : item.type === '守' ? 'defense' : 'unknown'">
-              {{ getArenaRecordTypeLabel(item.type) }}
-            </span>
-            <div class="record-name-group">
-              <span class="record-name">{{ item.name || t("arenaPvpCard.common.unknownPlayer") }}</span>
-              <span class="record-lineup lineup-pill" :class="getLineupClass(item.lineupType)">
-                {{ item.lineupType || t("arenaPvpCard.common.unknown") }}
-              </span>
-              <span
-                v-if="resolveCorrectedRecordLineupType(item)"
-                class="record-corrected-lineup"
-              >
-                {{ t("arenaPvpCard.labels.correctedLineup", { value: resolveCorrectedRecordLineupType(item) }) }}
-              </span>
-            </div>
-            <span
-              class="record-result"
-              :class="{
-                win: item.isWin === true,
-                loss: item.isWin === false,
-              }"
-            >
-              {{
-                item.isWin === true
-                  ? t("arenaPvpCard.labels.win")
-                  : item.isWin === false
-                    ? t("arenaPvpCard.labels.loss")
-                    : t("arenaPvpCard.common.dash")
-              }}
-            </span>
-            <span
-              class="record-score"
-              :class="{
-                positive: Number(item.scoreDelta) > 0,
-                negative: Number(item.scoreDelta) < 0,
-                neutral: !Number.isFinite(Number(item.scoreDelta)) || Number(item.scoreDelta) === 0,
-              }"
-            >
-              {{
-                Number.isFinite(Number(item.scoreDelta))
-                  ? `${Number(item.scoreDelta) > 0 ? "+" : ""}${Math.trunc(Number(item.scoreDelta))}`
-                  : "-"
-              }}
-            </span>
-            <span class="record-time">{{ item.timeText || "-" }}</span>
-            <span class="record-source">{{ item.sourceLabel || t("arenaPvpCard.sources.auto") }}</span>
-          </div>
-        </div>
-        <n-empty
-          v-else
-          size="small"
-          :description="t('arenaPvpCard.empty.records')"
-        ></n-empty>
-      </div>
-
-      <div class="rank-section">
-        <div class="section-title">{{ t("arenaPvpCard.sections.rankList") }}</div>
-        <div v-if="rankList.length > 0" class="rank-list">
-          <div class="rank-header">
-            <span class="col rank">{{ t("arenaPvpCard.columns.rank") }}</span>
-            <span class="col name">{{ t("arenaPvpCard.columns.player") }}</span>
-            <span class="col score">{{ t("arenaPvpCard.columns.score") }}</span>
-            <span class="col lineup">{{ t("arenaPvpCard.columns.lineup") }}</span>
-            <span class="col power">{{ t("arenaPvpCard.columns.power") }}</span>
-          </div>
-          <div
-            v-for="item in rankList.slice(0, 20)"
-            :key="item.roleId || `${item.rank}-${item.name}`"
-            class="rank-row"
-            :class="[
-              { mine: String(item.roleId) === myRoleId },
-              getRankRowClass(item.rank),
-            ]"
-          >
-            <span class="col rank">
-              <span class="rank-badge" :class="getRankBadgeClass(item.rank)">
-                {{ formatRankLabel(item.rank) }}
-              </span>
-            </span>
-            <div class="col name player-col">
-              <div class="player-avatar">
-                <img
-                  v-if="resolveRankAvatar(item)"
-                  alt="avatar"
-                  class="player-avatar-img"
-                  :src="resolveRankAvatar(item)"
-                  @error="handleRankAvatarError(item)"
-                >
-                <span v-else class="player-avatar-fallback">
-                  {{ (item.name || "?").slice(0, 1) }}
-                </span>
-              </div>
-              <div class="player-meta">
-                <span class="player-name">{{ item.name || t("arenaPvpCard.common.unknownPlayer") }}</span>
-                <span class="player-id">ID {{ item.roleId || "-" }}</span>
-              </div>
-            </div>
-            <span class="col score value-chip score-chip">{{ item.score ?? "-" }}</span>
-            <span class="col lineup lineup-col">
-              <span class="lineup-pill" :class="getLineupClass(item.lineupType)">
-                {{ item.lineupType || t("arenaPvpCard.common.unknown") }}
-              </span>
-              <span
-                v-if="resolveManualLineupType(item.roleId, item.name)"
-                class="manual-lineup-badge"
-              >
-                {{ t("arenaPvpCard.labels.manual") }}
-              </span>
-            </span>
-            <span class="col power value-chip power-chip">{{ item.powerText }}</span>
-          </div>
-        </div>
-        <n-empty
-          v-else
-          size="small"
-          :description="t('arenaPvpCard.empty.rankList')"
-        ></n-empty>
-      </div>
+      <ArenaPvpRankPanel
+        :format-rank-label="formatRankLabel"
+        :get-lineup-class="getLineupClass"
+        :get-rank-badge-class="getRankBadgeClass"
+        :get-rank-row-class="getRankRowClass"
+        :my-role-id="myRoleId"
+        :rank-list="rankList"
+        :resolve-manual-lineup-type="resolveManualLineupType"
+        :resolve-rank-avatar="resolveRankAvatar"
+        :t="t"
+        @rank-avatar-error="handleRankAvatarError"
+      ></ArenaPvpRankPanel>
     </div>
   </div>
 </template>
@@ -378,9 +90,20 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useMessage } from "naive-ui/es";
 import { useI18n } from "vue-i18n";
-import { Refresh, Trophy } from "@vicons/ionicons5";
 import { useTokenStore } from "@/stores/tokenStore";
 import { useAuthStore } from "@/stores/auth";
+import ArenaPvpRankPanel from "@/components/cards/pvp/ArenaPvpRankPanel.vue";
+import ArenaPvpRecordPanel from "@/components/cards/pvp/ArenaPvpRecordPanel.vue";
+import ArenaPvpToolbar from "@/components/cards/pvp/ArenaPvpToolbar.vue";
+import {
+  formatArenaRankLabel,
+  formatArenaScoreDelta,
+  getArenaLineupClass,
+  getArenaRankBadgeClass,
+  getArenaRankRowClass,
+  getArenaRecordTypeLabelText,
+  getArenaScoreDeltaClass,
+} from "@/components/cards/pvp/arenaPvpFormatters";
 import { getLineupType } from "@/utils/HeroList";
 import {
   ARENA_DEFAULT_SKIP_LINEUPS,
@@ -431,6 +154,9 @@ const lastUpdatedAt = ref(null);
 const battleLogs = ref([]);
 const arenaRecords = ref([]);
 const arenaRecordExportRef = ref(null);
+const setArenaRecordExportRef = (element) => {
+  arenaRecordExportRef.value = element;
+};
 const arenaTargetProfileCache = ref(new Map());
 const avatarCandidateIndexMap = ref(new Map());
 const targetWinStats = ref({});
@@ -636,65 +362,21 @@ const normalizePreferredWinRate = (value) => {
     return null;
   return Math.max(0, Math.min(100, Math.round(numeric)));
 };
-const formatRankLabel = (rank) => {
-  const rankValue = toPositiveInteger(rank);
-  return rankValue > 0 ? `#${rankValue}` : t("arenaPvpCard.common.dash");
-};
-const getArenaRecordTypeLabel = (type) => {
-  if (String(type || "").includes("攻"))
-    return t("arenaPvpCard.labels.attack");
-  if (String(type || "").includes("守"))
-    return t("arenaPvpCard.labels.defense");
-  return t("arenaPvpCard.common.unknownMark");
-};
-const getRankBadgeClass = (rank) => {
-  const rankValue = toPositiveInteger(rank);
-  if (rankValue === 1)
-    return "top1";
-  if (rankValue === 2)
-    return "top2";
-  if (rankValue === 3)
-    return "top3";
-  return "normal";
-};
-const getRankRowClass = (rank) => {
-  const rankValue = toPositiveInteger(rank);
-  if (rankValue === 1)
-    return "row-top1";
-  if (rankValue === 2)
-    return "row-top2";
-  if (rankValue === 3)
-    return "row-top3";
-  return "";
-};
-const getLineupClass = (lineupType) => {
-  const text = String(lineupType || t("arenaPvpCard.common.unknown")).trim();
-  if (text.includes("吕布华佗"))
-    return "red";
-  if (text.includes("吕赵"))
-    return "red";
-  if (text.includes("吕布"))
-    return "red";
-  if (text.includes("赵云") && text.includes("吕"))
-    return "red";
-  if (text.includes("典韦"))
-    return "blue";
-  if (text.includes("司马懿"))
-    return "blue";
-  if (text.includes("姜维"))
-    return "green";
-  if (text.includes("三蜀"))
-    return "green";
-  if (text.includes("关羽"))
-    return "green";
-  if (text.includes("吴"))
-    return "red";
-  if (text.includes("俱乐部"))
-    return "pink";
-  if (text.includes("毒"))
-    return "purple";
-  return "gray";
-};
+const formatRankLabel = (rank) =>
+  formatArenaRankLabel(rank, t("arenaPvpCard.common.dash"));
+const getArenaRecordTypeLabel = (type) =>
+  getArenaRecordTypeLabelText(type, {
+    attack: t("arenaPvpCard.labels.attack"),
+    defense: t("arenaPvpCard.labels.defense"),
+    unknown: t("arenaPvpCard.common.unknownMark"),
+  });
+const getRankBadgeClass = getArenaRankBadgeClass;
+const getRankRowClass = getArenaRankRowClass;
+const getLineupClass = (lineupType) =>
+  getArenaLineupClass(lineupType, t("arenaPvpCard.common.unknown"));
+const formatScoreDelta = (scoreDelta) =>
+  formatArenaScoreDelta(scoreDelta, t("arenaPvpCard.common.dash"));
+const getScoreDeltaClass = getArenaScoreDeltaClass;
 
 const getStatsStorageKey = getArenaStatsStorageKey;
 
@@ -2112,687 +1794,9 @@ onBeforeUnmount(() => {
   color: var(--text-secondary);
 }
 
-.summary-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
-.summary-item {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-light);
-  border-radius: var(--border-radius-medium);
-  padding: 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-
-  .label {
-    color: var(--text-tertiary);
-    font-size: 12px;
-  }
-
-  .value {
-    color: var(--text-primary);
-    font-weight: 600;
-    font-size: 14px;
-  }
-
-  .value.ok {
-    color: var(--success-color, #16a34a);
-  }
-
-  .value.danger {
-    color: var(--error-color, #dc2626);
-  }
-}
-
-.score-with-delta {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 6px;
-}
-
-.score-delta-mini {
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 1;
-}
-
-.score-delta-mini.positive {
-  color: #16a34a;
-}
-
-.score-delta-mini.negative {
-  color: #ef4444;
-}
-
-.score-delta-mini.neutral {
-  color: var(--text-tertiary);
-}
-
-.action-section {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-light);
-  border-radius: var(--border-radius-medium);
-  padding: 12px;
-  margin-bottom: 16px;
-}
-
-.action-row {
-  display: flex;
-  align-items: flex-end;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.action-row-sub {
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px dashed var(--border-light);
-}
-
-.action-item {
-  min-width: 140px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.action-item-wide {
-  flex: 1;
-  min-width: 300px;
-}
-
-.item-label {
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-.action-select {
-  width: 140px;
-}
-
-.action-select.wide {
-  width: 100%;
-}
-
-.manual-lineup-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 10px;
-}
-
-.manual-lineup-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
-  border-radius: 8px;
-  border: 1px solid var(--border-light);
-  background: var(--bg-primary);
-}
-
-.manual-lineup-key {
-  font-size: 12px;
-  color: var(--text-secondary);
-  max-width: 160px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.updated-at {
-  margin-top: 10px;
-  font-size: 12px;
-  color: var(--text-tertiary);
-}
-
-.section-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: 10px;
-}
-
-.rank-section,
-.record-section,
-.log-section {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-light);
-  border-radius: var(--border-radius-medium);
-  padding: 12px;
-}
-
-.rank-section {
-  margin-bottom: 16px;
-}
-
-.record-section {
-  margin-bottom: 16px;
-}
-
-.record-title-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.record-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.record-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  max-height: 360px;
-  overflow-y: auto;
-}
-
-.record-section.is-exporting-image .record-list {
-  max-height: none;
-  overflow: visible;
-}
-
-.record-rate-panel {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-bottom: 10px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  border: 1px solid var(--border-light);
-  background: var(--bg-primary);
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-.record-rate-panel .win {
-  color: #16a34a;
-  font-weight: 600;
-}
-
-.record-rate-panel .loss {
-  color: #ef4444;
-  font-weight: 600;
-}
-
-.record-opponent-rates {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 8px;
-  margin-bottom: 10px;
-}
-
-.record-opponent-rate-item {
-  display: grid;
-  grid-template-columns: 1fr auto auto;
-  gap: 6px;
-  align-items: center;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-light);
-  border-radius: 8px;
-  padding: 6px 8px;
-  font-size: 12px;
-}
-
-.record-opponent-rate-item .name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--text-primary);
-}
-
-.record-opponent-rate-item .rate {
-  color: #16a34a;
-  font-weight: 700;
-}
-
-.record-opponent-rate-item .detail {
-  color: var(--text-tertiary);
-}
-
-.record-row {
-  display: grid;
-  grid-template-columns: 34px 42px minmax(80px, 1fr) 48px 56px 148px 68px;
-  gap: 8px;
-  align-items: center;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-light);
-  border-radius: 10px;
-  padding: 8px 10px;
-  font-size: 13px;
-}
-
-.record-avatar {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  overflow: hidden;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--border-light);
-  background: var(--bg-secondary);
-}
-
-.record-avatar-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-
-.record-avatar-fallback {
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--text-tertiary);
-}
-
-.record-type {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  padding: 2px 8px;
-  font-size: 12px;
-  font-weight: 700;
-  border: 1px solid var(--border-light);
-  background: var(--bg-secondary);
-}
-
-.record-type.attack {
-  color: #92400e;
-  background: #fde7d3;
-  border-color: #f6c28b;
-}
-
-.record-type.defense {
-  color: #1e40af;
-  background: #dbeafe;
-  border-color: #93c5fd;
-}
-
-.record-type.unknown {
-  color: #334155;
-  background: #e2e8f0;
-  border-color: #cbd5e1;
-}
-
-.record-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--text-primary);
-  font-weight: 600;
-}
-
-.record-name-group {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}
-
-.record-lineup {
-  width: fit-content;
-  max-width: 100%;
-}
-
-.record-corrected-lineup {
-  font-size: 12px;
-  color: #b45309;
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.record-result {
-  color: var(--text-secondary);
-  font-weight: 700;
-}
-
-.record-result.win {
-  color: #16a34a;
-}
-
-.record-result.loss {
-  color: #ef4444;
-}
-
-.record-score.positive {
-  color: #16a34a;
-  font-weight: 700;
-}
-
-.record-score.negative {
-  color: #ef4444;
-  font-weight: 700;
-}
-
-.record-score.neutral {
-  color: var(--text-tertiary);
-}
-
-.record-time,
-.record-source {
-  color: var(--text-tertiary);
-  font-size: 12px;
-}
-
-.rank-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.rank-header,
-.rank-row {
-  display: grid;
-  grid-template-columns: 70px minmax(180px, 1fr) 100px 100px 120px;
-  gap: 8px;
-  align-items: center;
-}
-
-.rank-header {
-  font-size: 12px;
-  color: var(--text-tertiary);
-  border-bottom: 1px dashed var(--border-light);
-  padding: 2px 6px 8px;
-}
-
-.rank-row {
-  background: var(--bg-primary);
-  border: 1px solid var(--border-light);
-  border-radius: 12px;
-  padding: 9px 10px;
-  font-size: 13px;
-  color: var(--text-primary);
-  transition: all 0.2s ease;
-}
-
-.rank-row:hover {
-  border-color: color-mix(in srgb, var(--primary-color) 40%, var(--border-light));
-  transform: translateY(-1px);
-}
-
-.rank-row.mine {
-  border-color: var(--primary-color);
-  box-shadow: inset 0 0 0 1px var(--primary-color),
-    0 4px 12px color-mix(in srgb, var(--primary-color) 20%, transparent);
-}
-
-.rank-row.row-top1 {
-  background: linear-gradient(90deg, #fff8e7 0%, var(--bg-primary) 55%);
-}
-
-.rank-row.row-top2 {
-  background: linear-gradient(90deg, #f7f9fc 0%, var(--bg-primary) 55%);
-}
-
-.rank-row.row-top3 {
-  background: linear-gradient(90deg, #fff5ef 0%, var(--bg-primary) 55%);
-}
-
-.rank-badge {
-  display: inline-flex;
-  min-width: 56px;
-  justify-content: center;
-  align-items: center;
-  padding: 3px 8px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 700;
-  border: 1px solid var(--border-light);
-  background: var(--bg-secondary);
-  color: var(--text-primary);
-}
-
-.rank-badge.top1 {
-  background: linear-gradient(120deg, #ffcc47, #ffb300);
-  border-color: #ffb300;
-  color: #5c3a00;
-}
-
-.rank-badge.top2 {
-  background: linear-gradient(120deg, #dbe4ef, #c8d2df);
-  border-color: #c2ccd9;
-  color: #334155;
-}
-
-.rank-badge.top3 {
-  background: linear-gradient(120deg, #f6c9a5, #eba97b);
-  border-color: #e8a374;
-  color: #5a341f;
-}
-
-.player-col {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.player-avatar {
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  overflow: hidden;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  border: 1px solid var(--border-light);
-  background: var(--bg-secondary);
-}
-
-.player-avatar-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-
-.player-avatar-fallback {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--text-tertiary);
-}
-
-.player-meta {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.player-name {
-  font-weight: 600;
-  color: var(--text-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.player-id {
-  font-size: 11px;
-  color: var(--text-tertiary);
-}
-
-.value-chip {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  padding: 3px 10px;
-  font-weight: 600;
-  font-size: 12px;
-  border: 1px solid var(--border-light);
-  width: fit-content;
-}
-
-.score-chip {
-  background: color-mix(in srgb, var(--success-color, #16a34a) 12%, var(--bg-primary));
-  color: var(--success-color, #16a34a);
-}
-
-.power-chip {
-  background: color-mix(in srgb, var(--primary-color) 10%, var(--bg-primary));
-  color: var(--text-primary);
-}
-
-.lineup-pill {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  padding: 3px 10px;
-  font-size: 12px;
-  font-weight: 600;
-  border: 1px solid var(--border-light);
-  background: var(--bg-primary);
-  line-height: 1;
-  white-space: nowrap;
-}
-
-.lineup-col {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  white-space: nowrap;
-}
-
-.manual-lineup-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 10px;
-  line-height: 1;
-  padding: 1px 5px;
-  border-radius: 999px;
-  border: 1px solid var(--border-light);
-  background: color-mix(in srgb, var(--primary-color) 10%, var(--bg-primary));
-  color: var(--text-secondary);
-}
-
-.lineup-pill.blue {
-  color: #0f3b8a;
-  background: #cfe2ff;
-  border-color: #9dc3ff;
-}
-
-.lineup-pill.green {
-  color: #1f6b2d;
-  background: #d7f5df;
-  border-color: #ade6bb;
-}
-
-.lineup-pill.red {
-  color: #8a1f1f;
-  background: #ffd8d8;
-  border-color: #ffb0b0;
-}
-
-.lineup-pill.pink {
-  color: #8a2c68;
-  background: #ffd6ef;
-  border-color: #ffb7df;
-}
-
-.lineup-pill.purple {
-  color: #5a2b8a;
-  background: #e8d8ff;
-  border-color: #cdb1ff;
-}
-
-.lineup-pill.gray {
-  color: #4b5563;
-  background: #eceff3;
-  border-color: #d5dbe3;
-}
-
-.logs {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  max-height: 260px;
-  overflow-y: auto;
-}
-
-.log-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  font-size: 13px;
-  color: var(--text-primary);
-  background: var(--bg-primary);
-  border: 1px solid var(--border-light);
-  border-radius: var(--border-radius-small);
-  padding: 8px;
-
-  .time {
-    color: var(--text-tertiary);
-    white-space: nowrap;
-  }
-}
-
 @media (max-width: 1024px) {
-  .summary-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 }
 
 @media (max-width: 768px) {
-  .summary-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .rank-header,
-  .rank-row {
-    grid-template-columns: 58px minmax(110px, 1fr) 74px 74px 84px;
-    font-size: 12px;
-  }
-
-  .rank-badge {
-    min-width: 50px;
-    padding: 2px 6px;
-    font-size: 11px;
-  }
-
-  .player-id {
-    display: none;
-  }
-
-  .value-chip,
-  .lineup-pill {
-    padding: 2px 7px;
-    font-size: 11px;
-  }
-
-  .action-item,
-  .action-select {
-    width: 100%;
-  }
-
-  .manual-lineup-item {
-    max-width: 100%;
-  }
-
-  .record-title-row {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .record-row {
-    grid-template-columns: 28px 34px minmax(60px, 1fr) 38px 46px 108px 56px;
-    font-size: 12px;
-  }
 }
 </style>
