@@ -55,54 +55,11 @@
         class="records-wrapper"
       >
         <div v-if="currentStyle === 'default'" class="style-default">
-          <!-- 头部对战信息 -->
-          <div class="battle-header">
-            <h2>
-              {{ queryDate }} {{ battleRecords.ownClub.name }} VS
-              {{ battleRecords.opponentClub.name }} 蟠桃大会对战战绩
-            </h2>
-            <div class="club-info">
-              <div class="club-side own">
-                <img
-                  v-if="battleRecords.ownClub.logo"
-                  class="club-logo"
-                  :alt="battleRecords.ownClub.name"
-                  :src="battleRecords.ownClub.logo"
-                >
-                <div class="club-name">
-                  {{ battleRecords.ownClub.serverId }}服
-                  {{ battleRecords.ownClub.name }}
-                </div>
-                <div class="club-id">ID: {{ battleRecords.ownClub.id }}</div>
-                <div class="club-power">
-                  {{ battleRecords.ownClub.memberCount }}人 |
-                  {{ battleRecords.ownClub.quenchNum }}红 |
-                  {{ formatPower(battleRecords.ownClub.totalPower) }}
-                </div>
-              </div>
-              <div class="vs">VS</div>
-              <div class="club-side opponent">
-                <img
-                  v-if="battleRecords.opponentClub.logo"
-                  class="club-logo"
-                  :alt="battleRecords.opponentClub.name"
-                  :src="battleRecords.opponentClub.logo"
-                >
-                <div class="club-name">
-                  {{ battleRecords.opponentClub.serverId }}服
-                  {{ battleRecords.opponentClub.name }}
-                </div>
-                <div class="club-id">
-                  ID: {{ battleRecords.opponentClub.id }}
-                </div>
-                <div class="club-power">
-                  {{ battleRecords.opponentClub.memberCount }}人 |
-                  {{ battleRecords.opponentClub.quenchNum }}红 |
-                  {{ formatPower(battleRecords.opponentClub.totalPower) }}
-                </div>
-              </div>
-            </div>
-          </div>
+          <PeachBattleHeaderPanel
+            :opponent-club="battleRecords.opponentClub"
+            :own-club="battleRecords.ownClub"
+            :query-date="queryDate"
+          ></PeachBattleHeaderPanel>
 
           <div class="overall-stats">
             <PeachBattleDefaultStatsPanel
@@ -140,59 +97,17 @@
 
         <!-- Style 1 -->
         <div v-if="currentStyle === 'style1'" class="style-1-wrapper">
-          <div class="battle-header">
-            <h2>
-              {{ queryDate }} {{ battleRecords.ownClub.name }} VS
-              {{ battleRecords.opponentClub.name }} 蟠桃大会对战战绩
-            </h2>
-            <div class="club-info">
-              <div class="club-side own">
-                <img
-                  v-if="battleRecords.ownClub.logo"
-                  class="club-logo"
-                  :alt="battleRecords.ownClub.name"
-                  :src="battleRecords.ownClub.logo"
-                >
-                <div class="club-name">
-                  {{ battleRecords.ownClub.serverId }}服
-                  {{ battleRecords.ownClub.name }}
-                </div>
-                <div class="club-id">ID: {{ battleRecords.ownClub.id }}</div>
-                <div class="club-power">
-                  {{ battleRecords.ownClub.memberCount }}人 |
-                  {{ battleRecords.ownClub.quenchNum }}红 |
-                  {{ formatPower(battleRecords.ownClub.totalPower) }}
-                </div>
-              </div>
-              <div class="vs">VS</div>
-              <div class="club-side opponent">
-                <img
-                  v-if="battleRecords.opponentClub.logo"
-                  class="club-logo"
-                  :alt="battleRecords.opponentClub.name"
-                  :src="battleRecords.opponentClub.logo"
-                >
-                <div class="club-name">
-                  {{ battleRecords.opponentClub.serverId }}服
-                  {{ battleRecords.opponentClub.name }}
-                </div>
-                <div class="club-id">
-                  ID: {{ battleRecords.opponentClub.id }}
-                </div>
-                <div class="club-power">
-                  {{ battleRecords.opponentClub.memberCount }}人 |
-                  {{ battleRecords.opponentClub.quenchNum }}红 |
-                  {{ formatPower(battleRecords.opponentClub.totalPower) }}
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="comparison-container">
-            <!-- Own Club -->
-            <div class="club-column own-column">
-              <div class="style1-header own-header">
-                <h3>{{ battleRecords.ownClub.name }}</h3>
-              </div>
+          <PeachBattleHeaderPanel
+            :opponent-club="battleRecords.opponentClub"
+            :own-club="battleRecords.ownClub"
+            :query-date="queryDate"
+          ></PeachBattleHeaderPanel>
+          <PeachBattleDualColumnLayout
+            variant="style1"
+            :opponent-title="battleRecords.opponentClub.name"
+            :own-title="battleRecords.ownClub.name"
+          >
+            <template #own>
               <div class="style1-content">
                 <PeachBattleSummaryPanel
                   tone="own"
@@ -208,13 +123,8 @@
                   @image-error="handleImageError"
                 ></PeachBattleRecordTable>
               </div>
-            </div>
-
-            <!-- Opponent Club -->
-            <div class="club-column opponent-column">
-              <div class="style1-header opponent-header">
-                <h3>{{ battleRecords.opponentClub.name }}</h3>
-              </div>
+            </template>
+            <template #opponent>
               <div class="style1-content">
                 <PeachBattleSummaryPanel
                   tone="opponent"
@@ -230,71 +140,25 @@
                   @image-error="handleImageError"
                 ></PeachBattleRecordTable>
               </div>
-            </div>
-          </div>
+            </template>
+          </PeachBattleDualColumnLayout>
         </div>
 
         <!-- Style 2 -->
         <div v-if="currentStyle === 'style2'" class="style-2-wrapper">
-          <div class="battle-header">
-            <h2>
-              {{ queryDate }} {{ battleRecords.ownClub.name }} VS
-              {{ battleRecords.opponentClub.name }} 蟠桃大会对战战绩
-            </h2>
-            <div class="club-info">
-              <div class="club-side own">
-                <img
-                  v-if="battleRecords.ownClub.logo"
-                  class="club-logo"
-                  :alt="battleRecords.ownClub.name"
-                  :src="battleRecords.ownClub.logo"
-                >
-                <div class="club-name">
-                  {{ battleRecords.ownClub.serverId }}服
-                  {{ battleRecords.ownClub.name }}
-                </div>
-                <div class="club-id">ID: {{ battleRecords.ownClub.id }}</div>
-                <div class="club-power">
-                  {{ battleRecords.ownClub.memberCount }}人 |
-                  {{ battleRecords.ownClub.quenchNum }}红 |
-                  {{ formatPower(battleRecords.ownClub.totalPower) }}
-                </div>
-              </div>
-              <div class="vs">VS</div>
-              <div class="club-side opponent">
-                <img
-                  v-if="battleRecords.opponentClub.logo"
-                  class="club-logo"
-                  :alt="battleRecords.opponentClub.name"
-                  :src="battleRecords.opponentClub.logo"
-                >
-                <div class="club-name">
-                  {{ battleRecords.opponentClub.serverId }}服
-                  {{ battleRecords.opponentClub.name }}
-                </div>
-                <div class="club-id">
-                  ID: {{ battleRecords.opponentClub.id }}
-                </div>
-                <div class="club-power">
-                  {{ battleRecords.opponentClub.memberCount }}人 |
-                  {{ battleRecords.opponentClub.quenchNum }}红 |
-                  {{ formatPower(battleRecords.opponentClub.totalPower) }}
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="comparison-container">
-            <!-- Own Club -->
-            <div class="club-column own-column style-2">
-              <div class="style2-header">
-                <div class="style2-title">
-                  <span class="trophy-icon">🏆</span>
-                  <div class="title-text">
-                    <h2>{{ battleRecords.ownClub.name }}</h2>
-                    <div class="date-text">我方战绩</div>
-                  </div>
-                </div>
-              </div>
+          <PeachBattleHeaderPanel
+            :opponent-club="battleRecords.opponentClub"
+            :own-club="battleRecords.ownClub"
+            :query-date="queryDate"
+          ></PeachBattleHeaderPanel>
+          <PeachBattleDualColumnLayout
+            opponent-subtitle="敌方战绩"
+            own-subtitle="我方战绩"
+            variant="style2"
+            :opponent-title="battleRecords.opponentClub.name"
+            :own-title="battleRecords.ownClub.name"
+          >
+            <template #own>
               <PeachBattleSummaryPanel
                 tone="own"
                 variant="style2"
@@ -309,19 +173,8 @@
                 :rows="ownClubView.rows"
                 @image-error="handleImageError"
               ></PeachBattleRecordTable>
-            </div>
-
-            <!-- Opponent Club -->
-            <div class="club-column opponent-column style-2">
-              <div class="style2-header">
-                <div class="style2-title">
-                  <span class="trophy-icon">🏆</span>
-                  <div class="title-text">
-                    <h2>{{ battleRecords.opponentClub.name }}</h2>
-                    <div class="date-text">敌方战绩</div>
-                  </div>
-                </div>
-              </div>
+            </template>
+            <template #opponent>
               <PeachBattleSummaryPanel
                 tone="opponent"
                 variant="style2"
@@ -336,8 +189,8 @@
                 :rows="opponentClubView.rows"
                 @image-error="handleImageError"
               ></PeachBattleRecordTable>
-            </div>
-          </div>
+            </template>
+          </PeachBattleDualColumnLayout>
         </div>
       </div>
 
@@ -361,14 +214,15 @@ import { useMessage } from "naive-ui/es";
 import ClubBattleRecordToolbar from "@/components/Club/records/ClubBattleRecordToolbar.vue";
 import ClubBattleResultBadge from "@/components/Club/records/ClubBattleResultBadge.vue";
 import PeachBattleDefaultStatsPanel from "@/components/Club/records/PeachBattleDefaultStatsPanel.vue";
+import PeachBattleDualColumnLayout from "@/components/Club/records/PeachBattleDualColumnLayout.vue";
 import PeachBattleGodRankPanel from "@/components/Club/records/PeachBattleGodRankPanel.vue";
+import PeachBattleHeaderPanel from "@/components/Club/records/PeachBattleHeaderPanel.vue";
 import PeachBattleRankPanels from "@/components/Club/records/PeachBattleRankPanels.vue";
 import PeachBattleSummaryPanel from "@/components/Club/records/PeachBattleSummaryPanel.vue";
 import PeachBattleRecordTable from "@/components/Club/records/PeachBattleRecordTable.vue";
 import {
   formatClubBattleCompactDate,
   formatClubBattleKD,
-  formatClubBattlePower,
 } from "@/components/Club/records/clubBattleRecordFormatters.js";
 import {
   buildClubBattleStatItems,
@@ -446,9 +300,6 @@ const tokenStore = useTokenStore();
 const loading = ref(false);
 const battleRecords = ref(null);
 const queryDate = ref(getLastSunday());
-
-// 格式化战力
-const formatPower = formatClubBattlePower;
 
 const formatDateToShort = formatClubBattleCompactDate;
 
@@ -1042,99 +893,6 @@ onMounted(() => {
   gap: var(--spacing-md);
 }
 
-/* 头部对战信息 */
-.battle-header {
-  background: var(--bg-secondary);
-  border-radius: var(--border-radius-medium);
-  padding: var(--spacing-md);
-  margin-bottom: var(--spacing-md);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-}
-
-.battle-header h2 {
-  text-align: center;
-  margin-bottom: var(--spacing-lg);
-  font-size: var(--font-size-xl);
-  font-weight: var(--font-weight-bold);
-  color: var(--text-primary);
-  padding: var(--spacing-md);
-  background: var(--bg-primary);
-  border-radius: var(--border-radius-sm);
-  border: 1px solid var(--border-light);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-}
-
-.club-info {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  padding: 0 var(--spacing-lg);
-  margin-top: var(--spacing-md);
-}
-
-/* 确保VS图标垂直居中 */
-.vs {
-  align-self: center;
-}
-
-.club-side {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-xs);
-  flex: 1;
-}
-
-.club-side.own {
-  align-items: flex-end;
-  text-align: right;
-}
-
-.club-side.opponent {
-  align-items: flex-start;
-  text-align: left;
-}
-
-/* 确保logo和文字对齐 */
-.club-side.own .club-logo {
-  align-self: flex-end;
-}
-
-.club-side.opponent .club-logo {
-  align-self: flex-start;
-}
-
-.club-name {
-  font-weight: var(--font-weight-semibold);
-  font-size: var(--font-size-lg);
-}
-
-.club-logo {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 1px solid var(--border-light);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-  margin-bottom: var(--spacing-sm);
-}
-
-.club-id {
-  font-size: var(--font-size-sm);
-  color: var(--text-secondary);
-}
-
-.club-power {
-  font-size: var(--font-size-sm);
-  color: var(--text-secondary);
-}
-
-.vs {
-  font-weight: var(--font-weight-bold);
-  font-size: var(--font-size-xl);
-  color: var(--text-secondary);
-  margin: 0 var(--spacing-lg);
-}
-
 /* 总体数据统计 */
 .overall-stats {
   display: grid;
@@ -1499,18 +1257,6 @@ onMounted(() => {
     grid-template-columns: 1fr;
   }
 
-  .club-info {
-    flex-direction: column;
-    gap: var(--spacing-md);
-  }
-
-  .club-side.own {
-    align-items: center;
-  }
-
-  .club-side.opponent {
-    align-items: center;
-  }
 }
 
 @media (max-width: 768px) {
@@ -1585,36 +1331,6 @@ onMounted(() => {
   }
 }
 
-/* Comparison Layout */
-.comparison-header {
-  text-align: center;
-  margin-bottom: 20px;
-}
-.comparison-header h2 {
-  font-size: 20px;
-  font-weight: bold;
-}
-
-.comparison-container {
-  display: flex;
-  gap: 20px;
-}
-
-.club-column {
-  flex: 1;
-  background: #fff;
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.own-column {
-  border: 1px solid #e0e0e0;
-}
-
-.opponent-column {
-  border: 1px solid #e0e0e0;
-}
-
 /* Style 1 */
 .style-1-wrapper {
   background: #fff;
@@ -1623,31 +1339,10 @@ onMounted(() => {
   font-family: Arial, sans-serif;
 }
 
-.style1-header {
-  padding: 10px;
-  text-align: center;
-  color: #fff;
-}
-
-.own-header {
-  background: #800080;
-}
-
-.opponent-header {
-  background: #d32f2f; /* Red for opponent */
-}
-
-.style1-header h3 {
-  margin: 0;
-  font-size: 16px;
-  font-weight: bold;
-}
-
 .style1-content {
   display: flex;
   flex-direction: column;
   gap: 15px;
-  padding: 10px;
 }
 
 /* Style 1 */
@@ -1658,59 +1353,11 @@ onMounted(() => {
   border-radius: 8px;
 }
 
-.style-1-wrapper .battle-header {
-  background: #fff;
-  border-bottom: 1px solid #ddd;
-}
-
 /* Style 2 */
 .style-2-wrapper {
   background: #eef2f7;
   padding: 20px;
   font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
   border-radius: 8px;
-}
-
-.style-2-wrapper .battle-header {
-  background: #fff;
-  border-bottom: 1px solid #ddd;
-}
-
-.style2-header {
-  display: flex;
-  justify-content: center;
-  margin-bottom: 15px;
-  background: #fff;
-  padding: 10px;
-  border-bottom: 1px solid #eee;
-}
-
-.style2-title {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.trophy-icon {
-  font-size: 24px;
-}
-
-.title-text h2 {
-  font-size: 16px;
-  color: #333;
-  margin: 0;
-  font-weight: 800;
-}
-
-.date-text {
-  font-size: 12px;
-  color: #888;
-  margin-top: 2px;
-}
-
-@media (max-width: 768px) {
-  .comparison-container {
-    flex-direction: column;
-  }
 }
 </style>
