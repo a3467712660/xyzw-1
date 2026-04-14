@@ -73,25 +73,15 @@
       ></BatchDailyTasksLogPanel>
     </div>
 
-    <!-- Settings Modal -->
-    <n-modal
-      class="modal-w-400"
-      preset="card"
+    <BatchDailyTasksSettingsModal
       v-model:show="showSettingsModal"
+      :boss-times-options="bossTimesOptions"
+      :formation-options="formationOptions"
+      :settings="currentSettings"
       :title="`任务设置 - ${currentSettingsTokenName}`"
-    >
-      <div class="settings-content">
-        <BatchDailyTaskSettingsForm
-          :boss-times-options="bossTimesOptions"
-          :formation-options="formationOptions"
-          :settings="currentSettings"
-          @update-field="(key, value) => updateSettingsField(currentSettings, key, value)"
-        ></BatchDailyTaskSettingsForm>
-        <div class="modal-actions modal-actions-right">
-          <n-button type="primary" @click="saveSettings">保存设置</n-button>
-        </div>
-      </div>
-    </n-modal>
+      @save="saveSettings"
+      @update-field="(key, value) => updateSettingsField(currentSettings, key, value)"
+    ></BatchDailyTasksSettingsModal>
 
     <!-- Task Template Modal -->
     <n-modal
@@ -189,53 +179,16 @@
       ></TaskControlLegacyGiftModalBody>
     </n-modal>
 
-    <!-- Helper Modal (开箱/钓鱼/招募) -->
-    <n-modal
-      class="modal-w-400"
-      preset="card"
+    <BatchDailyTasksHelperModal
       v-model:show="showHelperModal"
+      :box-type-options="boxTypeOptions"
+      :fish-type-options="fishTypeOptions"
+      :helper-settings="helperSettings"
+      :helper-type="helperType"
       :title="helperModalTitle"
-    >
-      <div class="settings-content">
-        <div class="settings-grid">
-          <div v-if="helperType === 'box'" class="setting-item">
-            <label class="setting-label">宝箱类型</label>
-            <n-select
-              size="small"
-              v-model:value="helperSettings.boxType"
-              :options="boxTypeOptions"
-            ></n-select>
-          </div>
-          <div v-if="helperType === 'fish'" class="setting-item">
-            <label class="setting-label">鱼竿类型</label>
-            <n-select
-              size="small"
-              v-model:value="helperSettings.fishType"
-              :options="fishTypeOptions"
-            ></n-select>
-          </div>
-          <div class="setting-item">
-            <label class="setting-label">消耗数量（10的倍数）</label>
-            <n-input-number
-              size="small"
-              v-model:value="helperSettings.count"
-              :max="10000"
-              :min="10"
-              :step="10"
-            ></n-input-number>
-          </div>
-        </div>
-        <div class="modal-actions modal-actions-right">
-          <n-button
-            class="btn-mr"
-            @click="showHelperModal = false"
-          >
-            取消
-          </n-button>
-          <n-button type="primary" @click="executeHelper">开始执行</n-button>
-        </div>
-      </div>
-    </n-modal>
+      @execute="executeHelper"
+      @update-field="(key, value) => updateSettingsField(helperSettings, key, value)"
+    ></BatchDailyTasksHelperModal>
 
     <BatchDailyTasksDreamBuyModal
       v-model:show="showDreamBuyModal"
@@ -248,23 +201,16 @@
       @toggle-item="toggleDreamItem"
     ></BatchDailyTasksDreamBuyModal>
 
-    <!-- Tasks List Modal -->
-    <n-modal
-      class="modal-w-800"
-      preset="card"
-      title="定时任务列表"
+    <BatchDailyTasksListModal
       v-model:show="showTasksModal"
-    >
-      <TaskControlScheduledTasksList
-        :executing-task-ids="executingTaskIds"
-        :on-delete-task="deleteTask"
-        :on-edit-task="editTask"
-        :on-manual-execute-task="manualExecuteTask"
-        :on-toggle-task-enabled="toggleTaskEnabled"
-        :scheduled-tasks="scheduledTasks"
-        :task-countdowns="taskCountdowns"
-      ></TaskControlScheduledTasksList>
-    </n-modal>
+      :executing-task-ids="executingTaskIds"
+      :on-delete-task="deleteTask"
+      :on-edit-task="editTask"
+      :on-manual-execute-task="manualExecuteTask"
+      :on-toggle-task-enabled="toggleTaskEnabled"
+      :scheduled-tasks="scheduledTasks"
+      :task-countdowns="taskCountdowns"
+    ></BatchDailyTasksListModal>
 
     <!-- Task Modal -->
     <n-modal
@@ -765,11 +711,14 @@ import { DailyTaskRunner } from "@/utils/dailyTaskRunner";
 import { useMessage } from "naive-ui/es";
 import BatchDailyTasksAccountTemplateModal from "@/views/batch-daily-tasks/BatchDailyTasksAccountTemplateModal.vue";
 import BatchDailyTasksApplyTemplateModal from "@/views/batch-daily-tasks/BatchDailyTasksApplyTemplateModal.vue";
+import BatchDailyTasksHelperModal from "@/views/batch-daily-tasks/BatchDailyTasksHelperModal.vue";
 import BatchDailyTasksHeader from "@/views/batch-daily-tasks/BatchDailyTasksHeader.vue";
 import BatchDailyTasksDreamBuyModal from "@/views/batch-daily-tasks/BatchDailyTasksDreamBuyModal.vue";
+import BatchDailyTasksListModal from "@/views/batch-daily-tasks/BatchDailyTasksListModal.vue";
 import BatchDailyTasksLogPanel from "@/views/batch-daily-tasks/BatchDailyTasksLogPanel.vue";
 import BatchDailyTaskModalBody from "@/views/batch-daily-tasks/BatchDailyTaskModalBody.vue";
 import BatchDailyTaskSettingsForm from "@/views/batch-daily-tasks/BatchDailyTaskSettingsForm.vue";
+import BatchDailyTasksSettingsModal from "@/views/batch-daily-tasks/BatchDailyTasksSettingsModal.vue";
 import BatchDailyTasksGroupManageModal from "@/views/batch-daily-tasks/BatchDailyTasksGroupManageModal.vue";
 import BatchDailyTasksTemplateManagerModal from "@/views/batch-daily-tasks/BatchDailyTasksTemplateManagerModal.vue";
 import BatchDailyTasksToolbar from "@/views/batch-daily-tasks/BatchDailyTasksToolbar.vue";
@@ -810,9 +759,6 @@ import { goldItemsConfig, merchantConfig } from "@/utils/dreamConstants";
 
 const TaskControlLegacyGiftModalBody = defineAsyncComponent(
   () => import("@/components/task-control/TaskControlLegacyGiftModalBody.vue"),
-);
-const TaskControlScheduledTasksList = defineAsyncComponent(
-  () => import("@/components/task-control/TaskControlScheduledTasksList.vue"),
 );
 
 // Initialize token store, message service, and task runner

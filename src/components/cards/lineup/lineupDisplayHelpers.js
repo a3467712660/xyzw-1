@@ -26,6 +26,13 @@ export const getLineupWeaponLabel = (weaponId, weaponMap = {}) => {
   return weaponMap?.[weaponId] || String(weaponId);
 };
 
+export const buildSavedLineupActionState = (lineup = {}, currentTeamId = 1) => ({
+  canApply: Number(lineup?.teamId || 0) === Number(currentTeamId || 0),
+  hasTech:
+    !!lineup?.legionResearch && Object.keys(lineup.legionResearch).length > 0,
+  isApplying: Boolean(lineup?.applying),
+});
+
 export const buildLineupHeroFishCaption = (
   hero = {},
   { getFishNameById, getPearlSkillNameById } = {},
@@ -70,4 +77,37 @@ export const buildLineupHeroStatGroups = (hero = {}, formatPower) => {
   }
 
   return { primary, secondary };
+};
+
+export const buildLineupHeroCardView = (
+  hero = {},
+  {
+    formatLevel,
+    formatPower,
+    getFishNameById,
+    getHeroAvatar,
+    getHeroName,
+    getPearlSkillNameById,
+    getSlotColors,
+  } = {},
+) => {
+  const heroName = resolveLineupDisplayHeroName(hero?.heroId, getHeroName);
+  const levelValue =
+    typeof formatLevel === "function" ? formatLevel(hero?.level) : hero?.level;
+  const slotColors =
+    typeof getSlotColors === "function" ? getSlotColors(hero?.slotMap) || [] : [];
+
+  return {
+    avatar:
+      typeof getHeroAvatar === "function" ? getHeroAvatar(hero?.heroId) || "" : "",
+    avatarText: getLineupDisplayAvatarText(heroName, 1),
+    fishCaption: buildLineupHeroFishCaption(hero, {
+      getFishNameById,
+      getPearlSkillNameById,
+    }),
+    levelText: hero?.level ? `Lv.${levelValue}` : "",
+    name: heroName,
+    slotColors,
+    stats: buildLineupHeroStatGroups(hero, formatPower),
+  };
 };

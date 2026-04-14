@@ -60,15 +60,15 @@
 
 - `src/views/batch-daily-tasks/`
   - 批量日常任务页的局部页面块与排序 helper。
-  - 用于承接页面壳、账号选择区、任务 modal body、分组管理、模板管理、梦境购买、月赛助威等视图层拆分，避免主页面文件继续堆积。
+  - 用于承接页面壳、账号选择区、任务 modal body、分组管理、模板管理、梦境购买、月赛助威，以及设置 / helper / 定时任务列表 modal 壳等视图层拆分，避免主页面文件继续堆积。
 
 - `src/components/cards/lineup/`
   - 阵容助手的局部展示组件与纯 helper。
-  - 用于承接已保存阵容列表、应用进度面板、鱼灵/鱼珠/装备显示 helper 等展示层拆分，避免 `Unlimitedlineup.vue` 回到巨型视图文件。
+  - 用于承接已保存阵容列表、操作条、英雄网格、应用进度面板、运行状态面板、鱼灵/鱼珠/装备显示 helper 等展示层拆分，避免 `Unlimitedlineup.vue` 回到巨型视图文件。
 
 - `src/components/cards/pvp/`
   - PVP 卡片的局部展示组件与纯 formatter。
-  - 用于承接切磋工具条、历史/记录列表、排行壳、武将详情弹层等展示层拆分，避免 `FightPvp.vue`、`ArenaPvp.vue` 继续堆积。
+  - 用于承接切磋工具条、历史/记录列表、结果摘要、目标信息壳、排行壳、武将详情弹层与纯显示 helper 等展示层拆分，避免 `FightPvp.vue`、`ArenaPvp.vue` 继续堆积。
 
 - `src/components/Club/info/`
   - 俱乐部信息页与成员展示的局部组件和纯 helper。
