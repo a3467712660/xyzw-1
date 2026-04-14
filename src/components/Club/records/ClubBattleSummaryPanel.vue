@@ -23,20 +23,20 @@
         :key="item.key || `${panel.title}-${index}`"
         class="top3-item"
       >
-        <div class="top3-rank">
+        <div v-if="showRankMedal" class="top3-rank">
           <div class="rank-medal-small">
             {{ getClubBattleRankMedal(index) }}
           </div>
         </div>
         <div class="top3-info">
           <img
-            v-if="item.avatar"
+            v-if="showAvatar && item.avatar"
             class="player-avatar-xs"
             :src="item.avatar"
             @error="$emit('image-error', $event)"
           >
-          <div v-else class="player-avatar-placeholder-xs">
-            {{ getAvatarText(item.name) }}
+          <div v-else-if="showAvatar" class="player-avatar-placeholder-xs">
+            {{ getClubBattleAvatarText(item.name) }}
           </div>
           <span class="top3-name">{{ item.name }}</span>
         </div>
@@ -48,6 +48,7 @@
 
 <script setup>
 import { getClubBattleRankMedal } from "./clubBattleRecordFormatters.js";
+import { getClubBattleAvatarText } from "./clubBattleRecordDisplayHelpers.js";
 
 defineProps({
   rankPanels: {
@@ -62,11 +63,17 @@ defineProps({
     type: String,
     default: "总体统计",
   },
+  showAvatar: {
+    type: Boolean,
+    default: true,
+  },
+  showRankMedal: {
+    type: Boolean,
+    default: true,
+  },
 });
 
 defineEmits(["image-error"]);
-
-const getAvatarText = (name) => String(name || "").trim().charAt(0) || "?";
 </script>
 
 <style scoped lang="scss">

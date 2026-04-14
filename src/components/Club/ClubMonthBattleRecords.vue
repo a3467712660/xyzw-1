@@ -682,6 +682,10 @@ import ClubBattleSummaryPanel from "@/components/Club/records/ClubBattleSummaryP
 import ClubBattleRecordToolbar from "@/components/Club/records/ClubBattleRecordToolbar.vue";
 import ClubBattleResultBadge from "@/components/Club/records/ClubBattleResultBadge.vue";
 import {
+  buildClubBattleStatItems,
+  buildClubBattleTopPanels,
+} from "@/components/Club/records/clubBattleRecordDisplayHelpers.js";
+import {
   formatClubBattleKD,
   formatClubBattleShortDate,
   getClubBattleDeathColor,
@@ -689,6 +693,10 @@ import {
   getClubBattleOccupyColor,
   getClubBattleReviveColor,
 } from "@/components/Club/records/clubBattleRecordFormatters.js";
+import {
+  getClubBattleTopRows,
+  normalizeClubBattleRows,
+} from "@/components/Club/records/useClubBattleRecordRows.js";
 import { useTokenStore } from "@/stores/tokenStore";
 import { captureWithHtml2canvas } from "@/utils/html2canvasLoader";
 import { downloadCanvasAsImage } from "@/utils/imageExport";
@@ -828,19 +836,21 @@ const monthlyStats = computed(() => {
   return stats;
 });
 
-const monthlySummaryStats = computed(() => [
-  { label: "总人数", value: monthlyStats.value.totalMembers },
-  { label: "总击杀", value: monthlyStats.value.totalKills },
-  { label: "总死亡", value: monthlyStats.value.totalDeaths },
-  { label: "总复活丹", value: monthlyStats.value.totalResurrection },
-  {
-    label: "总 K/D",
-    value: formatClubBattleKD(
-      monthlyStats.value.totalKills,
-      monthlyStats.value.totalDeaths,
-    ),
-  },
-]);
+const monthlySummaryStats = computed(() =>
+  buildClubBattleStatItems([
+    { label: "总人数", value: monthlyStats.value.totalMembers },
+    { label: "总击杀", value: monthlyStats.value.totalKills },
+    { label: "总死亡", value: monthlyStats.value.totalDeaths },
+    { label: "总复活丹", value: monthlyStats.value.totalResurrection },
+    {
+      label: "总 K/D",
+      value: formatClubBattleKD(
+        monthlyStats.value.totalKills,
+        monthlyStats.value.totalDeaths,
+      ),
+    },
+  ]),
+);
 
 // 获取成员每日统计数据
 const getMemberDailyStat = (member, date, statType) => {
@@ -898,6 +908,24 @@ const sortedMembers = computed(() => {
   );
 });
 
+const monthlyPlayerRows = computed(() =>
+  normalizeClubBattleRows(sortedMembers.value, {
+    deathGetter: (member) => member.totalLoseCnt || 0,
+    extraGetter: (member) => ({
+      dailyRecords: member.dailyRecords || {},
+      headImg: member.headImg || "",
+      roleId: member.roleId,
+      totalBuildingCnt: member.totalBuildingCnt || 0,
+      totalLoseCnt: member.totalLoseCnt || 0,
+      totalResurrection: member.totalResurrection || 0,
+      totalWinCnt: member.totalWinCnt || 0,
+    }),
+    killGetter: (member) => member.totalWinCnt || 0,
+    occupyGetter: (member) => member.totalBuildingCnt || 0,
+    reviveGetter: (member) => member.totalResurrection || 0,
+  }),
+);
+
 // Style 1 & 2 Support Logic
 const currentStyle = ref(
   getStringPreference("club_month_battle_records_style", "default"),
@@ -939,19 +967,13 @@ const monthlyMvpPlayer = computed(() => {
 
 // Rank Computeds
 const monthlyKillRank = computed(() =>
-  [...sortedMembers.value]
-    .sort((a, b) => b.totalWinCnt - a.totalWinCnt)
-    .slice(0, 3),
+  getClubBattleTopRows(monthlyPlayerRows.value, "killCnt"),
 );
 const monthlyOccupyRank = computed(() =>
-  [...sortedMembers.value]
-    .sort((a, b) => b.totalBuildingCnt - a.totalBuildingCnt)
-    .slice(0, 3),
+  getClubBattleTopRows(monthlyPlayerRows.value, "occupyCnt"),
 );
 const monthlyReviveRank = computed(() =>
-  [...sortedMembers.value]
-    .sort((a, b) => b.totalResurrection - a.totalResurrection)
-    .slice(0, 3),
+  getClubBattleTopRows(monthlyPlayerRows.value, "reviveCnt"),
 );
 const monthlyDeathRank = computed(() =>
   [...sortedMembers.value]
@@ -960,13 +982,7 @@ const monthlyDeathRank = computed(() =>
 );
 
 const monthlyKDRank = computed(() => {
-  return [...sortedMembers.value]
-    .map((m) => ({
-      ...m,
-      kd: formatClubBattleKD(m.totalWinCnt, m.totalLoseCnt),
-    }))
-    .sort((a, b) => b.kd - a.kd)
-    .slice(0, 3);
+  return getClubBattleTopRows(monthlyPlayerRows.value, "kd");
 });
 
 const monthlySurvivalRank = computed(() => {
@@ -977,44 +993,34 @@ const monthlySurvivalRank = computed(() => {
     .map((p) => ({ ...p, survivalCnt: p.totalLoseCnt }));
 });
 
-const monthlySummaryPanels = computed(() => [
-  {
-    title: "击杀前3",
-    items: monthlyKillRank.value.map((player, index) => ({
-      avatar: player.headImg,
-      key: `kill-${index}`,
-      name: player.name,
-      value: player.totalWinCnt,
-    })),
-  },
-  {
-    title: "攻城前3",
-    items: monthlyOccupyRank.value.map((player, index) => ({
-      avatar: player.headImg,
-      key: `occupy-${index}`,
-      name: player.name,
-      value: player.totalBuildingCnt,
-    })),
-  },
-  {
-    title: "KD 前3",
-    items: monthlyKDRank.value.map((player, index) => ({
-      avatar: player.headImg,
-      key: `kd-${index}`,
-      name: player.name,
-      value: player.kd,
-    })),
-  },
-  {
-    title: "复活丹前3",
-    items: monthlyReviveRank.value.map((player, index) => ({
-      avatar: player.headImg,
-      key: `revive-${index}`,
-      name: player.name,
-      value: player.totalResurrection,
-    })),
-  },
-]);
+const monthlySummaryPanels = computed(() =>
+  buildClubBattleTopPanels([
+    {
+      items: monthlyKillRank.value,
+      keyPrefix: "kill",
+      title: "击杀前3",
+      valueKey: "killCnt",
+    },
+    {
+      items: monthlyOccupyRank.value,
+      keyPrefix: "occupy",
+      title: "攻城前3",
+      valueKey: "occupyCnt",
+    },
+    {
+      items: monthlyKDRank.value,
+      keyPrefix: "kd",
+      title: "KD 前3",
+      valueKey: "kd",
+    },
+    {
+      items: monthlyReviveRank.value,
+      keyPrefix: "revive",
+      title: "复活丹前3",
+      valueKey: "reviveCnt",
+    },
+  ]),
+);
 
 // Max values for progress bars
 const monthlyMaxKills = computed(() =>

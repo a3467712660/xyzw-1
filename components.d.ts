@@ -145,6 +145,8 @@ declare module 'vue' {
     PageHero: typeof import('./src/components/workbench/PageHero.vue')['default']
     PageToolbar: typeof import('./src/components/workbench/PageToolbar.vue')['default']
     PeachBattleRecords: typeof import('./src/components/Club/PeachBattleRecords.vue')['default']
+    PeachBattleRecordTable: typeof import('./src/components/Club/records/PeachBattleRecordTable.vue')['default']
+    PeachBattleSummaryPanel: typeof import('./src/components/Club/records/PeachBattleSummaryPanel.vue')['default']
     PeachInfo: typeof import('./src/components/Club/PeachInfo.vue')['default']
     PeachInfoSummaryPanel: typeof import('./src/components/Club/info/PeachInfoSummaryPanel.vue')['default']
     Rank: typeof import('./src/components/Club/Rank.vue')['default']

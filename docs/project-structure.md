@@ -76,7 +76,7 @@
 
 - `src/components/Club/records/`
   - 俱乐部战绩页共用的工具条、badge 与纯 formatter。
-  - 用于承接 `PeachBattleRecords`、`ClubBattleRecords`、`ClubMonthBattleRecords` 之间真正重复的展示层逻辑，避免把查询与导出编排重新塞回页面里。
+  - 用于承接 `PeachBattleRecords`、`ClubBattleRecords`、`ClubMonthBattleRecords` 之间真正重复的展示层逻辑，例如工具条、summary 面板、单侧表格壳、rows 标准化与显示 helper，避免把查询与导出编排重新塞回页面里。
 
 ## 命名统一约定
 

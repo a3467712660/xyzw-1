@@ -738,12 +738,20 @@ import ClubBattleRecordToolbar from "@/components/Club/records/ClubBattleRecordT
 import ClubBattleResultBadge from "@/components/Club/records/ClubBattleResultBadge.vue";
 import ClubBattleSummaryPanel from "@/components/Club/records/ClubBattleSummaryPanel.vue";
 import {
+  buildClubBattleStatItems,
+  buildClubBattleTopPanels,
+} from "@/components/Club/records/clubBattleRecordDisplayHelpers.js";
+import {
   formatClubBattleKD,
   getClubBattleDeathColor,
   getClubBattleKillColor,
   getClubBattleOccupyColor,
   getClubBattleReviveColor,
 } from "@/components/Club/records/clubBattleRecordFormatters.js";
+import {
+  getClubBattleTopRows,
+  normalizeClubBattleRows,
+} from "@/components/Club/records/useClubBattleRecordRows.js";
 import { useTokenStore } from "@/stores/tokenStore";
 import { captureWithHtml2canvas } from "@/utils/html2canvasLoader";
 import { downloadCanvasAsImage } from "@/utils/imageExport";
@@ -786,14 +794,18 @@ const battleRecords = ref(null);
 const queryDate = ref(getLastSaturday());
 
 const playerRows = computed(() => {
-  if (!battleRecords.value?.roleDetailsList) return [];
-  return battleRecords.value.roleDetailsList.map((member, index) => ({
-    ...member,
-    kd: formatClubBattleKD(member.winCnt, member.loseCnt),
-    rank: index + 1,
-    reviveCnt: Math.max((member.loseCnt || 0) - 6, 0),
-    survivalCnt: member.loseCnt || 0,
-  }));
+  return normalizeClubBattleRows(battleRecords.value?.roleDetailsList || [], {
+    extraGetter: (member) => ({
+      buildingCnt: member.buildingCnt || 0,
+      headImg: member.headImg || "",
+      roleId: member.roleId,
+      loseCnt: member.loseCnt || 0,
+      survivalCnt: member.loseCnt || 0,
+      winCnt: member.winCnt || 0,
+    }),
+    killGetter: (member) => member.winCnt || 0,
+    occupyGetter: (member) => member.buildingCnt || 0,
+  });
 });
 
 // 计算属性：总击杀
@@ -829,85 +841,65 @@ const totalKD = computed(() => {
   return formatClubBattleKD(totalKills, totalLosses);
 });
 
-const style1SummaryStats = computed(() => [
-  { label: "总人数", value: battleRecords.value?.roleDetailsList?.length || 0 },
-  { label: "总击杀", value: totalKills.value },
-  { label: "总死亡", value: totalDeaths.value },
-  { label: "总复活丹", value: totalRevives.value },
-  { label: "总 K/D", value: totalKD.value },
-]);
+const style1SummaryStats = computed(() =>
+  buildClubBattleStatItems([
+    { label: "总人数", value: battleRecords.value?.roleDetailsList?.length || 0 },
+    { label: "总击杀", value: totalKills.value },
+    { label: "总死亡", value: totalDeaths.value },
+    { label: "总复活丹", value: totalRevives.value },
+    { label: "总 K/D", value: totalKD.value },
+  ]),
+);
 
 // 计算属性：击杀榜 Top3
 const killRank = computed(() => {
-  if (!playerRows.value.length) return [];
-  return [...playerRows.value]
-    .sort((a, b) => (b.winCnt || 0) - (a.winCnt || 0))
-    .slice(0, 3);
+  return getClubBattleTopRows(playerRows.value, "killCnt");
 });
 
 // 计算属性：K/D榜 Top3
 const kdRank = computed(() => {
-  if (!playerRows.value.length) return [];
-  return [...playerRows.value]
-    .sort((a, b) => b.kd - a.kd)
-    .slice(0, 3);
+  return getClubBattleTopRows(playerRows.value, "kd");
 });
 
 // 计算属性：复活榜 Top3
 const reviveRank = computed(() => {
-  if (!playerRows.value.length) return [];
-  return [...playerRows.value]
-    .sort((a, b) => b.reviveCnt - a.reviveCnt)
-    .slice(0, 3);
+  return getClubBattleTopRows(playerRows.value, "reviveCnt");
 });
 
-const style1SummaryPanels = computed(() => [
-  {
-    title: "击杀前3",
-    items: killRank.value.map((player, index) => ({
-      avatar: player.headImg,
-      key: `kill-${index}`,
-      name: player.name,
-      value: player.winCnt,
-    })),
-  },
-  {
-    title: "攻城前3",
-    items: occupyRank.value.map((player, index) => ({
-      avatar: player.headImg,
-      key: `occupy-${index}`,
-      name: player.name,
-      value: player.buildingCnt,
-    })),
-  },
-  {
-    title: "KD 前3",
-    items: kdRank.value.map((player, index) => ({
-      avatar: player.headImg,
-      key: `kd-${index}`,
-      name: player.name,
-      value: player.kd,
-    })),
-  },
-  {
-    title: "复活丹前3",
-    items: reviveRank.value.map((player, index) => ({
-      avatar: player.headImg,
-      key: `revive-${index}`,
-      name: player.name,
-      value: player.reviveCnt,
-    })),
-  },
-]);
+const style1SummaryPanels = computed(() =>
+  buildClubBattleTopPanels([
+    {
+      items: killRank.value,
+      keyPrefix: "kill",
+      title: "击杀前3",
+      valueKey: "killCnt",
+    },
+    {
+      items: occupyRank.value,
+      keyPrefix: "occupy",
+      title: "攻城前3",
+      valueKey: "occupyCnt",
+    },
+    {
+      items: kdRank.value,
+      keyPrefix: "kd",
+      title: "KD 前3",
+      valueKey: "kd",
+    },
+    {
+      items: reviveRank.value,
+      keyPrefix: "revive",
+      title: "复活丹前3",
+      valueKey: "reviveCnt",
+    },
+  ]),
+);
 
 // --- 新增计算属性和方法 ---
 
 // 攻城榜 Top3
 const occupyRank = computed(() => {
-  if (!playerRows.value.length) return [];
-  return [...playerRows.value]
-    .sort((a, b) => (b.buildingCnt || 0) - (a.buildingCnt || 0))
-    .slice(0, 3);
+  return getClubBattleTopRows(playerRows.value, "occupyCnt");
 });
 
 // 死亡榜 Top3
