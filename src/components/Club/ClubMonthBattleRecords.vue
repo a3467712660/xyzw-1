@@ -227,90 +227,15 @@
             </div>
 
             <div class="style1-content">
-              <!-- 左侧表格 -->
-              <div class="style1-table-container">
-                <table class="style1-table">
-                  <thead>
-                    <tr>
-                      <th class="col-rank">排名</th>
-                      <th class="col-name">成员</th>
-                      <th class="col-kill">击杀</th>
-                      <th class="col-death">死亡</th>
-                      <th class="col-occupy">攻城</th>
-                      <th class="col-revive">复活</th>
-                      <th class="col-kd">K/D</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr
-                      v-for="(player, index) in sortedMembers"
-                      :key="player.roleId"
-                    >
-                      <td class="col-rank">
-                        <div v-if="index < 3" class="rank-medal">
-                          {{ index === 0 ? "🥇" : index === 1 ? "🥈" : "🥉" }}
-                        </div>
-                        <span v-else>{{ index + 1 }}</span>
-                      </td>
-                      <td class="col-name">
-                        <div class="player-info">
-                          <img
-                            v-if="player.headImg"
-                            class="player-avatar-small"
-                            :src="player.headImg"
-                            @error="handleImageError"
-                          >
-                          <div v-else class="player-avatar-placeholder-small">
-                            {{ player.name?.charAt(0) || "?" }}
-                          </div>
-                          <span>{{ player.name }}</span>
-                        </div>
-                      </td>
-                      <td
-                        class="col-kill stat-bg-cell"
-                        :style="{
-                          '--cell-bg': getKillColor(player.totalWinCnt),
-                        }"
-                      >
-                        {{ player.totalWinCnt || 0 }}
-                      </td>
-                      <td
-                        class="col-death stat-bg-cell"
-                        :style="{
-                          '--cell-bg': getDeathColor(player.totalLoseCnt),
-                        }"
-                      >
-                        {{ player.totalLoseCnt || 0 }}
-                      </td>
-                      <td
-                        class="col-occupy stat-bg-cell"
-                        :style="{
-                          '--cell-bg': getOccupyColor(player.totalBuildingCnt),
-                        }"
-                      >
-                        {{ player.totalBuildingCnt || 0 }}
-                      </td>
-                      <td
-                        class="col-revive stat-bg-cell"
-                        :style="{
-                          '--cell-bg': getReviveColor(player.totalResurrection),
-                        }"
-                      >
-                        {{ player.totalResurrection || 0 }}
-                      </td>
-                      <td class="col-kd">
-                        {{
-                          parseFloat(
-                            player.totalWinCnt && player.totalLoseCnt
-                              ? player.totalWinCnt / player.totalLoseCnt
-                              : 0.0,
-                          ).toFixed(2)
-                        }}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+              <ClubBattleRecordTable
+                variant="style1"
+                :get-death-color="getDeathColor"
+                :get-kill-color="getKillColor"
+                :get-occupy-color="getOccupyColor"
+                :get-revive-color="getReviveColor"
+                :rows="monthlyPlayerRows"
+                @image-error="handleImageError"
+              ></ClubBattleRecordTable>
 
               <!-- 右侧统计 -->
               <div class="style1-summary">
@@ -335,328 +260,29 @@
               </div>
             </div>
 
-            <div class="style2-dashboard">
-              <div class="dashboard-stats">
-                <div class="stat-card-row">
-                  <div class="stat-card-mini">
-                    <div class="stat-label-mini">总 K/D</div>
-                    <div class="stat-value-mini">
-                      {{
-                        parseFloat(
-                          monthlyStats.totalKills && monthlyStats.totalDeaths
-                            ? monthlyStats.totalKills / monthlyStats.totalDeaths
-                            : 0.0,
-                        ).toFixed(2)
-                      }}
-                    </div>
-                  </div>
-                  <div class="stat-card-mini">
-                    <div class="stat-label-mini">总胜率</div>
-                    <div class="stat-value-mini">{{ totalWinRate }}%</div>
-                  </div>
-                  <div class="stat-card-mini">
-                    <div class="stat-label-mini">参战人数</div>
-                    <div class="stat-value-mini">
-                      {{ monthlyStats.totalMembers }}
-                    </div>
-                  </div>
-                  <div class="stat-card-mini">
-                    <div class="stat-label-mini">总复活丹</div>
-                    <div class="stat-value-mini warning-text">
-                      {{ monthlyStats.totalResurrection }}
-                    </div>
-                  </div>
-                </div>
-                <div class="stat-card-row">
-                  <div class="stat-card-mini">
-                    <div class="stat-label-mini">总击杀</div>
-                    <div class="stat-value-mini danger-text">
-                      {{ monthlyStats.totalKills }}
-                    </div>
-                  </div>
-                  <div class="stat-card-mini">
-                    <div class="stat-label-mini">总死亡</div>
-                    <div class="stat-value-mini">
-                      {{ monthlyStats.totalDeaths }}
-                    </div>
-                  </div>
-                  <div class="stat-card-mini">
-                    <div class="stat-label-mini">总攻城</div>
-                    <div class="stat-value-mini warning-text">
-                      {{ monthlyStats.totalBuilding }}
-                    </div>
-                  </div>
-                  <div class="stat-card-mini">
-                    <div class="stat-label-mini">人均击杀</div>
-                    <div class="stat-value-mini purple-text">
-                      {{ avgKills }}
-                    </div>
-                  </div>
-                </div>
-              </div>
+            <ClubBattleStatsPanel
+              :mvp="style2Mvp"
+              :stat-rows="style2StatRows"
+              @image-error="handleImageError"
+            ></ClubBattleStatsPanel>
 
-              <div v-if="monthlyMvpPlayer" class="dashboard-mvp">
-                <img
-                  v-if="monthlyMvpPlayer.headImg"
-                  class="mvp-avatar"
-                  :src="monthlyMvpPlayer.headImg"
-                  @error="handleImageError"
-                >
-                <div v-else class="mvp-avatar-placeholder">
-                  {{ monthlyMvpPlayer.name?.charAt(0) || "?" }}
-                </div>
-                <div class="mvp-crown">👑</div>
-                <div class="mvp-name">{{ monthlyMvpPlayer.name }}</div>
-                <div class="mvp-label">本月 MVP</div>
-              </div>
-            </div>
+            <ClubBattleTopRanksPanel
+              :cards="style2TopRankCards"
+              @image-error="handleImageError"
+            ></ClubBattleTopRanksPanel>
 
-            <div class="style2-rankings-grid">
-              <div class="rank-card-s2 red-border">
-                <div class="rank-card-title-s2">
-                  <span class="icon">⚔️</span> 击杀前三
-                </div>
-                <div class="rank-list-s2">
-                  <div
-                    v-for="(player, index) in monthlyKillRank"
-                    :key="`s2-kill-${index}`"
-                    class="rank-item-s2"
-                  >
-                    <div class="rank-num-s2">{{ index + 1 }}</div>
-                    <div class="rank-player-s2">
-                      <img
-                        v-if="player.headImg"
-                        class="avatar-xxs"
-                        :src="player.headImg"
-                      >
-                      <span class="name">{{ player.name }}</span>
-                    </div>
-                    <div class="rank-val-s2 red">{{ player.totalWinCnt }}</div>
-                  </div>
-                </div>
-              </div>
-
-              <div class="rank-card-s2 orange-border">
-                <div class="rank-card-title-s2">
-                  <span class="icon">💣</span> 攻城前三
-                </div>
-                <div class="rank-list-s2">
-                  <div
-                    v-for="(player, index) in monthlyOccupyRank"
-                    :key="`s2-occupy-${index}`"
-                    class="rank-item-s2"
-                  >
-                    <div class="rank-num-s2">{{ index + 1 }}</div>
-                    <div class="rank-player-s2">
-                      <img
-                        v-if="player.headImg"
-                        class="avatar-xxs"
-                        :src="player.headImg"
-                      >
-                      <span class="name">{{ player.name }}</span>
-                    </div>
-                    <div class="rank-val-s2 orange">
-                      {{ player.totalBuildingCnt }}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div class="rank-card-s2 green-border">
-                <div class="rank-card-title-s2">
-                  <span class="icon">📊</span> KD 前三
-                </div>
-                <div class="rank-list-s2">
-                  <div
-                    v-for="(player, index) in monthlyKDRank"
-                    :key="`s2-kd-${index}`"
-                    class="rank-item-s2"
-                  >
-                    <div class="rank-num-s2">{{ index + 1 }}</div>
-                    <div class="rank-player-s2">
-                      <img
-                        v-if="player.headImg"
-                        class="avatar-xxs"
-                        :src="player.headImg"
-                      >
-                      <span class="name">{{ player.name }}</span>
-                    </div>
-                    <div class="rank-val-s2 green">{{ player.kd }}</div>
-                  </div>
-                </div>
-              </div>
-
-              <div class="rank-card-s2 gray-border">
-                <div class="rank-card-title-s2">
-                  <span class="icon">💀</span> 死亡前三
-                </div>
-                <div class="rank-list-s2">
-                  <div
-                    v-for="(player, index) in monthlyDeathRank"
-                    :key="`s2-death-${index}`"
-                    class="rank-item-s2"
-                  >
-                    <div class="rank-num-s2">{{ index + 1 }}</div>
-                    <div class="rank-player-s2">
-                      <img
-                        v-if="player.headImg"
-                        class="avatar-xxs"
-                        :src="player.headImg"
-                      >
-                      <span class="name">{{ player.name }}</span>
-                    </div>
-                    <div class="rank-val-s2 gray">
-                      {{ player.totalLoseCnt }}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div class="rank-card-s2 purple-border">
-                <div class="rank-card-title-s2">
-                  <span class="icon">💊</span> 复活丹前三
-                </div>
-                <div class="rank-list-s2">
-                  <div
-                    v-for="(player, index) in monthlyReviveRank"
-                    :key="`s2-revive-${index}`"
-                    class="rank-item-s2"
-                  >
-                    <div class="rank-num-s2">{{ index + 1 }}</div>
-                    <div class="rank-player-s2">
-                      <img
-                        v-if="player.headImg"
-                        class="avatar-xxs"
-                        :src="player.headImg"
-                      >
-                      <span class="name">{{ player.name }}</span>
-                    </div>
-                    <div class="rank-val-s2 purple">
-                      {{ player.totalResurrection }}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div class="rank-card-s2 blue-border">
-                <div class="rank-card-title-s2">
-                  <span class="icon">🛡️</span> 生存前三
-                </div>
-                <div class="rank-list-s2">
-                  <div
-                    v-for="(player, index) in monthlySurvivalRank"
-                    :key="`s2-survival-${index}`"
-                    class="rank-item-s2"
-                  >
-                    <div class="rank-num-s2">{{ index + 1 }}</div>
-                    <div class="rank-player-s2">
-                      <img
-                        v-if="player.headImg"
-                        class="avatar-xxs"
-                        :src="player.headImg"
-                      >
-                      <span class="name">{{ player.name }}</span>
-                    </div>
-                    <div class="rank-val-s2 blue">{{ player.survivalCnt }}</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="style2-table-wrapper">
-              <table class="style2-table">
-                <thead>
-                  <tr>
-                    <th>排名</th>
-                    <th>成员</th>
-                    <th>击杀</th>
-                    <th>死亡</th>
-                    <th>攻城</th>
-                    <th>复活丹</th>
-                    <th>K/D</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr
-                    v-for="(player, index) in sortedMembers"
-                    :key="`s2-row-${player.roleId}`"
-                  >
-                    <td>
-                      <div v-if="index < 3" class="medal-icon">
-                        {{ index === 0 ? "🥇" : index === 1 ? "🥈" : "🥉" }}
-                      </div>
-                      <div v-else class="rank-num-plain">{{ index + 1 }}</div>
-                    </td>
-                    <td>
-                      <div class="player-cell">
-                        <img
-                          v-if="player.headImg"
-                          class="avatar-xs"
-                          :src="player.headImg"
-                        >
-                        <div v-else class="avatar-placeholder-xs">
-                          {{ player.name?.charAt(0) || "?" }}
-                        </div>
-                        <span class="player-name-s2">{{ player.name }}</span>
-                      </div>
-                    </td>
-                    <td>
-                      <div class="bar-cell">
-                        <div class="bar-val red">{{ player.totalWinCnt }}</div>
-                        <div class="progress-bg">
-                          <div
-                            class="progress-fill red"
-                            :style="{
-                              '--fill-width': `${getPercent(player.totalWinCnt, monthlyMaxKills)}%`,
-                            }"
-                          ></div>
-                        </div>
-                      </div>
-                    </td>
-                    <td>
-                      <div class="bar-cell">
-                        <div class="bar-val gray">
-                          {{ player.totalLoseCnt }}
-                        </div>
-                        <div class="progress-bg">
-                          <div
-                            class="progress-fill gray"
-                            :style="{
-                              '--fill-width': `${getPercent(player.totalLoseCnt, monthlyMaxDeaths)}%`,
-                            }"
-                          ></div>
-                        </div>
-                      </div>
-                    </td>
-                    <td>
-                      <div class="bar-cell">
-                        <div class="bar-val orange">
-                          {{ player.totalBuildingCnt }}
-                        </div>
-                        <div class="progress-bg">
-                          <div
-                            class="progress-fill orange"
-                            :style="{
-                              '--fill-width': `${getPercent(player.totalBuildingCnt, monthlyMaxOccupies)}%`,
-                            }"
-                          ></div>
-                        </div>
-                      </div>
-                    </td>
-                    <td>{{ player.totalResurrection }}</td>
-                    <td class="kd-val">
-                      {{
-                        parseFloat(
-                          player.totalWinCnt && player.totalLoseCnt
-                            ? player.totalWinCnt / player.totalLoseCnt
-                            : 0.0,
-                        ).toFixed(2)
-                      }}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+            <ClubBattleRecordTable
+              variant="style2"
+              :get-death-color="getDeathColor"
+              :get-kill-color="getKillColor"
+              :get-occupy-color="getOccupyColor"
+              :get-revive-color="getReviveColor"
+              :max-deaths="monthlyMaxDeaths"
+              :max-kills="monthlyMaxKills"
+              :max-occupies="monthlyMaxOccupies"
+              :rows="monthlyPlayerRows"
+              @image-error="handleImageError"
+            ></ClubBattleRecordTable>
           </div>
         </div>
 
@@ -679,12 +305,20 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { useMessage } from "naive-ui/es";
 import ClubBattleSummaryPanel from "@/components/Club/records/ClubBattleSummaryPanel.vue";
+import ClubBattleRecordTable from "@/components/Club/records/ClubBattleRecordTable.vue";
 import ClubBattleRecordToolbar from "@/components/Club/records/ClubBattleRecordToolbar.vue";
 import ClubBattleResultBadge from "@/components/Club/records/ClubBattleResultBadge.vue";
+import ClubBattleStatsPanel from "@/components/Club/records/ClubBattleStatsPanel.vue";
+import ClubBattleTopRanksPanel from "@/components/Club/records/ClubBattleTopRanksPanel.vue";
 import {
   buildClubBattleStatItems,
   buildClubBattleTopPanels,
 } from "@/components/Club/records/clubBattleRecordDisplayHelpers.js";
+import {
+  buildClubBattleDashboardStatRows,
+  buildClubBattleMvpModel,
+  buildClubBattleTopRankCards,
+} from "@/components/Club/records/clubBattleRecordStatsHelpers.js";
 import {
   formatClubBattleKD,
   formatClubBattleShortDate,
@@ -915,6 +549,7 @@ const monthlyPlayerRows = computed(() =>
       dailyRecords: member.dailyRecords || {},
       headImg: member.headImg || "",
       roleId: member.roleId,
+      survivalCnt: member.totalLoseCnt || 0,
       totalBuildingCnt: member.totalBuildingCnt || 0,
       totalLoseCnt: member.totalLoseCnt || 0,
       totalResurrection: member.totalResurrection || 0,
@@ -961,8 +596,8 @@ const avgKills = computed(() => {
 });
 
 const monthlyMvpPlayer = computed(() => {
-  if (!sortedMembers.value || sortedMembers.value.length === 0) return null;
-  return sortedMembers.value[0]; // Assuming sorted by kills
+  if (!monthlyPlayerRows.value || monthlyPlayerRows.value.length === 0) return null;
+  return monthlyPlayerRows.value[0];
 });
 
 // Rank Computeds
@@ -976,9 +611,7 @@ const monthlyReviveRank = computed(() =>
   getClubBattleTopRows(monthlyPlayerRows.value, "reviveCnt"),
 );
 const monthlyDeathRank = computed(() =>
-  [...sortedMembers.value]
-    .sort((a, b) => b.totalLoseCnt - a.totalLoseCnt)
-    .slice(0, 3),
+  getClubBattleTopRows(monthlyPlayerRows.value, "deathCnt"),
 );
 
 const monthlyKDRank = computed(() => {
@@ -986,12 +619,45 @@ const monthlyKDRank = computed(() => {
 });
 
 const monthlySurvivalRank = computed(() => {
-  return [...sortedMembers.value]
-    .filter((p) => p.totalWinCnt > 0 || p.totalBuildingCnt > 0)
-    .sort((a, b) => (a.totalLoseCnt || 0) - (b.totalLoseCnt || 0))
+  return [...monthlyPlayerRows.value]
+    .filter((p) => p.killCnt > 0 || p.occupyCnt > 0)
+    .sort((a, b) => (a.deathCnt || 0) - (b.deathCnt || 0))
     .slice(0, 3)
-    .map((p) => ({ ...p, survivalCnt: p.totalLoseCnt }));
+    .map((p) => ({ ...p, survivalCnt: p.deathCnt }));
 });
+
+const style2StatRows = computed(() =>
+  buildClubBattleDashboardStatRows({
+    avgKills: avgKills.value,
+    totalBuilding: monthlyStats.value.totalBuilding,
+    totalDeaths: monthlyStats.value.totalDeaths,
+    totalKills: monthlyStats.value.totalKills,
+    totalKD: formatClubBattleKD(
+      monthlyStats.value.totalKills,
+      monthlyStats.value.totalDeaths,
+    ),
+    totalMembers: monthlyStats.value.totalMembers,
+    totalRevives: monthlyStats.value.totalResurrection,
+    totalWinRate: totalWinRate.value,
+  }),
+);
+
+const style2Mvp = computed(() =>
+  buildClubBattleMvpModel(monthlyMvpPlayer.value, {
+    label: "本月 MVP",
+  }),
+);
+
+const style2TopRankCards = computed(() =>
+  buildClubBattleTopRankCards({
+    deathRank: monthlyDeathRank.value,
+    kdRank: monthlyKDRank.value,
+    killRank: monthlyKillRank.value,
+    occupyRank: monthlyOccupyRank.value,
+    reviveRank: monthlyReviveRank.value,
+    survivalRank: monthlySurvivalRank.value,
+  }),
+);
 
 const monthlySummaryPanels = computed(() =>
   buildClubBattleTopPanels([

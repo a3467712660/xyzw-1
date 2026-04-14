@@ -104,310 +104,37 @@
             </div>
           </div>
 
-          <!-- 总体数据统计 -->
           <div class="overall-stats">
-            <div class="stats-side own">
-              <div class="stats-title">我方总体数据</div>
-              <div class="stats-grid">
-                <div class="stat-item stat-kills">
-                  <div class="stat-label">总击杀</div>
-                  <div class="stat-value">
-                    {{ battleRecords.ownClub.totalKills || 0 }}
-                  </div>
-                </div>
-                <div class="stat-item stat-revives">
-                  <div class="stat-label">总复活</div>
-                  <div class="stat-value">
-                    {{ battleRecords.ownClub.totalRevives || 0 }}
-                  </div>
-                </div>
-                <div class="stat-item stat-kd">
-                  <div class="stat-label">总K/D</div>
-                  <div class="stat-value">
-                    {{ battleRecords.ownClub.totalKD || 0 }}
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="stats-side opponent">
-              <div class="stats-title">敌方总体数据</div>
-              <div class="stats-grid">
-                <div class="stat-item stat-kills">
-                  <div class="stat-label">总击杀</div>
-                  <div class="stat-value">
-                    {{ battleRecords.opponentClub.totalKills || 0 }}
-                  </div>
-                </div>
-                <div class="stat-item stat-revives">
-                  <div class="stat-label">总复活</div>
-                  <div class="stat-value">
-                    {{ battleRecords.opponentClub.totalRevives || 0 }}
-                  </div>
-                </div>
-                <div class="stat-item stat-kd">
-                  <div class="stat-label">总K/D</div>
-                  <div class="stat-value">
-                    {{ battleRecords.opponentClub.totalKD || 0 }}
-                  </div>
-                </div>
-              </div>
-            </div>
+            <PeachBattleDefaultStatsPanel
+              title="我方总体数据"
+              tone="own"
+              :stats="peachDefaultOwnStats"
+            ></PeachBattleDefaultStatsPanel>
+            <PeachBattleDefaultStatsPanel
+              title="敌方总体数据"
+              tone="opponent"
+              :stats="peachDefaultOpponentStats"
+            ></PeachBattleDefaultStatsPanel>
           </div>
 
-          <!-- 各种榜单 -->
-          <div class="battle-rankings">
-            <!-- 击杀榜 -->
-            <div class="ranking-card">
-              <div class="ranking-title">击杀榜</div>
-              <div class="ranking-content">
-                <div class="ranking-side own">
-                  <div class="ranking-subtitle">我方 Top3</div>
-                  <div
-                    v-for="(
-                      player, index
-                    ) in battleRecords.ownClub.killRank.slice(0, 3)"
-                    :key="index"
-                    class="ranking-item"
-                  >
-                    <div class="rank-number">{{ index + 1 }}</div>
-                    <img
-                      v-if="player.roleInfo.headImg"
-                      class="player-avatar"
-                      :alt="player.roleInfo.name"
-                      :src="player.roleInfo.headImg"
-                      @error="handleImageError"
-                    >
-                    <div v-else class="player-avatar-placeholder">
-                      {{ player.roleInfo.name?.charAt(0) || "?" }}
-                    </div>
-                    <span class="player-name">{{ player.roleInfo.name }}</span>
-                    <span class="player-value">{{ player.killCnt || 0 }}</span>
-                  </div>
-                </div>
-                <div class="ranking-side opponent">
-                  <div class="ranking-subtitle">敌方 Top3</div>
-                  <div
-                    v-for="(
-                      player, index
-                    ) in battleRecords.opponentClub.killRank.slice(0, 3)"
-                    :key="index"
-                    class="ranking-item"
-                  >
-                    <div class="rank-number">{{ index + 1 }}</div>
-                    <img
-                      v-if="player.roleInfo.headImg"
-                      class="player-avatar"
-                      :alt="player.roleInfo.name"
-                      :src="player.roleInfo.headImg"
-                      @error="handleImageError"
-                    >
-                    <div v-else class="player-avatar-placeholder">
-                      {{ player.roleInfo.name?.charAt(0) || "?" }}
-                    </div>
-                    <span class="player-name">{{ player.roleInfo.name }}</span>
-                    <span class="player-value">{{ player.killCnt || 0 }}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
+          <PeachBattleRankPanels
+            :groups="peachDefaultRankGroups"
+            @image-error="handleImageError"
+          ></PeachBattleRankPanels>
 
-            <!-- K/D榜 -->
-            <div class="ranking-card">
-              <div class="ranking-title">K/D榜</div>
-              <div class="ranking-content">
-                <div class="ranking-side own">
-                  <div class="ranking-subtitle">我方 Top3</div>
-                  <div
-                    v-for="(
-                      player, index
-                    ) in battleRecords.ownClub.kdRank.slice(0, 3)"
-                    :key="index"
-                    class="ranking-item"
-                  >
-                    <div class="rank-number">{{ index + 1 }}</div>
-                    <img
-                      v-if="player.roleInfo.headImg"
-                      class="player-avatar"
-                      :alt="player.roleInfo.name"
-                      :src="player.roleInfo.headImg"
-                      @error="handleImageError"
-                    >
-                    <div v-else class="player-avatar-placeholder">
-                      {{ player.roleInfo.name?.charAt(0) || "?" }}
-                    </div>
-                    <span class="player-name">{{ player.roleInfo.name }}</span>
-                    <span class="player-value">{{ player.kd || 0 }}</span>
-                  </div>
-                </div>
-                <div class="ranking-side opponent">
-                  <div class="ranking-subtitle">敌方 Top3</div>
-                  <div
-                    v-for="(
-                      player, index
-                    ) in battleRecords.opponentClub.kdRank.slice(0, 3)"
-                    :key="index"
-                    class="ranking-item"
-                  >
-                    <div class="rank-number">{{ index + 1 }}</div>
-                    <img
-                      v-if="player.roleInfo.headImg"
-                      class="player-avatar"
-                      :alt="player.roleInfo.name"
-                      :src="player.roleInfo.headImg"
-                      @error="handleImageError"
-                    >
-                    <div v-else class="player-avatar-placeholder">
-                      {{ player.roleInfo.name?.charAt(0) || "?" }}
-                    </div>
-                    <span class="player-name">{{ player.roleInfo.name }}</span>
-                    <span class="player-value">{{ player.kd || 0 }}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- 复活榜 -->
-            <div class="ranking-card">
-              <div class="ranking-title">复活榜</div>
-              <div class="ranking-content">
-                <div class="ranking-side own">
-                  <div class="ranking-subtitle">我方 Top3</div>
-                  <div
-                    v-for="(
-                      player, index
-                    ) in battleRecords.ownClub.reviveRank.slice(0, 3)"
-                    :key="index"
-                    class="ranking-item"
-                  >
-                    <div class="rank-number">{{ index + 1 }}</div>
-                    <img
-                      v-if="player.roleInfo.headImg"
-                      class="player-avatar"
-                      :alt="player.roleInfo.name"
-                      :src="player.roleInfo.headImg"
-                      @error="handleImageError"
-                    >
-                    <div v-else class="player-avatar-placeholder">
-                      {{ player.roleInfo.name?.charAt(0) || "?" }}
-                    </div>
-                    <span class="player-name">{{ player.roleInfo.name }}</span>
-                    <span class="player-value">{{
-                      player.reviveCnt || 0
-                    }}</span>
-                  </div>
-                </div>
-                <div class="ranking-side opponent">
-                  <div class="ranking-subtitle">敌方 Top3</div>
-                  <div
-                    v-for="(
-                      player, index
-                    ) in battleRecords.opponentClub.reviveRank.slice(0, 3)"
-                    :key="index"
-                    class="ranking-item"
-                  >
-                    <div class="rank-number">{{ index + 1 }}</div>
-                    <img
-                      v-if="player.roleInfo.headImg"
-                      class="player-avatar"
-                      :alt="player.roleInfo.name"
-                      :src="player.roleInfo.headImg"
-                      @error="handleImageError"
-                    >
-                    <div v-else class="player-avatar-placeholder">
-                      {{ player.roleInfo.name?.charAt(0) || "?" }}
-                    </div>
-                    <span class="player-name">{{ player.roleInfo.name }}</span>
-                    <span class="player-value">{{
-                      player.reviveCnt || 0
-                    }}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- 战神榜 -->
           <div class="god-rankings">
-            <div class="god-ranking own">
-              <div class="god-ranking-title">我方战神榜</div>
-              <div class="god-ranking-content">
-                <div class="god-ranking-header">
-                  <div class="god-rank-number">排名</div>
-                  <div class="header-avatar"></div>
-                  <div class="header-player">玩家</div>
-                  <div class="header-stat">击杀</div>
-                  <div class="header-stat">连杀</div>
-                  <div class="header-stat">抢船</div>
-                  <div class="header-stat">复活</div>
-                  <div class="header-stat">K/D</div>
-                </div>
-                <div
-                  v-for="(player, index) in battleRecords.ownClub.godRank"
-                  :key="index"
-                  class="god-ranking-item"
-                >
-                  <div class="god-rank-number">{{ index + 1 }}</div>
-                  <div class="player-avatar-cell">
-                    <img
-                      v-if="player.roleInfo.headImg"
-                      class="player-avatar"
-                      :alt="player.roleInfo.name"
-                      :src="player.roleInfo.headImg"
-                      @error="handleImageError"
-                    >
-                    <div v-else class="player-avatar-placeholder">
-                      {{ player.roleInfo.name?.charAt(0) || "?" }}
-                    </div>
-                  </div>
-                  <span class="header-player">{{ player.roleInfo.name }}</span>
-                  <span class="player-stat">{{ player.killCnt || 0 }}</span>
-                  <span class="player-stat">{{ player.mCKCnt || 0 }}</span>
-                  <span class="player-stat">{{ player.carCnt || 0 }}</span>
-                  <span class="player-stat">{{ player.reviveCnt || 0 }}</span>
-                  <span class="player-stat">{{ player.kd || 0 }}</span>
-                </div>
-              </div>
-            </div>
-            <div class="god-ranking opponent">
-              <div class="god-ranking-title">敌方战神榜</div>
-              <div class="god-ranking-content">
-                <div class="god-ranking-header">
-                  <div class="god-rank-number">排名</div>
-                  <div class="header-avatar"></div>
-                  <div class="header-player">玩家</div>
-                  <div class="header-stat">击杀</div>
-                  <div class="header-stat">连杀</div>
-                  <div class="header-stat">抢船</div>
-                  <div class="header-stat">复活</div>
-                  <div class="header-stat">K/D</div>
-                </div>
-                <div
-                  v-for="(player, index) in battleRecords.opponentClub.godRank"
-                  :key="index"
-                  class="god-ranking-item"
-                >
-                  <div class="god-rank-number">{{ index + 1 }}</div>
-                  <div class="player-avatar-cell">
-                    <img
-                      v-if="player.roleInfo.headImg"
-                      class="player-avatar"
-                      :alt="player.roleInfo.name"
-                      :src="player.roleInfo.headImg"
-                      @error="handleImageError"
-                    >
-                    <div v-else class="player-avatar-placeholder">
-                      {{ player.roleInfo.name?.charAt(0) || "?" }}
-                    </div>
-                  </div>
-                  <span class="header-player">{{ player.roleInfo.name }}</span>
-                  <span class="player-stat">{{ player.killCnt || 0 }}</span>
-                  <span class="player-stat">{{ player.mCKCnt || 0 }}</span>
-                  <span class="player-stat">{{ player.carCnt || 0 }}</span>
-                  <span class="player-stat">{{ player.reviveCnt || 0 }}</span>
-                  <span class="player-stat">{{ player.kd || 0 }}</span>
-                </div>
-              </div>
-            </div>
+            <PeachBattleGodRankPanel
+              title="我方战神榜"
+              tone="own"
+              :players="battleRecords.ownClub.godRank"
+              @image-error="handleImageError"
+            ></PeachBattleGodRankPanel>
+            <PeachBattleGodRankPanel
+              title="敌方战神榜"
+              tone="opponent"
+              :players="battleRecords.opponentClub.godRank"
+              @image-error="handleImageError"
+            ></PeachBattleGodRankPanel>
           </div>
         </div>
 
@@ -633,6 +360,9 @@ import { computed, onMounted, ref, watch } from "vue";
 import { useMessage } from "naive-ui/es";
 import ClubBattleRecordToolbar from "@/components/Club/records/ClubBattleRecordToolbar.vue";
 import ClubBattleResultBadge from "@/components/Club/records/ClubBattleResultBadge.vue";
+import PeachBattleDefaultStatsPanel from "@/components/Club/records/PeachBattleDefaultStatsPanel.vue";
+import PeachBattleGodRankPanel from "@/components/Club/records/PeachBattleGodRankPanel.vue";
+import PeachBattleRankPanels from "@/components/Club/records/PeachBattleRankPanels.vue";
 import PeachBattleSummaryPanel from "@/components/Club/records/PeachBattleSummaryPanel.vue";
 import PeachBattleRecordTable from "@/components/Club/records/PeachBattleRecordTable.vue";
 import {
@@ -645,6 +375,10 @@ import {
   buildClubBattleTopPanels,
   getClubBattleAverageValue,
 } from "@/components/Club/records/clubBattleRecordDisplayHelpers.js";
+import {
+  buildPeachBattleDefaultStats,
+  buildPeachBattleRankGroups,
+} from "@/components/Club/records/clubBattleRecordStatsHelpers.js";
 import {
   getClubBattleTopRows,
   normalizeClubBattleRows,
@@ -803,6 +537,29 @@ const ownClubView = computed(() =>
 
 const opponentClubView = computed(() =>
   buildPeachBattleClubView(battleRecords.value?.opponentClub),
+);
+
+const peachDefaultOwnStats = computed(() =>
+  buildPeachBattleDefaultStats({
+    totalKD: battleRecords.value?.ownClub?.totalKD ?? 0,
+    totalKills: battleRecords.value?.ownClub?.totalKills ?? 0,
+    totalRevives: battleRecords.value?.ownClub?.totalRevives ?? 0,
+  }),
+);
+
+const peachDefaultOpponentStats = computed(() =>
+  buildPeachBattleDefaultStats({
+    totalKD: battleRecords.value?.opponentClub?.totalKD ?? 0,
+    totalKills: battleRecords.value?.opponentClub?.totalKills ?? 0,
+    totalRevives: battleRecords.value?.opponentClub?.totalRevives ?? 0,
+  }),
+);
+
+const peachDefaultRankGroups = computed(() =>
+  buildPeachBattleRankGroups({
+    opponentClub: battleRecords.value?.opponentClub,
+    ownClub: battleRecords.value?.ownClub,
+  }),
 );
 
 // 日期选择时调用查询战绩方法

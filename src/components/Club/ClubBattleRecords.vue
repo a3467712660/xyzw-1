@@ -72,88 +72,15 @@
           </div>
 
           <div class="style1-content">
-            <!-- 左侧表格 -->
-            <div class="style1-table-container">
-              <table class="style1-table">
-                <thead>
-                  <tr>
-                    <th class="col-rank">排名</th>
-                    <th class="col-name">成员</th>
-                    <th class="col-kill">击杀</th>
-                    <th class="col-death">死亡</th>
-                    <th class="col-occupy">攻城</th>
-                    <th class="col-revive">复活丹</th>
-                    <th class="col-kd">K/D</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr
-                    v-for="(player, index) in battleRecords.roleDetailsList"
-                    :key="player.roleId"
-                  >
-                    <td class="col-rank">
-                      <div v-if="index < 3" class="rank-medal">
-                        {{ index === 0 ? "🥇" : index === 1 ? "🥈" : "🥉" }}
-                      </div>
-                      <span v-else>{{ index + 1 }}</span>
-                    </td>
-                    <td class="col-name">
-                      <div class="player-info">
-                        <img
-                          v-if="player.headImg"
-                          class="player-avatar-small"
-                          :src="player.headImg"
-                          @error="handleImageError"
-                        >
-                        <div v-else class="player-avatar-placeholder-small">
-                          {{ player.name?.charAt(0) || "?" }}
-                        </div>
-                        <span>{{ player.name }}</span>
-                      </div>
-                    </td>
-                    <td
-                      class="col-kill stat-bg-cell"
-                      :style="{ '--cell-bg': getKillColor(player.winCnt) }"
-                    >
-                      {{ player.winCnt || 0 }}
-                    </td>
-                    <td
-                      class="col-death stat-bg-cell"
-                      :style="{ '--cell-bg': getDeathColor(player.loseCnt) }"
-                    >
-                      {{ player.loseCnt || 0 }}
-                    </td>
-                    <td
-                      class="col-occupy stat-bg-cell"
-                      :style="{
-                        '--cell-bg': getOccupyColor(player.buildingCnt),
-                      }"
-                    >
-                      {{ player.buildingCnt || 0 }}
-                    </td>
-                    <td
-                      class="col-revive stat-bg-cell"
-                      :style="{
-                        '--cell-bg': getReviveColor(
-                          Math.max((player.loseCnt || 0) - 6, 0),
-                        ),
-                      }"
-                    >
-                      {{ Math.max((player.loseCnt || 0) - 6, 0) }}
-                    </td>
-                    <td class="col-kd">
-                      {{
-                        parseFloat(
-                          player.winCnt && player.loseCnt
-                            ? player.winCnt / player.loseCnt
-                            : 0.0,
-                        ).toFixed(2)
-                      }}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+            <ClubBattleRecordTable
+              variant="style1"
+              :get-death-color="getDeathColor"
+              :get-kill-color="getKillColor"
+              :get-occupy-color="getOccupyColor"
+              :get-revive-color="getReviveColor"
+              :rows="playerRows"
+              @image-error="handleImageError"
+            ></ClubBattleRecordTable>
 
             <!-- 右侧统计 -->
             <div class="style1-summary">
@@ -182,310 +109,25 @@
             </div>
           </div>
 
-          <!-- 战绩总览 -->
-          <div class="style2-dashboard">
-            <div class="dashboard-stats">
-              <div class="stat-card-row">
-                <div class="stat-card-mini">
-                  <div class="stat-label-mini">总 K/D</div>
-                  <div class="stat-value-mini">{{ totalKD }}</div>
-                </div>
-                <div class="stat-card-mini">
-                  <div class="stat-label-mini">总胜率</div>
-                  <div class="stat-value-mini">{{ totalWinRate }}%</div>
-                </div>
-                <div class="stat-card-mini">
-                  <div class="stat-label-mini">参战人数</div>
-                  <div class="stat-value-mini">
-                    {{ battleRecords.roleDetailsList.length }}
-                  </div>
-                </div>
-                <div class="stat-card-mini">
-                  <div class="stat-label-mini">总复活丹</div>
-                  <div class="stat-value-mini warning-text">
-                    {{ totalRevives }}
-                  </div>
-                </div>
-              </div>
-              <div class="stat-card-row">
-                <div class="stat-card-mini">
-                  <div class="stat-label-mini">总击杀</div>
-                  <div class="stat-value-mini danger-text">
-                    {{ totalKills }}
-                  </div>
-                </div>
-                <div class="stat-card-mini">
-                  <div class="stat-label-mini">总死亡</div>
-                  <div class="stat-value-mini">{{ totalDeaths }}</div>
-                </div>
-                <div class="stat-card-mini">
-                  <div class="stat-label-mini">总攻城</div>
-                  <div class="stat-value-mini warning-text">
-                    {{ totalBuilding }}
-                  </div>
-                </div>
-                <div class="stat-card-mini">
-                  <div class="stat-label-mini">人均击杀</div>
-                  <div class="stat-value-mini purple-text">{{ avgKills }}</div>
-                </div>
-              </div>
-            </div>
+          <ClubBattleStatsPanel
+            :mvp="style2Mvp"
+            :stat-rows="style2StatRows"
+            @image-error="handleImageError"
+          ></ClubBattleStatsPanel>
 
-            <div v-if="mvpPlayer" class="dashboard-mvp">
-              <img
-                v-if="mvpPlayer.headImg"
-                class="mvp-avatar"
-                :src="mvpPlayer.headImg"
-                @error="handleImageError"
-              >
-              <div v-else class="mvp-avatar-placeholder">
-                {{ mvpPlayer.name?.charAt(0) || "?" }}
-              </div>
-              <div class="mvp-crown">👑</div>
-              <div class="mvp-name">{{ mvpPlayer.name }}</div>
-              <div class="mvp-label">本周 MVP</div>
-            </div>
-          </div>
+          <ClubBattleTopRanksPanel
+            :cards="style2TopRankCards"
+            @image-error="handleImageError"
+          ></ClubBattleTopRanksPanel>
 
-          <!-- 前三展示 -->
-          <div class="style2-rankings-grid">
-            <div class="rank-card-s2 red-border">
-              <div class="rank-card-title-s2">
-                <span class="icon">⚔️</span> 击杀前三
-              </div>
-              <div class="rank-list-s2">
-                <div
-                  v-for="(player, index) in killRank"
-                  :key="`s2-kill-${index}`"
-                  class="rank-item-s2"
-                >
-                  <div class="rank-num-s2">{{ index + 1 }}</div>
-                  <div class="rank-player-s2">
-                    <img
-                      v-if="player.headImg"
-                      class="avatar-xxs"
-                      :src="player.headImg"
-                    >
-                    <span class="name">{{ player.name }}</span>
-                  </div>
-                  <div class="rank-val-s2 red">{{ player.winCnt }}</div>
-                </div>
-              </div>
-            </div>
-
-            <div class="rank-card-s2 orange-border">
-              <div class="rank-card-title-s2">
-                <span class="icon">💣</span> 攻城前三
-              </div>
-              <div class="rank-list-s2">
-                <div
-                  v-for="(player, index) in occupyRank"
-                  :key="`s2-occupy-${index}`"
-                  class="rank-item-s2"
-                >
-                  <div class="rank-num-s2">{{ index + 1 }}</div>
-                  <div class="rank-player-s2">
-                    <img
-                      v-if="player.headImg"
-                      class="avatar-xxs"
-                      :src="player.headImg"
-                    >
-                    <span class="name">{{ player.name }}</span>
-                  </div>
-                  <div class="rank-val-s2 orange">{{ player.buildingCnt }}</div>
-                </div>
-              </div>
-            </div>
-
-            <div class="rank-card-s2 green-border">
-              <div class="rank-card-title-s2">
-                <span class="icon">📊</span> KD 前三
-              </div>
-              <div class="rank-list-s2">
-                <div
-                  v-for="(player, index) in kdRank"
-                  :key="`s2-kd-${index}`"
-                  class="rank-item-s2"
-                >
-                  <div class="rank-num-s2">{{ index + 1 }}</div>
-                  <div class="rank-player-s2">
-                    <img
-                      v-if="player.headImg"
-                      class="avatar-xxs"
-                      :src="player.headImg"
-                    >
-                    <span class="name">{{ player.name }}</span>
-                  </div>
-                  <div class="rank-val-s2 green">{{ player.kd }}</div>
-                </div>
-              </div>
-            </div>
-
-            <div class="rank-card-s2 gray-border">
-              <div class="rank-card-title-s2">
-                <span class="icon">💀</span> 死亡前三
-              </div>
-              <div class="rank-list-s2">
-                <div
-                  v-for="(player, index) in deathRank"
-                  :key="`s2-death-${index}`"
-                  class="rank-item-s2"
-                >
-                  <div class="rank-num-s2">{{ index + 1 }}</div>
-                  <div class="rank-player-s2">
-                    <img
-                      v-if="player.headImg"
-                      class="avatar-xxs"
-                      :src="player.headImg"
-                    >
-                    <span class="name">{{ player.name }}</span>
-                  </div>
-                  <div class="rank-val-s2 gray">{{ player.loseCnt }}</div>
-                </div>
-              </div>
-            </div>
-
-            <div class="rank-card-s2 purple-border">
-              <div class="rank-card-title-s2">
-                <span class="icon">💊</span> 复活丹前三
-              </div>
-              <div class="rank-list-s2">
-                <div
-                  v-for="(player, index) in reviveRank"
-                  :key="`s2-revive-${index}`"
-                  class="rank-item-s2"
-                >
-                  <div class="rank-num-s2">{{ index + 1 }}</div>
-                  <div class="rank-player-s2">
-                    <img
-                      v-if="player.headImg"
-                      class="avatar-xxs"
-                      :src="player.headImg"
-                    >
-                    <span class="name">{{ player.name }}</span>
-                  </div>
-                  <div class="rank-val-s2 purple">{{ player.reviveCnt }}</div>
-                </div>
-              </div>
-            </div>
-
-            <!-- 占位，保持排版一致，或者放其他榜单 -->
-            <div class="rank-card-s2 blue-border">
-              <div class="rank-card-title-s2">
-                <span class="icon">🛡️</span> 生存前三
-              </div>
-              <div class="rank-list-s2">
-                <div
-                  v-for="(player, index) in survivalRank"
-                  :key="`s2-survival-${index}`"
-                  class="rank-item-s2"
-                >
-                  <div class="rank-num-s2">{{ index + 1 }}</div>
-                  <div class="rank-player-s2">
-                    <img
-                      v-if="player.headImg"
-                      class="avatar-xxs"
-                      :src="player.headImg"
-                    >
-                    <span class="name">{{ player.name }}</span>
-                  </div>
-                  <div class="rank-val-s2 blue">{{ player.survivalCnt }}</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- 详细列表 -->
-          <div class="style2-table-wrapper">
-            <table class="style2-table">
-              <thead>
-                <tr>
-                  <th>排名</th>
-                  <th>成员</th>
-                  <th>击杀</th>
-                  <th>死亡</th>
-                  <th>攻城</th>
-                  <th>复活丹</th>
-                  <th>K/D</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr
-                  v-for="(player, index) in battleRecords.roleDetailsList"
-                  :key="`s2-row-${player.roleId}`"
-                >
-                  <td>
-                    <div v-if="index < 3" class="medal-icon">
-                      {{ index === 0 ? "🥇" : index === 1 ? "🥈" : "🥉" }}
-                    </div>
-                    <div v-else class="rank-num-plain">{{ index + 1 }}</div>
-                  </td>
-                  <td>
-                    <div class="player-cell">
-                      <img
-                        v-if="player.headImg"
-                        class="avatar-xs"
-                        :src="player.headImg"
-                      >
-                      <div v-else class="avatar-placeholder-xs">
-                        {{ player.name?.charAt(0) || "?" }}
-                      </div>
-                      <span class="player-name-s2">{{ player.name }}</span>
-                    </div>
-                  </td>
-                  <td>
-                    <div class="bar-cell">
-                      <div class="bar-val red">{{ player.winCnt }}</div>
-                      <div class="progress-bg">
-                        <div
-                          class="progress-fill red"
-                          :style="{
-                            '--fill-width': `${getPercent(player.winCnt, maxKills)}%`,
-                          }"
-                        ></div>
-                      </div>
-                    </div>
-                  </td>
-                  <td>
-                    <div class="bar-cell">
-                      <div class="bar-val gray">{{ player.loseCnt }}</div>
-                      <div class="progress-bg">
-                        <div
-                          class="progress-fill gray"
-                          :style="{
-                            '--fill-width': `${getPercent(player.loseCnt, maxDeaths)}%`,
-                          }"
-                        ></div>
-                      </div>
-                    </div>
-                  </td>
-                  <td>
-                    <div class="bar-cell">
-                      <div class="bar-val orange">{{ player.buildingCnt }}</div>
-                      <div class="progress-bg">
-                        <div
-                          class="progress-fill orange"
-                          :style="{
-                            '--fill-width': `${getPercent(player.buildingCnt, maxOccupies)}%`,
-                          }"
-                        ></div>
-                      </div>
-                    </div>
-                  </td>
-                  <td>{{ Math.max((player.loseCnt || 0) - 6, 0) }}</td>
-                  <td class="kd-val">
-                    {{
-                      parseFloat(
-                        player.winCnt && player.loseCnt
-                          ? player.winCnt / player.loseCnt
-                          : 0.0,
-                      ).toFixed(2)
-                    }}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+          <ClubBattleRecordTable
+            variant="style2"
+            :max-deaths="maxDeaths"
+            :max-kills="maxKills"
+            :max-occupies="maxOccupies"
+            :rows="playerRows"
+            @image-error="handleImageError"
+          ></ClubBattleRecordTable>
         </div>
 
         <!-- 样式三 -->
@@ -737,10 +379,18 @@ import { useMessage } from "naive-ui/es";
 import ClubBattleRecordToolbar from "@/components/Club/records/ClubBattleRecordToolbar.vue";
 import ClubBattleResultBadge from "@/components/Club/records/ClubBattleResultBadge.vue";
 import ClubBattleSummaryPanel from "@/components/Club/records/ClubBattleSummaryPanel.vue";
+import ClubBattleRecordTable from "@/components/Club/records/ClubBattleRecordTable.vue";
+import ClubBattleStatsPanel from "@/components/Club/records/ClubBattleStatsPanel.vue";
+import ClubBattleTopRanksPanel from "@/components/Club/records/ClubBattleTopRanksPanel.vue";
 import {
   buildClubBattleStatItems,
   buildClubBattleTopPanels,
 } from "@/components/Club/records/clubBattleRecordDisplayHelpers.js";
+import {
+  buildClubBattleDashboardStatRows,
+  buildClubBattleMvpModel,
+  buildClubBattleTopRankCards,
+} from "@/components/Club/records/clubBattleRecordStatsHelpers.js";
 import {
   formatClubBattleKD,
   getClubBattleDeathColor,
@@ -904,20 +554,17 @@ const occupyRank = computed(() => {
 
 // 死亡榜 Top3
 const deathRank = computed(() => {
-  if (!playerRows.value.length) return [];
-  return [...playerRows.value]
-    .sort((a, b) => (b.loseCnt || 0) - (a.loseCnt || 0))
-    .slice(0, 3);
+  return getClubBattleTopRows(playerRows.value, "deathCnt");
 });
 
 // 生存榜 Top3 (以死亡数少排序，且至少有1次击杀或攻城)
 const survivalRank = computed(() => {
   if (!playerRows.value.length) return [];
   return [...playerRows.value]
-    .filter((p) => p.winCnt > 0 || p.buildingCnt > 0)
-    .sort((a, b) => (a.loseCnt || 0) - (b.loseCnt || 0))
+    .filter((p) => p.killCnt > 0 || p.occupyCnt > 0)
+    .sort((a, b) => (a.deathCnt || 0) - (b.deathCnt || 0))
     .slice(0, 3)
-    .map((p) => ({ ...p, survivalCnt: p.loseCnt }));
+    .map((p) => ({ ...p, survivalCnt: p.deathCnt }));
 });
 
 const totalDeaths = computed(() => {
@@ -958,6 +605,36 @@ const mvpPlayer = computed(() => {
   if (!playerRows.value.length) return null;
   return playerRows.value[0];
 });
+
+const style2StatRows = computed(() =>
+  buildClubBattleDashboardStatRows({
+    avgKills: avgKills.value,
+    totalBuilding: totalBuilding.value,
+    totalDeaths: totalDeaths.value,
+    totalKills: totalKills.value,
+    totalKD: totalKD.value,
+    totalMembers: battleRecords.value?.roleDetailsList?.length || 0,
+    totalRevives: totalRevives.value,
+    totalWinRate: totalWinRate.value,
+  }),
+);
+
+const style2Mvp = computed(() =>
+  buildClubBattleMvpModel(mvpPlayer.value, {
+    label: "本周 MVP",
+  }),
+);
+
+const style2TopRankCards = computed(() =>
+  buildClubBattleTopRankCards({
+    deathRank: deathRank.value,
+    kdRank: kdRank.value,
+    killRank: killRank.value,
+    occupyRank: occupyRank.value,
+    reviveRank: reviveRank.value,
+    survivalRank: survivalRank.value,
+  }),
+);
 
 const maxKills = computed(() =>
   Math.max(
