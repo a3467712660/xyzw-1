@@ -157,148 +157,11 @@
 
             <!-- 右侧统计 -->
             <div class="style1-summary">
-              <!-- 总体统计 -->
-              <div class="summary-card">
-                <div class="summary-title">总体统计</div>
-                <div class="summary-item">
-                  <span>总人数:</span>
-                  <span>{{ battleRecords.roleDetailsList.length }}</span>
-                </div>
-                <div class="summary-item">
-                  <span>总击杀:</span> <span>{{ totalKills }}</span>
-                </div>
-                <div class="summary-item">
-                  <span>总死亡:</span>
-                  <span>{{
-                    battleRecords.roleDetailsList.reduce(
-                      (sum, m) => sum + (m.loseCnt || 0),
-                      0,
-                    )
-                  }}</span>
-                </div>
-                <div class="summary-item">
-                  <span>总复活丹:</span> <span>{{ totalRevives }}</span>
-                </div>
-                <div class="summary-item">
-                  <span>总 K/D:</span> <span>{{ totalKD }}</span>
-                </div>
-              </div>
-
-              <!-- 击杀前3 -->
-              <div class="summary-card purple-header">
-                <div class="summary-title">击杀前3</div>
-                <div
-                  v-for="(player, index) in killRank"
-                  :key="`kill-${index}`"
-                  class="top3-item"
-                >
-                  <div class="top3-rank">
-                    <div class="rank-medal-small">
-                      {{ index === 0 ? "🥇" : index === 1 ? "🥈" : "🥉" }}
-                    </div>
-                  </div>
-                  <div class="top3-info">
-                    <img
-                      v-if="player.headImg"
-                      class="player-avatar-xs"
-                      :src="player.headImg"
-                      @error="handleImageError"
-                    >
-                    <div v-else class="player-avatar-placeholder-xs">
-                      {{ player.name?.charAt(0) || "?" }}
-                    </div>
-                    <span class="top3-name">{{ player.name }}</span>
-                  </div>
-                  <div class="top3-value">{{ player.winCnt }}</div>
-                </div>
-              </div>
-
-              <!-- 攻城前3 -->
-              <div class="summary-card purple-header">
-                <div class="summary-title">攻城前3</div>
-                <div
-                  v-for="(player, index) in occupyRank"
-                  :key="`occupy-${index}`"
-                  class="top3-item"
-                >
-                  <div class="top3-rank">
-                    <div class="rank-medal-small">
-                      {{ index === 0 ? "🥇" : index === 1 ? "🥈" : "🥉" }}
-                    </div>
-                  </div>
-                  <div class="top3-info">
-                    <img
-                      v-if="player.headImg"
-                      class="player-avatar-xs"
-                      :src="player.headImg"
-                      @error="handleImageError"
-                    >
-                    <div v-else class="player-avatar-placeholder-xs">
-                      {{ player.name?.charAt(0) || "?" }}
-                    </div>
-                    <span class="top3-name">{{ player.name }}</span>
-                  </div>
-                  <div class="top3-value">{{ player.buildingCnt }}</div>
-                </div>
-              </div>
-
-              <!-- KD前3 -->
-              <div class="summary-card purple-header">
-                <div class="summary-title">KD 前3</div>
-                <div
-                  v-for="(player, index) in kdRank"
-                  :key="`kd-${index}`"
-                  class="top3-item"
-                >
-                  <div class="top3-rank">
-                    <div class="rank-medal-small">
-                      {{ index === 0 ? "🥇" : index === 1 ? "🥈" : "🥉" }}
-                    </div>
-                  </div>
-                  <div class="top3-info">
-                    <img
-                      v-if="player.headImg"
-                      class="player-avatar-xs"
-                      :src="player.headImg"
-                      @error="handleImageError"
-                    >
-                    <div v-else class="player-avatar-placeholder-xs">
-                      {{ player.name?.charAt(0) || "?" }}
-                    </div>
-                    <span class="top3-name">{{ player.name }}</span>
-                  </div>
-                  <div class="top3-value">{{ player.kd }}</div>
-                </div>
-              </div>
-
-              <!-- 复活丹前3 -->
-              <div class="summary-card purple-header">
-                <div class="summary-title">复活丹前3</div>
-                <div
-                  v-for="(player, index) in reviveRank"
-                  :key="`revive-${index}`"
-                  class="top3-item"
-                >
-                  <div class="top3-rank">
-                    <div class="rank-medal-small">
-                      {{ index === 0 ? "🥇" : index === 1 ? "🥈" : "🥉" }}
-                    </div>
-                  </div>
-                  <div class="top3-info">
-                    <img
-                      v-if="player.headImg"
-                      class="player-avatar-xs"
-                      :src="player.headImg"
-                      @error="handleImageError"
-                    >
-                    <div v-else class="player-avatar-placeholder-xs">
-                      {{ player.name?.charAt(0) || "?" }}
-                    </div>
-                    <span class="top3-name">{{ player.name }}</span>
-                  </div>
-                  <div class="top3-value">{{ player.reviveCnt }}</div>
-                </div>
-              </div>
+              <ClubBattleSummaryPanel
+                :rank-panels="style1SummaryPanels"
+                :stats="style1SummaryStats"
+                @image-error="handleImageError"
+              ></ClubBattleSummaryPanel>
             </div>
           </div>
         </div>
@@ -873,6 +736,7 @@ import { computed, onMounted, ref, watch } from "vue";
 import { useMessage } from "naive-ui/es";
 import ClubBattleRecordToolbar from "@/components/Club/records/ClubBattleRecordToolbar.vue";
 import ClubBattleResultBadge from "@/components/Club/records/ClubBattleResultBadge.vue";
+import ClubBattleSummaryPanel from "@/components/Club/records/ClubBattleSummaryPanel.vue";
 import {
   formatClubBattleKD,
   getClubBattleDeathColor,
@@ -965,6 +829,14 @@ const totalKD = computed(() => {
   return formatClubBattleKD(totalKills, totalLosses);
 });
 
+const style1SummaryStats = computed(() => [
+  { label: "总人数", value: battleRecords.value?.roleDetailsList?.length || 0 },
+  { label: "总击杀", value: totalKills.value },
+  { label: "总死亡", value: totalDeaths.value },
+  { label: "总复活丹", value: totalRevives.value },
+  { label: "总 K/D", value: totalKD.value },
+]);
+
 // 计算属性：击杀榜 Top3
 const killRank = computed(() => {
   if (!playerRows.value.length) return [];
@@ -988,6 +860,45 @@ const reviveRank = computed(() => {
     .sort((a, b) => b.reviveCnt - a.reviveCnt)
     .slice(0, 3);
 });
+
+const style1SummaryPanels = computed(() => [
+  {
+    title: "击杀前3",
+    items: killRank.value.map((player, index) => ({
+      avatar: player.headImg,
+      key: `kill-${index}`,
+      name: player.name,
+      value: player.winCnt,
+    })),
+  },
+  {
+    title: "攻城前3",
+    items: occupyRank.value.map((player, index) => ({
+      avatar: player.headImg,
+      key: `occupy-${index}`,
+      name: player.name,
+      value: player.buildingCnt,
+    })),
+  },
+  {
+    title: "KD 前3",
+    items: kdRank.value.map((player, index) => ({
+      avatar: player.headImg,
+      key: `kd-${index}`,
+      name: player.name,
+      value: player.kd,
+    })),
+  },
+  {
+    title: "复活丹前3",
+    items: reviveRank.value.map((player, index) => ({
+      avatar: player.headImg,
+      key: `revive-${index}`,
+      name: player.name,
+      value: player.reviveCnt,
+    })),
+  },
+]);
 
 // --- 新增计算属性和方法 ---
 

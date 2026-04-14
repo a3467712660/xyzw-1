@@ -45,68 +45,11 @@
     <h2 v-if="battleInfo" class="main-title">
       {{ t("peachInfo.title", { date: queryDate }) }}
     </h2>
-    <div v-if="battleInfo" class="header-section">
-      <div class="club-vs-container">
-        <!-- Own Club (Left) -->
-        <div class="club-info own">
-          <NAvatar
-            round
-            class="club-logo"
-            :size="80"
-            :src="battleInfo.ownClub?.logo || '/icons/xiaoyugan.png'"
-          ></NAvatar>
-          <div class="club-details">
-            <div class="club-name">
-              {{ t("peachInfo.club.server", { serverId: battleInfo.ownClub.serverId }) }}
-              {{ battleInfo.ownClub?.name || t("peachInfo.common.unknown") }}
-            </div>
-            <div class="club-stats">
-              {{ t("peachInfo.club.id", { id: battleInfo.ownClub.id }) }}
-            </div>
-            <div class="club-stats">
-              {{ t("peachInfo.club.memberCount", { count: battleInfo.ownClub.memberCount }) }} |
-              {{ t("peachInfo.club.quenchNum", { count: battleInfo.ownClub.quenchNum }) }} |
-              {{ formatPower(battleInfo.ownClub.power) }}
-            </div>
-            <div class="club-stats announcement">
-              {{ battleInfo.ownClub.announcement }}
-            </div>
-          </div>
-        </div>
-
-        <!-- VS Badge -->
-        <div class="vs-badge">
-          <span class="vs-text">VS</span>
-        </div>
-
-        <!-- Opponent Club (Right) -->
-        <div class="club-info opponent">
-          <NAvatar
-            round
-            class="club-logo"
-            :size="80"
-            :src="battleInfo.opponentClub?.logo || '/icons/xiaoyugan.png'"
-          ></NAvatar>
-          <div class="club-details">
-            <div class="club-name">
-              {{ t("peachInfo.club.server", { serverId: battleInfo.opponentClub.serverId }) }}
-              {{ battleInfo.opponentClub?.name || t("peachInfo.common.unknown") }}
-            </div>
-            <div class="club-stats">
-              {{ t("peachInfo.club.id", { id: battleInfo.opponentClub.id }) }}
-            </div>
-            <div class="club-stats">
-              {{ t("peachInfo.club.memberCount", { count: battleInfo.opponentClub.memberCount }) }} |
-              {{ t("peachInfo.club.quenchNum", { count: battleInfo.opponentClub.quenchNum }) }} |
-              {{ formatPower(battleInfo.opponentClub.power) }}
-            </div>
-            <div class="club-stats announcement">
-              {{ battleInfo.opponentClub.announcement }}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <PeachInfoSummaryPanel
+      :battle-info="battleInfo"
+      :format-power="formatPower"
+      :t="t"
+    ></PeachInfoSummaryPanel>
 
     <!-- Loading State -->
     <div v-if="loading" class="loading-state">
@@ -116,143 +59,60 @@
     </div>
 
     <!-- Data Table -->
-    <div v-else-if="opponentMembers.length > 0" class="members-table">
-      <div class="table-title">{{ t("peachInfo.table.title") }}</div>
-      <div v-if="isMobile" class="mobile-member-list">
-        <div
-          v-for="member in opponentMembers"
-          :key="member.id"
-          class="mobile-member-card"
-        >
-          <div class="mobile-member-head">
-            <NAvatar
-              round
-              class="mobile-member-avatar"
-              :size="40"
-              :src="member.headImg"
-            ></NAvatar>
-            <div class="mobile-member-meta">
-              <div
-                class="mobile-member-name"
-                @click="fetchTargetInfo(member.id)"
-              >
-                {{ member.name }}
-              </div>
-              <div class="mobile-member-power">
-                {{ t("peachInfo.labels.power", { value: formatPower(member.power) }) }}
-              </div>
-            </div>
-            <NTag
-size="small"
-type="error"
-              >{{ t("peachInfo.labels.redQuench", { count: member.redQuench || 0 }) }}</NTag
-            >
-          </div>
-          <div class="mobile-member-lineup-type">
-            <span>{{ t("peachInfo.labels.lineupType") }}</span>
-            <NTag
-              size="small"
-              :bordered="false"
-              :color="getLineupTagColorProps(member.lineupType)"
-            >
-              {{ member.lineupType || t("peachInfo.common.unknown") }}
-            </NTag>
-          </div>
-          <div class="mobile-member-lineup">
-            <span
-              v-for="(hero, index) in member.heroList || []"
-              :key="`${member.id}_${hero.heroId}_${index}`"
-              class="mobile-hero-chip"
-            >
-              {{ hero.heroName }}({{ hero.red }})<template v-if="hero.HolyBeast"
-                >[{{ hero.HBlevel }}]</template
-              >
-            </span>
-            <span
-              v-if="!member.heroList || member.heroList.length === 0"
-              class="mobile-hero-empty"
-            >
-              {{ t("peachInfo.states.noLineup") }}
-            </span>
-          </div>
-        </div>
-      </div>
-      <NDataTable
-        v-else
-        striped
-        size="small"
-        :bordered="false"
-        :columns="columns"
-        :data="opponentMembers"
-        :scroll-x="1200"
-      ></NDataTable>
-    </div>
+    <ClubMemberListPanel
+      v-else-if="opponentMembers.length > 0"
+      :empty-description="t('peachInfo.states.noOpponentData')"
+      :is-mobile="isMobile"
+      :mobile-items="peachMemberCards"
+      :scroll-x="1200"
+      :table-columns="columns"
+      :table-data="opponentMembers"
+      :title="t('peachInfo.table.title')"
+      @select="handlePeachMemberSelect"
+    ></ClubMemberListPanel>
 
     <!-- Empty State -->
     <div v-else class="empty-state">
       <NEmpty :description="t('peachInfo.states.noOpponentData')"></NEmpty>
     </div>
 
-    <!-- 玩家信息模态框 -->
-    <NModal
-      class="modal-w-800"
-      preset="card"
-      v-model:show="showPlayerInfoModal"
-      :bordered="false"
-      :segmented="{ content: 'soft', footer: 'soft' }"
-      :show-close="false"
+    <ClubMemberDetailModal
+      club-label="俱乐部"
+      hero-count-label="武将数量"
+      hero-hole-label="开孔"
+      hero-power-label="战力"
+      hero-red-label="红数"
+      hero-star-label="星级"
+      holy-beast-label="四圣"
+      holy-beast-level-label="四圣等级"
+      power-label="战力"
+      server-label="服务器"
+      total-hole-label="总开孔"
+      total-red-label="总红数"
+      :close-text="t('peachInfo.common.close')"
+      :format-power="formatPower"
+      :hero-empty-text="t('peachInfo.heroes.empty')"
+      :hero-list-empty-text="t('peachInfo.heroes.listEmpty')"
+      :hero-list-undefined-text="t('peachInfo.heroes.listUndefined')"
+      :hero-section-title="t('peachInfo.heroes.title')"
+      :holy-beast-closed-text="t('peachInfo.heroes.holyBeastClosed')"
+      :holy-beast-opened-text="t('peachInfo.heroes.holyBeastOpened')"
+      :legacy-map="legacycolor"
+      :none-text="t('peachInfo.common.none')"
+      :player="playerInfo"
+      :show="showPlayerInfoModal"
       :title="t('peachInfo.modals.playerInfoTitle')"
+      :unknown-text="t('peachInfo.common.unknown')"
+      @select-hero="selectHeroInfo"
+      @update:show="showPlayerInfoModal = $event"
     >
-      <template #header-extra>
-        <span v-if="playerInfo" class="player-id">ID: {{ playerInfo.id }}</span>
-      </template>
-
-      <div v-if="playerInfo" class="player-info-content">
-        <div class="player-info-main">
-          <NAvatar
-            round
-            class="player-avatar"
-            :size="60"
-            :src="playerInfo.headImg"
-          ></NAvatar>
-          <div class="player-info-detail">
-            <h3>
-              {{ playerInfo.name }}
-              <NTag
-                v-if="playerInfo.legacy > 0"
-                class="legacy-tag ml-8"
-                size="small"
-                :style="{
-                  '--legacy-bg': legacycolor[playerInfo.legacy]?.value,
-                }"
-              >
-                {{ legacycolor[playerInfo.legacy]?.name || t("peachInfo.common.unknown") }}
-              </NTag>
-            </h3>
-            <p>
-              {{ t("peachInfo.labels.serverName", {
-                name: playerInfo.serverName || t("peachInfo.common.unknown"),
-              }) }}
-              |
-              {{ t("peachInfo.labels.power", { value: formatPower(playerInfo.power) }) }}
-            </p>
-            <p>{{ t("peachInfo.labels.legionName", { name: playerInfo.legionName || t("peachInfo.common.none") }) }}</p>
-            <p>
-              {{ t("peachInfo.labels.totalRedCount", { count: playerInfo.totalRedCount || 0 }) }} |
-              {{ t("peachInfo.labels.totalHoleCount", { count: playerInfo.totalHoleCount || 0 }) }} |
-              {{ t("peachInfo.labels.holyBeastCount", { count: playerInfo.holyBeast || 0 }) }}
-            </p>
-          </div>
-        </div>
-
+      <template #actions>
         <div class="action-section">
           <div class="fight-inline">
             <div class="fight-count-container">
-              <label
-class="fight-count-label"
-for="fightCount"
-                >{{ t("peachInfo.duel.countLabel") }}</label
-              >
+              <label class="fight-count-label" for="fightCount">
+                {{ t("peachInfo.duel.countLabel") }}
+              </label>
               <NInput
                 id="fightCount"
                 class="fight-count-input"
@@ -276,16 +136,12 @@ for="fightCount"
               {{ t("peachInfo.common.close") }}
             </NButton>
           </div>
-          <NButton
-            type="primary"
-            :disabled="!isFightCountValid"
-            @click="handleDuel"
-          >
+          <NButton type="primary" :disabled="!isFightCountValid" @click="handleDuel">
             {{ t("peachInfo.duel.start") }}
           </NButton>
         </div>
-
-        <!-- 切磋进度和结果 -->
+      </template>
+      <template #status>
         <div v-if="fightProgress.visible" class="fight-progress">
           <div class="progress-info">
             <div class="progress-title">{{ t("peachInfo.duel.inProgress") }}</div>
@@ -306,9 +162,7 @@ for="fightCount"
           ></NProgress>
         </div>
 
-        <!-- 最终结果统计 -->
         <div v-if="fightResult.visible" class="fight-result">
-          <!-- 结果标题和统计信息 -->
           <div class="result-header">
             <h4 class="result-title">{{ t("peachInfo.duel.resultTitle") }}</h4>
             <div class="result-summary">
@@ -318,54 +172,33 @@ for="fightCount"
               </div>
               <div class="summary-item">
                 <span class="summary-label">{{ t("peachInfo.duel.summary.win") }}</span>
-                <span class="summary-value win">{{
-                  fightResult.winCount
-                }}</span>
+                <span class="summary-value win">{{ fightResult.winCount }}</span>
               </div>
               <div class="summary-item">
                 <span class="summary-label">{{ t("peachInfo.duel.summary.loss") }}</span>
-                <span class="summary-value loss">{{
-                  fightResult.lossCount
-                }}</span>
+                <span class="summary-value loss">{{ fightResult.lossCount }}</span>
               </div>
               <div class="summary-item">
                 <span class="summary-label">{{ t("peachInfo.duel.summary.winRate") }}</span>
-                <span class="summary-value"
-                  >{{
-                    (
-                      (fightResult.winCount / fightResult.totalCount) *
-                      100
-                    ).toFixed(2)
-                  }}%</span
-                >
+                <span class="summary-value">
+                  {{ ((fightResult.winCount / fightResult.totalCount) * 100).toFixed(2) }}%
+                </span>
               </div>
               <div class="summary-item">
                 <span class="summary-label">{{ t("peachInfo.duel.summary.ourDieRate") }}</span>
-                <span class="summary-value"
-                  >{{
-                    (
-                      (dieStats.ourDieHeroGameCount / fightResult.totalCount) *
-                      100
-                    ).toFixed(2)
-                  }}%</span
-                >
+                <span class="summary-value">
+                  {{ ((dieStats.ourDieHeroGameCount / fightResult.totalCount) * 100).toFixed(2) }}%
+                </span>
               </div>
               <div class="summary-item">
                 <span class="summary-label">{{ t("peachInfo.duel.summary.enemyDieRate") }}</span>
-                <span class="summary-value"
-                  >{{
-                    (
-                      (dieStats.enemyDieHeroGameCount /
-                        fightResult.totalCount) *
-                      100
-                    ).toFixed(2)
-                  }}%</span
-                >
+                <span class="summary-value">
+                  {{ ((dieStats.enemyDieHeroGameCount / fightResult.totalCount) * 100).toFixed(2) }}%
+                </span>
               </div>
             </div>
           </div>
 
-          <!-- 战斗结果列表 -->
           <div class="result-list">
             <div
               v-for="(battle, index) in fightResult.resultCount"
@@ -382,42 +215,22 @@ for="fightCount"
 
               <div class="battle-details">
                 <div class="battle-side left-side">
-                  <NAvatar
-                    round
-                    class="side-avatar"
-                    :size="32"
-                    :src="battle.leftheadImg"
-                  ></NAvatar>
+                  <NAvatar round class="side-avatar" :size="32" :src="battle.leftheadImg"></NAvatar>
                   <div class="side-info">
-                    <span class="side-name">{{
-                      battle.leftName || t("peachInfo.common.unknown")
-                    }}</span>
+                    <span class="side-name">{{ battle.leftName || t("peachInfo.common.unknown") }}</span>
                     <span class="side-power">{{ t("peachInfo.labels.power", { value: battle.leftpower }) }}</span>
-                    <span class="side-die"
-                      >{{ t("peachInfo.duel.dieHeroCount", { count: battle.leftDieHero }) }}</span
-                    >
+                    <span class="side-die">{{ t("peachInfo.duel.dieHeroCount", { count: battle.leftDieHero }) }}</span>
                   </div>
                 </div>
 
                 <div class="battle-vs">VS</div>
 
                 <div class="battle-side right-side">
-                  <NAvatar
-                    round
-                    class="side-avatar"
-                    :size="32"
-                    :src="battle.rightheadImg"
-                  ></NAvatar>
+                  <NAvatar round class="side-avatar" :size="32" :src="battle.rightheadImg"></NAvatar>
                   <div class="side-info">
-                    <span class="side-name">{{
-                      battle.rightName || t("peachInfo.common.unknown")
-                    }}</span>
-                    <span class="side-power"
-                      >{{ t("peachInfo.labels.power", { value: battle.rightpower }) }}</span
-                    >
-                    <span class="side-die"
-                      >{{ t("peachInfo.duel.dieHeroCount", { count: battle.rightDieHero }) }}</span
-                    >
+                    <span class="side-name">{{ battle.rightName || t("peachInfo.common.unknown") }}</span>
+                    <span class="side-power">{{ t("peachInfo.labels.power", { value: battle.rightpower }) }}</span>
+                    <span class="side-die">{{ t("peachInfo.duel.dieHeroCount", { count: battle.rightDieHero }) }}</span>
                   </div>
                 </div>
               </div>
@@ -429,204 +242,15 @@ for="fightCount"
             <NButton @click="fightResult.visible = false">{{ t("peachInfo.duel.closeResult") }}</NButton>
           </div>
         </div>
-
-        <div class="player-heroes">
-          <h4>{{ t("peachInfo.heroes.title") }}</h4>
-          <!-- 添加调试信息 -->
-          <div v-if="playerInfo.heroList" class="debug-info debug-info-bottom">
-            {{ t("peachInfo.heroes.count", { count: playerInfo.heroList.length }) }}
-          </div>
-          <div
-            v-if="playerInfo.heroList && playerInfo.heroList.length > 0"
-            class="hero-list"
-          >
-            <div
-              v-for="(hero, index) in playerInfo.heroList"
-              :key="hero.heroId || index"
-              class="hero-item"
-              @click="selectHeroInfo(hero)"
-            >
-              <NAvatar
-                round
-                class="cursor-pointer"
-                :size="40"
-                :src="hero.heroAvate"
-              ></NAvatar>
-              <div class="hero-info">
-                <span class="hero-name">{{ hero.heroName }}</span>
-                <div class="hero-stats">
-                  <span>{{ t("peachInfo.labels.power", { value: formatPower(hero.power || 0) }) }}</span>
-                  <span>{{ t("peachInfo.heroes.star", { value: hero.star || 0 }) }}</span>
-                  <span>{{ t("peachInfo.heroes.red", { value: hero.red || 0 }) }}</span>
-                  <span>{{ t("peachInfo.heroes.hole", { value: hero.hole || 0 }) }}</span>
-                  <span :class="hero.HolyBeast ? 'opened' : 'closed'">
-                    {{ hero.HolyBeast ? t("peachInfo.heroes.holyBeastOpened") : t("peachInfo.heroes.holyBeastClosed") }}
-                  </span>
-                  <span v-if="hero.HolyBeast"
-                    >{{ t("peachInfo.heroes.holyBeastLevel", { value: hero.HBlevel || 0 }) }}</span
-                  >
-                </div>
-              </div>
-            </div>
-          </div>
-          <div v-else class="empty-heroes">
-            <p>{{ t("peachInfo.heroes.empty") }}</p>
-            <!-- 添加调试信息 -->
-            <div v-if="playerInfo.heroList" class="debug-info debug-info-top">
-              {{ t("peachInfo.heroes.listEmpty") }}
-            </div>
-            <div v-else class="debug-info debug-info-top">{{ t("peachInfo.heroes.listUndefined") }}</div>
-          </div>
-        </div>
-      </div>
-    </NModal>
-
-    <!-- 武将详情模态框 -->
-    <NModal
-      class="hero-detail-modal modal-w-600"
-      preset="card"
-      v-model:show="showHeroModal"
-      :bordered="false"
-      :segmented="{ content: 'soft', footer: 'soft' }"
-      :title="t('peachInfo.heroModal.title')"
-    >
-      <div v-if="heroModealTemp" class="hero-modal-content">
-        <div class="hero-modal-header">
-          <NAvatar
-            round
-            class="hero-modal-avatar"
-            :size="80"
-            :src="heroModealTemp.heroAvate"
-          ></NAvatar>
-          <div class="hero-modal-basic">
-            <h3 class="hero-modal-name">{{ heroModealTemp.heroName }}</h3>
-            <div class="hero-modal-stats">
-              <span class="stat-item">{{
-                formatPower(heroModealTemp.power)
-              }}</span>
-              <span class="stat-item">{{ t("peachInfo.heroModal.level", { value: heroModealTemp.level }) }}</span>
-              <span class="stat-item">{{ t("peachInfo.heroModal.star", { value: heroModealTemp.star }) }}</span>
-              <NTag :type="heroModealTemp.HolyBeast ? 'success' : 'warning'">
-                {{ heroModealTemp.HolyBeast ? t("peachInfo.heroModal.activated") : t("peachInfo.heroModal.notActivated") }}
-              </NTag>
-            </div>
-          </div>
-        </div>
-
-        <div class="hero-modal-details">
-          <NDescriptions bordered column="3" label-placement="left">
-            <NDescriptionsItem :label="t('peachInfo.heroModal.labels.power')">
-              {{ formatPower(heroModealTemp.power) }}
-            </NDescriptionsItem>
-            <NDescriptionsItem :label="t('peachInfo.heroModal.labels.level')">
-              {{ heroModealTemp.level }}
-            </NDescriptionsItem>
-            <NDescriptionsItem :label="t('peachInfo.heroModal.labels.star')">
-              {{ heroModealTemp.star }}
-            </NDescriptionsItem>
-            <NDescriptionsItem :label="t('peachInfo.heroModal.labels.hole')">
-              {{ heroModealTemp.hole }}
-            </NDescriptionsItem>
-            <NDescriptionsItem :label="t('peachInfo.heroModal.labels.red')">
-              {{ heroModealTemp.red }}
-            </NDescriptionsItem>
-            <NDescriptionsItem :label="t('peachInfo.heroModal.labels.holyBeastStatus')">
-              {{ heroModealTemp.HolyBeast ? t("peachInfo.heroModal.activated") : t("peachInfo.heroModal.notActivated") }}
-            </NDescriptionsItem>
-            <NDescriptionsItem v-if="heroModealTemp.HolyBeast" :label="t('peachInfo.heroModal.labels.holyBeastLevel')">
-              {{ heroModealTemp.HBlevel }}
-            </NDescriptionsItem>
-            <NDescriptionsItem :label="t('peachInfo.heroModal.labels.fishInfo')">
-              {{
-                heroModealTemp?.PearlInfo?.FishInfo?.name !== undefined
-                  ? heroModealTemp.PearlInfo?.FishInfo?.name
-                  : t("peachInfo.common.none")
-              }}
-            </NDescriptionsItem>
-            <NDescriptionsItem :label="t('peachInfo.heroModal.labels.pearlSkill')">
-              {{
-                heroModealTemp?.PearlInfo?.PearlSkill?.name !== undefined
-                  ? heroModealTemp.PearlInfo?.PearlSkill?.name
-                  : t("peachInfo.common.none")
-              }}
-            </NDescriptionsItem>
-            <NDescriptionsItem :label="t('peachInfo.heroModal.labels.pearlWash')">
-              <div v-if="heroModealTemp?.PearlInfo?.slotMap?.length > 0">
-                <div
-                  v-for="item in heroModealTemp.PearlInfo.slotMap"
-                  :key="item.id"
-                  class="ModalEquipment"
-                  :style="{ '--equip-color': item.value }"
-                ></div>
-              </div>
-              <div v-else>{{ t("peachInfo.common.none") }}</div>
-            </NDescriptionsItem>
-          </NDescriptions>
-        </div>
-
-        <div class="hero-modal-equipment">
-          <h4 class="section-title">{{ t("peachInfo.heroModal.equipmentTitle") }}</h4>
-          <div class="equipment-grid">
-            <div class="equipment-item">
-              <span class="equipment-label">{{ t("peachInfo.heroModal.equipment.weapon") }}</span>
-              <div class="equipment-slots">
-                <div
-                  v-for="(item, idx) in Object.values(
-                    Object.values(heroModealTemp.equipment)[0]?.quenches || {},
-                  )"
-                  :key="idx"
-                  class="equipment-slot"
-                  :class="{ 'red-slot': item.colorId === 6 }"
-                ></div>
-              </div>
-            </div>
-            <div class="equipment-item">
-              <span class="equipment-label">{{ t("peachInfo.heroModal.equipment.clothes") }}</span>
-              <div class="equipment-slots">
-                <div
-                  v-for="(item, idx) in Object.values(
-                    Object.values(heroModealTemp.equipment)[1]?.quenches || {},
-                  )"
-                  :key="idx"
-                  class="equipment-slot"
-                  :class="{ 'red-slot': item.colorId === 6 }"
-                ></div>
-              </div>
-            </div>
-            <div class="equipment-item">
-              <span class="equipment-label">{{ t("peachInfo.heroModal.equipment.helmet") }}</span>
-              <div class="equipment-slots">
-                <div
-                  v-for="(item, idx) in Object.values(
-                    Object.values(heroModealTemp.equipment)[2]?.quenches || {},
-                  )"
-                  :key="idx"
-                  class="equipment-slot"
-                  :class="{ 'red-slot': item.colorId === 6 }"
-                ></div>
-              </div>
-            </div>
-            <div class="equipment-item">
-              <span class="equipment-label">{{ t("peachInfo.heroModal.equipment.mount") }}</span>
-              <div class="equipment-slots">
-                <div
-                  v-for="(item, idx) in Object.values(
-                    Object.values(heroModealTemp.equipment)[3]?.quenches || {},
-                  )"
-                  :key="idx"
-                  class="equipment-slot"
-                  :class="{ 'red-slot': item.colorId === 6 }"
-                ></div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <template #footer>
-        <NButton @click="showHeroModal = false">{{ t("peachInfo.common.close") }}</NButton>
       </template>
-    </NModal>
+    </ClubMemberDetailModal>
+
+    <ClubRankHeroDetailModal
+      :format-power="formatPower"
+      :hero="heroModealTemp"
+      :show="showHeroModal"
+      @update:show="showHeroModal = $event"
+    ></ClubRankHeroDetailModal>
   </div>
 </template>
 
@@ -644,13 +268,9 @@ import {
 import {
   NAvatar,
   NButton,
-  NDataTable,
-  NDescriptions,
-  NDescriptionsItem,
   NEmpty,
   NIcon,
   NInput,
-  NModal,
   NProgress,
   NSpin,
   NTag,
@@ -658,6 +278,10 @@ import {
 } from "naive-ui/es";
 import { Copy, Refresh } from "@vicons/ionicons5";
 import { useTokenStore } from "@/stores/tokenStore";
+import ClubMemberDetailModal from "./info/ClubMemberDetailModal.vue";
+import ClubMemberListPanel from "./info/ClubMemberListPanel.vue";
+import PeachInfoSummaryPanel from "./info/PeachInfoSummaryPanel.vue";
+import ClubRankHeroDetailModal from "./rank/ClubRankHeroDetailModal.vue";
 import { captureWithHtml2canvas } from "@/utils/html2canvasLoader";
 import { downloadCanvasAsPagedImages } from "@/utils/imageExport";
 import {
@@ -667,6 +291,11 @@ import {
   legacycolor,
   LINEUP_RULES,
 } from "@/utils/HeroList";
+import {
+  buildClubMemberCardModel,
+  buildClubMemberHeroChips,
+  getClubMemberAvatarFallback,
+} from "./info/clubMemberDisplayHelpers.js";
 import { useI18n } from "vue-i18n";
 
 const message = useMessage();
@@ -955,6 +584,44 @@ const getLineupTagColorProps = (type) => {
       textColor: "#666",
     }
   );
+};
+
+const peachMemberCards = computed(() =>
+  opponentMembers.value.map((member) =>
+    buildClubMemberCardModel({
+      avatar: member.headImg,
+      avatarText: getClubMemberAvatarFallback(member.name),
+      badges: [
+        {
+          text: t("peachInfo.labels.redQuench", { count: member.redQuench || 0 }),
+          type: "error",
+        },
+      ],
+      chips: buildClubMemberHeroChips(
+        member.heroList || [],
+        (hero) => `${hero.heroName}(${hero.red})${hero.HolyBeast ? `[${hero.HBlevel}]` : ""}`,
+      ),
+      id: member.id,
+      lineupTag: {
+        color: getLineupTagColorProps(member.lineupType),
+        text: member.lineupType || t("peachInfo.common.unknown"),
+      },
+      metrics: [
+        {
+          label: "战力",
+          value: formatPower(member.power),
+        },
+      ],
+      name: member.name,
+      raw: member,
+    }),
+  ),
+);
+
+const handlePeachMemberSelect = ({ raw }) => {
+  if (raw?.id != null) {
+    fetchTargetInfo(raw.id);
+  }
 };
 
 const enforceAvatarColumnDisplay = async () => {

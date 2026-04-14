@@ -314,147 +314,11 @@
 
               <!-- 右侧统计 -->
               <div class="style1-summary">
-                <div class="summary-card">
-                  <div class="summary-title">总体统计</div>
-                  <div class="summary-item">
-                    <span>总人数:</span>
-                    <span>{{ monthlyStats.totalMembers }}</span>
-                  </div>
-                  <div class="summary-item">
-                    <span>总击杀:</span>
-                    <span>{{ monthlyStats.totalKills }}</span>
-                  </div>
-                  <div class="summary-item">
-                    <span>总死亡:</span>
-                    <span>{{ monthlyStats.totalDeaths }}</span>
-                  </div>
-                  <div class="summary-item">
-                    <span>总复活丹:</span>
-                    <span>{{ monthlyStats.totalResurrection }}</span>
-                  </div>
-                  <div class="summary-item">
-                    <span>总 K/D:</span>
-                    <span>{{
-                      parseFloat(
-                        monthlyStats.totalKills && monthlyStats.totalDeaths
-                          ? monthlyStats.totalKills / monthlyStats.totalDeaths
-                          : 0.0,
-                      ).toFixed(2)
-                    }}</span>
-                  </div>
-                </div>
-
-                <div class="summary-card purple-header">
-                  <div class="summary-title">击杀前3</div>
-                  <div
-                    v-for="(player, index) in monthlyKillRank"
-                    :key="`kill-${index}`"
-                    class="top3-item"
-                  >
-                    <div class="top3-rank">
-                      <div class="rank-medal-small">
-                        {{ index === 0 ? "🥇" : index === 1 ? "🥈" : "🥉" }}
-                      </div>
-                    </div>
-                    <div class="top3-info">
-                      <img
-                        v-if="player.headImg"
-                        class="player-avatar-xs"
-                        :src="player.headImg"
-                        @error="handleImageError"
-                      >
-                      <div v-else class="player-avatar-placeholder-xs">
-                        {{ player.name?.charAt(0) || "?" }}
-                      </div>
-                      <span class="top3-name">{{ player.name }}</span>
-                    </div>
-                    <div class="top3-value">{{ player.totalWinCnt }}</div>
-                  </div>
-                </div>
-
-                <div class="summary-card purple-header">
-                  <div class="summary-title">攻城前3</div>
-                  <div
-                    v-for="(player, index) in monthlyOccupyRank"
-                    :key="`occupy-${index}`"
-                    class="top3-item"
-                  >
-                    <div class="top3-rank">
-                      <div class="rank-medal-small">
-                        {{ index === 0 ? "🥇" : index === 1 ? "🥈" : "🥉" }}
-                      </div>
-                    </div>
-                    <div class="top3-info">
-                      <img
-                        v-if="player.headImg"
-                        class="player-avatar-xs"
-                        :src="player.headImg"
-                        @error="handleImageError"
-                      >
-                      <div v-else class="player-avatar-placeholder-xs">
-                        {{ player.name?.charAt(0) || "?" }}
-                      </div>
-                      <span class="top3-name">{{ player.name }}</span>
-                    </div>
-                    <div class="top3-value">{{ player.totalBuildingCnt }}</div>
-                  </div>
-                </div>
-
-                <div class="summary-card purple-header">
-                  <div class="summary-title">KD 前3</div>
-                  <div
-                    v-for="(player, index) in monthlyKDRank"
-                    :key="`kd-${index}`"
-                    class="top3-item"
-                  >
-                    <div class="top3-rank">
-                      <div class="rank-medal-small">
-                        {{ index === 0 ? "🥇" : index === 1 ? "🥈" : "🥉" }}
-                      </div>
-                    </div>
-                    <div class="top3-info">
-                      <img
-                        v-if="player.headImg"
-                        class="player-avatar-xs"
-                        :src="player.headImg"
-                        @error="handleImageError"
-                      >
-                      <div v-else class="player-avatar-placeholder-xs">
-                        {{ player.name?.charAt(0) || "?" }}
-                      </div>
-                      <span class="top3-name">{{ player.name }}</span>
-                    </div>
-                    <div class="top3-value">{{ player.kd }}</div>
-                  </div>
-                </div>
-
-                <div class="summary-card purple-header">
-                  <div class="summary-title">复活丹前3</div>
-                  <div
-                    v-for="(player, index) in monthlyReviveRank"
-                    :key="`revive-${index}`"
-                    class="top3-item"
-                  >
-                    <div class="top3-rank">
-                      <div class="rank-medal-small">
-                        {{ index === 0 ? "🥇" : index === 1 ? "🥈" : "🥉" }}
-                      </div>
-                    </div>
-                    <div class="top3-info">
-                      <img
-                        v-if="player.headImg"
-                        class="player-avatar-xs"
-                        :src="player.headImg"
-                        @error="handleImageError"
-                      >
-                      <div v-else class="player-avatar-placeholder-xs">
-                        {{ player.name?.charAt(0) || "?" }}
-                      </div>
-                      <span class="top3-name">{{ player.name }}</span>
-                    </div>
-                    <div class="top3-value">{{ player.totalResurrection }}</div>
-                  </div>
-                </div>
+                <ClubBattleSummaryPanel
+                  :rank-panels="monthlySummaryPanels"
+                  :stats="monthlySummaryStats"
+                  @image-error="handleImageError"
+                ></ClubBattleSummaryPanel>
               </div>
             </div>
           </div>
@@ -814,6 +678,7 @@
 <script setup>
 import { computed, onMounted, ref, watch } from "vue";
 import { useMessage } from "naive-ui/es";
+import ClubBattleSummaryPanel from "@/components/Club/records/ClubBattleSummaryPanel.vue";
 import ClubBattleRecordToolbar from "@/components/Club/records/ClubBattleRecordToolbar.vue";
 import ClubBattleResultBadge from "@/components/Club/records/ClubBattleResultBadge.vue";
 import {
@@ -963,6 +828,20 @@ const monthlyStats = computed(() => {
   return stats;
 });
 
+const monthlySummaryStats = computed(() => [
+  { label: "总人数", value: monthlyStats.value.totalMembers },
+  { label: "总击杀", value: monthlyStats.value.totalKills },
+  { label: "总死亡", value: monthlyStats.value.totalDeaths },
+  { label: "总复活丹", value: monthlyStats.value.totalResurrection },
+  {
+    label: "总 K/D",
+    value: formatClubBattleKD(
+      monthlyStats.value.totalKills,
+      monthlyStats.value.totalDeaths,
+    ),
+  },
+]);
+
 // 获取成员每日统计数据
 const getMemberDailyStat = (member, date, statType) => {
   if (member.dailyRecords && member.dailyRecords[date]) {
@@ -1097,6 +976,45 @@ const monthlySurvivalRank = computed(() => {
     .slice(0, 3)
     .map((p) => ({ ...p, survivalCnt: p.totalLoseCnt }));
 });
+
+const monthlySummaryPanels = computed(() => [
+  {
+    title: "击杀前3",
+    items: monthlyKillRank.value.map((player, index) => ({
+      avatar: player.headImg,
+      key: `kill-${index}`,
+      name: player.name,
+      value: player.totalWinCnt,
+    })),
+  },
+  {
+    title: "攻城前3",
+    items: monthlyOccupyRank.value.map((player, index) => ({
+      avatar: player.headImg,
+      key: `occupy-${index}`,
+      name: player.name,
+      value: player.totalBuildingCnt,
+    })),
+  },
+  {
+    title: "KD 前3",
+    items: monthlyKDRank.value.map((player, index) => ({
+      avatar: player.headImg,
+      key: `kd-${index}`,
+      name: player.name,
+      value: player.kd,
+    })),
+  },
+  {
+    title: "复活丹前3",
+    items: monthlyReviveRank.value.map((player, index) => ({
+      avatar: player.headImg,
+      key: `revive-${index}`,
+      name: player.name,
+      value: player.totalResurrection,
+    })),
+  },
+]);
 
 // Max values for progress bars
 const monthlyMaxKills = computed(() =>

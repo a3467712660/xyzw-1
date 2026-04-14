@@ -70,6 +70,10 @@
   - PVP 卡片的局部展示组件与纯 formatter。
   - 用于承接切磋工具条、历史/记录列表、排行壳、武将详情弹层等展示层拆分，避免 `FightPvp.vue`、`ArenaPvp.vue` 继续堆积。
 
+- `src/components/Club/info/`
+  - 俱乐部信息页与成员展示的局部组件和纯 helper。
+  - 用于承接摘要面板、成员列表壳、成员详情 modal、职位/阵容/战力 formatter，避免 `PeachInfo.vue`、`ClubInfo.vue` 继续堆积。
+
 - `src/components/Club/records/`
   - 俱乐部战绩页共用的工具条、badge 与纯 formatter。
   - 用于承接 `PeachBattleRecords`、`ClubBattleRecords`、`ClubMonthBattleRecords` 之间真正重复的展示层逻辑，避免把查询与导出编排重新塞回页面里。
