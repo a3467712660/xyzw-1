@@ -48,6 +48,18 @@
         @save-manual="handleSaveManualLineup"
       ></ArenaPvpToolbar>
 
+      <ArenaPvpTargetList
+        :get-lineup-class="getLineupClass"
+        :t="t"
+        :target-list-view="targetListView"
+      ></ArenaPvpTargetList>
+
+      <ArenaPvpResultPanel
+        :get-lineup-class="getLineupClass"
+        :result-view="latestBattleRunView"
+        :t="t"
+      ></ArenaPvpResultPanel>
+
       <ArenaPvpRecordPanel
         :get-lineup-class="getLineupClass"
         :get-record-type-label="getArenaRecordTypeLabel"
@@ -93,8 +105,18 @@ import { useI18n } from "vue-i18n";
 import { useTokenStore } from "@/stores/tokenStore";
 import { useAuthStore } from "@/stores/auth";
 import ArenaPvpRankPanel from "@/components/cards/pvp/ArenaPvpRankPanel.vue";
+import ArenaPvpResultPanel from "@/components/cards/pvp/ArenaPvpResultPanel.vue";
 import ArenaPvpRecordPanel from "@/components/cards/pvp/ArenaPvpRecordPanel.vue";
+import ArenaPvpTargetList from "@/components/cards/pvp/ArenaPvpTargetList.vue";
 import ArenaPvpToolbar from "@/components/cards/pvp/ArenaPvpToolbar.vue";
+import {
+  buildArenaBattleRunResultView,
+  buildArenaManualLineupEntries,
+  buildArenaManualTargetOptions,
+  buildArenaRecordOpponentRateViews,
+  buildArenaRecordWinRateSummary,
+  buildArenaTargetListView,
+} from "@/components/cards/pvp/arenaPvpDisplayHelpers.js";
 import {
   formatArenaRankLabel,
   formatArenaScoreDelta,
@@ -172,6 +194,12 @@ const isArenaSyncReady = ref(false);
 const isApplyingArenaCloudData = ref(false);
 const arenaRecordsUpdatedAt = ref(0);
 const manualLineupUpdatedAt = ref(0);
+const latestBattleRun = ref({
+  endedAt: 0,
+  plannedCount: 0,
+  previousRecordIds: [],
+  startedAt: 0,
+});
 
 const authStore = useAuthStore();
 let arenaCloudSyncTimer = null;
@@ -276,65 +304,48 @@ const skipLineupOptions = computed(() => {
     (item) => ({ label: item, value: item }),
   );
 });
-const manualLineupTargetOptions = computed(() => {
-  const rankTargets = (rankList.value || []).map((item) => ({
-    label: `${item.name || item.roleId} (${item.roleId || "-"})`,
-    value: String(item.roleId || ""),
-  }));
-  const recordTargets = (arenaRecords.value || [])
-    .map((item) => ({
-      label: t("arenaPvpCard.labels.recordSourceOption", {
-        name: item.name || t("arenaPvpCard.common.dash"),
-      }),
-      value: `name:${String(item.name || "").trim()}`,
-    }))
-    .filter((item) => item.value !== "name:");
-  return [...rankTargets, ...recordTargets]
-    .filter((item) => item.value)
-    .filter(
-      (item, idx, arr) => arr.findIndex((candidate) => candidate.value === item.value) === idx,
-    )
-    .slice(0, 200);
-});
-const manualLineupEntries = computed(() =>
-  Object.entries(manualLineupMap.value || {})
-    .map(([key, lineupType]) => ({
-      key,
-      lineupType: String(lineupType || t("arenaPvpCard.common.unknown")),
-    }))
-    .sort((a, b) => a.key.localeCompare(b.key))
-    .slice(0, 30),
+const manualLineupTargetOptions = computed(() =>
+  buildArenaManualTargetOptions(rankList.value, arenaRecords.value, {
+    dashText: t("arenaPvpCard.common.dash"),
+    formatRecordSourceOption: (name) =>
+      t("arenaPvpCard.labels.recordSourceOption", { name }),
+  }),
 );
-const recordBasedWinRate = computed(() => {
-  const records = (arenaRecords.value || []).filter((item) => inferRecordWinState(item) !== null);
-  const total = records.length;
-  const wins = records.filter((item) => inferRecordWinState(item) === true).length;
-  const losses = records.filter((item) => inferRecordWinState(item) === false).length;
-  const rate = total > 0 ? ((wins / total) * 100).toFixed(1) : "0.0";
-  return { total, wins, losses, rate };
-});
-const recordBasedOpponentWinRates = computed(() => {
-  const map = new Map();
-  for (const item of arenaRecords.value || []) {
-    const isWin = inferRecordWinState(item);
-    if (isWin === null)
-      continue;
-    const name = String(item.name || "").trim() || t("arenaPvpCard.common.unknownPlayer");
-    const prev = map.get(name) || { name, total: 0, wins: 0, losses: 0 };
-    prev.total += 1;
-    if (isWin)
-      prev.wins += 1;
-    else prev.losses += 1;
-    map.set(name, prev);
-  }
-  return [...map.values()]
-    .map((item) => ({
-      ...item,
-      rate: item.total > 0 ? ((item.wins / item.total) * 100).toFixed(0) : "0",
-    }))
-    .sort((a, b) => b.total - a.total)
-    .slice(0, 8);
-});
+const manualLineupEntries = computed(() =>
+  buildArenaManualLineupEntries(
+    manualLineupMap.value,
+    t("arenaPvpCard.common.unknown"),
+  ),
+);
+const recordBasedWinRate = computed(() =>
+  buildArenaRecordWinRateSummary(arenaRecords.value),
+);
+const recordBasedOpponentWinRates = computed(() =>
+  buildArenaRecordOpponentRateViews(
+    arenaRecords.value,
+    t("arenaPvpCard.common.unknownPlayer"),
+  ),
+);
+const targetListView = computed(() =>
+  buildArenaTargetListView({
+    arenaRecords: arenaRecords.value,
+    isSkippedLineupType,
+    myRoleId: myRoleId.value,
+    preferredWinRate: preferredWinRate.value,
+    rankList: rankList.value,
+    targetWinStats: targetWinStats.value,
+    unknownText: t("arenaPvpCard.common.unknown"),
+  }),
+);
+const latestBattleRunView = computed(() =>
+  buildArenaBattleRunResultView({
+    arenaRecords: arenaRecords.value,
+    endedAt: latestBattleRun.value.endedAt,
+    plannedCount: latestBattleRun.value.plannedCount,
+    previousRecordIds: latestBattleRun.value.previousRecordIds,
+    startedAt: latestBattleRun.value.startedAt,
+  }),
+);
 
 const toInteger = (value) => {
   const numeric = Number(value);
@@ -1519,6 +1530,39 @@ const pushBattleLog = (text) => {
   }
 };
 
+const runArenaBattles = async () => {
+  const plannedCount = Math.min(
+    Number(fightCount.value || 0),
+    Number(arenaTicketCount.value || 0),
+  );
+
+  const canTrackRun =
+    !running.value
+    && !!tokenStore.selectedToken
+    && isConnected.value
+    && isArenaActivityOpen.value
+    && Number(arenaTicketCount.value || 0) > 0
+    && plannedCount > 0;
+
+  if (canTrackRun) {
+    latestBattleRun.value = {
+      endedAt: 0,
+      plannedCount,
+      previousRecordIds: (arenaRecords.value || []).map((item) => String(item?.id || "")),
+      startedAt: Date.now(),
+    };
+  }
+
+  await runArenaBattlesAction();
+
+  if (canTrackRun) {
+    latestBattleRun.value = {
+      ...latestBattleRun.value,
+      endedAt: Date.now(),
+    };
+  }
+};
+
 const getAvatarKey = (item) =>
   normalizeRoleId(item?.roleId || "") || `${item?.rank || 0}-${item?.name || "unknown"}`;
 
@@ -1598,7 +1642,7 @@ const fetchArenaRankWithFallback = async (tokenId) => {
 const {
   refreshArenaData,
   refreshCurrentFormation,
-  runArenaBattles,
+  runArenaBattles: runArenaBattlesAction,
 } = useArenaPvpBattleActions({
   tokenStore,
   message,
@@ -1672,6 +1716,12 @@ watch(
     recordAvatarCandidateIndexMap.value = new Map();
     currentFormation.value = null;
     lastUpdatedAt.value = null;
+    latestBattleRun.value = {
+      endedAt: 0,
+      plannedCount: 0,
+      previousRecordIds: [],
+      startedAt: 0,
+    };
     manualAssignTargetId.value = "";
     manualAssignRoleId.value = "";
     manualAssignName.value = "";

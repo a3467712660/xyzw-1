@@ -303,7 +303,15 @@ import BatchDailyTasksTokenSelection from "@/views/batch-daily-tasks/BatchDailyT
 import BatchDailyTasksWarGuessModal from "@/views/batch-daily-tasks/BatchDailyTasksWarGuessModal.vue";
 import {
   buildWarGuessActivityTip,
+  getBatchCurrentActivityWeek,
+  getBatchFourthSundayOfMonth,
   groupAvailableTasks,
+  isBatchArenaActivityOpen,
+  isBatchBaokuActivityOpen,
+  isBatchCarActivityOpen,
+  isBatchMengjingActivityOpen,
+  isBatchWarGuessActivityOpen,
+  isBatchWeirdTowerActivityOpen,
   TASK_GROUP_DEFINITIONS,
 } from "@/views/batch-daily-tasks/batchDailyTaskFormatters.js";
 import { useBatchTokenSort } from "@/views/batch-daily-tasks/useBatchTokenSort";
@@ -367,117 +375,24 @@ const { getSortIcon, sortConfig, sortedTokens, toggleSort } =
   useBatchTokenSort(tokenStore);
 
 const tokens = computed(() => tokenStore.gameTokens);
-const isCarActivityOpen = computed(() => {
-  const now = new Date();
-  const day = now.getDay();
-  const hour = now.getHours();
-  // 1=Mon, 2=Tue, 3=Wed; 6点之后
-  return day >= 1 && day <= 3 && hour >= 6;
-});
-const ismengjingActivityOpen = computed(() => {
-  const day = new Date().getDay();
-  return day === 0 || day === 1 || day === 3 || day === 4;
-});
-const isbaokuActivityOpen = computed(() => {
-  const day = new Date().getDay();
-  return day != 1 && day != 2;
-});
-const isarenaActivityOpen = computed(() => {
-  const hour = new Date().getHours();
-  return hour >= 6 && hour < 22;
-});
-const getCurrentActivityWeek = computed(() => {
-  const now = new Date();
-  const start = new Date("2025-12-12T12:00:00"); // 起始时间：黑市周开始
-  const weekDuration = 7 * 24 * 60 * 60 * 1000; // 一周毫秒数
-  const cycleDuration = 3 * weekDuration; // 三周期毫秒数
-
-  const elapsed = now - start;
-  if (elapsed < 0)
-    return null; // 活动开始前
-
-  const cyclePosition = elapsed % cycleDuration;
-
-  if (cyclePosition < weekDuration) {
-    return "黑市周";
-  } else if (cyclePosition < 2 * weekDuration) {
-    return "招募周";
-  } else {
-    return "宝箱周";
-  }
-});
-
-const isWeirdTowerActivityOpen = computed(() => {
-  if (getCurrentActivityWeek.value !== "黑市周")
-    return false;
-
-  const now = new Date();
-  const day = now.getDay();
-  const hour = now.getHours();
-  // 如果是周五，必须在12点之后
-  if (day === 5) {
-    return hour >= 12;
-  }
-  return true;
-});
-
-// 获取本月第四个周日的日期
-const getFourthSundayOfMonth = () => {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth();
-
-  // 当月第一天
-  const firstDay = new Date(year, month, 1);
-  const dayOfWeek = firstDay.getDay(); // 0-6
-
-  // 计算第一个周日的日期 (1号是周日则为1，否则为 1 + 7 - dayOfWeek)
-  let firstSundayDate = 1 + ((7 - dayOfWeek) % 7);
-
-  // 仅针对2026年3月进行特殊处理
-  if (year === 2026 && month === 2 && dayOfWeek === 0) {
-    firstSundayDate = 8;
-  }
-
-  // 第四个周日 = 第一个周日 + 21天
-  return new Date(year, month, firstSundayDate + 21);
-};
-
-const isWarGuessActivityOpen = computed(() => {
-  const now = new Date();
-
-  // 手动修正：2026年3月1日开放
-  if (
-    now.getFullYear() === 2026
-    && now.getMonth() === 2
-    && now.getDate() === 1
-  ) {
-    const hour = now.getHours();
-    const minute = now.getMinutes();
-    if (hour < 19 || (hour === 19 && minute <= 55))
-      return true;
-  }
-
-  const fourthSunday = getFourthSundayOfMonth();
-
-  // 检查是否是今天
-  if (now.getDate() !== fourthSunday.getDate())
-    return false;
-
-  // 检查时间 00:00 - 19:55
-  const hour = now.getHours();
-  const minute = now.getMinutes();
-  if (hour > 19 || (hour === 19 && minute > 55))
-    return false;
-
-  return true;
-});
+const isCarActivityOpen = computed(() => isBatchCarActivityOpen(new Date()));
+const ismengjingActivityOpen = computed(() => isBatchMengjingActivityOpen(new Date()));
+const isbaokuActivityOpen = computed(() => isBatchBaokuActivityOpen(new Date()));
+const isarenaActivityOpen = computed(() => isBatchArenaActivityOpen(new Date()));
+const currentActivityWeek = computed(() => getBatchCurrentActivityWeek(new Date()));
+const isWeirdTowerActivityOpen = computed(() =>
+  isBatchWeirdTowerActivityOpen(new Date(), currentActivityWeek.value),
+);
+const warGuessOpenDate = computed(() => getBatchFourthSundayOfMonth(new Date()));
+const isWarGuessActivityOpen = computed(() =>
+  isBatchWarGuessActivityOpen(new Date(), warGuessOpenDate.value),
+);
 
 const warGuessActivityTip = computed(() => {
   return buildWarGuessActivityTip({
-    currentWeek: getCurrentActivityWeek.value,
+    currentWeek: currentActivityWeek.value,
     isOpen: isWarGuessActivityOpen.value,
-    openDate: getFourthSundayOfMonth(),
+    openDate: warGuessOpenDate.value,
   });
 });
 

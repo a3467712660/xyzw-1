@@ -4,6 +4,7 @@ import {
   buildLineupHeroEquipmentView,
   buildLineupHeroStatsView,
   buildLineupHeroView,
+  buildLineupSlotHeroView,
   buildSavedLineupMetaView,
 } from "../../src/components/cards/lineup/lineupViewModels.js";
 
@@ -219,6 +220,60 @@ test("lineup view models keep equipment snapshot visible without fish caption", 
       fishCaption: "",
       hasEquipmentSnapshot: true,
       slotColors: [],
+    },
+  );
+});
+
+test("lineup view models keep slot hero card view stable", () => {
+  assert.deepEqual(
+    buildLineupSlotHeroView(
+      {
+        artifactId: 9001,
+        attack: 4500,
+        heroId: 1001,
+        hp: 90000,
+        level: 320,
+        position: 2,
+        power: 123456,
+        speed: 12,
+      },
+      {
+        formatLevel: (value) => value,
+        formatPower: (value) => String(value),
+        getFishCaption: () => "霸王 破甲",
+        getHeroAvatar: () => "/hero.png",
+        getHeroName: () => "吕布",
+        getSlotColorsByArtifactId: () => ["#ff9900"],
+      },
+    ),
+    {
+      avatar: "/hero.png",
+      avatarText: "吕布",
+      fishCaption: "霸王 破甲",
+      hero: {
+        artifactId: 9001,
+        attack: 4500,
+        heroId: 1001,
+        hp: 90000,
+        level: 320,
+        position: 2,
+        power: 123456,
+        speed: 12,
+      },
+      levelText: "Lv.320",
+      name: "吕布",
+      position: 2,
+      slotColors: ["#ff9900"],
+      stats: {
+        primary: [
+          { className: "stat-power", text: "战力123456" },
+          { className: "stat-speed", text: "速度12" },
+        ],
+        secondary: [
+          { className: "stat-attack", text: "攻击4500" },
+          { className: "stat-hp", text: "血量90000" },
+        ],
+      },
     },
   );
 });

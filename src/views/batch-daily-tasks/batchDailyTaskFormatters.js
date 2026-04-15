@@ -63,6 +63,10 @@ export const TASK_GROUP_DEFINITIONS = [
   },
 ];
 
+const BATCH_ACTIVITY_WEEK_START = new Date("2025-12-12T12:00:00");
+const BATCH_ACTIVITY_WEEK_DURATION = 7 * 24 * 60 * 60 * 1000;
+const BATCH_ACTIVITY_CYCLE_DURATION = 3 * BATCH_ACTIVITY_WEEK_DURATION;
+
 export const groupAvailableTasks = (
   availableTasks = [],
   taskGroupDefinitions = TASK_GROUP_DEFINITIONS,
@@ -85,6 +89,105 @@ export const groupAvailableTasks = (
   }
 
   return groups;
+};
+
+export const isBatchCarActivityOpen = (now = new Date()) => {
+  const day = now.getDay();
+  const hour = now.getHours();
+  return day >= 1 && day <= 3 && hour >= 6;
+};
+
+export const isBatchMengjingActivityOpen = (now = new Date()) => {
+  const day = now.getDay();
+  return day === 0 || day === 1 || day === 3 || day === 4;
+};
+
+export const isBatchBaokuActivityOpen = (now = new Date()) => {
+  const day = now.getDay();
+  return day !== 1 && day !== 2;
+};
+
+export const isBatchArenaActivityOpen = (now = new Date()) => {
+  const hour = now.getHours();
+  return hour >= 6 && hour < 22;
+};
+
+export const getBatchCurrentActivityWeek = (
+  now = new Date(),
+  start = BATCH_ACTIVITY_WEEK_START,
+) => {
+  const elapsed = now.getTime() - start.getTime();
+  if (elapsed < 0) {
+    return null;
+  }
+
+  const cyclePosition = elapsed % BATCH_ACTIVITY_CYCLE_DURATION;
+  if (cyclePosition < BATCH_ACTIVITY_WEEK_DURATION) {
+    return "黑市周";
+  }
+  if (cyclePosition < 2 * BATCH_ACTIVITY_WEEK_DURATION) {
+    return "招募周";
+  }
+  return "宝箱周";
+};
+
+export const isBatchWeirdTowerActivityOpen = (
+  now = new Date(),
+  currentActivityWeek = getBatchCurrentActivityWeek(now),
+) => {
+  if (currentActivityWeek !== "黑市周") {
+    return false;
+  }
+
+  const day = now.getDay();
+  const hour = now.getHours();
+  if (day === 5) {
+    return hour >= 12;
+  }
+  return true;
+};
+
+export const getBatchFourthSundayOfMonth = (now = new Date()) => {
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const firstDay = new Date(year, month, 1);
+  const dayOfWeek = firstDay.getDay();
+
+  let firstSundayDate = 1 + ((7 - dayOfWeek) % 7);
+  if (year === 2026 && month === 2 && dayOfWeek === 0) {
+    firstSundayDate = 8;
+  }
+
+  return new Date(year, month, firstSundayDate + 21);
+};
+
+export const isBatchWarGuessActivityOpen = (
+  now = new Date(),
+  openDate = getBatchFourthSundayOfMonth(now),
+) => {
+  if (
+    now.getFullYear() === 2026
+    && now.getMonth() === 2
+    && now.getDate() === 1
+  ) {
+    const hour = now.getHours();
+    const minute = now.getMinutes();
+    if (hour < 19 || (hour === 19 && minute <= 55)) {
+      return true;
+    }
+  }
+
+  if (now.getDate() !== openDate.getDate()) {
+    return false;
+  }
+
+  const hour = now.getHours();
+  const minute = now.getMinutes();
+  if (hour > 19 || (hour === 19 && minute > 55)) {
+    return false;
+  }
+
+  return true;
 };
 
 export const buildWarGuessActivityTip = ({

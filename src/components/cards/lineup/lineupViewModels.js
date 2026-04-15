@@ -115,3 +115,39 @@ export const buildLineupHeroView = (hero = {}, options = {}) => ({
   ...buildLineupHeroStatsView(hero, options),
   ...buildLineupHeroEquipmentView(hero, options),
 });
+
+export const buildLineupSlotHeroView = (
+  hero = {},
+  {
+    formatLevel,
+    formatPower,
+    getFishCaption,
+    getHeroAvatar,
+    getHeroName,
+    getSlotColorsByArtifactId,
+  } = {},
+) => {
+  const statsView = buildLineupHeroStatsView(hero, {
+    formatLevel,
+    formatPower,
+    getHeroAvatar,
+    getHeroName,
+  });
+
+  return {
+    ...statsView,
+    avatarText: getLineupDisplayAvatarText(statsView.name, 2),
+    fishCaption:
+      typeof getFishCaption === "function"
+        ? getFishCaption(hero?.artifactId, hero)
+        : "",
+    hero,
+    position: Number.isFinite(Number(hero?.position))
+      ? Math.trunc(Number(hero.position))
+      : 0,
+    slotColors:
+      typeof getSlotColorsByArtifactId === "function"
+        ? getSlotColorsByArtifactId(hero?.artifactId) || []
+        : [],
+  };
+};

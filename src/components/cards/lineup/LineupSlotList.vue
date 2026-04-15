@@ -23,50 +23,50 @@
       </h4>
       <div class="heroes-grid">
         <div
-          v-for="hero in editingHeroes"
-          :key="`${hero.heroId}-${hero.position}`"
+          v-for="heroView in slotHeroViews"
+          :key="`${heroView.hero.heroId}-${heroView.position}`"
           class="hero-item"
           draggable="true"
           :class="{
-            'dragging': draggedHeroId === hero.heroId,
-            'drag-over': dragOverPosition === hero.position,
+            'dragging': draggedHeroId === heroView.hero.heroId,
+            'drag-over': dragOverPosition === heroView.position,
           }"
           @dragend="$emit('drag-end')"
           @dragleave="$emit('drag-leave')"
-          @dragover.prevent="$emit('drag-over', $event, hero)"
-          @dragstart="$emit('drag-start', $event, hero)"
-          @drop="$emit('drop', $event, hero)"
+          @dragover.prevent="$emit('drag-over', $event, heroView.hero)"
+          @dragstart="$emit('drag-start', $event, heroView.hero)"
+          @drop="$emit('drop', $event, heroView.hero)"
         >
-          <div class="hero-position">{{ hero.position + 1 }}</div>
-          <div class="hero-left" @click="$emit('open-refine', hero)">
+          <div class="hero-position">{{ heroView.position + 1 }}</div>
+          <div class="hero-left" @click="$emit('open-refine', heroView.hero)">
             <div class="hero-avatar">
               <img
-                v-if="getHeroAvatar(hero.heroId)"
-                :alt="resolveHeroName(hero.heroId)"
-                :src="getHeroAvatar(hero.heroId)"
+                v-if="heroView.avatar"
+                :alt="heroView.name"
+                :src="heroView.avatar"
               >
               <div v-else class="hero-placeholder">
-                {{ getHeroAvatarText(hero) }}
+                {{ heroView.avatarText }}
               </div>
             </div>
             <div class="hero-avatar-info">
               <div class="hero-name-small-inline">
-                {{ resolveHeroName(hero.heroId) }}
+                {{ heroView.name }}
               </div>
-              <div v-if="hero.level" class="hero-level-small-inline">
-                Lv.{{ hero.level }}
+              <div v-if="heroView.levelText" class="hero-level-small-inline">
+                {{ heroView.levelText }}
               </div>
             </div>
           </div>
-          <div class="hero-info" @click="$emit('open-refine', hero)">
-            <div v-if="getFishCaption(hero.artifactId)" class="hero-fish">
-              {{ getFishCaption(hero.artifactId) }}
+          <div class="hero-info" @click="$emit('open-refine', heroView.hero)">
+            <div v-if="heroView.fishCaption" class="hero-fish">
+              {{ heroView.fishCaption }}
               <span
-                v-if="getSlotColorsByArtifactId(hero.artifactId)"
+                v-if="heroView.slotColors.length > 0"
                 class="hero-fish-slots-inline"
               >
                 <span
-                  v-for="(color, idx) in getSlotColorsByArtifactId(hero.artifactId)"
+                  v-for="(color, idx) in heroView.slotColors"
                   :key="idx"
                   class="slot-dot-small"
                   :style="{ backgroundColor: color }"
@@ -74,22 +74,22 @@
               </span>
             </div>
             <div
-              v-if="getHeroStats(hero).primary.length || getHeroStats(hero).secondary.length"
+              v-if="heroView.stats.primary.length || heroView.stats.secondary.length"
               class="hero-stats"
             >
-              <div v-if="getHeroStats(hero).primary.length" class="stat-row">
+              <div v-if="heroView.stats.primary.length" class="stat-row">
                 <span
-                  v-for="item in getHeroStats(hero).primary"
-                  :key="`${hero.heroId}-${item.className}`"
+                  v-for="item in heroView.stats.primary"
+                  :key="`${heroView.hero.heroId}-${item.className}`"
                   :class="item.className"
                 >
                   {{ item.text }}
                 </span>
               </div>
-              <div v-if="getHeroStats(hero).secondary.length" class="stat-row">
+              <div v-if="heroView.stats.secondary.length" class="stat-row">
                 <span
-                  v-for="item in getHeroStats(hero).secondary"
-                  :key="`${hero.heroId}-${item.className}`"
+                  v-for="item in heroView.stats.secondary"
+                  :key="`${heroView.hero.heroId}-${item.className}`"
                   :class="item.className"
                 >
                   {{ item.text }}
@@ -102,7 +102,7 @@
               class="exchange-btn"
               size="tiny"
               type="warning"
-              @click.stop="$emit('open-exchange', hero)"
+              @click.stop="$emit('open-exchange', heroView.hero)"
             >
               更换
             </n-button>
@@ -110,7 +110,7 @@
               class="remove-btn"
               size="tiny"
               type="error"
-              @click.stop="$emit('remove-hero', hero)"
+              @click.stop="$emit('remove-hero', heroView.hero)"
             >
               下阵
             </n-button>
@@ -122,12 +122,9 @@
 </template>
 
 <script setup>
-import {
-  buildLineupHeroStatGroups,
-  getLineupDisplayAvatarText,
-  resolveLineupDisplayHeroName,
-} from "./lineupDisplayHelpers";
+import { computed } from "vue";
 import { formatLineupFishCaption } from "./lineupFormatters";
+import { buildLineupSlotHeroView } from "./lineupViewModels.js";
 
 const props = defineProps({
   availableTeams: {
@@ -196,19 +193,25 @@ defineEmits([
   "switch-team",
 ]);
 
-const resolveHeroName = (heroId) =>
-  resolveLineupDisplayHeroName(heroId, props.getHeroName);
+const getFishCaption = (artifactId) => {
+  const fishInfo = props.getFishInfo(artifactId);
+  const fishName = fishInfo?.name || "";
+  const pearlSkillName = props.getPearlSkillNameByArtifactId(artifactId);
+  return formatLineupFishCaption(fishName, pearlSkillName);
+};
 
-const getHeroAvatarText = (hero) =>
-  getLineupDisplayAvatarText(resolveHeroName(hero.heroId), 2);
-
-const getFishCaption = (artifactId) =>
-  formatLineupFishCaption(
-    props.getFishInfo(artifactId)?.name,
-    props.getPearlSkillNameByArtifactId(artifactId),
-  );
-
-const getHeroStats = (hero) => buildLineupHeroStatGroups(hero, props.formatPower);
+const slotHeroViews = computed(() =>
+  (props.editingHeroes || []).map((hero) =>
+    buildLineupSlotHeroView(hero, {
+      formatLevel: (value) => value,
+      formatPower: props.formatPower,
+      getFishCaption,
+      getHeroAvatar: props.getHeroAvatar,
+      getHeroName: props.getHeroName,
+      getSlotColorsByArtifactId: props.getSlotColorsByArtifactId,
+    }),
+  ),
+);
 </script>
 
 <style scoped lang="scss">

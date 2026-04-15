@@ -3068,7 +3068,13 @@
       "closed": "已关闭(06:00-22:00)",
       "ticket": "竞技场门票",
       "score": "我的积分",
-      "rank": "我的排名"
+      "rank": "我的排名",
+      "planned": "计划次数",
+      "executed": "命中记录",
+      "win": "胜",
+      "loss": "负",
+      "winRate": "胜率",
+      "scoreDelta": "积分变化"
     },
     "actions": {
       "formation": "竞技场阵容",
@@ -3097,7 +3103,10 @@
     "sections": {
       "logs": "最近战斗日志",
       "records": "竞技场记录",
-      "rankList": "当前竞技场榜单"
+      "rankList": "当前竞技场榜单",
+      "targetReference": "推荐目标参考",
+      "skippedTargets": "按规则跳过的榜单目标",
+      "latestRun": "本轮结果摘要"
     },
     "labels": {
       "updatedAt": "最近更新：{value}",
@@ -3113,7 +3122,14 @@
       "win": "胜",
       "loss": "负",
       "winResult": "胜利",
-      "lossResult": "失败"
+      "lossResult": "失败",
+      "preferredTargetHint": "当前优选阈值：至少 {value}%",
+      "skippedTargetSummary": "已跳过 {value} 个榜单目标",
+      "targetScore": "积分 {value}",
+      "targetRate": "记录胜率 {value}%",
+      "targetRateDetail": "{wins}/{total}",
+      "targetRateUnknown": "暂无命中记录",
+      "latestRunWindow": "时间窗：{value}"
     },
     "columns": {
       "rank": "排名",
@@ -3125,7 +3141,10 @@
     "empty": {
       "logs": "暂无战斗记录",
       "records": "暂无竞技场记录，可先拉取游戏记录",
-      "rankList": "暂无当前竞技场排名数据，请先刷新"
+      "rankList": "暂无当前竞技场排名数据，请先刷新",
+      "targetReference": "暂无可用于参考的榜单目标，请先刷新竞技场数据",
+      "latestRun": "本轮未拉到新的竞技场记录，请先执行一次竞技场并等待记录同步",
+      "latestRunIdle": "尚未执行本轮竞技场"
     },
     "options": {
       "formation": "阵容{value}",

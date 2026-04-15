@@ -3092,7 +3092,13 @@
       "closed": "Closed (06:00-22:00)",
       "ticket": "Arena Tickets",
       "score": "My Score",
-      "rank": "My Rank"
+      "rank": "My Rank",
+      "planned": "Planned",
+      "executed": "Recorded",
+      "win": "Wins",
+      "loss": "Losses",
+      "winRate": "Win Rate",
+      "scoreDelta": "Score Delta"
     },
     "actions": {
       "formation": "Arena Formation",
@@ -3121,7 +3127,10 @@
     "sections": {
       "logs": "Recent Battle Logs",
       "records": "Arena Records",
-      "rankList": "Current Arena Ranking"
+      "rankList": "Current Arena Ranking",
+      "targetReference": "Recommended Target Reference",
+      "skippedTargets": "Rank Targets Skipped by Rules",
+      "latestRun": "Latest Run Summary"
     },
     "labels": {
       "updatedAt": "Last updated: {value}",
@@ -3137,7 +3146,14 @@
       "win": "Win",
       "loss": "Loss",
       "winResult": "Victory",
-      "lossResult": "Defeat"
+      "lossResult": "Defeat",
+      "preferredTargetHint": "Current preferred threshold: at least {value}%",
+      "skippedTargetSummary": "{value} rank target(s) skipped",
+      "targetScore": "Score {value}",
+      "targetRate": "Record rate {value}%",
+      "targetRateDetail": "{wins}/{total}",
+      "targetRateUnknown": "No tracked records yet",
+      "latestRunWindow": "Window: {value}"
     },
     "columns": {
       "rank": "Rank",
@@ -3149,7 +3165,10 @@
     "empty": {
       "logs": "No battle logs yet",
       "records": "No arena records yet. Pull game records first",
-      "rankList": "No current arena ranking data. Refresh first"
+      "rankList": "No current arena ranking data. Refresh first",
+      "targetReference": "No rank targets available for reference yet. Refresh arena data first",
+      "latestRun": "No new arena records were captured for the latest run yet",
+      "latestRunIdle": "No arena run has been executed yet"
     },
     "options": {
       "formation": "Formation {value}",
