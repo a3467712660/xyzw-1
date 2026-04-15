@@ -3,8 +3,9 @@ import test from "node:test";
 
 import {
   __resetXyzwRuntimeLoaderForTests,
-  XYZW_RUNTIME_VARIANTS,
+  ensureRuntimeHostAllowed,
   ensureXyzwRuntimeLoaded,
+  XYZW_RUNTIME_VARIANTS,
 } from "../../src/services/replay/xyzwRuntimeLoader.js";
 
 const createStubRuntimeWindow = () => {
@@ -80,4 +81,11 @@ test("xyzw runtime loader loads replay browser defines without affecting default
     "/xyzw/game-defines.browser.js",
     "/xyzw/index.js",
   ]);
+});
+
+test("xyzw runtime loader allows the repo deployment host without requiring ignored local env files", () => {
+  assert.equal(
+    ensureRuntimeHostAllowed("xyzw.xq5007.fun", ""),
+    "xyzw.xq5007.fun",
+  );
 });

@@ -31,6 +31,27 @@ const waitForNextFrame = (runtimeWindow) =>
     runtimeWindow.setTimeout(resolve, 16);
   });
 
+const isAbsoluteUrlLike = (value) =>
+  /^(?:[a-z]+:)?\/\//i.test(String(value || "").trim());
+
+export const toAbsoluteBundleRequestTarget = (
+  target,
+  runtimeWindow = getRuntimeWindow(),
+) => {
+  const normalized = String(target || "").trim();
+  if (!normalized) {
+    return normalized;
+  }
+  if (isAbsoluteUrlLike(normalized)) {
+    return normalized;
+  }
+
+  const bundleName = runtimeWindow.cc?.path?.basename?.(normalized)
+    || normalized.split("/").filter(Boolean).at(-1)
+    || normalized;
+  return new URL(`/assets/${bundleName}`, runtimeWindow.location.origin).toString();
+};
+
 const waitForValue = async ({
   read,
   runtimeWindow,
@@ -485,6 +506,43 @@ export const ensureReplayBundleVersionContainers = ({
   }
 };
 
+export const installReplayBundleResolverPatch = ({
+  runtimeWindow = getRuntimeWindow(),
+  diagnostics,
+} = {}) => {
+  const downloader = runtimeWindow.cc?.assetManager?.downloader;
+  const bundleDownloaders = downloader?._downloaders;
+  const originalBundleDownloader = bundleDownloaders?.bundle;
+
+  if (!bundleDownloaders || typeof originalBundleDownloader !== "function") {
+    return {
+      dispose() {},
+    };
+  }
+
+  const patchedBundleDownloader = function patchedBundleDownloader(
+    target,
+    options,
+    callback,
+  ) {
+    const nextTarget = toAbsoluteBundleRequestTarget(target, runtimeWindow);
+    if (nextTarget !== target) {
+      diagnostics?.steps?.push?.("patch-local-bundle-target");
+    }
+    return originalBundleDownloader.call(this, nextTarget, options, callback);
+  };
+
+  bundleDownloaders.bundle = patchedBundleDownloader;
+
+  return {
+    dispose() {
+      if (bundleDownloaders.bundle === patchedBundleDownloader) {
+        bundleDownloaders.bundle = originalBundleDownloader;
+      }
+    },
+  };
+};
+
 const buildBundleAssetProbeTargets = ({
   runtimeWindow = getRuntimeWindow(),
   bundleName = "game",
@@ -759,6 +817,7 @@ export const startFightPvpReplayRuntime = async ({
     ensureRuntimeBooted,
     ensureRuntimeLoaded: ensureXyzwRuntimeLoaded,
     ensureBundleVersionContainers: ensureReplayBundleVersionContainers,
+    installBundleResolverPatch: installReplayBundleResolverPatch,
     ensureReplayBootstrapScene,
     locateReplayEntrypoint,
     probeGameBundleAssets,
@@ -832,6 +891,12 @@ export const startFightPvpReplayRuntime = async ({
       modules,
       diagnostics,
     });
+
+    diagnostics.steps.push("install-bundle-resolver-patch");
+    const bundleResolverPatch = adapter.installBundleResolverPatch({
+      diagnostics,
+    });
+    cleanups.push(() => bundleResolverPatch.dispose?.());
 
     const bundleAssetProbe = await adapter.probeGameBundleAssets({
       modules,

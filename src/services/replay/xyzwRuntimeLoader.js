@@ -1,4 +1,7 @@
-import { isHostAllowed } from "../../utils/hostAllowlist.js";
+import {
+  isHostAllowed,
+  LOOPBACK_HOST_ALLOWLIST,
+} from "../../utils/hostAllowlist.js";
 
 export const XYZW_RUNTIME_VARIANTS = Object.freeze({
   DEFAULT: "default",
@@ -21,6 +24,13 @@ export const XYZW_RUNTIME_SCRIPT_URLS = Object.freeze({
 const XYZW_RUNTIME_SCRIPT_ATTR = "data-xyzw-runtime";
 const XYZW_RUNTIME_VARIANT_ATTR = "data-xyzw-runtime-variant";
 const xyzwRuntimeLoadPromises = new Map();
+const BUILTIN_RUNTIME_ALLOWED_HOSTS = Object.freeze([
+  "xyzw.xq5007.fun",
+]);
+const DEFAULT_RUNTIME_ALLOWED_HOSTS = Object.freeze([
+  ...LOOPBACK_HOST_ALLOWLIST,
+  ...BUILTIN_RUNTIME_ALLOWED_HOSTS,
+]);
 
 const getBrowserWindow = () => {
   if (typeof window === "undefined") {
@@ -33,13 +43,14 @@ const getBrowserWindow = () => {
 export const ensureRuntimeHostAllowed = (
   host = getBrowserWindow().location?.hostname,
   allowedHosts = import.meta?.env?.VITE_XYZW_RUNTIME_ALLOWED_HOSTS,
+  fallbackHosts = DEFAULT_RUNTIME_ALLOWED_HOSTS,
 ) => {
   const normalizedHost = String(host || "").trim().toLowerCase();
   if (!normalizedHost) {
     throw new Error("XYZW runtime host is missing.");
   }
 
-  if (isHostAllowed(normalizedHost, allowedHosts)) {
+  if (isHostAllowed(normalizedHost, allowedHosts, fallbackHosts)) {
     return normalizedHost;
   }
 

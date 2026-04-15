@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   ensureReplayBundleVersionContainers,
   startFightPvpReplayRuntime,
+  toAbsoluteBundleRequestTarget,
 } from "../../src/services/replay/fightPvpReplayRuntimeBridge.js";
 
 test("fight pvp replay runtime bridge initializes missing bundle version containers", () => {
@@ -42,6 +43,30 @@ test("fight pvp replay runtime bridge initializes missing bundle version contain
   assert.deepEqual(runtimeWindow.ccInternalRemoteBundles, {});
   assert.ok(
     diagnostics.steps.includes("init-downloader-bundle-vers"),
+  );
+});
+
+test("fight pvp replay runtime bridge rewrites local bundle targets to root absolute assets urls", () => {
+  const runtimeWindow = {
+    location: {
+      origin: "https://xyzw.xq5007.fun",
+    },
+    cc: {
+      path: {
+        basename(value) {
+          return String(value).split("/").filter(Boolean).at(-1) || "";
+        },
+      },
+    },
+  };
+
+  assert.equal(
+    toAbsoluteBundleRequestTarget("game", runtimeWindow),
+    "https://xyzw.xq5007.fun/assets/game",
+  );
+  assert.equal(
+    toAbsoluteBundleRequestTarget("/assets/game", runtimeWindow),
+    "https://xyzw.xq5007.fun/assets/game",
   );
 });
 
