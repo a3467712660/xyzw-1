@@ -1,33 +1,33 @@
 <template>
   <div class="lineups-list">
     <div
-      v-for="lineup in lineups"
-      :key="lineup.id || lineup.savedAt || lineup.name"
+      v-for="lineupView in lineupViews"
+      :key="lineupView.id"
       class="lineup-card"
     >
-      <div class="lineup-title-bar" @click="$emit('toggle-lineup', lineup)">
+      <div class="lineup-title-bar" @click="$emit('toggle-lineup', lineupView.lineup)">
         <div class="lineup-title-left">
-          <span class="expand-icon">{{ expandedLineup === lineup ? "▼" : "▶" }}</span>
-          <span class="lineup-name">{{ lineup.name }}</span>
+          <span class="expand-icon">{{ expandedLineup === lineupView.lineup ? "▼" : "▶" }}</span>
+          <span class="lineup-name">{{ lineupView.name }}</span>
           <span
-            v-if="lineup.weaponId !== undefined && lineup.weaponId !== null"
+            v-if="lineupView.weaponLabel"
             class="lineup-weapon-tag"
           >
-            {{ getWeaponLabel(lineup.weaponId) }}
+            {{ lineupView.weaponLabel }}
           </span>
-          <span class="lineup-time">{{ actions.formatTime(lineup.savedAt) }}</span>
+          <span class="lineup-time">{{ lineupView.savedAtText }}</span>
         </div>
         <SavedLineupActionsBar
           :current-team-id="currentTeamId"
-          :lineup="lineup"
-          @apply="$emit('apply', lineup)"
-          @debug="$emit('debug', lineup)"
-          @delete="deleteLineup(lineup)"
-          @rename="renameLineup(lineup)"
-          @show-tech="actions.showTechModal(lineup)"
+          :lineup="lineupView.lineup"
+          @apply="$emit('apply', lineupView.lineup)"
+          @debug="$emit('debug', lineupView.lineup)"
+          @delete="deleteLineup(lineupView.lineup)"
+          @rename="renameLineup(lineupView.lineup)"
+          @show-tech="actions.showTechModal(lineupView.lineup)"
         ></SavedLineupActionsBar>
       </div>
-      <div v-if="expandedLineup === lineup" class="lineup-detail">
+      <div v-if="expandedLineup === lineupView.lineup" class="lineup-detail">
         <LineupHeroGrid
           :format-level="actions.formatLevel"
           :format-power="actions.formatPower"
@@ -36,7 +36,7 @@
           :get-hero-name="actions.getHeroName"
           :get-pearl-skill-name-by-id="actions.getPearlSkillNameById"
           :get-slot-colors="actions.getSlotColors"
-          :heroes="lineup.heroes || []"
+          :heroes="lineupView.heroes"
         ></LineupHeroGrid>
       </div>
     </div>
@@ -47,11 +47,13 @@
 </template>
 
 <script setup>
+import { computed } from "vue";
 import {
   getLineupWeaponLabel,
 } from "./lineupDisplayHelpers.js";
 import LineupHeroGrid from "./LineupHeroGrid.vue";
 import SavedLineupActionsBar from "./SavedLineupActionsBar.vue";
+import { buildSavedLineupMetaView } from "./lineupViewModels.js";
 
 const props = defineProps({
   actions: {
@@ -83,6 +85,15 @@ const props = defineProps({
 defineEmits(["apply", "debug", "toggle-lineup"]);
 
 const getWeaponLabel = (weaponId) => getLineupWeaponLabel(weaponId, props.weapon);
+
+const lineupViews = computed(() =>
+  (props.lineups || []).map((lineup) =>
+    buildSavedLineupMetaView(lineup, {
+      formatTime: props.actions.formatTime,
+      getWeaponLabel,
+    }),
+  ),
+);
 
 const getLineupIndex = (lineup) => props.savedLineups.indexOf(lineup);
 

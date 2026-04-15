@@ -301,6 +301,11 @@ import BatchDailyTasksTemplateManagerModal from "@/views/batch-daily-tasks/Batch
 import BatchDailyTasksToolbar from "@/views/batch-daily-tasks/BatchDailyTasksToolbar.vue";
 import BatchDailyTasksTokenSelection from "@/views/batch-daily-tasks/BatchDailyTasksTokenSelection.vue";
 import BatchDailyTasksWarGuessModal from "@/views/batch-daily-tasks/BatchDailyTasksWarGuessModal.vue";
+import {
+  buildWarGuessActivityTip,
+  groupAvailableTasks,
+  TASK_GROUP_DEFINITIONS,
+} from "@/views/batch-daily-tasks/batchDailyTaskFormatters.js";
 import { useBatchTokenSort } from "@/views/batch-daily-tasks/useBatchTokenSort";
 import {
   ARENA_LINEUP_PRESET_OPTIONS,
@@ -469,13 +474,11 @@ const isWarGuessActivityOpen = computed(() => {
 });
 
 const warGuessActivityTip = computed(() => {
-  if (isWarGuessActivityOpen.value)
-    return "";
-
-  const fourthSunday = getFourthSundayOfMonth();
-  const month = fourthSunday.getMonth() + 1;
-  const date = fourthSunday.getDate();
-  return `月赛助威仅在每月第四个周日 (${month}月${date}日) 00:00-19:55 开放`;
+  return buildWarGuessActivityTip({
+    currentWeek: getCurrentActivityWeek.value,
+    isOpen: isWarGuessActivityOpen.value,
+    openDate: getFourthSundayOfMonth(),
+  });
 });
 
 const selectedTokens = ref([]);
@@ -597,86 +600,11 @@ const batchSettingsDefaults = {
 // ======================
 
 // 任务分组定义
-const taskGroupDefinitions = [
-  {
-    name: "daily",
-    label: "日常",
-    tasks: [
-      "startBatch",
-      "claimHangUpRewards",
-      "resetBottles",
-      "batchlingguanzi",
-      "batchStudy",
-      "batcharenafight",
-      "batchSmartSendCar",
-      "batchClaimCars",
-      "batchGenieSweep",
-    ],
-  },
-  {
-    name: "dungeon",
-    label: "副本",
-    tasks: [
-      "climbTower",
-      "batchmengjing",
-      "skinChallenge",
-      "batchClaimPeachTasks",
-      "batchBuyDreamItems",
-    ],
-  },
-  { name: "baoku", label: "宝库", tasks: ["batchbaoku13", "batchbaoku45"] },
-  {
-    name: "weirdTower",
-    label: "怪异塔",
-    tasks: [
-      "climbWeirdTower",
-      "batchUseItems",
-      "batchMergeItems",
-      "batchClaimFreeEnergy",
-    ],
-  },
-  {
-    name: "resource",
-    label: "资源",
-    tasks: [
-      "batchOpenBox",
-      "batchClaimBoxPointReward",
-      "batchFish",
-      "batchRecruit",
-      "legion_storebuygoods",
-    ],
-  },
-  {
-    name: "legacy",
-    label: "功法",
-    tasks: ["batchLegacyClaim", "batchLegacyGiftSendEnhanced"],
-  },
-  {
-    name: "monthly",
-    label: "月度",
-    tasks: ["batchTopUpFish", "batchTopUpArena"],
-  },
-];
+const taskGroupDefinitions = TASK_GROUP_DEFINITIONS;
 
 // 计算属性，根据 taskGroupDefinitions 将 availableTasks 分组
 const groupedAvailableTasks = computed(() => {
-  const groups = {};
-  taskGroupDefinitions.forEach((group) => {
-    groups[group.name] = availableTasks.filter((task) =>
-      group.tasks.includes(task.value),
-    );
-  });
-
-  // 处理未分组的任务
-  const groupedTaskValues = taskGroupDefinitions.flatMap((g) => g.tasks);
-  const otherTasks = availableTasks.filter(
-    (task) => !groupedTaskValues.includes(task.value),
-  );
-  if (otherTasks.length > 0) {
-    groups.other = otherTasks;
-  }
-
-  return groups;
+  return groupAvailableTasks(availableTasks, taskGroupDefinitions);
 });
 
 let batchLogManager = null;
