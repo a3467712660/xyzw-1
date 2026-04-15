@@ -1,4 +1,5 @@
 import { buildDuelDetailReport } from "@/utils/duelBattleDetailReport";
+import { normalizeFightPvpReplayPayload } from "@/services/replay/fightPvpReplayNormalizer.js";
 
 export function useFightPvpActions({
   tokenStore,
@@ -64,6 +65,7 @@ export function useFightPvpActions({
       let enemyTotalDieHeroCount = 0;
       const resultCount = [];
       const rawBattles = [];
+      const replays = [];
       let selfRoleRaw = null;
       let selfPresetTeamRaw = null;
 
@@ -101,6 +103,15 @@ export function useFightPvpActions({
         }
 
         rawBattles.push(result.battleData);
+        const replay = normalizeFightPvpReplayPayload({
+          battleData: result.battleData,
+          tokenId,
+          targetId: targetId.value,
+          targetName: memberData.value?.name,
+          leftContext: selfRoleRaw?.role || selfRoleRaw?.roleInfo || null,
+          rightContext: memberData.value,
+        });
+        replays.push(replay);
 
         const sponsorTeamInfo = Object.values(
           result.battleData?.result?.sponsor?.teamInfo || {},
@@ -133,6 +144,7 @@ export function useFightPvpActions({
           leftDieHero: leftCount,
           rightDieHero: rightCount,
           isWin: !!result.battleData.result.isWin,
+          replay,
         };
 
         if (result.battleData.result.isWin)
@@ -164,6 +176,7 @@ export function useFightPvpActions({
         enemyTotalDieHeroCount,
         resultCount,
         rawBattles,
+        replays,
         report,
       };
       fightResult.value = teamData;

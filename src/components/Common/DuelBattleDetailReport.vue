@@ -20,6 +20,16 @@
           >
             {{ t("fightPvpCard.detail.exportReport") }}
           </button>
+          <button
+            v-if="latestReplayState.visible"
+            class="report-export-button report-export-button--secondary"
+            type="button"
+            :disabled="latestReplayState.disabled"
+            :title="latestReplayState.title"
+            @click="emit('open-replay', latestReplay)"
+          >
+            {{ latestReplayState.label }}
+          </button>
         </div>
 
         <article class="overview-card">
@@ -210,8 +220,20 @@
                 {{ round.isWin ? t("fightPvpCard.detail.victory") : t("fightPvpCard.detail.defeat") }}
               </span>
             </div>
-            <div class="round-card__meta">
-              {{ t("fightPvpCard.detail.roundMeta", { roundCount: round.roundCount || 0, frameCount: round.totalFrame || 0 }) }}
+            <div class="round-card__header-side">
+              <div class="round-card__meta">
+                {{ t("fightPvpCard.detail.roundMeta", { roundCount: round.roundCount || 0, frameCount: round.totalFrame || 0 }) }}
+              </div>
+              <button
+                v-if="!exportMode && resolveReplayState(getRoundReplay(round)).visible"
+                class="report-export-button report-export-button--secondary report-export-button--compact"
+                type="button"
+                :disabled="resolveReplayState(getRoundReplay(round)).disabled"
+                :title="resolveReplayState(getRoundReplay(round)).title"
+                @click="emit('open-replay', getRoundReplay(round))"
+              >
+                {{ resolveReplayState(getRoundReplay(round)).label }}
+              </button>
             </div>
           </div>
 
@@ -337,9 +359,17 @@ import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 
 const props = defineProps({
+  currentBattleVersion: {
+    type: Number,
+    default: null,
+  },
   report: {
     type: Object,
     default: null,
+  },
+  roundReplays: {
+    type: Array,
+    default: () => [],
   },
   exportMode: {
     type: Boolean,
@@ -347,7 +377,7 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(["export"]);
+const emit = defineEmits(["export", "open-replay"]);
 
 const { t } = useI18n();
 
@@ -431,6 +461,58 @@ const buildNameFallback = (name) => {
   const text = String(name || "").trim();
   return text.slice(0, 2) || "?";
 };
+
+const getRoundReplay = (round) => {
+  const roundIndex = Math.max(Number(round?.index || 0) - 1, 0);
+  return props.roundReplays?.[roundIndex] || null;
+};
+
+const resolveReplayState = (replay) => {
+  if (!replay?.battleData) {
+    return {
+      visible: false,
+      disabled: true,
+      label: t("fightPvpCard.replay.missingPayload"),
+      title: t("fightPvpCard.replay.emptyDescription"),
+    };
+  }
+
+  if (!replay?.battleVersion) {
+    return {
+      visible: true,
+      disabled: true,
+      label: t("fightPvpCard.replay.missingVersion"),
+      title: t("fightPvpCard.replay.missingVersion"),
+    };
+  }
+
+  if (
+    Number.isFinite(Number(props.currentBattleVersion))
+    && Number(props.currentBattleVersion) > 0
+    && Number(replay.battleVersion) !== Number(props.currentBattleVersion)
+  ) {
+    return {
+      visible: true,
+      disabled: true,
+      label: t("fightPvpCard.replay.versionMismatchShort"),
+      title: t("fightPvpCard.replay.versionMismatchTitle"),
+    };
+  }
+
+  return {
+    visible: true,
+    disabled: false,
+    label: t("fightPvpCard.replay.play"),
+    title: t("fightPvpCard.replay.play"),
+  };
+};
+
+const latestReplay = computed(() => {
+  const roundReplays = Array.isArray(props.roundReplays) ? props.roundReplays : [];
+  return roundReplays[roundReplays.length - 1] || null;
+});
+
+const latestReplayState = computed(() => resolveReplayState(latestReplay.value));
 </script>
 
 <style scoped>
@@ -502,6 +584,8 @@ const buildNameFallback = (name) => {
 .battle-stage__action-bar {
   display: flex;
   justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
   margin-bottom: 14px;
 }
 
@@ -765,9 +849,27 @@ const buildNameFallback = (name) => {
   min-width: 220px;
 }
 
+.report-export-button--secondary {
+  background: linear-gradient(180deg, #5f87ff 0%, #3c6ef0 100%);
+  min-width: 180px;
+}
+
+.report-export-button--compact {
+  min-width: auto;
+  padding: 8px 14px;
+  font-size: 12px;
+}
+
 .report-export-button:hover {
   transform: translateY(-1px);
   box-shadow: 0 14px 24px rgba(255, 122, 63, 0.3);
+}
+
+.report-export-button:disabled {
+  opacity: 0.72;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }
 
 .summary-group {
@@ -846,6 +948,13 @@ const buildNameFallback = (name) => {
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+.round-card__header-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
 }
 
 .round-card__index {
@@ -1209,6 +1318,10 @@ const buildNameFallback = (name) => {
     flex-direction: row;
     align-items: center;
     gap: 8px;
+  }
+
+  .round-card__header-side {
+    align-items: flex-start;
   }
 
   .battle-table thead th,

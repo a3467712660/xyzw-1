@@ -6,9 +6,12 @@
       class="battle-detail-export-section"
     >
       <DuelBattleDetailReport
+        :current-battle-version="currentBattleVersion"
         :export-mode="battleDetailExportMode"
         :report="fightResult.report"
+        :round-replays="fightResult.replays || []"
         @export="$emit('export')"
+        @open-replay="$emit('open-replay', $event)"
       ></DuelBattleDetailReport>
     </div>
 
@@ -54,13 +57,26 @@
             <span class="battle-index">
               {{ t("fightPvpCard.labels.battleIndex", { value: index + 1 }) }}
             </span>
-            <n-tag size="small" :type="battle.isWin ? 'success' : 'error'">
-              {{
-                battle.isWin
-                  ? t("fightPvpCard.summary.winResult")
-                  : t("fightPvpCard.summary.lossResult")
-              }}
-            </n-tag>
+            <div class="battle-header-actions">
+              <n-tag size="small" :type="battle.isWin ? 'success' : 'error'">
+                {{
+                  battle.isWin
+                    ? t("fightPvpCard.summary.winResult")
+                    : t("fightPvpCard.summary.lossResult")
+                }}
+              </n-tag>
+              <n-button
+                v-if="resolveReplayState(battle.replay).visible"
+                secondary
+                size="tiny"
+                type="primary"
+                :disabled="resolveReplayState(battle.replay).disabled"
+                :title="resolveReplayState(battle.replay).title"
+                @click="$emit('open-replay', battle.replay)"
+              >
+                {{ resolveReplayState(battle.replay).label }}
+              </n-button>
+            </div>
           </div>
 
           <div class="battle-details">
@@ -119,6 +135,10 @@ import { buildFightPvpResultSummary } from "./pvpDisplayHelpers.js";
 
 const props = defineProps({
   battleDetailExportMode: Boolean,
+  currentBattleVersion: {
+    type: Number,
+    default: null,
+  },
   fightNum: {
     type: [String, Number],
     default: 1,
@@ -137,11 +157,51 @@ const props = defineProps({
   },
 });
 
-defineEmits(["export"]);
+defineEmits(["export", "open-replay"]);
 
 const summary = computed(() =>
   buildFightPvpResultSummary(props.fightNum, props.fightResult),
 );
+
+const resolveReplayState = (replay) => {
+  if (!replay?.battleData) {
+    return {
+      visible: false,
+      disabled: true,
+      label: props.t("fightPvpCard.replay.missingPayload"),
+      title: props.t("fightPvpCard.replay.emptyDescription"),
+    };
+  }
+
+  if (!replay?.battleVersion) {
+    return {
+      visible: true,
+      disabled: true,
+      label: props.t("fightPvpCard.replay.missingVersion"),
+      title: props.t("fightPvpCard.replay.missingVersion"),
+    };
+  }
+
+  if (
+    Number.isFinite(Number(props.currentBattleVersion))
+    && Number(props.currentBattleVersion) > 0
+    && Number(replay.battleVersion) !== Number(props.currentBattleVersion)
+  ) {
+    return {
+      visible: true,
+      disabled: true,
+      label: props.t("fightPvpCard.replay.versionMismatchShort"),
+      title: props.t("fightPvpCard.replay.versionMismatchTitle"),
+    };
+  }
+
+  return {
+    visible: true,
+    disabled: false,
+    label: props.t("fightPvpCard.replay.play"),
+    title: props.t("fightPvpCard.replay.play"),
+  };
+};
 </script>
 
 <style scoped lang="scss">
@@ -174,6 +234,7 @@ const summary = computed(() =>
 .result-summary,
 .summary-item,
 .battle-header,
+.battle-header-actions,
 .battle-details,
 .battle-side {
   display: flex;
@@ -266,6 +327,12 @@ const summary = computed(() =>
   justify-content: space-between;
   align-items: center;
   margin-bottom: 6px;
+}
+
+.battle-header-actions {
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .battle-index {

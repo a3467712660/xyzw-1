@@ -43,6 +43,18 @@
         @use-target="useHistoryTarget"
       ></FightPvpHistoryPanel>
 
+      <FightPvpReplayHistoryPanel
+        v-if="recentFightPvpReplays.length > 0 || replayErrorMessage"
+        :current-battle-version="currentBattleVersion"
+        :error-message="replayErrorMessage"
+        :format-updated-at="formatUpdatedAt"
+        :records="recentFightPvpReplays"
+        :t="t"
+        @clear="clearRecentFightPvpReplays"
+        @open="openReplayFromRecord"
+        @remove="removeRecentFightPvpReplay"
+      ></FightPvpReplayHistoryPanel>
+
       <!-- 加载状态 -->
       <div v-if="loading1" class="loading-section">
         <n-spin size="large">
@@ -63,11 +75,13 @@
         <FightPvpResultPanel
           v-if="fightResult"
           :battle-detail-export-mode="battleDetailExportMode"
+          :current-battle-version="currentBattleVersion"
           :fight-num="fightNum"
           :fight-result="fightResult"
           :set-export-ref="setBattleDetailExportRef"
           :t="t"
           @export="handleExport1"
+          @open-replay="openReplayFromRecord"
         ></FightPvpResultPanel>
       </div>
 
@@ -85,6 +99,13 @@
       :is-red-quench-slot="isRedQuenchSlot"
       :t="t"
     ></FightPvpHeroDetailModal>
+
+    <FightPvpReplayModal
+      v-model:show="showReplayModal"
+      :replay="activeReplayPayload"
+      :t="t"
+      @error="handleReplayModalError"
+    ></FightPvpReplayModal>
   </div>
 </template>
 
@@ -97,6 +118,8 @@ import { useAuthStore } from "@/stores/auth";
 import api from "@/api";
 import FightPvpHeroDetailModal from "@/components/cards/pvp/FightPvpHeroDetailModal.vue";
 import FightPvpHistoryPanel from "@/components/cards/pvp/FightPvpHistoryPanel.vue";
+import FightPvpReplayHistoryPanel from "@/components/cards/pvp/FightPvpReplayHistoryPanel.vue";
+import FightPvpReplayModal from "@/components/cards/pvp/FightPvpReplayModal.vue";
 import FightPvpResultPanel from "@/components/cards/pvp/FightPvpResultPanel.vue";
 import FightPvpTargetPanel from "@/components/cards/pvp/FightPvpTargetPanel.vue";
 import FightPvpToolbar from "@/components/cards/pvp/FightPvpToolbar.vue";
@@ -108,6 +131,12 @@ import {
   saveFightTargetListsToLocalStorage,
   saveFightTargetSyncDiagnosticToLocalStorage,
 } from "@/services/preferences/fightPvpStorage";
+import {
+  appendFightPvpReplay,
+  clearFightPvpReplays,
+  loadFightPvpReplays,
+  removeFightPvpReplay,
+} from "@/services/replay/fightPvpReplayStorage.js";
 import { useFightPvpActions } from "@/composables/useFightPvpActions";
 import { useFightPvpTargetSync } from "@/composables/useFightPvpTargetSync";
 import {
@@ -195,6 +224,10 @@ const activeTargetListTab = ref("history");
 const syncingTargetLists = ref(false);
 const isFightHistorySyncReady = ref(false);
 const isTargetListsSyncReady = ref(false);
+const recentFightPvpReplays = ref([]);
+const replayErrorMessage = ref("");
+const showReplayModal = ref(false);
+const activeReplayPayload = ref(null);
 let fightHistorySyncTimer = null;
 let targetListsSyncTimer = null;
 
@@ -230,6 +263,7 @@ watch(targetId, (newId, oldId) => {
     fightResult.value = null;
   }
 });
+
 // 模态框控制符
 const showHeroModal = ref(false);
 // 选中的武将信息
@@ -1170,6 +1204,102 @@ const currentTabRecords = computed(() => {
   return records;
 });
 
+const currentBattleVersion = computed(() => {
+  const version = Number(tokenStore.getBattleVersion?.());
+  return Number.isFinite(version) && version > 0 ? version : null;
+});
+
+const getReplayStorageUserId = () =>
+  String(
+    authStore.userInfo?.id
+    || localStorage.getItem("activeUserId")
+    || "guest",
+  ).trim() || "guest";
+
+const getReplayStorageTokenId = () =>
+  String(tokenStore.selectedToken?.id || "").trim();
+
+const loadRecentFightPvpReplays = () => {
+  const tokenId = getReplayStorageTokenId();
+  if (!tokenId) {
+    recentFightPvpReplays.value = [];
+    return;
+  }
+
+  recentFightPvpReplays.value = loadFightPvpReplays({
+    userId: getReplayStorageUserId(),
+    tokenId,
+  });
+};
+
+const appendRecentFightPvpReplays = (replays) => {
+  const tokenId = getReplayStorageTokenId();
+  if (!tokenId || !Array.isArray(replays) || replays.length === 0) {
+    return;
+  }
+
+  recentFightPvpReplays.value = appendFightPvpReplay({
+    userId: getReplayStorageUserId(),
+    tokenId,
+    replay: replays,
+  });
+};
+
+const removeRecentFightPvpReplay = (replayId) => {
+  const tokenId = getReplayStorageTokenId();
+  if (!tokenId) {
+    recentFightPvpReplays.value = [];
+    return;
+  }
+
+  recentFightPvpReplays.value = removeFightPvpReplay({
+    userId: getReplayStorageUserId(),
+    tokenId,
+    replayId,
+  });
+};
+
+const clearRecentFightPvpReplays = () => {
+  const tokenId = getReplayStorageTokenId();
+  if (!tokenId) {
+    recentFightPvpReplays.value = [];
+    return;
+  }
+
+  recentFightPvpReplays.value = clearFightPvpReplays({
+    userId: getReplayStorageUserId(),
+    tokenId,
+  });
+};
+
+const closeReplayModal = () => {
+  showReplayModal.value = false;
+  activeReplayPayload.value = null;
+};
+
+const openReplayFromRecord = (replay) => {
+  replayErrorMessage.value = "";
+  activeReplayPayload.value = replay || null;
+  showReplayModal.value = true;
+};
+
+const handleReplayModalError = (messageText) => {
+  replayErrorMessage.value = String(messageText || "").trim();
+};
+
+watch(
+  [
+    () => authStore.userInfo?.id,
+    () => tokenStore.selectedToken?.id,
+  ],
+  () => {
+    replayErrorMessage.value = "";
+    closeReplayModal();
+    loadRecentFightPvpReplays();
+  },
+  { immediate: true },
+);
+
 const removeCurrentTabRecord = (id) => {
   if (activeTargetListTab.value === "history") {
     removeFightHistory(id);
@@ -1424,8 +1554,11 @@ const handlePageSizeChange = (size) => {
   currentPage.value = 1; // 重置到第一页
 };
 // 刷新战绩
-const fightPVPRefresh = () => {
-  fetchfightPVP();
+const fightPVPRefresh = async () => {
+  const result = await fetchfightPVP();
+  if (result?.replays?.length > 0) {
+    appendRecentFightPvpReplays(result.replays);
+  }
 };
 
 // 处理切磋次数变化
@@ -1606,6 +1739,7 @@ onMounted(async () => {
 });
 
 onBeforeUnmount(() => {
+  closeReplayModal();
   if (fightHistorySyncTimer) {
     clearTimeout(fightHistorySyncTimer);
     fightHistorySyncTimer = null;

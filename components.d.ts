@@ -67,6 +67,8 @@ declare module 'vue' {
     FightPvp: typeof import('./src/components/cards/FightPvp.vue')['default']
     FightPvpHeroDetailModal: typeof import('./src/components/cards/pvp/FightPvpHeroDetailModal.vue')['default']
     FightPvpHistoryPanel: typeof import('./src/components/cards/pvp/FightPvpHistoryPanel.vue')['default']
+    FightPvpReplayHistoryPanel: typeof import('./src/components/cards/pvp/FightPvpReplayHistoryPanel.vue')['default']
+    FightPvpReplayModal: typeof import('./src/components/cards/pvp/FightPvpReplayModal.vue')['default']
     FightPvpResultPanel: typeof import('./src/components/cards/pvp/FightPvpResultPanel.vue')['default']
     FightPvpTargetPanel: typeof import('./src/components/cards/pvp/FightPvpTargetPanel.vue')['default']
     FightPvpToolbar: typeof import('./src/components/cards/pvp/FightPvpToolbar.vue')['default']

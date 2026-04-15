@@ -238,9 +238,9 @@ import { getServerList, getTokenId, transformToken } from "@/utils/token";
 import { g_utils } from "@/utils/bonProtocol";
 import { formatPower } from "@/utils/legionWar";
 import { useTokenStore } from "@/stores/tokenStore";
+import { ensureXyzwRuntimeLoaded } from "@/services/replay/xyzwRuntimeLoader.js";
 import { saveBinBuffer } from "@/utils/binStorage";
 import { triggerBlobDownload } from "@/utils/download";
-import { isHostAllowed } from "@/utils/hostAllowlist";
 import { maskToken } from "@/utils/securitySanitizer";
 import {
   confirmAndCopyFullToken,
@@ -283,13 +283,6 @@ const accountName = ref<string | null>(null);
 const isScanning = ref(false);
 
 const WECHAT_PROXY_BASE = "/api/v1/wechat-proxy";
-const XYZW_RUNTIME_SCRIPT_URLS = [
-  "/xyzw/cocos2d-js-min.js",
-  "/xyzw/game-defines.js",
-  "/xyzw/index.js",
-];
-const XYZW_RUNTIME_SCRIPT_ATTR = "data-xyzw-runtime";
-let xyzwRuntimeLoadPromise: Promise<void> | null = null;
 const runtimeSessionIdFallback = new Map<string, string>();
 
 const getSessionStorage = () => {
@@ -355,77 +348,6 @@ const getRuntimeSessionId = (prefix: string) => {
 const runtimeDid = getRuntimeSessionId("did");
 const distinctId = runtimeDid;
 const deviceUniqueId = runtimeDid;
-
-const ensureRuntimeHostAllowed = () => {
-  const host = String(window.location.hostname || "")
-    .trim()
-    .toLowerCase();
-  if (!host)
-    throw new Error(
-      t("tokenImportWxQrcode.errors.runtimeHostNotAllowed", {
-        host: "unknown",
-      }),
-    );
-  if (isHostAllowed(host, import.meta.env.VITE_XYZW_RUNTIME_ALLOWED_HOSTS))
-    return;
-  throw new Error(
-    t("tokenImportWxQrcode.errors.runtimeHostNotAllowed", { host }),
-  );
-};
-
-const loadRuntimeScript = (src: string) =>
-  new Promise<void>((resolve, reject) => {
-    const existing = document.querySelector(
-      `script[${XYZW_RUNTIME_SCRIPT_ATTR}="${src}"]`,
-    ) as HTMLScriptElement | null;
-    if (existing) {
-      if (existing.dataset.loaded === "true") {
-        resolve();
-        return;
-      }
-      existing.addEventListener("load", () => resolve(), { once: true });
-      existing.addEventListener(
-        "error",
-        () => reject(new Error(`加载失败: ${src}`)),
-        { once: true },
-      );
-      return;
-    }
-
-    const script = document.createElement("script");
-    script.defer = true;
-    script.src = src;
-    script.setAttribute(XYZW_RUNTIME_SCRIPT_ATTR, src);
-    script.addEventListener(
-      "load",
-      () => {
-        script.dataset.loaded = "true";
-        resolve();
-      },
-      { once: true },
-    );
-    script.addEventListener(
-      "error",
-      () => reject(new Error(`加载失败: ${src}`)),
-      { once: true },
-    );
-    document.head.appendChild(script);
-  });
-
-const ensureXyzwRuntimeLoaded = async () => {
-  ensureRuntimeHostAllowed();
-  const hasRequire = Boolean((window as any).__require);
-  if (hasRequire) return;
-
-  if (!xyzwRuntimeLoadPromise) {
-    xyzwRuntimeLoadPromise = (async () => {
-      for (const scriptUrl of XYZW_RUNTIME_SCRIPT_URLS) {
-        await loadRuntimeScript(scriptUrl);
-      }
-    })();
-  }
-  await xyzwRuntimeLoadPromise;
-};
 
 const scanInterval = ref<any>(null);
 const timeout = 120000; // 120秒超时
