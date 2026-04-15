@@ -8,6 +8,32 @@ const BOOTSTRAP_TIMEOUT_MS = 7000;
 const POLL_INTERVAL_MS = 50;
 const BOOTSTRAP_SCENE_NAME = "FightPvpReplayBootstrap";
 const GAME_SCENE_NAME = "Game";
+const REPLAY_AUXILIARY_SCRIPT_ATTR = "data-fight-pvp-replay-aux-script";
+const REPLAY_AUXILIARY_SCRIPT_URLS = Object.freeze([
+  "/assets/main/index.js",
+  "/assets/TEST_REMOTE_MODULE/index.js",
+]);
+const REPLAY_AUXILIARY_REQUIRED_MODULES = Object.freeze([
+  "ConfigsExt",
+  "decimal",
+  "decimal-number",
+  "LanguageExt",
+  "consts",
+  "data-index",
+  "random-lcg",
+  "@jimu/basis",
+  "@jimu/ecs",
+  "@o4e/core",
+  "@o4e/cc-mobx",
+  "ts-md5",
+  "@o4e/bon",
+]);
+const REPLAY_AUXILIARY_SOURCE_URLS = Object.freeze([
+  "/xyzw/index.js",
+  "/assets/main/index.js",
+  "/assets/TEST_REMOTE_MODULE/index.js",
+]);
+const REPLAY_VM2_SHIM_KEY = "VM2_INTERNAL_STATE_DO_NOT_USE_OR_PROGRAM_WILL_FAIL";
 
 const toErrorMessage = (error, fallback) =>
   error?.message || String(error || fallback || "Unknown error");
@@ -34,6 +60,205 @@ const waitForNextFrame = (runtimeWindow) =>
 const isAbsoluteUrlLike = (value) =>
   /^(?:[a-z]+:)?\/\//i.test(String(value || "").trim());
 
+const toFiniteNumber = (value) => {
+  if (value && typeof value === "object" && typeof value.valueOf === "function") {
+    const primitive = value.valueOf();
+    const parsed = Number(primitive);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const createDecimalModuleShim = (runtimeWindow = getRuntimeWindow()) => {
+  class ReplayDecimal {
+    constructor(value = 0) {
+      this._value = toFiniteNumber(value);
+    }
+
+    add(value) {
+      return new ReplayDecimal(this._value + toFiniteNumber(value));
+    }
+
+    ceil() {
+      return new ReplayDecimal(Math.ceil(this._value));
+    }
+
+    div(value) {
+      const divisor = toFiniteNumber(value);
+      return new ReplayDecimal(divisor === 0 ? 0 : this._value / divisor);
+    }
+
+    eq(value) {
+      return this._value === toFiniteNumber(value);
+    }
+
+    floor() {
+      return new ReplayDecimal(Math.floor(this._value));
+    }
+
+    gt(value) {
+      return this._value > toFiniteNumber(value);
+    }
+
+    gte(value) {
+      return this._value >= toFiniteNumber(value);
+    }
+
+    lt(value) {
+      return this._value < toFiniteNumber(value);
+    }
+
+    lte(value) {
+      return this._value <= toFiniteNumber(value);
+    }
+
+    minus(value) {
+      return new ReplayDecimal(this._value - toFiniteNumber(value));
+    }
+
+    mul(value) {
+      return new ReplayDecimal(this._value * toFiniteNumber(value));
+    }
+
+    plus(value) {
+      return this.add(value);
+    }
+
+    round() {
+      return new ReplayDecimal(Math.round(this._value));
+    }
+
+    sub(value) {
+      return this.minus(value);
+    }
+
+    times(value) {
+      return this.mul(value);
+    }
+
+    toDecimalPlaces(places = 0) {
+      const factor = 10 ** Math.max(0, Number(places) || 0);
+      return new ReplayDecimal(Math.round(this._value * factor) / factor);
+    }
+
+    toFixed(places = 0) {
+      return this._value.toFixed(Math.max(0, Number(places) || 0));
+    }
+
+    toJSON() {
+      return this._value;
+    }
+
+    toNumber() {
+      return this._value;
+    }
+
+    toString() {
+      return String(this._value);
+    }
+
+    valueOf() {
+      return this._value;
+    }
+
+    static clone() {
+      return ReplayDecimal;
+    }
+
+    static set() {
+      return ReplayDecimal;
+    }
+  }
+
+  runtimeWindow.Decimal = runtimeWindow.Decimal || ReplayDecimal;
+  return {
+    Decimal: runtimeWindow.Decimal,
+    default: runtimeWindow.Decimal,
+  };
+};
+
+const createDecimalNumberModuleShim = () => {
+  const roundTo = (value, places = 0) => {
+    const factor = 10 ** Math.max(0, Number(places) || 0);
+    return Math.floor(toFiniteNumber(value) * factor) / factor;
+  };
+
+  return {
+    DecimalNumber: {
+      ZERO: 0,
+      create(value) {
+        return toFiniteNumber(value);
+      },
+      toFixed(value, places = 0) {
+        return roundTo(value, places);
+      },
+    },
+  };
+};
+
+const BUNDLE_DEFINED_MODULE_RE = /(["']?)([@\w.$/-]+)\1:\s*\[function/g;
+const BUNDLE_EXTERNAL_MODULE_RE = /"([^"]+)":\s*void 0/g;
+
+const getBundleModuleBasename = (value) =>
+  String(value || "")
+    .split("/")
+    .filter(Boolean)
+    .at(-1)
+  || String(value || "");
+
+export const analyzeBundleExternalModuleCoverage = ({
+  gameBundleSource,
+  launcherBundleSource,
+  supplementalBundleSources = [],
+  allowedModules = [],
+} = {}) => {
+  const collectDefinedModules = (source) => {
+    const definedModules = new Set();
+    for (const match of (source || "").matchAll(BUNDLE_DEFINED_MODULE_RE)) {
+      definedModules.add(match[2]);
+    }
+    return definedModules;
+  };
+
+  const allowed = new Set(
+    Array.from(allowedModules || [])
+      .filter(Boolean)
+      .flatMap((value) => [String(value), getBundleModuleBasename(value)]),
+  );
+  const gameDefinedModules = collectDefinedModules(gameBundleSource);
+  const launcherDefinedModules = collectDefinedModules(launcherBundleSource);
+  const supplementalDefinedModules = new Set();
+  for (const source of supplementalBundleSources || []) {
+    for (const name of collectDefinedModules(source)) {
+      supplementalDefinedModules.add(name);
+    }
+  }
+  const missingModules = [];
+
+  for (const match of (gameBundleSource || "").matchAll(BUNDLE_EXTERNAL_MODULE_RE)) {
+    const raw = match[1];
+    const base = getBundleModuleBasename(raw);
+    if (
+      allowed.has(raw)
+      || allowed.has(base)
+      || gameDefinedModules.has(raw)
+      || gameDefinedModules.has(base)
+      || launcherDefinedModules.has(raw)
+      || launcherDefinedModules.has(base)
+      || supplementalDefinedModules.has(raw)
+      || supplementalDefinedModules.has(base)
+    ) {
+      continue;
+    }
+    missingModules.push({ raw, base });
+  }
+
+  return {
+    missingModules,
+  };
+};
+
 export const toAbsoluteBundleRequestTarget = (
   target,
   runtimeWindow = getRuntimeWindow(),
@@ -50,6 +275,135 @@ export const toAbsoluteBundleRequestTarget = (
     || normalized.split("/").filter(Boolean).at(-1)
     || normalized;
   return new URL(`/assets/${bundleName}`, runtimeWindow.location.origin).toString();
+};
+
+const loadReplayAuxiliaryScript = (
+  src,
+  targetDocument = getRuntimeWindow().document,
+) =>
+  new Promise((resolve, reject) => {
+    const existing = targetDocument.querySelector(
+      `script[${REPLAY_AUXILIARY_SCRIPT_ATTR}="${src}"]`,
+    );
+    if (existing) {
+      if (existing.dataset.loaded === "true") {
+        resolve(existing);
+        return;
+      }
+      existing.addEventListener("load", () => resolve(existing), { once: true });
+      existing.addEventListener(
+        "error",
+        () => reject(new Error(`Failed to load replay auxiliary script: ${src}`)),
+        { once: true },
+      );
+      return;
+    }
+
+    const script = targetDocument.createElement("script");
+    script.async = false;
+    script.defer = true;
+    script.src = src;
+    script.crossOrigin = "anonymous";
+    script.setAttribute(REPLAY_AUXILIARY_SCRIPT_ATTR, src);
+    script.addEventListener(
+      "load",
+      () => {
+        script.dataset.loaded = "true";
+        resolve(script);
+      },
+      { once: true },
+    );
+    script.addEventListener(
+      "error",
+      () => reject(new Error(`Failed to load replay auxiliary script: ${src}`)),
+      { once: true },
+    );
+    targetDocument.head.appendChild(script);
+  });
+
+export const createScopedReplayVm2Shim = ({
+  runtimeWindow = getRuntimeWindow(),
+} = {}) => {
+  const hadPreviousValue = Object.prototype.hasOwnProperty.call(
+    runtimeWindow,
+    REPLAY_VM2_SHIM_KEY,
+  );
+  const previousValue = runtimeWindow[REPLAY_VM2_SHIM_KEY];
+
+  runtimeWindow[REPLAY_VM2_SHIM_KEY] = {
+    handleException(error) {
+      return error;
+    },
+  };
+
+  return {
+    dispose() {
+      if (hadPreviousValue) {
+        runtimeWindow[REPLAY_VM2_SHIM_KEY] = previousValue;
+        return;
+      }
+      delete runtimeWindow[REPLAY_VM2_SHIM_KEY];
+    },
+  };
+};
+
+export const ensureReplayAuxiliaryBundlesLoaded = async ({
+  runtimeWindow = getRuntimeWindow(),
+  targetDocument = runtimeWindow.document,
+  diagnostics,
+  scriptUrls = REPLAY_AUXILIARY_SCRIPT_URLS,
+  requiredModules = REPLAY_AUXILIARY_REQUIRED_MODULES,
+} = {}) => {
+  const previousRequire = runtimeWindow.__require;
+  const previousWindowKeys = new Set(Object.getOwnPropertyNames(runtimeWindow));
+  const loadedScripts = [];
+
+  const rollback = () => {
+    if (runtimeWindow.__require !== previousRequire) {
+      runtimeWindow.__require = previousRequire;
+    }
+    for (const key of Object.getOwnPropertyNames(runtimeWindow)) {
+      if (previousWindowKeys.has(key)) {
+        continue;
+      }
+      delete runtimeWindow[key];
+    }
+    for (const scriptElement of loadedScripts.reverse()) {
+      scriptElement.remove?.();
+    }
+  };
+
+  try {
+    for (const scriptUrl of scriptUrls) {
+      diagnostics?.steps?.push?.(`load-auxiliary-script:${scriptUrl}`);
+      const scriptElement = await loadReplayAuxiliaryScript(scriptUrl, targetDocument);
+      loadedScripts.push(scriptElement);
+    }
+
+    const resolvedModules = [];
+    for (const moduleName of requiredModules) {
+      try {
+        runtimeWindow.__require(moduleName);
+        resolvedModules.push(moduleName);
+      } catch (error) {
+        throw new Error(
+          `Replay auxiliary bundles did not register required module "${moduleName}": ${toErrorMessage(error)}`,
+        );
+      }
+    }
+
+    diagnostics.replayAuxiliaryModules = resolvedModules;
+    diagnostics.replayAuxiliaryScripts = [...scriptUrls];
+
+    return {
+      dispose() {
+        rollback();
+      },
+    };
+  } catch (error) {
+    rollback();
+    throw error;
+  }
 };
 
 const waitForValue = async ({
@@ -274,6 +628,176 @@ const safeRequireModule = (runtimeRequire, name) => {
   } catch (error) {
     return null;
   }
+};
+
+const resolveReplayBattleVersion = (replay) => {
+  for (const candidate of [
+    replay?.battleVersion,
+    replay?.battleData?.version,
+    replay?.battleResult?.battleVersion,
+  ]) {
+    const parsed = Number(candidate);
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+  return 0;
+};
+
+export const installReplayManifestShim = ({
+  modules,
+  replay,
+  diagnostics,
+} = {}) => {
+  const platformManagerPrototype = modules?.PlatformManager?.PlatformManager?.prototype;
+  if (!platformManagerPrototype || typeof platformManagerPrototype.manifest !== "function") {
+    return {
+      dispose() {},
+    };
+  }
+
+  const battleVersion = resolveReplayBattleVersion(replay);
+  const previousManifest = platformManagerPrototype.manifest;
+
+  const replayManifest = async function replayManifest() {
+    diagnostics?.steps?.push?.("replay-manifest-called");
+    if (battleVersion > 0) {
+      this._battleVersion = battleVersion;
+    }
+    return {
+      rawData: {
+        battleVersion,
+        bundleVers: {},
+        config: {},
+        isLast: true,
+        serverUrl: "",
+      },
+    };
+  };
+
+  platformManagerPrototype.manifest = replayManifest;
+
+  return {
+    dispose() {
+      if (platformManagerPrototype.manifest === replayManifest) {
+        platformManagerPrototype.manifest = previousManifest;
+      }
+    },
+  };
+};
+
+export const installReplayPageExitGuard = ({
+  modules,
+  runtimeWindow = getRuntimeWindow(),
+  diagnostics,
+} = {}) => {
+  const platformManagerPrototype = modules?.PlatformManager?.PlatformManager?.prototype;
+  const previousExitGame = platformManagerPrototype?.exitGame;
+  const previousRestart = runtimeWindow.cc?.game?.restart;
+
+  const guardedExitGame = function guardedExitGame(reason = null) {
+    diagnostics?.steps?.push?.("blocked-platform-exit-game");
+    diagnostics.replayBlockedExitReason = reason;
+    return null;
+  };
+
+  if (platformManagerPrototype && typeof previousExitGame === "function") {
+    platformManagerPrototype.exitGame = guardedExitGame;
+  }
+
+  if (runtimeWindow.cc?.game && typeof previousRestart === "function") {
+    runtimeWindow.cc.game.restart = () => {
+      diagnostics?.steps?.push?.("blocked-cc-game-restart");
+    };
+  }
+
+  return {
+    dispose() {
+      if (platformManagerPrototype?.exitGame === guardedExitGame) {
+        platformManagerPrototype.exitGame = previousExitGame;
+      }
+      if (runtimeWindow.cc?.game?.restart && previousRestart) {
+        runtimeWindow.cc.game.restart = previousRestart;
+      }
+    },
+  };
+};
+
+export const installReplayLoadingErrorObserver = ({
+  runtimeWindow = getRuntimeWindow(),
+  diagnostics,
+} = {}) => {
+  const loadErrorPrototype = runtimeWindow.__require?.("load-error")?.LoadErrorState?.prototype;
+  if (!loadErrorPrototype || typeof loadErrorPrototype.onEnter !== "function") {
+    return {
+      dispose() {},
+    };
+  }
+
+  const previousOnEnter = loadErrorPrototype.onEnter;
+  const observedOnEnter = async function observedOnEnter(previousState, reason, ...args) {
+    diagnostics.loadingErrorReason = toErrorMessage(reason, "Unknown loading error.");
+    diagnostics.loadingErrorDetail = {
+      message: diagnostics.loadingErrorReason,
+      stack: reason?.stack || null,
+      type: reason?.constructor?.name || typeof reason,
+    };
+    diagnostics.steps?.push?.("observe-loading-error");
+    return previousOnEnter.call(this, previousState, reason, ...args);
+  };
+
+  loadErrorPrototype.onEnter = observedOnEnter;
+
+  return {
+    dispose() {
+      if (loadErrorPrototype.onEnter === observedOnEnter) {
+        loadErrorPrototype.onEnter = previousOnEnter;
+      }
+    },
+  };
+};
+
+export const installReplayResourceManagerGuard = ({
+  modules,
+  runtimeWindow = getRuntimeWindow(),
+  diagnostics,
+} = {}) => {
+  const resourceManagerPrototype = modules?.ResourceManager?.ResourceManager?.prototype;
+  if (!resourceManagerPrototype || typeof resourceManagerPrototype.loadBundle !== "function") {
+    return {
+      dispose() {},
+    };
+  }
+
+  const previousLoadBundle = resourceManagerPrototype.loadBundle;
+  const createMap = runtimeWindow.cc?.js?.createMap?.bind(runtimeWindow.cc.js)
+    || (() => Object.create(null));
+
+  const guardedLoadBundle = function guardedLoadBundle(...args) {
+    if (!this._bundlePromises || typeof this._bundlePromises !== "object") {
+      this._bundlePromises = createMap();
+      diagnostics?.steps?.push?.("init-resource-bundle-promises");
+    }
+    if (!this._fguiPromises || typeof this._fguiPromises !== "object") {
+      this._fguiPromises = createMap();
+      diagnostics?.steps?.push?.("init-resource-fgui-promises");
+    }
+    if (!this.bundleVersions || typeof this.bundleVersions !== "object") {
+      this.bundleVersions = {};
+      diagnostics?.steps?.push?.("init-resource-bundle-versions");
+    }
+    return previousLoadBundle.apply(this, args);
+  };
+
+  resourceManagerPrototype.loadBundle = guardedLoadBundle;
+
+  return {
+    dispose() {
+      if (resourceManagerPrototype.loadBundle === guardedLoadBundle) {
+        resourceManagerPrototype.loadBundle = previousLoadBundle;
+      }
+    },
+  };
 };
 
 const readRuntimeModules = () => {
@@ -543,6 +1067,105 @@ export const installReplayBundleResolverPatch = ({
   };
 };
 
+export const installReplayMissingModuleShims = ({
+  runtimeWindow = getRuntimeWindow(),
+  diagnostics,
+} = {}) => {
+  const decimalModuleShim = createDecimalModuleShim(runtimeWindow);
+  const providedAliases = new Set([
+    "../../extras/libs/decimal/decimal",
+    "decimal",
+  ]);
+  const moduleMap = new Map([
+    ["../../extras/libs/decimal/decimal", decimalModuleShim],
+    ["decimal", decimalModuleShim],
+  ]);
+
+  const decimalNumberShim = createDecimalNumberModuleShim();
+  for (const alias of [
+    "../../../../../extras/battle/basis/number/decimal-number",
+    "../../../../extras/battle/basis/number/decimal-number",
+    "../../../extras/battle/basis/number/decimal-number",
+    "decimal-number",
+  ]) {
+    providedAliases.add(alias);
+    moduleMap.set(alias, decimalNumberShim);
+  }
+
+  const previousRequire = runtimeWindow.__require;
+  if (typeof previousRequire !== "function") {
+    return {
+      dispose() {},
+    };
+  }
+
+  const shimmedRequire = (name, ...rest) => {
+    if (moduleMap.has(name)) {
+      diagnostics?.steps?.push?.(`shim-module:${name}`);
+      return moduleMap.get(name);
+    }
+    return previousRequire(name, ...rest);
+  };
+
+  runtimeWindow.__require = shimmedRequire;
+
+  return {
+    providedAliases,
+    dispose() {
+      if (runtimeWindow.__require === shimmedRequire) {
+        runtimeWindow.__require = previousRequire;
+      }
+    },
+  };
+};
+
+export const inspectReplayGameBundleModuleCoverage = async ({
+  runtimeWindow = getRuntimeWindow(),
+  diagnostics,
+  sourceUrls = REPLAY_AUXILIARY_SOURCE_URLS,
+  allowedModules = [],
+} = {}) => {
+  const gameBundleUrl = new URL("/assets/game/index.js", runtimeWindow.location.origin).toString();
+  const [gameBundleSource, ...supplementalBundleSources] = await Promise.all([
+    runtimeWindow.fetch(gameBundleUrl, {
+      cache: "no-store",
+      credentials: "same-origin",
+      method: "GET",
+    }).then((response) => response.text()),
+    ...sourceUrls.map((sourceUrl) => (
+      runtimeWindow.fetch(new URL(sourceUrl, runtimeWindow.location.origin).toString(), {
+        cache: "no-store",
+        credentials: "same-origin",
+        method: "GET",
+      }).then((response) => response.text())
+    )),
+  ]);
+
+  const coverage = analyzeBundleExternalModuleCoverage({
+    gameBundleSource,
+    launcherBundleSource: supplementalBundleSources[0] || "",
+    supplementalBundleSources: supplementalBundleSources.slice(1),
+    allowedModules,
+  });
+  diagnostics.gameBundleModuleCoverage = {
+    missingCount: coverage.missingModules.length,
+    sample: coverage.missingModules.slice(0, 20),
+  };
+  return coverage;
+};
+
+const buildIncompleteGameBundleMessage = (coverage) => {
+  const missingModules = coverage?.missingModules || [];
+  if (missingModules.length === 0) {
+    return "当前 game bundle 缺少必要 external modules。";
+  }
+  const sample = missingModules
+    .slice(0, 12)
+    .map((entry) => entry.base)
+    .join(", ");
+  return `当前 game bundle 不完整，缺少 ${missingModules.length} 个 external modules，例如：${sample}。`;
+};
+
 const buildBundleAssetProbeTargets = ({
   runtimeWindow = getRuntimeWindow(),
   bundleName = "game",
@@ -691,7 +1314,9 @@ const waitForRuntimeReadyForReplay = async ({
     message: buildMissingGameBundleMessage({
       bundleAssetProbe,
       runtimeState: result?.stateId || readCurrentGameState(modules),
-      loadError: waitError ? toErrorMessage(waitError) : null,
+      loadError:
+        diagnostics?.loadingErrorReason
+        || (waitError ? toErrorMessage(waitError) : null),
     }),
   };
 };
@@ -813,11 +1438,19 @@ export const startFightPvpReplayRuntime = async ({
 
   const adapter = {
     createCanvasHost,
+    createVm2Shim: createScopedReplayVm2Shim,
     createWxShim: createScopedReplayWxShim,
     ensureRuntimeBooted,
     ensureRuntimeLoaded: ensureXyzwRuntimeLoaded,
+    ensureAuxiliaryBundlesLoaded: ensureReplayAuxiliaryBundlesLoaded,
     ensureBundleVersionContainers: ensureReplayBundleVersionContainers,
+    installLoadingErrorObserver: installReplayLoadingErrorObserver,
+    installManifestShim: installReplayManifestShim,
+    installPageExitGuard: installReplayPageExitGuard,
+    installResourceManagerGuard: installReplayResourceManagerGuard,
     installBundleResolverPatch: installReplayBundleResolverPatch,
+    installMissingModuleShims: installReplayMissingModuleShims,
+    inspectGameBundleModuleCoverage: inspectReplayGameBundleModuleCoverage,
     ensureReplayBootstrapScene,
     locateReplayEntrypoint,
     probeGameBundleAssets,
@@ -858,6 +1491,22 @@ export const startFightPvpReplayRuntime = async ({
       variant: XYZW_RUNTIME_VARIANTS.REPLAY_BROWSER,
     });
 
+    diagnostics.steps.push("install-vm2-shim");
+    const vm2Shim = adapter.createVm2Shim();
+    cleanups.push(() => vm2Shim.dispose?.());
+
+    diagnostics.steps.push("load-auxiliary-bundles");
+    const auxiliaryBundles = await adapter.ensureAuxiliaryBundlesLoaded({
+      diagnostics,
+    });
+    cleanups.push(() => auxiliaryBundles.dispose?.());
+
+    diagnostics.steps.push("install-loading-error-observer");
+    const loadingErrorObserver = adapter.installLoadingErrorObserver({
+      diagnostics,
+    });
+    cleanups.push(() => loadingErrorObserver.dispose?.());
+
     const { canvas } = adapter.createCanvasHost(hostElement);
     cleanups.push(() => {
       hostElement.innerHTML = "";
@@ -870,9 +1519,43 @@ export const startFightPvpReplayRuntime = async ({
     });
     cleanups.push(() => wxShim.dispose?.());
 
+    diagnostics.steps.push("install-missing-module-shims");
+    const missingModuleShims = adapter.installMissingModuleShims({
+      diagnostics,
+    });
+    cleanups.push(() => missingModuleShims.dispose?.());
+
     diagnostics.steps.push("read-runtime-modules");
     const modules = adapter.readRuntimeModules();
     diagnostics.runtimeSnapshotBeforeBoot = getRuntimeSnapshot(modules);
+
+    diagnostics.steps.push("install-manifest-shim");
+    const manifestShim = adapter.installManifestShim({
+      modules,
+      replay,
+      diagnostics,
+    });
+    cleanups.push(() => manifestShim.dispose?.());
+
+    diagnostics.steps.push("install-page-exit-guard");
+    const pageExitGuard = adapter.installPageExitGuard({
+      modules,
+      diagnostics,
+    });
+    cleanups.push(() => pageExitGuard.dispose?.());
+
+    diagnostics.steps.push("install-resource-manager-guard");
+    const resourceManagerGuard = adapter.installResourceManagerGuard({
+      modules,
+      diagnostics,
+    });
+    cleanups.push(() => resourceManagerGuard.dispose?.());
+
+    diagnostics.steps.push("ensure-bundle-version-containers-preboot");
+    adapter.ensureBundleVersionContainers({
+      modules,
+      diagnostics,
+    });
 
     diagnostics.steps.push("ensure-runtime-booted");
     await adapter.ensureRuntimeBooted({ canvas, diagnostics });
@@ -902,6 +1585,24 @@ export const startFightPvpReplayRuntime = async ({
       modules,
       diagnostics,
     });
+
+    diagnostics.steps.push("inspect-game-bundle-module-coverage");
+    const gameBundleCoverage = await adapter.inspectGameBundleModuleCoverage({
+      diagnostics,
+      allowedModules: [
+        ...Array.from(missingModuleShims.providedAliases || []),
+        ...REPLAY_AUXILIARY_REQUIRED_MODULES,
+      ],
+    });
+    if (gameBundleCoverage?.missingModules?.length > 0) {
+      return {
+        ok: false,
+        reason: "runtime-load-failed",
+        message: buildIncompleteGameBundleMessage(gameBundleCoverage),
+        diagnostics,
+        dispose,
+      };
+    }
 
     diagnostics.steps.push("wait-for-runtime-ready");
     const runtimeReady = await adapter.waitForRuntimeReadyForReplay({

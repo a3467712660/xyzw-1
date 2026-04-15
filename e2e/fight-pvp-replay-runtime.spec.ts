@@ -29,7 +29,7 @@ const createReplayPayload = () => ({
   },
 });
 
-test("fight pvp replay runtime no longer dies in wx or bundleVers boot blockers", async ({
+test("fight pvp replay runtime enters game scene and starts replay playback", async ({
   page,
 }) => {
   const consoleErrors: string[] = [];
@@ -48,7 +48,7 @@ test("fight pvp replay runtime no longer dies in wx or bundleVers boot blockers"
 
   const result = await page.evaluate(async (replayPayload) => {
     const { startFightPvpReplayRuntime } = await import(
-      "/src/services/replay/fightPvpReplayRuntimeBridge.js"
+      "/src/services/replay/fightPvpReplayRuntimeBridge.js",
     );
 
     const hostElement = document.getElementById("runtime-probe-host");
@@ -65,18 +65,21 @@ test("fight pvp replay runtime no longer dies in wx or bundleVers boot blockers"
     };
   }, createReplayPayload());
 
-  expect(result.ok).toBeFalsy();
-  expect(result.reason).toBe("runtime-load-failed");
+  expect(result.ok).toBeTruthy();
+  expect(result.reason).toBe("ok");
   expect(result.diagnostics.runtimeSnapshotAfterBoot.gamePrepared).toBeTruthy();
   expect(
     result.diagnostics.runtimeSnapshotAfterBoot.gameRendererInitialized,
   ).toBeTruthy();
-  expect(result.message).toContain("/assets/game/config.json");
-  expect(result.message).toContain("/assets/game/index.js");
+  expect(result.diagnostics.runtimeSnapshotAfterLauncher.sceneName).toBe("Game");
   expect(result.diagnostics.gameStateHistory).toContain("LoadGameScene");
+  expect(result.diagnostics.replayEntrypoint).toBe(
+    "require:BattleUIManager.SHOW_BATTLE_REPLAY_UI",
+  );
 
   const joinedErrors = [...consoleErrors, ...pageErrors].join("\n");
   expect(joinedErrors).not.toContain("wx is not defined");
   expect(joinedErrors).not.toContain("TEXTURE_2D");
   expect(joinedErrors).not.toContain("Cannot read properties of null (reading 'game')");
+  expect(joinedErrors).not.toContain("Cannot find module 'decimal'");
 });

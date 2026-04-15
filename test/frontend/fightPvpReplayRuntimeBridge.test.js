@@ -2,7 +2,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  analyzeBundleExternalModuleCoverage,
+  createScopedReplayVm2Shim,
   ensureReplayBundleVersionContainers,
+  installReplayResourceManagerGuard,
+  installReplayPageExitGuard,
+  installReplayMissingModuleShims,
+  installReplayManifestShim,
   startFightPvpReplayRuntime,
   toAbsoluteBundleRequestTarget,
 } from "../../src/services/replay/fightPvpReplayRuntimeBridge.js";
@@ -70,6 +76,217 @@ test("fight pvp replay runtime bridge rewrites local bundle targets to root abso
   );
 });
 
+test("fight pvp replay runtime bridge installs replay-only shims for decimal modules", () => {
+  const runtimeWindow = {
+    __require(name) {
+      throw new Error(`unhandled:${name}`);
+    },
+  };
+  const diagnostics = { steps: [] };
+
+  const shim = installReplayMissingModuleShims({
+    runtimeWindow,
+    diagnostics,
+  });
+
+  const decimalModule = runtimeWindow.__require("../../extras/libs/decimal/decimal");
+  const decimalNumberModule = runtimeWindow.__require("decimal-number");
+
+  assert.equal(typeof decimalModule.Decimal, "function");
+  assert.equal(decimalModule.Decimal.prototype.toFixed.call({ _value: 1.23 }, 1), "1.2");
+  assert.equal(decimalNumberModule.DecimalNumber.ZERO, 0);
+  assert.equal(decimalNumberModule.DecimalNumber.create("3.5"), 3.5);
+  assert.equal(decimalNumberModule.DecimalNumber.toFixed(1.239, 2), 1.23);
+
+  shim.dispose();
+  assert.throws(() => runtimeWindow.__require("decimal-number"), /unhandled/);
+});
+
+test("fight pvp replay runtime bridge installs a scoped VM2 shim for obfuscated auxiliary bundles", () => {
+  const runtimeWindow = {};
+
+  const shim = createScopedReplayVm2Shim({
+    runtimeWindow,
+  });
+
+  assert.equal(
+    runtimeWindow.VM2_INTERNAL_STATE_DO_NOT_USE_OR_PROGRAM_WILL_FAIL.handleException("boom"),
+    "boom",
+  );
+
+  shim.dispose();
+  assert.equal(
+    "VM2_INTERNAL_STATE_DO_NOT_USE_OR_PROGRAM_WILL_FAIL" in runtimeWindow,
+    false,
+  );
+});
+
+test("fight pvp replay runtime bridge installs a replay-local manifest shim", async () => {
+  class MockPlatformManager {
+    async manifest() {
+      throw new Error("should be replaced");
+    }
+  }
+
+  const modules = {
+    PlatformManager: {
+      PlatformManager: MockPlatformManager,
+    },
+  };
+  const diagnostics = { steps: [] };
+  const shim = installReplayManifestShim({
+    modules,
+    replay: {
+      battleVersion: 240495,
+      battleData: {
+        version: 240495,
+      },
+    },
+    diagnostics,
+  });
+
+  const instance = new MockPlatformManager();
+  const manifest = await instance.manifest();
+
+  assert.equal(instance._battleVersion, 240495);
+  assert.equal(manifest.rawData.battleVersion, 240495);
+  assert.equal(manifest.rawData.isLast, true);
+  assert.ok(diagnostics.steps.includes("replay-manifest-called"));
+
+  shim.dispose();
+  await assert.rejects(instance.manifest(), /should be replaced/);
+});
+
+test("fight pvp replay runtime bridge blocks page exit and restart inside replay session", () => {
+  class MockPlatformManager {
+    exitGame() {
+      throw new Error("should be blocked");
+    }
+  }
+
+  const runtimeWindow = {
+    cc: {
+      game: {
+        restart() {
+          throw new Error("should be blocked");
+        },
+      },
+    },
+  };
+  const diagnostics = { steps: [] };
+  const guard = installReplayPageExitGuard({
+    modules: {
+      PlatformManager: {
+        PlatformManager: MockPlatformManager,
+      },
+    },
+    runtimeWindow,
+    diagnostics,
+  });
+
+  const platformManager = new MockPlatformManager();
+  assert.equal(platformManager.exitGame("replay"), null);
+  runtimeWindow.cc.game.restart();
+  assert.ok(diagnostics.steps.includes("blocked-platform-exit-game"));
+  assert.ok(diagnostics.steps.includes("blocked-cc-game-restart"));
+
+  guard.dispose();
+  assert.throws(() => platformManager.exitGame(), /should be blocked/);
+});
+
+test("fight pvp replay runtime bridge guards resource manager bundle maps before loadBundle", async () => {
+  class MockResourceManager {
+    async loadBundle(bundleName) {
+      return {
+        bundleName,
+        bundlePromisesType: typeof this._bundlePromises,
+        fguiPromisesType: typeof this._fguiPromises,
+      };
+    }
+  }
+
+  const runtimeWindow = {
+    cc: {
+      js: {
+        createMap() {
+          return Object.create(null);
+        },
+      },
+    },
+  };
+  const diagnostics = { steps: [] };
+  const guard = installReplayResourceManagerGuard({
+    modules: {
+      ResourceManager: {
+        ResourceManager: MockResourceManager,
+      },
+    },
+    runtimeWindow,
+    diagnostics,
+  });
+
+  const resourceManager = new MockResourceManager();
+  resourceManager._bundlePromises = null;
+  resourceManager._fguiPromises = null;
+  resourceManager.bundleVersions = null;
+
+  const result = await resourceManager.loadBundle("TEST_REMOTE_MODULE");
+
+  assert.equal(result.bundleName, "TEST_REMOTE_MODULE");
+  assert.equal(result.bundlePromisesType, "object");
+  assert.equal(result.fguiPromisesType, "object");
+  assert.deepEqual(resourceManager.bundleVersions, {});
+  assert.ok(diagnostics.steps.includes("init-resource-bundle-promises"));
+  assert.ok(diagnostics.steps.includes("init-resource-fgui-promises"));
+
+  guard.dispose();
+});
+
+test("fight pvp replay runtime bridge reports missing external modules from incomplete game bundle", () => {
+  const coverage = analyzeBundleExternalModuleCoverage({
+    gameBundleSource: `
+      window.__require = function(){};
+      ({ "KnownLocal": [function(){}], "GameLoading": [function(e){ e("../../extras/libs/decimal/decimal"); e("../../extras/config/extensions/LanguageExt"); }, {
+        "../../extras/libs/decimal/decimal": void 0,
+        "../../extras/config/extensions/LanguageExt": void 0,
+        "./KnownLocal": "KnownLocal"
+      }] });
+    `,
+    launcherBundleSource: `
+      window.__require = function(){};
+      ({ "LanguageExt": [function(){}] });
+    `,
+    supplementalBundleSources: [
+      `
+        window.__require = function(){};
+        ({ "decimal-number": [function(){}] });
+      `,
+    ],
+    allowedModules: ["decimal", "../../extras/libs/decimal/decimal"],
+  });
+
+  assert.deepEqual(coverage.missingModules, []);
+
+  const incompleteCoverage = analyzeBundleExternalModuleCoverage({
+    gameBundleSource: `
+      window.__require = function(){};
+      ({ "GameLoading": [function(e){ e("../../extras/libs/decimal/decimal"); e("../../extras/config/extensions/LanguageExt"); }, {
+        "../../extras/libs/decimal/decimal": void 0,
+        "../../extras/config/extensions/LanguageExt": void 0
+      }] });
+    `,
+    launcherBundleSource: `window.__require = function(){};`,
+    allowedModules: ["decimal", "../../extras/libs/decimal/decimal"],
+  });
+
+  assert.deepEqual(incompleteCoverage.missingModules, [
+    {
+      raw: "../../extras/config/extensions/LanguageExt",
+      base: "LanguageExt",
+    },
+  ]);
+});
+
 test("fight pvp replay runtime bridge returns ok true when replay entrypoint starts successfully", async () => {
   class MockHTMLElement {
     constructor() {
@@ -108,9 +325,18 @@ test("fight pvp replay runtime bridge returns ok true when replay entrypoint sta
       }),
       ensureRuntimeBooted: async () => {},
       ensureRuntimeLoaded: async () => {},
+      createVm2Shim: () => ({
+        dispose() {},
+      }),
+      ensureAuxiliaryBundlesLoaded: async () => ({
+        dispose() {},
+      }),
       locateReplayEntrypoint: () => ({
         label: "mock-entrypoint",
         invoke() {},
+      }),
+      inspectGameBundleModuleCoverage: async () => ({
+        missingModules: [],
       }),
       probeGameBundleAssets: async () => [],
       readRuntimeModules: () => ({}),
