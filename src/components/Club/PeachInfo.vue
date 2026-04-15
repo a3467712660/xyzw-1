@@ -107,141 +107,44 @@
       @update:show="showPlayerInfoModal = $event"
     >
       <template #actions>
-        <div class="action-section">
-          <div class="fight-inline">
-            <div class="fight-count-container">
-              <label class="fight-count-label" for="fightCount">
-                {{ t("peachInfo.duel.countLabel") }}
-              </label>
-              <NInput
-                id="fightCount"
-                class="fight-count-input"
-                max="100"
-                min="1"
-                size="small"
-                type="number"
-                v-model:value="fightCount"
-                :placeholder="t('peachInfo.duel.countPlaceholder')"
-                :step="1"
-                @input="validateFightCount"
-              ></NInput>
-              <div class="fight-count-hint">{{ t("peachInfo.duel.rangeHint") }}</div>
-            </div>
-            <NButton
-              class="mr-8"
-              size="small"
-              type="tertiary"
-              @click="showPlayerInfoModal = false"
-            >
-              {{ t("peachInfo.common.close") }}
-            </NButton>
-          </div>
-          <NButton type="primary" :disabled="!isFightCountValid" @click="handleDuel">
-            {{ t("peachInfo.duel.start") }}
-          </NButton>
-        </div>
+        <PeachFightActionPanel
+          :close-text="t('peachInfo.common.close')"
+          :count-label="t('peachInfo.duel.countLabel')"
+          :count-placeholder="t('peachInfo.duel.countPlaceholder')"
+          :fight-count="fightCount"
+          :is-fight-count-valid="isFightCountValid"
+          :range-hint="t('peachInfo.duel.rangeHint')"
+          :start-text="t('peachInfo.duel.start')"
+          @close="showPlayerInfoModal = false"
+          @start="handleDuel"
+          @update:fight-count="fightCount = $event"
+          @validate="validateFightCount"
+        ></PeachFightActionPanel>
       </template>
       <template #status>
-        <div v-if="fightProgress.visible" class="fight-progress">
-          <div class="progress-info">
-            <div class="progress-title">{{ t("peachInfo.duel.inProgress") }}</div>
-            <div class="progress-stats">
-              <span>{{ t("peachInfo.duel.totalCount", { count: fightProgress.totalCount }) }}</span>
-              <span>{{ t("peachInfo.duel.completedCount", { count: fightProgress.completedCount }) }}</span>
-              <span>{{ t("peachInfo.duel.remainingCount", { count: fightProgress.remainingCount }) }}</span>
-              <span>{{ t("peachInfo.duel.winCount", { count: fightProgress.winCount }) }}</span>
-              <span>{{ t("peachInfo.duel.lossCount", { count: fightProgress.lossCount }) }}</span>
-            </div>
-          </div>
-          <NProgress
-            status="processing"
-            type="line"
-            :percentage="fightProgress.percentage"
-            :show-indicator="false"
-            :stroke-width="8"
-          ></NProgress>
-        </div>
+        <PeachFightProgressPanel
+          v-if="fightProgress.visible"
+          :percentage="fightProgress.percentage"
+          :stats="fightProgressStats"
+          :title="t('peachInfo.duel.inProgress')"
+        ></PeachFightProgressPanel>
 
-        <div v-if="fightResult.visible" class="fight-result">
-          <div class="result-header">
-            <h4 class="result-title">{{ t("peachInfo.duel.resultTitle") }}</h4>
-            <div class="result-summary">
-              <div class="summary-item">
-                <span class="summary-label">{{ t("peachInfo.duel.summary.totalCount") }}</span>
-                <span class="summary-value">{{ fightResult.totalCount }}</span>
-              </div>
-              <div class="summary-item">
-                <span class="summary-label">{{ t("peachInfo.duel.summary.win") }}</span>
-                <span class="summary-value win">{{ fightResult.winCount }}</span>
-              </div>
-              <div class="summary-item">
-                <span class="summary-label">{{ t("peachInfo.duel.summary.loss") }}</span>
-                <span class="summary-value loss">{{ fightResult.lossCount }}</span>
-              </div>
-              <div class="summary-item">
-                <span class="summary-label">{{ t("peachInfo.duel.summary.winRate") }}</span>
-                <span class="summary-value">
-                  {{ ((fightResult.winCount / fightResult.totalCount) * 100).toFixed(2) }}%
-                </span>
-              </div>
-              <div class="summary-item">
-                <span class="summary-label">{{ t("peachInfo.duel.summary.ourDieRate") }}</span>
-                <span class="summary-value">
-                  {{ ((dieStats.ourDieHeroGameCount / fightResult.totalCount) * 100).toFixed(2) }}%
-                </span>
-              </div>
-              <div class="summary-item">
-                <span class="summary-label">{{ t("peachInfo.duel.summary.enemyDieRate") }}</span>
-                <span class="summary-value">
-                  {{ ((dieStats.enemyDieHeroGameCount / fightResult.totalCount) * 100).toFixed(2) }}%
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div class="result-list">
-            <div
-              v-for="(battle, index) in fightResult.resultCount"
-              :key="index"
-              class="battle-result-item"
-              :class="[battle.isWin ? 'win' : 'loss']"
-            >
-              <div class="battle-header">
-                <span class="battle-index">{{ t("peachInfo.duel.battleIndex", { index: index + 1 }) }}</span>
-                <NTag size="small" :type="battle.isWin ? 'success' : 'error'">
-                  {{ battle.isWin ? t("peachInfo.duel.win") : t("peachInfo.duel.loss") }}
-                </NTag>
-              </div>
-
-              <div class="battle-details">
-                <div class="battle-side left-side">
-                  <NAvatar round class="side-avatar" :size="32" :src="battle.leftheadImg"></NAvatar>
-                  <div class="side-info">
-                    <span class="side-name">{{ battle.leftName || t("peachInfo.common.unknown") }}</span>
-                    <span class="side-power">{{ t("peachInfo.labels.power", { value: battle.leftpower }) }}</span>
-                    <span class="side-die">{{ t("peachInfo.duel.dieHeroCount", { count: battle.leftDieHero }) }}</span>
-                  </div>
-                </div>
-
-                <div class="battle-vs">VS</div>
-
-                <div class="battle-side right-side">
-                  <NAvatar round class="side-avatar" :size="32" :src="battle.rightheadImg"></NAvatar>
-                  <div class="side-info">
-                    <span class="side-name">{{ battle.rightName || t("peachInfo.common.unknown") }}</span>
-                    <span class="side-power">{{ t("peachInfo.labels.power", { value: battle.rightpower }) }}</span>
-                    <span class="side-die">{{ t("peachInfo.duel.dieHeroCount", { count: battle.rightDieHero }) }}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="result-actions">
-            <NButton type="primary" @click="resetFightResult">{{ t("peachInfo.duel.retry") }}</NButton>
-            <NButton @click="fightResult.visible = false">{{ t("peachInfo.duel.closeResult") }}</NButton>
-          </div>
-        </div>
+        <PeachFightResultPanel
+          v-if="fightResult.visible"
+          :battles="fightResult.resultCount"
+          :close-text="t('peachInfo.duel.closeResult')"
+          :format-battle-index="formatBattleIndexText"
+          :format-die-text="formatBattleDieLabel"
+          :format-power-text="formatBattlePowerLabel"
+          :loss-text="t('peachInfo.duel.loss')"
+          :retry-text="t('peachInfo.duel.retry')"
+          :summary-items="peachFightSummaryItems"
+          :title="t('peachInfo.duel.resultTitle')"
+          :unknown-text="t('peachInfo.common.unknown')"
+          :win-text="t('peachInfo.duel.win')"
+          @close="fightResult.visible = false"
+          @retry="resetFightResult"
+        ></PeachFightResultPanel>
       </template>
     </ClubMemberDetailModal>
 
@@ -266,12 +169,9 @@ import {
   watch,
 } from "vue";
 import {
-  NAvatar,
   NButton,
   NEmpty,
   NIcon,
-  NInput,
-  NProgress,
   NSpin,
   NTag,
   useMessage,
@@ -281,6 +181,9 @@ import { useTokenStore } from "@/stores/tokenStore";
 import ClubMemberDetailModal from "./info/ClubMemberDetailModal.vue";
 import ClubMemberListPanel from "./info/ClubMemberListPanel.vue";
 import PeachInfoSummaryPanel from "./info/PeachInfoSummaryPanel.vue";
+import PeachFightActionPanel from "./info/PeachFightActionPanel.vue";
+import PeachFightProgressPanel from "./info/PeachFightProgressPanel.vue";
+import PeachFightResultPanel from "./info/PeachFightResultPanel.vue";
 import ClubRankHeroDetailModal from "./rank/ClubRankHeroDetailModal.vue";
 import { captureWithHtml2canvas } from "@/utils/html2canvasLoader";
 import { downloadCanvasAsPagedImages } from "@/utils/imageExport";
@@ -296,6 +199,7 @@ import {
   buildClubMemberHeroChips,
   getClubMemberAvatarFallback,
 } from "./info/clubMemberDisplayHelpers.js";
+import { buildPeachFightSummaryItems } from "./info/clubInfoDisplayHelpers.js";
 import { useI18n } from "vue-i18n";
 
 const message = useMessage();
@@ -472,6 +376,38 @@ const dieStats = reactive({
   ourDieHeroGameCount: 0,
   enemyDieHeroGameCount: 0,
 });
+
+const fightProgressStats = computed(() => [
+  t("peachInfo.duel.totalCount", { count: fightProgress.totalCount }),
+  t("peachInfo.duel.completedCount", { count: fightProgress.completedCount }),
+  t("peachInfo.duel.remainingCount", { count: fightProgress.remainingCount }),
+  t("peachInfo.duel.winCount", { count: fightProgress.winCount }),
+  t("peachInfo.duel.lossCount", { count: fightProgress.lossCount }),
+]);
+
+const peachFightSummaryItems = computed(() =>
+  buildPeachFightSummaryItems({
+    dieStats,
+    fightResult,
+    labels: {
+      enemyDieRate: t("peachInfo.duel.summary.enemyDieRate"),
+      lossCount: t("peachInfo.duel.summary.loss"),
+      ourDieRate: t("peachInfo.duel.summary.ourDieRate"),
+      totalCount: t("peachInfo.duel.summary.totalCount"),
+      winCount: t("peachInfo.duel.summary.win"),
+      winRate: t("peachInfo.duel.summary.winRate"),
+    },
+  }),
+);
+
+const formatBattleIndexText = (index) =>
+  t("peachInfo.duel.battleIndex", { index: index + 1 });
+
+const formatBattlePowerLabel = (value) =>
+  t("peachInfo.labels.power", { value });
+
+const formatBattleDieLabel = (count) =>
+  t("peachInfo.duel.dieHeroCount", { count });
 
 // 武将详情模态框状态
 const showHeroModal = ref(false);

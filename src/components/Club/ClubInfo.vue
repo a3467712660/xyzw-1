@@ -31,100 +31,15 @@ size="small"
           </NSpace>
         </div>
 
-        <!-- 申请列表悬浮界面 -->
-        <NModal
-          class="modal-w-700 modal-max-h-80"
-          preset="card"
-          title="俱乐部申请列表"
+        <ClubApplyListModal
           v-model:show="showApplyList"
-          :close-on-esc="true"
-          :content-style="{
-            padding: '0',
-            maxHeight: 'calc(80vh - 60px)',
-            overflow: 'auto',
-          }"
-          :mask-closable="true"
-          :show-close-button="true"
-          :show-footer="false"
-        >
-          <template #header-extra>
-            <NSpace size="small">
-              <NButton
-                size="small"
-                type="primary"
-                :disabled="applyList.length === 0"
-                @click="approveAll"
-              >
-                一键通过
-              </NButton>
-              <NButton
-                size="small"
-                type="error"
-                :disabled="applyList.length === 0"
-                @click="rejectAll"
-              >
-                一键拒绝
-              </NButton>
-            </NSpace>
-          </template>
-          <div v-if="loadingApply" class="loading">
-            <n-spin size="small"></n-spin>
-            <span class="ml-8">正在加载申请列表...</span>
-          </div>
-          <div v-else-if="applyList.length === 0" class="empty-apply">
-            <n-empty description="暂无申请"></n-empty>
-          </div>
-          <div v-else class="apply-list-container">
-            <div class="apply-list apply-list-lg">
-              <div
-                v-for="apply in applyList"
-                :key="apply.roleId"
-                class="apply-item"
-                :class="{ 'apply-item-hover': hoveredItemId === apply.roleId }"
-                @mouseenter="hoveredItemId = apply.roleId"
-                @mouseleave="hoveredItemId = null"
-              >
-                <div class="apply-left">
-                  <NAvatar
-                    :size="28"
-                    :src="apply.headImg || '/icons/xiaoyugan.png'"
-                  ></NAvatar>
-                  <div class="apply-info">
-                    <div class="apply-name">
-                      {{ apply.name }}(ID:{{ apply.roleId }})
-                    </div>
-                    <div class="apply-details">
-                      <span>等级: {{ apply.level || 0 }}</span>
-                      <span class="apply-power">{{
-                        formatNumber(apply.power || 0)
-                      }}</span>
-                      <span v-if="apply.serverId"
-                        >服务器: {{ apply.serverId }}</span
-                      >
-                    </div>
-                    <div v-if="apply.applyReason" class="apply-reason">
-                      申请留言: {{ apply.applyReason }}
-                    </div>
-                  </div>
-                </div>
-                <div class="apply-right">
-                  <NSpace size="small">
-                    <NButton
-                      size="tiny"
-                      type="primary"
-                      @click="approveApply(apply.roleId)"
-                    >
-                      通过
-                    </NButton>
-                    <NButton size="tiny" @click="rejectApply(apply.roleId)">
-                      拒绝
-                    </NButton>
-                  </NSpace>
-                </div>
-              </div>
-            </div>
-          </div>
-        </NModal>
+          :items="applyListItems"
+          :loading="loadingApply"
+          @approve="approveApply"
+          @approve-all="approveAll"
+          @reject="rejectApply"
+          @reject-all="rejectAll"
+        ></ClubApplyListModal>
 
         <n-tabs animated type="line" v-model:value="activeTab">
           <n-tab-pane display-directive="show:lazy" name="overview" tab="概览">
@@ -152,47 +67,21 @@ size="small"
                 :mobile-items="clubMobileMembers"
                 :row-key="(row) => row.roleId"
                 :scroll-x="650"
-                :table-columns="memberColumns"
-                :table-data="topMembers"
-                @action="handleClubMemberAction"
-                @select="handleClubMemberSelect"
-              >
-                <template #toolbar>
-                  <div class="members-actions-bar">
-                    <NButton
-                      secondary
-                      class="members-actions-btn"
-                      size="small"
-                      type="primary"
-                      :disabled="batchLoading"
-                      @click="fetchAllMembersLineup"
-                    >
-                      获取阵容
-                    </NButton>
-                    <NButton
-                      secondary
-                      class="members-actions-btn"
-                      size="small"
-                      type="info"
-                      :disabled="isExporting"
-                      @click="handleExportImage"
-                    >
-                      导出图片
-                    </NButton>
-                  </div>
-                </template>
-                <template #banner>
-                  <div v-if="isExporting" class="member-export-banner">
-                    <div class="member-export-title">俱乐部成员信息总览</div>
-                    <div class="member-export-club">
-                      俱乐部：{{ club?.name || "未知俱乐部" }}
-                    </div>
-                    <div class="member-export-meta">
-                      导出时间 {{ memberExportTimeText }} · 共
-                      {{ topMembers.length }} 名成员
-                    </div>
-                  </div>
-                </template>
+              :table-columns="memberColumns"
+              :table-data="topMembers"
+              @action="handleClubMemberAction"
+              @select="handleClubMemberSelect"
+            >
+              <template #toolbar>
+                <ClubMemberActionPanel
+                  :banner-model="memberExportBannerModel"
+                  :export-disabled="isExporting"
+                  :fetch-lineup-disabled="batchLoading"
+                  :is-exporting="isExporting"
+                  @export-image="handleExportImage"
+                  @fetch-lineup="fetchAllMembersLineup"
+                ></ClubMemberActionPanel>
+              </template>
               </ClubMemberListPanel>
             </div>
           </n-tab-pane>
@@ -247,8 +136,6 @@ size="small"
 import { computed, h, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import {
   NButton,
-  NDataTable,
-  NModal,
   NSpace,
   NTag,
   useDialog,
@@ -261,6 +148,8 @@ import CarScoreInfo from "./CarScoreInfo.vue";
 import ClubInfoSummaryPanel from "./info/ClubInfoSummaryPanel.vue";
 import ClubMemberListPanel from "./info/ClubMemberListPanel.vue";
 import ClubMemberDetailModal from "./info/ClubMemberDetailModal.vue";
+import ClubMemberActionPanel from "./info/ClubMemberActionPanel.vue";
+import ClubApplyListModal from "./info/ClubApplyListModal.vue";
 import ClubRankHeroDetailModal from "./rank/ClubRankHeroDetailModal.vue";
 import {
   getLineupType,
@@ -284,6 +173,10 @@ import {
   buildClubMemberHeroChips,
   getClubMemberAvatarFallback,
 } from "./info/clubMemberDisplayHelpers.js";
+import {
+  buildClubApplyDisplayModel,
+  buildClubMemberExportBannerModel,
+} from "./info/clubInfoDisplayHelpers.js";
 import { useClubAdminActions } from "@/composables/useClubAdminActions";
 import { captureWithHtml2canvas } from "@/utils/html2canvasLoader";
 import { downloadCanvasAsImage } from "@/utils/imageExport";
@@ -321,6 +214,20 @@ const memberExportTimeText = computed(() => {
   const pad = (n) => String(n).padStart(2, "0");
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
 });
+
+const memberExportBannerModel = computed(() =>
+  buildClubMemberExportBannerModel({
+    clubName: club.value?.name,
+    exportedAt: memberExportTimeText.value,
+    memberCount: topMembers.value.length,
+  }),
+);
+
+const applyListItems = computed(() =>
+  applyList.value.map((apply) =>
+    buildClubApplyDisplayModel(apply, formatNumber),
+  ),
+);
 
 const clubMobileMembers = computed(() =>
   topMembers.value.map((member) =>
@@ -985,9 +892,6 @@ const activeTab = ref("overview");
 const showApplyList = ref(false);
 const loadingApply = ref(false);
 const applyList = ref([]);
-
-// 选择状态
-const hoveredItemId = ref(null);
 
 // 组件挂载时添加事件监听器
 onMounted(() => {

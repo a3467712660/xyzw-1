@@ -60,7 +60,7 @@
 
 - `src/views/batch-daily-tasks/`
   - 批量日常任务页的局部页面块与排序 helper。
-  - 用于承接页面壳、账号选择区、任务 modal body、分组管理、模板管理、梦境购买、月赛助威，以及设置 / helper / 定时任务列表 modal 壳等视图层拆分，避免主页面文件继续堆积。
+  - 用于承接页面壳、账号选择区、任务 modal body、分组管理、模板管理、梦境购买、月赛助威，以及设置 / helper / 定时任务列表 / 模板 / 旧功法赠送 / 批量设置 / 任务编辑等 modal 壳视图层拆分，避免主页面文件继续堆积。
 
 - `src/components/cards/lineup/`
   - 阵容助手的局部展示组件与纯 helper。
@@ -72,7 +72,7 @@
 
 - `src/components/Club/info/`
   - 俱乐部信息页与成员展示的局部组件和纯 helper。
-  - 用于承接摘要面板、成员列表壳、成员详情 modal、职位/阵容/战力 formatter，避免 `PeachInfo.vue`、`ClubInfo.vue` 继续堆积。
+  - 用于承接摘要面板、成员列表壳、成员详情 modal、成员动作条、申请列表 modal、桃园切磋动作/进度/结果面板，以及职位/阵容/战力/说明文案 helper，避免 `PeachInfo.vue`、`ClubInfo.vue` 继续堆积。
 
 - `src/components/Club/records/`
   - 俱乐部战绩页共用的工具条、badge 与纯 formatter。

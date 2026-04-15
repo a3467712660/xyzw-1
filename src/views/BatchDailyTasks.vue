@@ -83,41 +83,17 @@
       @update-field="(key, value) => updateSettingsField(currentSettings, key, value)"
     ></BatchDailyTasksSettingsModal>
 
-    <!-- Task Template Modal -->
-    <n-modal
-      class="modal-w-400"
-      preset="card"
+    <BatchDailyTasksTaskTemplateModal
       v-model:show="showTaskTemplateModal"
-      :title="currentTemplateId ? '编辑任务模板' : '任务模板设置'"
-    >
-      <div class="settings-content">
-        <div class="settings-grid">
-          <div class="setting-item">
-            <label class="setting-label">模板名称</label>
-            <n-input
-              placeholder="请输入模板名称"
-              size="small"
-              v-model:value="currentTemplateName"
-            ></n-input>
-          </div>
-        </div>
-        <BatchDailyTaskSettingsForm
-          :boss-times-options="bossTimesOptions"
-          :formation-options="formationOptions"
-          :settings="currentTemplate"
-          @update-field="(key, value) => updateSettingsField(currentTemplate, key, value)"
-        ></BatchDailyTaskSettingsForm>
-        <div class="modal-actions modal-actions-right">
-          <n-button
-            class="btn-mr"
-            @click="showTaskTemplateModal = false"
-          >
-            取消
-          </n-button>
-          <n-button type="primary" @click="saveTaskTemplate">保存模板</n-button>
-        </div>
-      </div>
-    </n-modal>
+      :boss-times-options="bossTimesOptions"
+      :formation-options="formationOptions"
+      :template="currentTemplate"
+      :template-id="currentTemplateId"
+      :template-name="currentTemplateName"
+      @save="saveTaskTemplate"
+      @update-field="(key, value) => updateSettingsField(currentTemplate, key, value)"
+      @update:template-name="currentTemplateName = $event"
+    ></BatchDailyTasksTaskTemplateModal>
 
     <BatchDailyTasksApplyTemplateModal
       v-model:selected-template-id="selectedTemplateId"
@@ -151,33 +127,25 @@
       @filter-account-templates="filterAccountTemplates"
     ></BatchDailyTasksAccountTemplateModal>
 
-    <!-- Legacy Gift Modal -->
-    <n-modal
-      class="modal-w-600"
-      preset="card"
-      title="批量功法残卷赠送"
+    <BatchDailyTasksLegacyGiftModal
       v-model:show="showLegacyGiftModal"
-    >
-      <TaskControlLegacyGiftModalBody
-        :avatar-load-error="avatarLoadError"
-        :clear-recipient-error="clearRecipientError"
-        :gift-quantity="giftQuantity"
-        :handle-avatar-error="handleAvatarError"
-        :handle-avatar-load="handleAvatarLoad"
-        :is-avatar-loading="isAvatarLoading"
-        :is-querying-recipient="isQueryingRecipient"
-        :on-confirm-legacy-gift="confirmLegacyGift"
-        :on-query-recipient-info="queryRecipientInfo"
-        :recipient-id-error="recipientIdError"
-        :recipient-id-input="recipientIdInput"
-        :recipient-info="recipientInfo"
-        :security-password="securityPassword"
-        @close="showLegacyGiftModal = false"
-        @update:gift-quantity="giftQuantity = $event"
-        @update:recipient-id-input="recipientIdInput = $event"
-        @update:security-password="securityPassword = $event"
-      ></TaskControlLegacyGiftModalBody>
-    </n-modal>
+      :avatar-load-error="avatarLoadError"
+      :clear-recipient-error="clearRecipientError"
+      :gift-quantity="giftQuantity"
+      :handle-avatar-error="handleAvatarError"
+      :handle-avatar-load="handleAvatarLoad"
+      :is-avatar-loading="isAvatarLoading"
+      :is-querying-recipient="isQueryingRecipient"
+      :on-confirm-legacy-gift="confirmLegacyGift"
+      :on-query-recipient-info="queryRecipientInfo"
+      :recipient-id-error="recipientIdError"
+      :recipient-id-input="recipientIdInput"
+      :recipient-info="recipientInfo"
+      :security-password="securityPassword"
+      @update:gift-quantity="giftQuantity = $event"
+      @update:recipient-id-input="recipientIdInput = $event"
+      @update:security-password="securityPassword = $event"
+    ></BatchDailyTasksLegacyGiftModal>
 
     <BatchDailyTasksHelperModal
       v-model:show="showHelperModal"
@@ -212,432 +180,39 @@
       :task-countdowns="taskCountdowns"
     ></BatchDailyTasksListModal>
 
-    <!-- Task Modal -->
-    <n-modal
-      class="modal-w-600"
-      preset="card"
+    <BatchDailyTasksTaskModal
       v-model:show="showTaskModal"
+      :cron-next-runs="cronNextRuns"
+      :cron-validation="cronValidation"
+      :grouped-available-tasks="groupedAvailableTasks"
+      :sorted-tokens="sortedTokens"
+      :task-form="taskForm"
+      :task-group-definitions="taskGroupDefinitions"
+      :task-schedule-selected-group-ids="taskScheduleSelectedGroupIds"
       :title="editingTask ? '编辑定时任务' : '新增定时任务'"
-    >
-      <BatchDailyTaskModalBody
-        :cron-next-runs="cronNextRuns"
-        :cron-validation="cronValidation"
-        :grouped-available-tasks="groupedAvailableTasks"
-        :sorted-tokens="sortedTokens"
-        :task-form="taskForm"
-        :task-group-definitions="taskGroupDefinitions"
-        :task-schedule-selected-group-ids="taskScheduleSelectedGroupIds"
-        :token-groups="tokenGroups"
-        @cancel="showTaskModal = false"
-        @deselect-all-tasks="deselectAllTasks"
-        @deselect-all-tokens="deselectAllTokens"
-        @open-group-manage="showGroupManageModal = true"
-        @parse-cron="parseCronExpression"
-        @reset-run-type="resetRunType"
-        @save="saveTask"
-        @select-all-tasks="selectAllTasks"
-        @select-all-tokens="selectAllTokens"
-        @toggle-task-group="toggleTaskScheduleGroup"
-        @update-task-form-field="updateTaskFormField"
-      ></BatchDailyTaskModalBody>
-    </n-modal>
+      :token-groups="tokenGroups"
+      @deselect-all-tasks="deselectAllTasks"
+      @deselect-all-tokens="deselectAllTokens"
+      @open-group-manage="showGroupManageModal = true"
+      @parse-cron="parseCronExpression"
+      @reset-run-type="resetRunType"
+      @save="saveTask"
+      @select-all-tasks="selectAllTasks"
+      @select-all-tokens="selectAllTokens"
+      @toggle-task-group="toggleTaskScheduleGroup"
+      @update-task-form-field="updateTaskFormField"
+    ></BatchDailyTasksTaskModal>
 
-    <!-- Batch Settings Modal -->
-    <n-modal
-      class="modal-w-700"
-      preset="card"
-      title="任务设置"
+    <BatchDailyTasksBatchSettingsModal
       v-model:show="showBatchSettingsModal"
-    >
-      <div class="settings-content">
-        <n-grid :cols="2" :x-gap="24">
-          <!-- 左列：批量操作设置 -->
-          <n-grid-item>
-            <n-divider
-              class="divider-tight"
-              title-placement="left"
-            >
-              批量操作设置
-            </n-divider>
-            <div class="settings-grid">
-              <div class="setting-item setting-item-row">
-                <label class="setting-label">开箱数量(10倍)</label>
-                <n-input-number
-                  class="input-w-100"
-                  size="small"
-                  v-model:value="batchSettings.boxCount"
-                  :max="10000"
-                  :min="10"
-                  :step="10"
-                ></n-input-number>
-              </div>
-              <div class="setting-item setting-item-row">
-                <label class="setting-label">钓鱼数量(10倍)</label>
-                <n-input-number
-                  class="input-w-100"
-                  size="small"
-                  v-model:value="batchSettings.fishCount"
-                  :max="10000"
-                  :min="10"
-                  :step="10"
-                ></n-input-number>
-              </div>
-              <div class="setting-item setting-item-row">
-                <label class="setting-label">招募数量(10倍)</label>
-                <n-input-number
-                  class="input-w-100"
-                  size="small"
-                  v-model:value="batchSettings.recruitCount"
-                  :max="10000"
-                  :min="10"
-                  :step="10"
-                ></n-input-number>
-              </div>
-              <div class="setting-item setting-item-row">
-                <label class="setting-label">默认宝箱类型</label>
-                <n-select
-                  class="input-w-100"
-                  size="small"
-                  v-model:value="batchSettings.defaultBoxType"
-                  :options="boxTypeOptions"
-                ></n-select>
-              </div>
-              <div class="setting-item setting-item-row">
-                <label class="setting-label">默认鱼竿类型</label>
-                <n-select
-                  class="input-w-100"
-                  size="small"
-                  v-model:value="batchSettings.defaultFishType"
-                  :options="fishTypeOptions"
-                ></n-select>
-              </div>
-              <div class="setting-item setting-item-row">
-                <label class="setting-label">梦境商品购买配置</label>
-                <n-button
-                  size="small"
-                  @click="openDreamBuyModal"
-                >
-                  点击配置
-                </n-button>
-              </div>
-            </div>
-            <n-divider
-              class="divider-normal"
-              title-placement="left"
-            >
-              智能发车条件设置(0为不限制)
-            </n-divider>
-            <div class="settings-grid">
-              <div class="setting-item setting-item-row">
-                <label class="setting-label">保底车辆颜色</label>
-                <n-select
-                  class="input-w-100"
-                  size="small"
-                  v-model:value="batchSettings.carMinColor"
-                  :options="[
-                    { label: '绿·普通', value: 1 },
-                    { label: '蓝·稀有', value: 2 },
-                    { label: '紫·史诗', value: 3 },
-                    { label: '橙·传说', value: 4 },
-                    { label: '红·神话', value: 5 },
-                    { label: '金·传奇', value: 6 },
-                  ]"
-                ></n-select>
-              </div>
-              <div class="setting-item setting-item-row">
-                <label class="setting-label">车辆强制刷新保底</label>
-                <n-switch
-                  v-model:value="batchSettings.useGoldRefreshFallback"
-                ></n-switch>
-              </div>
-            </div>
-            <div
-              v-if="batchSettings.useGoldRefreshFallback"
-              class="settings-grid settings-grid-top-gap"
-            >
-              <div class="setting-item setting-item-row">
-                <label class="setting-label">需同时满足所有条件</label>
-                <n-switch
-                  v-model:value="batchSettings.smartDepartureMatchAll"
-                ></n-switch>
-              </div>
-              <div class="setting-item setting-item-row">
-                <label class="setting-label">金砖 >=</label>
-                <n-input-number
-                  class="input-w-100"
-                  size="small"
-                  v-model:value="batchSettings.smartDepartureGoldThreshold"
-                  :min="0"
-                  :step="100"
-                ></n-input-number>
-              </div>
-              <div class="setting-item setting-item-row">
-                <label class="setting-label">招募令 >=</label>
-                <n-input-number
-                  class="input-w-100"
-                  size="small"
-                  v-model:value="batchSettings.smartDepartureRecruitThreshold"
-                  :min="0"
-                  :step="10"
-                ></n-input-number>
-              </div>
-              <div class="setting-item setting-item-row">
-                <label class="setting-label">白玉 >=</label>
-                <n-input-number
-                  class="input-w-100"
-                  size="small"
-                  v-model:value="batchSettings.smartDepartureJadeThreshold"
-                  :min="0"
-                  :step="100"
-                ></n-input-number>
-              </div>
-              <div class="setting-item setting-item-row">
-                <label class="setting-label">刷新卷 >=</label>
-                <n-input-number
-                  class="input-w-100"
-                  size="small"
-                  v-model:value="batchSettings.smartDepartureTicketThreshold"
-                  :min="0"
-                  :step="1"
-                ></n-input-number>
-              </div>
-            </div>
-            <div class="settings-grid settings-grid-top-gap">
-              <div class="setting-item setting-item-row">
-                <label class="setting-label">护卫阵容分析</label>
-                <n-switch
-                  v-model:value="batchSettings.helperLineupAnalysisEnabled"
-                ></n-switch>
-              </div>
-              <div
-                v-if="batchSettings.helperLineupAnalysisEnabled"
-                class="setting-item setting-item-row"
-              >
-                <label class="setting-label">优先阵容关键词</label>
-                <n-select
-                  clearable
-                  filterable
-                  multiple
-                  class="input-w-100"
-                  placeholder="选择优先匹配的阵容关键词"
-                  size="small"
-                  v-model:value="batchSettings.helperPreferredLineups"
-                  :options="helperLineupKeywordOptions"
-                ></n-select>
-              </div>
-            </div>
-            <n-divider
-              class="divider-normal"
-              title-placement="left"
-            >
-              功法赠送设置
-            </n-divider>
-            <div class="settings-grid">
-              <div class="setting-item setting-item-row">
-                <label class="setting-label">接收者ID</label>
-                <n-input-number
-                  class="input-w-100"
-                  placeholder="ID"
-                  size="small"
-                  v-model:value="batchSettings.receiverId"
-                  :show-button="false"
-                ></n-input-number>
-              </div>
-              <div class="setting-item setting-item-row">
-                <label class="setting-label">密码</label>
-                <n-input
-                  class="input-w-100"
-                  placeholder="密码"
-                  size="small"
-                  type="password"
-                  v-model:value="batchSettings.password"
-                ></n-input>
-              </div>
-            </div>
-          </n-grid-item>
-          <!-- 右列：延迟与连接设置 -->
-          <n-grid-item>
-            <n-divider
-              class="divider-tight"
-              title-placement="left"
-            >
-              延迟设置(ms)
-            </n-divider>
-            <div class="settings-grid">
-              <div class="setting-item setting-item-row">
-                <label class="setting-label">命令延迟</label>
-                <n-input-number
-                  class="input-w-100"
-                  size="small"
-                  v-model:value="batchSettings.commandDelay"
-                  :max="2000"
-                  :min="100"
-                  :step="100"
-                ></n-input-number>
-              </div>
-              <div class="setting-item setting-item-row">
-                <label class="setting-label">任务间延迟</label>
-                <n-input-number
-                  class="input-w-100"
-                  size="small"
-                  v-model:value="batchSettings.taskDelay"
-                  :max="2000"
-                  :min="100"
-                  :step="100"
-                ></n-input-number>
-              </div>
-              <div class="setting-item setting-item-row">
-                <label class="setting-label">操作延迟</label>
-                <n-input-number
-                  class="input-w-100"
-                  size="small"
-                  v-model:value="batchSettings.actionDelay"
-                  :max="2000"
-                  :min="100"
-                  :step="100"
-                ></n-input-number>
-              </div>
-              <div class="setting-item setting-item-row">
-                <label class="setting-label">战斗延迟</label>
-                <n-input-number
-                  class="input-w-100"
-                  size="small"
-                  v-model:value="batchSettings.battleDelay"
-                  :max="2000"
-                  :min="100"
-                  :step="100"
-                ></n-input-number>
-              </div>
-              <div class="setting-item setting-item-row">
-                <label class="setting-label">刷新延迟</label>
-                <n-input-number
-                  class="input-w-100"
-                  size="small"
-                  v-model:value="batchSettings.refreshDelay"
-                  :max="3000"
-                  :min="500"
-                  :step="100"
-                ></n-input-number>
-              </div>
-              <div class="setting-item setting-item-row">
-                <label class="setting-label">长延迟</label>
-                <n-input-number
-                  class="input-w-100"
-                  size="small"
-                  v-model:value="batchSettings.longDelay"
-                  :max="10000"
-                  :min="1000"
-                  :step="500"
-                ></n-input-number>
-              </div>
-            </div>
-            <n-divider
-              class="divider-normal"
-              title-placement="left"
-            >
-              连接设置
-            </n-divider>
-            <div class="settings-grid">
-              <div class="setting-item setting-item-row">
-                <label class="setting-label">最大并发数</label>
-                <n-input-number
-                  class="input-w-100"
-                  size="small"
-                  v-model:value="batchSettings.maxActive"
-                  :max="20"
-                  :min="1"
-                  :step="1"
-                ></n-input-number>
-              </div>
-              <div class="setting-item setting-item-row">
-                <label class="setting-label">连接超时(ms)</label>
-                <n-input-number
-                  class="input-w-100"
-                  size="small"
-                  v-model:value="batchSettings.connectionTimeout"
-                  :max="30000"
-                  :min="1000"
-                  :step="1000"
-                ></n-input-number>
-              </div>
-              <div class="setting-item setting-item-row">
-                <label class="setting-label">重连等待(ms)</label>
-                <n-input-number
-                  class="input-w-100"
-                  size="small"
-                  v-model:value="batchSettings.reconnectDelay"
-                  :max="5000"
-                  :min="100"
-                  :step="100"
-                ></n-input-number>
-              </div>
-            </div>
-            <n-divider
-              class="divider-normal"
-              title-placement="left"
-            >
-              系统设置
-            </n-divider>
-            <div class="settings-grid">
-              <div class="setting-item setting-item-row">
-                <label class="setting-label">列表每行数量</label>
-                <n-input-number
-                  class="input-w-100"
-                  size="small"
-                  v-model:value="batchSettings.tokenListColumns"
-                  :max="10"
-                  :min="1"
-                  :step="1"
-                ></n-input-number>
-              </div>
-              <div class="setting-item setting-item-row">
-                <label class="setting-label">最大日志条目</label>
-                <n-input-number
-                  class="input-w-100"
-                  size="small"
-                  v-model:value="batchSettings.maxLogEntries"
-                  :max="5000"
-                  :min="100"
-                  :step="100"
-                ></n-input-number>
-              </div>
-              <div class="setting-item setting-item-row">
-                <label class="setting-label">定时刷新页面</label>
-                <n-switch v-model:value="batchSettings.enableRefresh"></n-switch>
-              </div>
-              <div
-                v-if="batchSettings.enableRefresh"
-                class="setting-item setting-item-row"
-              >
-                <label class="setting-label">刷新间隔(分钟)</label>
-                <n-input-number
-                  class="input-w-100"
-                  size="small"
-                  v-model:value="batchSettings.refreshInterval"
-                  :max="1440"
-                  :min="10"
-                  :step="30"
-                ></n-input-number>
-              </div>
-            </div>
-          </n-grid-item>
-        </n-grid>
-        <div class="modal-actions modal-actions-right">
-          <n-button
-            class="btn-mr"
-            @click="showBatchSettingsModal = false"
-          >
-            取消
-          </n-button>
-          <n-button
-            type="primary"
-            @click="saveBatchSettings"
-          >
-            保存设置
-          </n-button>
-        </div>
-      </div>
-    </n-modal>
+      :batch-settings="batchSettings"
+      :box-type-options="boxTypeOptions"
+      :fish-type-options="fishTypeOptions"
+      :helper-lineup-keyword-options="helperLineupKeywordOptions"
+      @open-dream-buy="openDreamBuyModal"
+      @save="saveBatchSettings"
+      @update-field="(key, value) => updateSettingsField(batchSettings, key, value)"
+    ></BatchDailyTasksBatchSettingsModal>
 
     <BatchDailyTasksWarGuessModal
       v-model:selected-war-guess-legion-id="selectedWarGuessLegionId"
@@ -711,14 +286,16 @@ import { DailyTaskRunner } from "@/utils/dailyTaskRunner";
 import { useMessage } from "naive-ui/es";
 import BatchDailyTasksAccountTemplateModal from "@/views/batch-daily-tasks/BatchDailyTasksAccountTemplateModal.vue";
 import BatchDailyTasksApplyTemplateModal from "@/views/batch-daily-tasks/BatchDailyTasksApplyTemplateModal.vue";
+import BatchDailyTasksBatchSettingsModal from "@/views/batch-daily-tasks/BatchDailyTasksBatchSettingsModal.vue";
 import BatchDailyTasksHelperModal from "@/views/batch-daily-tasks/BatchDailyTasksHelperModal.vue";
 import BatchDailyTasksHeader from "@/views/batch-daily-tasks/BatchDailyTasksHeader.vue";
 import BatchDailyTasksDreamBuyModal from "@/views/batch-daily-tasks/BatchDailyTasksDreamBuyModal.vue";
+import BatchDailyTasksLegacyGiftModal from "@/views/batch-daily-tasks/BatchDailyTasksLegacyGiftModal.vue";
 import BatchDailyTasksListModal from "@/views/batch-daily-tasks/BatchDailyTasksListModal.vue";
 import BatchDailyTasksLogPanel from "@/views/batch-daily-tasks/BatchDailyTasksLogPanel.vue";
-import BatchDailyTaskModalBody from "@/views/batch-daily-tasks/BatchDailyTaskModalBody.vue";
-import BatchDailyTaskSettingsForm from "@/views/batch-daily-tasks/BatchDailyTaskSettingsForm.vue";
 import BatchDailyTasksSettingsModal from "@/views/batch-daily-tasks/BatchDailyTasksSettingsModal.vue";
+import BatchDailyTasksTaskModal from "@/views/batch-daily-tasks/BatchDailyTasksTaskModal.vue";
+import BatchDailyTasksTaskTemplateModal from "@/views/batch-daily-tasks/BatchDailyTasksTaskTemplateModal.vue";
 import BatchDailyTasksGroupManageModal from "@/views/batch-daily-tasks/BatchDailyTasksGroupManageModal.vue";
 import BatchDailyTasksTemplateManagerModal from "@/views/batch-daily-tasks/BatchDailyTasksTemplateManagerModal.vue";
 import BatchDailyTasksToolbar from "@/views/batch-daily-tasks/BatchDailyTasksToolbar.vue";
@@ -756,10 +333,6 @@ import {
 } from "@/utils/batch";
 
 import { goldItemsConfig, merchantConfig } from "@/utils/dreamConstants";
-
-const TaskControlLegacyGiftModalBody = defineAsyncComponent(
-  () => import("@/components/task-control/TaskControlLegacyGiftModalBody.vue"),
-);
 
 // Initialize token store, message service, and task runner
 const tokenStore = useTokenStore();
