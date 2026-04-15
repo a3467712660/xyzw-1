@@ -177,72 +177,140 @@ const equipmentGroups = computed(() => {
   -webkit-overflow-scrolling: touch;
 }
 
-.hero-modal-content,
-.hero-modal-details,
-.hero-modal-equipment {
-  display: grid;
-  gap: 16px;
-}
+.hero-detail-modal {
+  .hero-modal-content {
+    padding: 20px 0;
+  }
 
-.hero-modal-header {
-  display: flex;
-  gap: 16px;
-  align-items: center;
-}
+  .hero-modal-header {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    margin-bottom: 20px;
+  }
 
-.hero-modal-avatar img,
-.hero-placeholder {
-  width: 72px;
-  height: 72px;
-  border-radius: 50%;
-}
+  .hero-modal-avatar {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    background: var(--bg-secondary, #f9f9f9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    border: 2px solid var(--border-light, #eee);
 
-.hero-placeholder {
-  display: grid;
-  place-items: center;
-  background: var(--n-border-color);
-}
+    img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+  }
 
-.hero-modal-basic,
-.hero-modal-stats {
-  display: grid;
-  gap: 8px;
-}
+  .hero-placeholder {
+    font-size: 36px;
+    font-weight: var(--font-weight-bold, bold);
+    color: var(--text-secondary, #999);
+  }
 
-.equipment-grid {
-  display: grid;
-  gap: 12px;
-}
+  .hero-modal-basic {
+    flex: 1;
+  }
 
-.equipment-item {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-}
+  .hero-modal-name {
+    margin: 0 0 10px 0;
+    font-size: var(--font-size-lg, 16px);
+    font-weight: var(--font-weight-bold, bold);
+  }
 
-.equipment-slots {
-  display: flex;
-  gap: 6px;
-}
+  .hero-modal-stats {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    font-size: var(--font-size-sm, 14px);
+    color: var(--text-secondary, #666);
 
-.equipment-slot {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.12);
-}
+    .stat-item {
+      padding: 4px 8px;
+      background: var(--bg-secondary, #f9f9f9);
+      border-radius: var(--border-radius-sm, 4px);
+      border: 1px solid var(--border-light, #eee);
+    }
+  }
 
-.equipment-slot.red-slot {
-  background: #d03050;
-}
+  .hero-modal-details {
+    margin-bottom: 20px;
 
-.ModalEquipment {
-  display: inline-block;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  margin-right: 6px;
-  background: var(--equip-color, #666);
+    :deep(.n-descriptions) {
+      font-size: var(--font-size-sm, 14px);
+
+      .n-descriptions-item-label {
+        font-weight: var(--font-weight-medium, 500);
+        color: var(--text-primary, #333);
+      }
+
+      .n-descriptions-item-content {
+        color: var(--text-secondary, #666);
+      }
+    }
+  }
+
+  .hero-modal-equipment {
+    margin-top: 20px;
+  }
+
+  .section-title {
+    margin: 0 0 15px 0;
+    font-size: var(--font-size-base, 14px);
+    font-weight: var(--font-weight-bold, bold);
+  }
+
+  .equipment-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 15px;
+  }
+
+  .equipment-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .equipment-label {
+    font-size: var(--font-size-sm, 14px);
+    color: var(--text-primary, #333);
+    font-weight: var(--font-weight-medium, 500);
+    width: 60px;
+  }
+
+  .equipment-slots {
+    display: flex;
+    gap: 6px;
+  }
+
+  .equipment-slot {
+    width: 20px;
+    height: 20px;
+    border: 1px solid var(--border-light, #eee);
+    border-radius: var(--border-radius-sm, 4px);
+    background: var(--bg-secondary, #f9f9f9);
+  }
+
+  .equipment-slot.red-slot {
+    background: var(--error-color, #ff4d4f);
+    border-color: var(--error-color, #ff4d4f);
+  }
+
+  .ModalEquipment {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    margin-right: 4px;
+    display: inline-block;
+    vertical-align: middle;
+    background-color: var(--equip-color);
+  }
 }
 
 @media (max-width: 768px) {
@@ -250,10 +318,19 @@ const equipmentGroups = computed(() => {
     max-height: calc(100dvh - 12px);
   }
 
-  .hero-modal-header,
-  .equipment-item {
-    flex-direction: column;
-    align-items: flex-start;
+  .hero-detail-modal {
+    :deep(.n-modal-content) {
+      padding: 0 !important;
+    }
+
+    .hero-modal-header {
+      flex-direction: column;
+      text-align: center;
+    }
+
+    .equipment-grid {
+      grid-template-columns: 1fr;
+    }
   }
 }
 </style>

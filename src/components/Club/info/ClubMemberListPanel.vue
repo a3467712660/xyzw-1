@@ -71,6 +71,7 @@
             </div>
             <div v-if="item.lineupTag" class="member-mobile-lineup">
               <NTag
+                class="member-lineup-tag"
                 size="small"
                 :bordered="false"
                 :color="item.lineupTag.color"
@@ -80,7 +81,7 @@
             </div>
           </div>
 
-          <div v-if="item.chips.length" class="member-mobile-lineup">
+          <div v-if="item.chips.length" class="member-mobile-lineup member-mobile-chips">
             <span
               v-for="(chip, chipIndex) in item.chips"
               :key="`${item.id}-${chipIndex}`"
@@ -168,78 +169,165 @@ defineEmits(["action", "select"]);
 <style scoped lang="scss">
 .members-mobile-wrap {
   display: grid;
-  gap: 12px;
+  gap: 10px;
 }
 
 .member-mobile-title {
-  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  position: relative;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border-light);
+  background: linear-gradient(
+    180deg,
+    var(--bg-tertiary) 0%,
+    var(--bg-secondary) 100%
+  );
+  font-size: 13px;
   font-weight: 700;
+  text-align: center;
+  color: var(--text-primary);
+  letter-spacing: 0.5px;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+}
+
+.member-mobile-title::before,
+.member-mobile-title::after {
+  content: "";
+  flex: 1;
+  max-width: 56px;
+  height: 1px;
+  background: var(--border-light);
 }
 
 .members-mobile-list {
   display: grid;
-  gap: 12px;
+  gap: 10px;
 }
 
 .member-mobile-item {
-  border-radius: 16px;
-  padding: 14px;
-  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: linear-gradient(
+    180deg,
+    var(--bg-tertiary) 0%,
+    var(--bg-secondary) 100%
+  );
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.05);
 }
 
 .member-mobile-strip {
   display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
   gap: 10px;
 }
 
 .member-mobile-left {
   display: flex;
-  gap: 12px;
-  align-items: center;
+  gap: 8px;
   cursor: pointer;
+  min-width: 0;
 }
 
 .member-mobile-avatar {
-  width: 44px;
-  height: 44px;
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
   object-fit: cover;
+  flex-shrink: 0;
+  border: 1px solid var(--border-light);
 }
 
 .member-mobile-avatar--placeholder {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  font-size: 13px;
+  border: 1px solid var(--border-light);
 }
 
 .member-mobile-name {
+  color: #1890ff;
+  font-size: 14px;
   font-weight: 600;
+  line-height: 1.25;
+  word-break: break-all;
 }
 
-.member-mobile-id,
-.metric-label {
+.member-mobile-id {
+  margin-top: 2px;
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.68);
+  color: var(--text-secondary);
+  word-break: break-all;
 }
 
 .member-mobile-metrics {
   display: flex;
   align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.metric-item {
+  padding: 5px 7px;
+  border-radius: 8px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-light);
 }
 
 .metric-item--inline {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
+}
+
+.metric-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.metric-value {
+  font-size: 12px;
+  color: var(--text-primary);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.metric-value.red {
+  color: #ff4d4f;
+}
+
+.member-lineup-tag {
+  font-weight: 700;
+  max-width: 96px;
 }
 
 .member-mobile-lineup {
   display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 62px;
+  justify-self: end;
+  flex-shrink: 0;
+}
+
+.member-mobile-chips {
   gap: 6px;
   flex-wrap: wrap;
+  min-width: 0;
+  justify-content: flex-start;
+  justify-self: auto;
 }
 
 .mobile-hero-chip {
@@ -250,10 +338,69 @@ defineEmits(["action", "select"]);
 }
 
 .member-mobile-actions {
-  margin-top: 10px;
+  margin-top: 8px;
 }
 
 .empty-state {
   padding: 24px 0;
+}
+
+@media (max-width: 768px) {
+  .member-mobile-strip {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .member-mobile-metrics {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 4px;
+    overflow: visible;
+  }
+
+  .member-mobile-lineup {
+    min-width: 0;
+    justify-content: flex-start;
+    justify-self: start;
+  }
+
+  .member-mobile-item {
+    padding: 8px 10px;
+  }
+
+  .member-mobile-avatar {
+    width: 34px;
+    height: 34px;
+  }
+
+  .member-mobile-name {
+    font-size: 13px;
+  }
+
+  .member-mobile-id {
+    font-size: 11px;
+  }
+
+  .metric-item {
+    padding: 3px 6px;
+  }
+
+  .metric-label {
+    font-size: 10px;
+  }
+
+  .metric-value {
+    font-size: 11px;
+  }
+
+  .member-lineup-tag {
+    max-width: 84px;
+  }
+
+  :deep(.n-tag) {
+    font-size: 11px;
+    padding: 0 6px;
+  }
 }
 </style>

@@ -1618,10 +1618,6 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped lang="scss">
-.modal-w-600 {
-  width: 600px;
-}
-
 .ml-8 {
   margin-left: 8px;
 }

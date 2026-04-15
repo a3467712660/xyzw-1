@@ -174,73 +174,136 @@ const equipmentGroups = computed(() => [
 
 <style scoped lang="scss">
 .modal-w-600 {
-  width: min(600px, calc(100vw - 24px));
+  width: 600px;
 }
 
-.hero-modal-content,
-.hero-modal-details,
-.hero-modal-equipment {
-  display: grid;
-  gap: 16px;
+.hero-detail-modal .hero-modal-content {
+  padding: 20px 0;
 }
 
 .hero-modal-header {
   display: flex;
-  gap: 16px;
+  gap: 24px;
   align-items: center;
+  margin-bottom: 24px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.hero-modal-avatar {
+  flex-shrink: 0;
 }
 
 .hero-modal-avatar img {
-  width: 72px;
-  height: 72px;
+  width: 120px;
+  height: 120px;
   border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid var(--primary-color-light);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
-.hero-modal-basic,
-.hero-modal-stats,
-.equipment-grid,
-.modal-footer {
+.hero-modal-basic {
+  flex: 1;
+}
+
+.hero-modal-name {
+  margin: 0 0 12px 0;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.hero-modal-stats {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.hero-modal-stats .stat-item {
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.hero-modal-stats .stat-item:first-child {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--primary-color);
+}
+
+.hero-modal-details {
+  margin-bottom: 24px;
+}
+
+.hero-modal-equipment .section-title {
+  margin: 0 0 16px 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.equipment-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.equipment-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.equipment-label {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.equipment-slots {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
 }
 
-.hero-modal-basic {
-  flex-direction: column;
-}
-
-.equipment-grid {
-  flex-direction: column;
-}
-
-.equipment-item,
-.equipment-slots {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-}
-
 .equipment-slot {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.12);
+  width: 20px;
+  height: 20px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  transition: all 0.2s ease;
 }
 
 .equipment-slot.red-slot {
-  background: #d03050;
+  background-color: #ef4444;
+  border-color: #ef4444;
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2);
 }
 
 .equipment-slot.orange-slot {
-  background: #f0a020;
+  background-color: #f59e0b;
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2);
 }
 
 .ModalEquipment {
   display: inline-block;
   width: 18px;
   height: 18px;
-  border-radius: 50%;
-  margin-right: 6px;
-  background: var(--equip-color, #666);
+  background-color: var(--equip-color);
+  margin-right: 5px;
+  border-radius: 2px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+}
+
+@media (max-width: 768px) {
+  .hero-modal-header {
+    flex-direction: column;
+    text-align: center;
+  }
 }
 </style>
