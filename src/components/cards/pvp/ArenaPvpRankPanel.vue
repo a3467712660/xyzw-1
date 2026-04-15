@@ -137,6 +137,23 @@ const getAvatarFallbackText = getArenaAvatarFallbackText;
 .rank-header {
   font-size: 12px;
   color: var(--text-tertiary);
+  border-bottom: 1px dashed var(--border-light);
+  padding: 2px 6px 8px;
+}
+
+.rank-row {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  padding: 9px 10px;
+  font-size: 13px;
+  color: var(--text-primary);
+  transition: all 0.2s ease;
+}
+
+.rank-row:hover {
+  border-color: color-mix(in srgb, var(--primary-color) 40%, var(--border-light));
+  transform: translateY(-1px);
 }
 
 .player-col {
@@ -146,17 +163,32 @@ const getAvatarFallbackText = getArenaAvatarFallbackText;
   min-width: 0;
 }
 
+.player-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 1px solid var(--border-light);
+  background: var(--bg-secondary);
+}
+
 .player-avatar-img,
 .player-avatar-fallback {
-  width: 32px;
-  height: 32px;
+  width: 100%;
+  height: 100%;
   border-radius: 50%;
 }
 
 .player-avatar-fallback {
   display: grid;
   place-items: center;
-  background: var(--surface-glass-strong);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-tertiary);
 }
 
 .player-meta {
@@ -168,10 +200,14 @@ const getAvatarFallbackText = getArenaAvatarFallbackText;
 
 .player-name {
   font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .player-id {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-tertiary);
 }
 
@@ -270,32 +306,82 @@ const getAvatarFallbackText = getArenaAvatarFallbackText;
 
 .rank-badge {
   display: inline-flex;
-  padding: 2px 8px;
+  min-width: 56px;
+  justify-content: center;
+  align-items: center;
+  padding: 3px 8px;
   border-radius: 999px;
-  background: var(--surface-glass-strong);
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid var(--border-light);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
 }
 
 .rank-badge.top1 {
-  background: rgba(240, 160, 32, 0.16);
+  background: linear-gradient(120deg, #ffcc47, #ffb300);
+  border-color: #ffb300;
+  color: #5c3a00;
 }
 
 .rank-badge.top2 {
-  background: rgba(134, 142, 150, 0.16);
+  background: linear-gradient(120deg, #dbe4ef, #c8d2df);
+  border-color: #c2ccd9;
+  color: #334155;
 }
 
 .rank-badge.top3 {
-  background: rgba(208, 122, 52, 0.16);
+  background: linear-gradient(120deg, #f6c9a5, #eba97b);
+  border-color: #e8a374;
+  color: #5a341f;
 }
 
 .rank-row.mine {
-  border-left: 3px solid var(--primary-color);
-  padding-left: 8px;
+  border-color: var(--primary-color);
+  box-shadow: inset 0 0 0 1px var(--primary-color),
+    0 4px 12px color-mix(in srgb, var(--primary-color) 20%, transparent);
+}
+
+.rank-row.row-top1 {
+  background: linear-gradient(90deg, #fff8e7 0%, var(--bg-primary) 55%);
+}
+
+.rank-row.row-top2 {
+  background: linear-gradient(90deg, #f7f9fc 0%, var(--bg-primary) 55%);
+}
+
+.rank-row.row-top3 {
+  background: linear-gradient(90deg, #fff5ef 0%, var(--bg-primary) 55%);
 }
 
 @media (max-width: 992px) {
   .rank-header,
   .rank-row {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .rank-header,
+  .rank-row {
+    grid-template-columns: 58px minmax(110px, 1fr) 74px 74px 84px;
+    font-size: 12px;
+  }
+
+  .rank-badge {
+    min-width: 50px;
+    padding: 2px 6px;
+    font-size: 11px;
+  }
+
+  .player-id {
+    display: none;
+  }
+
+  .value-chip,
+  .lineup-pill {
+    padding: 2px 7px;
+    font-size: 11px;
   }
 }
 </style>

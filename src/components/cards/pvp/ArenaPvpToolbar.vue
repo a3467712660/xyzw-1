@@ -363,6 +363,7 @@ const manualAssignLineupModel = computed({
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
+  margin-bottom: 16px;
 }
 
 .summary-item,
@@ -410,6 +411,12 @@ const manualAssignLineupModel = computed({
   align-items: baseline;
 }
 
+.score-delta-mini {
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
 .action-section,
 .log-section {
   padding: 16px;
@@ -428,19 +435,26 @@ const manualAssignLineupModel = computed({
   flex-wrap: wrap;
 }
 
+.action-row-sub {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border-light);
+}
+
 .action-item {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  min-width: 140px;
 }
 
 .action-item-wide {
   flex: 1;
-  min-width: 280px;
+  min-width: 300px;
 }
 
 .action-select {
-  min-width: 140px;
+  width: 140px;
 }
 
 .action-select.wide {
@@ -455,8 +469,18 @@ const manualAssignLineupModel = computed({
 .manual-lineup-list,
 .logs {
   display: flex;
-  flex-direction: column;
   gap: 8px;
+}
+
+.manual-lineup-list {
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.logs {
+  flex-direction: column;
+  max-height: 260px;
+  overflow-y: auto;
 }
 
 .manual-lineup-item,
@@ -467,9 +491,30 @@ const manualAssignLineupModel = computed({
   flex-wrap: wrap;
 }
 
+.manual-lineup-item {
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border-light);
+  background: var(--bg-primary);
+}
+
+.log-row {
+  align-items: flex-start;
+  font-size: 13px;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--border-radius-small);
+  padding: 8px;
+}
+
 .manual-lineup-key {
   font-family: var(--font-family-mono);
   color: var(--text-secondary);
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .lineup-pill {
@@ -528,9 +573,19 @@ const manualAssignLineupModel = computed({
   color: var(--text-tertiary);
 }
 
+.updated-at {
+  margin-top: 10px;
+}
+
+.time {
+  white-space: nowrap;
+}
+
 .section-title {
+  font-size: 14px;
   font-weight: 700;
   margin-bottom: 8px;
+  color: var(--text-primary);
 }
 
 @media (max-width: 992px) {
@@ -552,6 +607,14 @@ const manualAssignLineupModel = computed({
   .action-item,
   .action-item-wide {
     min-width: 0;
+  }
+
+  .action-select {
+    width: 100%;
+  }
+
+  .manual-lineup-item {
+    max-width: 100%;
   }
 }
 </style>

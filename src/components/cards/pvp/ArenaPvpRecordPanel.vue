@@ -190,49 +190,167 @@ const getAvatarFallbackText = getArenaAvatarFallbackText;
 }
 
 .record-rate-panel {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border-light);
+  background: var(--bg-primary);
   margin-bottom: 12px;
-  font-size: 13px;
+  font-size: 12px;
+  color: var(--text-secondary);
 }
 
 .record-rate-panel .win {
   color: #18a058;
+  font-weight: 600;
 }
 
 .record-rate-panel .loss {
   color: #d03050;
+  font-weight: 600;
 }
 
-.record-opponent-rates,
 .record-list {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
-.record-opponent-rate-item,
-.record-row {
-  display: flex;
-  gap: 10px;
+.record-opponent-rates {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.record-opponent-rate-item {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 6px;
   align-items: center;
-  flex-wrap: wrap;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
+.record-opponent-rate-item .name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary);
+}
+
+.record-opponent-rate-item .rate {
+  color: #16a34a;
+  font-weight: 700;
+}
+
+.record-opponent-rate-item .detail {
+  color: var(--text-tertiary);
+}
+
+.record-list {
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.record-row {
+  display: grid;
+  grid-template-columns: 34px 42px minmax(80px, 1fr) 56px 148px 68px;
+  gap: 8px;
+  align-items: center;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 13px;
 }
 
 .record-avatar {
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-light);
+  background: var(--bg-secondary);
 }
 
 .record-avatar-img,
 .record-avatar-fallback {
-  width: 32px;
-  height: 32px;
+  width: 100%;
+  height: 100%;
   border-radius: 50%;
 }
 
 .record-avatar-fallback {
   display: grid;
   place-items: center;
-  background: var(--surface-glass-strong);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-tertiary);
+}
+
+.record-type {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid var(--border-light);
+  background: var(--bg-secondary);
+}
+
+.record-type.attack {
+  color: #92400e;
+  background: #fde7d3;
+  border-color: #f6c28b;
+}
+
+.record-type.defense {
+  color: #1e40af;
+  background: #dbeafe;
+  border-color: #93c5fd;
+}
+
+.record-type.unknown {
+  color: #334155;
+  background: #e2e8f0;
+  border-color: #cbd5e1;
+}
+
+.record-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.record-name-group {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+}
+
+.record-lineup {
+  width: fit-content;
+  max-width: 100%;
+}
+
+.record-corrected-lineup {
+  font-size: 12px;
+  color: #b45309;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .lineup-pill {
@@ -287,19 +405,35 @@ const getAvatarFallbackText = getArenaAvatarFallbackText;
 
 .record-score.positive {
   color: #18a058;
+  font-weight: 700;
 }
 
 .record-score.negative {
   color: #d03050;
+  font-weight: 700;
 }
 
 .record-score.neutral,
 .record-time,
 .record-source {
   color: var(--text-tertiary);
+  font-size: 12px;
 }
 
 .record-section.is-exporting-image .record-list {
   max-height: none;
+  overflow: visible;
+}
+
+@media (max-width: 768px) {
+  .record-title-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .record-row {
+    grid-template-columns: 28px 34px minmax(60px, 1fr) 108px 56px 56px;
+    font-size: 12px;
+  }
 }
 </style>
