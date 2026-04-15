@@ -105,6 +105,7 @@ const TaskControlLegacyGiftModalBody = defineAsyncComponent(
 
 <style scoped lang="scss">
 .modal-w-600 {
-  width: min(600px, calc(100vw - 24px));
+  width: 90%;
+  max-width: 600px;
 }
 </style>

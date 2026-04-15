@@ -231,6 +231,17 @@ const showModel = computed({
   width: min(800px, calc(100vw - 24px));
 }
 
+.modal-w-800 :deep(.n-card) {
+  max-height: calc(100dvh - 24px);
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-w-800 :deep(.n-card__content) {
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 .player-info-content {
   display: grid;
   gap: 16px;
@@ -310,6 +321,10 @@ const showModel = computed({
 }
 
 @media (max-width: 768px) {
+  .modal-w-800 :deep(.n-card) {
+    max-height: calc(100dvh - 12px);
+  }
+
   .player-info-main {
     align-items: flex-start;
     flex-direction: column;

@@ -73,39 +73,39 @@ defineEmits(["close", "start", "update:fight-count", "validate"]);
 
 <style scoped lang="scss">
 .action-section {
+  margin: 15px 0;
   display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
+  justify-content: flex-start;
 }
 
 .fight-inline {
   display: flex;
-  align-items: flex-end;
-  gap: 12px;
-  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
 }
 
 .fight-count-container {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 132px;
+  align-items: center;
+  gap: 8px;
+  margin-right: auto;
 }
 
 .fight-count-label {
-  font-size: 13px;
-  font-weight: 600;
+  font-size: var(--font-size-sm, 14px);
+  color: var(--text-primary, #333);
+  font-weight: var(--font-weight-medium, 500);
+  white-space: nowrap;
 }
 
 .fight-count-input {
-  width: 132px;
+  width: 100px;
 }
 
 .fight-count-hint {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.65);
+  font-size: var(--font-size-xs, 12px);
+  color: var(--text-secondary, #999);
 }
 
 .mr-8 {
@@ -114,12 +114,24 @@ defineEmits(["close", "start", "update:fight-count", "validate"]);
 
 @media (max-width: 768px) {
   .action-section {
-    align-items: stretch;
+    flex-wrap: wrap;
+    gap: 8px;
   }
 
   .fight-inline {
+    flex-wrap: wrap;
     width: 100%;
-    justify-content: space-between;
+  }
+
+  .fight-count-container {
+    flex-wrap: wrap;
+    margin-right: 0;
+    width: 100%;
+  }
+
+  .fight-count-input {
+    width: 100%;
+    min-width: 0;
   }
 }
 </style>

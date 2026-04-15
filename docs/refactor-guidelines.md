@@ -35,3 +35,13 @@
 1. 先消除跨层反向依赖。
 2. 再拆超大文件和超大 store。
 3. 最后再做目录归档和测试补齐。
+
+## UI 结构治理约束
+
+- 拆 UI 组件时，必须同步迁移与该 DOM 对应的样式，不能只搬 template/script。
+- 必须保留原布局 class、wrapper 和 DOM hooks；如果原排版依赖这些 class，就不能在拆分时顺手删掉或改名。
+- 结构治理不得改变页面排版；header、toolbar、card、table、modal、footer 的层级、间距、按钮顺序和响应式切换都属于排版 contract。
+- 如果样式依赖父级 `scoped` selector，拆分时必须同步处理：
+  - 要么把对应样式迁到拥有 DOM 的子组件；
+  - 要么用最小范围 `:deep()` 保持父级控制；
+  - 不能默认继续把样式留在父组件里。

@@ -437,7 +437,8 @@ const carMinColorOptions = [
 
 <style scoped lang="scss">
 .modal-w-700 {
-  width: min(700px, calc(100vw - 24px));
+  width: 90%;
+  max-width: 700px;
 }
 
 .settings-content {
@@ -479,8 +480,7 @@ const carMinColorOptions = [
 
 .modal-actions-right {
   margin-top: 20px;
-  display: flex;
-  justify-content: flex-end;
+  text-align: right;
 }
 
 .divider-tight {

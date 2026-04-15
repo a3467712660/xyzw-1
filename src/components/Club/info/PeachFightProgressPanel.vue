@@ -37,29 +37,43 @@ defineProps({
 
 <style scoped lang="scss">
 .fight-progress {
-  display: grid;
-  gap: 12px;
-  padding: 12px;
-  border-radius: 12px;
-  background: rgba(64, 169, 255, 0.08);
-  border: 1px solid rgba(64, 169, 255, 0.2);
+  margin: 15px 0;
+  padding: 15px;
+  background: var(--bg-secondary, #f9f9f9);
+  border-radius: var(--border-radius-sm, 4px);
+  border: 1px solid var(--border-light, #eee);
 }
 
 .progress-info {
-  display: grid;
-  gap: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
 }
 
 .progress-title {
-  font-size: 14px;
-  font-weight: 700;
+  font-size: var(--font-size-sm, 14px);
+  font-weight: var(--font-weight-medium, 500);
+  color: var(--text-primary, #333);
 }
 
 .progress-stats {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px 14px;
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.72);
+  gap: 15px;
+  font-size: var(--font-size-xs, 12px);
+  color: var(--text-secondary, #666);
+}
+
+@media (max-width: 768px) {
+  .progress-info {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .progress-stats {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
 }
 </style>

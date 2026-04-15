@@ -1,7 +1,7 @@
 <template>
   <n-modal
+    class="modal-w-400"
     preset="card"
-    style="width: min(400px, calc(100vw - 24px))"
     :show="show"
     :title="title"
     @update:show="$emit('update:show', $event)"
@@ -47,6 +47,11 @@ defineEmits(["save", "update-field", "update:show"]);
 </script>
 
 <style scoped lang="scss">
+.modal-w-400 {
+  width: 90%;
+  max-width: 400px;
+}
+
 .settings-content {
   display: flex;
   flex-direction: column;

@@ -1,34 +1,32 @@
 <template>
-  <div class="club-member-action-panel">
-    <div class="members-actions-bar">
-      <NButton
-        v-if="showFetchLineup"
-        secondary
-        class="members-actions-btn"
-        size="small"
-        type="primary"
-        :disabled="fetchLineupDisabled"
-        @click="$emit('fetch-lineup')"
-      >
-        {{ fetchLineupText }}
-      </NButton>
-      <NButton
-        secondary
-        class="members-actions-btn"
-        size="small"
-        type="info"
-        :disabled="exportDisabled"
-        @click="$emit('export-image')"
-      >
-        {{ exportText }}
-      </NButton>
-    </div>
+  <div v-if="!isExporting" class="members-actions-bar">
+    <NButton
+      v-if="showFetchLineup"
+      secondary
+      class="members-actions-btn"
+      size="small"
+      type="primary"
+      :disabled="fetchLineupDisabled"
+      @click="$emit('fetch-lineup')"
+    >
+      {{ fetchLineupText }}
+    </NButton>
+    <NButton
+      secondary
+      class="members-actions-btn"
+      size="small"
+      type="info"
+      :disabled="exportDisabled"
+      @click="$emit('export-image')"
+    >
+      {{ exportText }}
+    </NButton>
+  </div>
 
-    <div v-if="isExporting && bannerModel" class="member-export-banner">
-      <div class="member-export-title">{{ bannerModel.title }}</div>
-      <div class="member-export-club">{{ bannerModel.clubText }}</div>
-      <div class="member-export-meta">{{ bannerModel.metaText }}</div>
-    </div>
+  <div v-if="isExporting && bannerModel" class="member-export-banner">
+    <div class="member-export-title">{{ bannerModel.title }}</div>
+    <div class="member-export-club">{{ bannerModel.clubText }}</div>
+    <div class="member-export-meta">{{ bannerModel.metaText }}</div>
   </div>
 </template>
 
@@ -70,11 +68,6 @@ defineEmits(["export-image", "fetch-lineup"]);
 </script>
 
 <style scoped lang="scss">
-.club-member-action-panel {
-  display: grid;
-  gap: 12px;
-}
-
 .members-actions-bar {
   display: flex;
   justify-content: flex-start;
@@ -92,6 +85,7 @@ defineEmits(["export-image", "fetch-lineup"]);
 .member-export-banner {
   border-radius: 14px;
   padding: 14px 16px;
+  margin-bottom: 12px;
   background: linear-gradient(135deg, #eef4ff 0%, #f6fbff 55%, #f2fff8 100%);
   border: 1px solid #dce8ff;
   box-shadow: 0 6px 16px rgba(32, 102, 214, 0.08);

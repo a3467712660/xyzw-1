@@ -64,7 +64,8 @@ defineEmits(["save", "update-field", "update:show", "update:template-name"]);
 
 <style scoped lang="scss">
 .modal-w-400 {
-  width: min(400px, calc(100vw - 24px));
+  width: 90%;
+  max-width: 400px;
 }
 
 .settings-content,
@@ -87,8 +88,7 @@ defineEmits(["save", "update-field", "update:show", "update:template-name"]);
 
 .modal-actions-right {
   margin-top: 20px;
-  display: flex;
-  justify-content: flex-end;
+  text-align: right;
 }
 
 .btn-mr {

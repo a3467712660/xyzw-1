@@ -1,7 +1,7 @@
 <template>
   <n-modal
+    class="modal-w-800"
     preset="card"
-    style="width: min(800px, calc(100vw - 24px))"
     title="定时任务列表"
     :show="show"
     @update:show="$emit('update:show', $event)"
@@ -59,3 +59,10 @@ const TaskControlScheduledTasksList = defineAsyncComponent(
   () => import("@/components/task-control/TaskControlScheduledTasksList.vue"),
 );
 </script>
+
+<style scoped lang="scss">
+.modal-w-800 {
+  width: 90%;
+  max-width: 800px;
+}
+</style>

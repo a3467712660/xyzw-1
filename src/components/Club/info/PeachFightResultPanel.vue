@@ -58,7 +58,7 @@
 <script setup>
 import { NAvatar, NButton, NTag } from "naive-ui/es";
 
-const props = defineProps({
+defineProps({
   battles: {
     type: Array,
     default: () => [],
@@ -110,106 +110,119 @@ defineEmits(["close", "retry"]);
 
 <style scoped lang="scss">
 .fight-result {
-  display: grid;
-  gap: 16px;
-  padding: 14px;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  margin: 15px 0;
+  padding: 15px;
+  background: var(--bg-secondary, #f9f9f9);
+  border-radius: var(--border-radius-sm, 4px);
+  border: 1px solid var(--border-light, #eee);
 }
 
 .result-header {
-  display: grid;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
   gap: 12px;
+  margin-bottom: 15px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-light, #eee);
 }
 
 .result-title {
   margin: 0;
-  font-size: 16px;
-  font-weight: 700;
+  font-size: var(--font-size-base, 14px);
+  font-weight: var(--font-weight-bold, bold);
+  color: var(--text-primary, #333);
 }
 
 .result-summary {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(130px, max-content));
+  gap: 10px 18px;
+  font-size: var(--font-size-sm, 14px);
+  width: 100%;
 }
 
 .summary-item {
-  display: grid;
+  display: flex;
+  align-items: center;
   gap: 4px;
-  padding: 10px 12px;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.04);
+  min-width: 0;
+  white-space: nowrap;
 }
 
 .summary-label {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.68);
+  color: var(--text-secondary, #666);
 }
 
 .summary-value {
-  font-size: 16px;
-  font-weight: 700;
+  font-weight: var(--font-weight-medium, 500);
+  color: var(--text-primary, #333);
 }
 
 .summary-value.win {
-  color: #18a058;
+  color: var(--success-color, #52c41a);
 }
 
 .summary-value.loss {
-  color: #d03050;
+  color: var(--error-color, #ff4d4f);
 }
 
 .result-list {
-  display: grid;
-  gap: 12px;
+  margin-bottom: 15px;
 }
 
 .battle-result-item {
-  display: grid;
-  gap: 12px;
+  margin-bottom: 10px;
   padding: 12px;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--bg-primary, #fff);
+  border-radius: var(--border-radius-sm, 4px);
+  border: 1px solid var(--border-light, #eee);
+  border-left: 4px solid var(--border-light, #eee);
+  transition: all var(--transition-fast, 0.3s ease);
 }
 
 .battle-result-item.win {
-  background: rgba(24, 160, 88, 0.08);
+  border-left-color: var(--success-color, #52c41a);
+  background: rgba(82, 196, 26, 0.03);
 }
 
 .battle-result-item.loss {
-  background: rgba(208, 48, 80, 0.08);
+  border-left-color: var(--error-color, #ff4d4f);
+  background: rgba(255, 77, 79, 0.03);
 }
 
-.battle-header,
-.battle-details,
-.battle-side,
-.result-actions {
+.battle-header {
   display: flex;
+  justify-content: space-between;
   align-items: center;
+  margin-bottom: 10px;
 }
 
-.battle-header,
-.result-actions {
-  justify-content: space-between;
+.battle-index {
+  font-size: var(--font-size-sm, 14px);
+  font-weight: var(--font-weight-medium, 500);
+  color: var(--text-primary, #333);
 }
 
 .battle-details {
+  display: flex;
+  align-items: center;
   gap: 12px;
-  justify-content: space-between;
+  gap: 15px;
 }
 
 .battle-side {
+  display: flex;
+  align-items: center;
   flex: 1;
   gap: 10px;
-  min-width: 0;
 }
 
 .battle-vs {
-  font-size: 12px;
-  font-weight: 700;
-  opacity: 0.72;
+  font-size: var(--font-size-sm, 14px);
+  font-weight: var(--font-weight-bold, bold);
+  color: var(--text-secondary, #999);
+  margin: 0 10px;
 }
 
 .side-avatar {
@@ -217,37 +230,61 @@ defineEmits(["close", "retry"]);
 }
 
 .side-info {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
+  flex: 1;
+  font-size: var(--font-size-sm, 14px);
 }
 
 .side-name {
-  font-weight: 600;
+  display: block;
+  font-weight: var(--font-weight-medium, 500);
+  color: var(--text-primary, #333);
+  margin-bottom: 3px;
 }
 
-.side-name,
-.side-power,
+.side-power {
+  display: block;
+  color: var(--text-secondary, #666);
+  margin-bottom: 2px;
+}
+
 .side-die {
-  word-break: break-all;
-}
-
-.side-power,
-.side-die,
-.battle-index {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.68);
+  display: block;
+  color: var(--text-secondary, #666);
+  font-size: var(--font-size-xs, 12px);
 }
 
 .result-actions {
-  gap: 12px;
-  justify-content: flex-end;
+  margin-top: 15px;
+  display: flex;
+  justify-content: flex-start;
+  gap: 8px;
 }
 
 @media (max-width: 768px) {
+  .result-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .result-summary {
+    gap: 10px;
+  }
+
   .battle-details {
     flex-direction: column;
-    align-items: stretch;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .battle-side {
+    width: 100%;
+  }
+
+  .battle-vs {
+    align-self: center;
+    margin: 5px 0;
+    transform: rotate(90deg);
   }
 }
 </style>

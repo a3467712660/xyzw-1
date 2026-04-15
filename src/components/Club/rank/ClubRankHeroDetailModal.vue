@@ -166,6 +166,17 @@ const equipmentGroups = computed(() => {
   width: min(600px, calc(100vw - 24px));
 }
 
+.modal-w-600 :deep(.n-card) {
+  max-height: calc(100dvh - 24px);
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-w-600 :deep(.n-card__content) {
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 .hero-modal-content,
 .hero-modal-details,
 .hero-modal-equipment {
@@ -235,6 +246,10 @@ const equipmentGroups = computed(() => {
 }
 
 @media (max-width: 768px) {
+  .modal-w-600 :deep(.n-card) {
+    max-height: calc(100dvh - 12px);
+  }
+
   .hero-modal-header,
   .equipment-item {
     flex-direction: column;

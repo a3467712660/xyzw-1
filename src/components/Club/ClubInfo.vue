@@ -1066,22 +1066,6 @@ const handleClubMemberAction = ({ raw }) => {
     min-width: 0;
   }
 
-  .modal-w-700 {
-    width: min(700px, calc(100vw - 24px));
-  }
-
-  .modal-max-h-80 {
-    max-height: 80vh;
-  }
-
-  .modal-w-800 {
-    width: min(800px, calc(100vw - 24px));
-  }
-
-  .modal-w-600 {
-    width: min(600px, calc(100vw - 24px));
-  }
-
   .ml-8 {
     margin-left: 8px;
   }
@@ -1215,25 +1199,6 @@ const handleClubMemberAction = ({ raw }) => {
     background: var(--border-light);
   }
 
-  .members-actions-bar {
-    display: flex;
-    justify-content: flex-start;
-    gap: 8px;
-    margin-bottom: 12px;
-    padding: 8px 10px;
-    border-radius: 10px;
-    background: var(--bg-tertiary);
-    border: 1px solid var(--border-light);
-  }
-
-  .members-actions-btn {
-    min-width: 88px;
-  }
-
-  .is-exporting-image .members-actions-bar {
-    display: none !important;
-  }
-
   .is-exporting-image {
     padding: 16px;
     background: linear-gradient(180deg, #f8fbff 0%, #ffffff 100%);
@@ -1241,36 +1206,6 @@ const handleClubMemberAction = ({ raw }) => {
     border: 1px solid #e6edf9;
     box-sizing: border-box;
     box-shadow: 0 10px 24px rgba(31, 63, 116, 0.08);
-  }
-
-  .member-export-banner {
-    border-radius: 14px;
-    padding: 14px 16px;
-    margin-bottom: 12px;
-    background: linear-gradient(135deg, #eef4ff 0%, #f6fbff 55%, #f2fff8 100%);
-    border: 1px solid #dce8ff;
-    box-shadow: 0 6px 16px rgba(32, 102, 214, 0.08);
-  }
-
-  .member-export-title {
-    font-size: 22px;
-    line-height: 1.2;
-    font-weight: 700;
-    color: #1f3f74;
-    letter-spacing: 0.5px;
-  }
-
-  .member-export-club {
-    margin-top: 6px;
-    font-size: 14px;
-    font-weight: 600;
-    color: #2b4d86;
-  }
-
-  .member-export-meta {
-    margin-top: 6px;
-    font-size: 13px;
-    color: #5e6b85;
   }
 
   .is-exporting-image :deep(.n-data-table) {
@@ -1519,149 +1454,6 @@ const handleClubMemberAction = ({ raw }) => {
   height: 8px;
   border-radius: 50%;
   background: currentColor;
-}
-
-/* 申请列表样式 */
-.loading {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-}
-
-.empty-apply {
-  padding: 30px 0;
-}
-
-.apply-list-container {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.apply-list {
-  max-height: 200px;
-  overflow-y: auto;
-  padding-right: 8px;
-  border-radius: 8px;
-  border: 1px solid var(--border-color);
-  background: var(--bg-primary);
-}
-
-.apply-list-lg {
-  max-height: 800px;
-  overflow-y: auto;
-}
-
-.apply-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
-  margin: 0;
-  border-bottom: 1px solid var(--border-color);
-  background: var(--bg-primary);
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.apply-item:last-child {
-  border-bottom: none;
-}
-
-/* 悬停效果 */
-.apply-item-hover {
-  background: var(--bg-tertiary);
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-/* 选中状态 */
-.apply-item-selected {
-  background: var(--primary-color-light);
-  border-left: 3px solid var(--primary-color);
-}
-
-.apply-left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex: 1;
-}
-
-.apply-info {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  flex: 1;
-}
-
-.apply-name {
-  font-weight: var(--font-weight-medium);
-  font-size: var(--font-size-sm);
-  color: var(--text-primary);
-}
-
-.apply-details {
-  display: flex;
-  gap: 12px;
-  font-size: var(--font-size-xs);
-  color: var(--text-secondary);
-}
-
-.apply-power {
-  font-feature-settings: "tnum" 1;
-  font-variant-numeric: tabular-nums;
-}
-
-.apply-reason {
-  font-size: var(--font-size-xs);
-  color: var(--text-secondary);
-  margin-top: 4px;
-  word-break: break-word;
-  white-space: normal;
-  line-height: 1.4;
-}
-
-.apply-right {
-  display: flex;
-  gap: 8px;
-}
-
-/* 批量操作栏样式 */
-.apply-actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
-  background: var(--bg-tertiary);
-  border-radius: 8px;
-  border: 1px solid var(--border-color);
-}
-
-.selected-info {
-  font-size: var(--font-size-sm);
-  color: var(--text-secondary);
-  margin-left: auto;
-}
-
-/* 滚动条样式 */
-.apply-list::-webkit-scrollbar {
-  width: 6px;
-}
-
-.apply-list::-webkit-scrollbar-track {
-  background: var(--bg-tertiary);
-  border-radius: 3px;
-}
-
-.apply-list::-webkit-scrollbar-thumb {
-  background: var(--border-color);
-  border-radius: 3px;
-}
-
-.apply-list::-webkit-scrollbar-thumb:hover {
-  background: var(--text-tertiary);
 }
 
 /* 玩家信息模态框样式 */
@@ -1989,17 +1781,6 @@ const handleClubMemberAction = ({ raw }) => {
     .member-table {
       height: auto;
       max-height: calc(100dvh - 220px);
-    }
-
-    .members-actions-bar {
-      flex-wrap: wrap;
-      padding: 6px;
-      gap: 6px;
-    }
-
-    .members-actions-btn {
-      flex: 1 1 120px;
-      min-width: 0;
     }
 
     .members {
