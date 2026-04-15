@@ -1,11 +1,20 @@
 <template>
   <div
-    v-if="heroCard.fishCaption"
+    v-if="
+      heroCard.fishCaption
+      || heroCard.hasEquipmentSnapshot
+      || heroCard.artifactIdText
+    "
     class="lineup-equipment-panel"
     :title="heroCard.equipmentSummaryTitle || heroCard.artifactIdText || ''"
   >
-    <div class="hero-fish-row">
-      <span class="hero-fish-name">{{ heroCard.fishCaption }}</span>
+    <div
+      v-if="heroCard.fishCaption || heroCard.slotColors.length > 0"
+      class="hero-fish-row"
+    >
+      <span v-if="heroCard.fishCaption" class="hero-fish-name">
+        {{ heroCard.fishCaption }}
+      </span>
       <div v-if="heroCard.slotColors.length > 0" class="hero-fish-slots">
         <span
           v-for="(slotColor, colorIndex) in heroCard.slotColors"
@@ -14,6 +23,12 @@
           :style="{ backgroundColor: slotColor }"
         ></span>
       </div>
+    </div>
+    <div
+      v-if="heroCard.equipmentSummaryTitle || heroCard.artifactIdText"
+      class="hero-equipment-summary"
+    >
+      {{ heroCard.equipmentSummaryTitle || heroCard.artifactIdText }}
     </div>
   </div>
 </template>
@@ -42,6 +57,12 @@ defineProps({
 .hero-fish-name {
   font-size: 12px;
   color: rgba(232, 240, 255, 0.78);
+}
+
+.hero-equipment-summary {
+  margin-top: 4px;
+  font-size: 12px;
+  color: rgba(232, 240, 255, 0.72);
 }
 
 .hero-fish-slots {

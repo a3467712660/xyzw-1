@@ -190,3 +190,35 @@ test("lineup view models keep merged hero view stable", () => {
     },
   );
 });
+
+test("lineup view models keep equipment snapshot visible without fish caption", () => {
+  assert.deepEqual(
+    buildLineupHeroEquipmentView(
+      {
+        equipment: {
+          3: {
+            quenches: {
+              1: { colorId: 6 },
+              2: { colorId: 6 },
+            },
+          },
+        },
+        heroId: 1003,
+      },
+      {
+        getFishNameById: () => "",
+        getPearlSkillNameById: () => "",
+        getSlotColors: () => [],
+      },
+    ),
+    {
+      artifactIdText: "",
+      equipmentPartCount: 1,
+      equipmentParts: [{ partId: 3, redCount: 2, slotCount: 2 }],
+      equipmentSummaryTitle: "部位3: 2孔 / 2红",
+      fishCaption: "",
+      hasEquipmentSnapshot: true,
+      slotColors: [],
+    },
+  );
+});
