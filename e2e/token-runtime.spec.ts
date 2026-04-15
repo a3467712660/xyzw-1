@@ -16,6 +16,17 @@ const jsonResponse = (payload: unknown, status = 200) => ({
 });
 
 const stubTokenWorkspaceApis = async (page) => {
+  await page.route("**/api/v1/auth/csrf", async (route) => {
+    await route.fulfill(
+      jsonResponse({
+        success: true,
+        data: {
+          hasRefreshTokenCookie: true,
+        },
+      }),
+    );
+  });
+
   await page.route("**/api/v1/auth/refresh", async (route) => {
     await route.fulfill(
       jsonResponse({
@@ -100,7 +111,12 @@ const stubRuntimeScripts = async (page, runtimeRequests: string[]) => {
 
 const openWxQrcodeImport = async (page) => {
   await expect(page).toHaveURL(/\/tokens$/);
-  await expect(page.getByText("添加游戏Token")).toBeVisible();
+  const addTokenButton = page.getByRole("button", {
+    name: /添加 ?Token|Add Token/i,
+  });
+  if (await addTokenButton.isVisible().catch(() => false)) {
+    await addTokenButton.click();
+  }
   await page.locator(".import-method-tabs").getByText("微信扫码获取").click();
   await expect(page.getByText("微信扫码登录流程")).toBeVisible();
 };

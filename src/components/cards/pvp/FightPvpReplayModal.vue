@@ -135,17 +135,33 @@ const diagnosticLines = computed(() => {
   }
   if (diagnostics.runtimeSnapshotBeforeBoot) {
     lines.push(
-      `beforeBoot: scene=${diagnostics.runtimeSnapshotBeforeBoot.sceneName || "null"}, prepared=${diagnostics.runtimeSnapshotBeforeBoot.gamePrepared}, renderer=${diagnostics.runtimeSnapshotBeforeBoot.gameRendererInitialized}`,
+      `beforeBoot: scene=${diagnostics.runtimeSnapshotBeforeBoot.sceneName || "null"}, platform=${diagnostics.runtimeSnapshotBeforeBoot.runtimePlatform || "unknown"}, prepared=${diagnostics.runtimeSnapshotBeforeBoot.gamePrepared}, renderer=${diagnostics.runtimeSnapshotBeforeBoot.gameRendererInitialized}`,
     );
   }
   if (diagnostics.runtimeSnapshotAfterBoot) {
     lines.push(
-      `afterBoot: scene=${diagnostics.runtimeSnapshotAfterBoot.sceneName || "null"}, prepared=${diagnostics.runtimeSnapshotAfterBoot.gamePrepared}, renderer=${diagnostics.runtimeSnapshotAfterBoot.gameRendererInitialized}`,
+      `afterBoot: scene=${diagnostics.runtimeSnapshotAfterBoot.sceneName || "null"}, state=${diagnostics.runtimeSnapshotAfterBoot.currentGameState || "null"}, prepared=${diagnostics.runtimeSnapshotAfterBoot.gamePrepared}, renderer=${diagnostics.runtimeSnapshotAfterBoot.gameRendererInitialized}`,
+    );
+  }
+  if (diagnostics.runtimeSnapshotAfterLauncher) {
+    lines.push(
+      `afterLauncher: scene=${diagnostics.runtimeSnapshotAfterLauncher.sceneName || "null"}, state=${diagnostics.runtimeSnapshotAfterLauncher.currentGameState || "null"}, launcher=${diagnostics.runtimeSnapshotAfterLauncher.launcherReady ? "ready" : "missing"}`,
+    );
+  }
+  if (Array.isArray(diagnostics.gameStateHistory) && diagnostics.gameStateHistory.length > 0) {
+    lines.push(`states: ${diagnostics.gameStateHistory.join(" -> ")}`);
+  }
+  if (Array.isArray(diagnostics.bundleAssetProbe) && diagnostics.bundleAssetProbe.length > 0) {
+    lines.push(
+      `bundleProbe: ${diagnostics.bundleAssetProbe.map((entry) => `${entry.pathname}:${entry.status || (entry.ok ? "ok" : "error")}`).join(", ")}`,
     );
   }
   if (Array.isArray(diagnostics.wxAccessLog) && diagnostics.wxAccessLog.length > 0) {
     const firstAccess = diagnostics.wxAccessLog[0];
     lines.push(`wxFirstAccess: ${firstAccess.name}`);
+  }
+  if (diagnostics.replayEntrypoint) {
+    lines.push(`replayEntrypoint: ${diagnostics.replayEntrypoint}`);
   }
   if (diagnostics.error) {
     lines.push(`error: ${diagnostics.error}`);
