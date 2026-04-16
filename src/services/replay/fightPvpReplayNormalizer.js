@@ -1,16 +1,18 @@
 export const FIGHT_PVP_REPLAY_SOURCE = "fight-pvp-live";
+export const FIGHT_PVP_REPLAY_DEFAULT_STAGE_NAME = "切磋系统";
+export const FIGHT_PVP_REPLAY_DEFAULT_START_TIP_STAGE = "开始切磋";
 
-const toFiniteNumber = (value, fallback = null) => {
+export const toFiniteNumber = (value, fallback = null) => {
   const num = Number(value);
   return Number.isFinite(num) ? num : fallback;
 };
 
-const toPositiveNumber = (value, fallback = null) => {
+export const toPositiveNumber = (value, fallback = null) => {
   const num = toFiniteNumber(value, fallback);
   return Number.isFinite(num) && num > 0 ? num : fallback;
 };
 
-const toNonEmptyString = (...values) => {
+export const toNonEmptyString = (...values) => {
   for (const value of values) {
     const text = String(value ?? "").trim();
     if (text) {
@@ -18,6 +20,14 @@ const toNonEmptyString = (...values) => {
     }
   }
   return "";
+};
+
+const toPlainObject = (value) =>
+  value && typeof value === "object" ? value : null;
+
+const clonePlainObject = (value) => {
+  const source = toPlainObject(value);
+  return source ? { ...source } : null;
 };
 
 const normalizeReplayTimestamp = (value) => {
@@ -38,10 +48,10 @@ const normalizeReplayTimestamp = (value) => {
   return new Date().toISOString();
 };
 
-const normalizeReplaySide = (side, fallback = {}) => {
+export const normalizeReplaySide = (side, fallback = {}) => {
   const merged = {
-    ...(fallback && typeof fallback === "object" ? fallback : null),
-    ...(side && typeof side === "object" ? side : null),
+    ...(toPlainObject(fallback) || null),
+    ...(toPlainObject(side) || null),
   };
 
   return {
@@ -121,8 +131,104 @@ export const getFightPvpReplayBattleVersion = (replay) =>
     toPositiveNumber(replay?.battleData?.version, null),
   );
 
+export const resolveFightPvpReplayMapId = ({
+  mapId,
+  battleData,
+  selfRoleRaw,
+  roleInfo,
+  leftContext,
+} = {}) =>
+  toPositiveNumber(
+    mapId,
+    toPositiveNumber(
+      battleData?.mapId,
+      toPositiveNumber(
+        selfRoleRaw?.role?.pvpMapId,
+        toPositiveNumber(
+          selfRoleRaw?.roleInfo?.pvpMapId,
+          toPositiveNumber(
+            roleInfo?.role?.pvpMapId,
+            toPositiveNumber(
+              roleInfo?.pvpMapId,
+              toPositiveNumber(
+                leftContext?.role?.pvpMapId,
+                toPositiveNumber(
+                  leftContext?.roleInfo?.pvpMapId,
+                  toPositiveNumber(leftContext?.pvpMapId, null),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+
+export const resolveFightPvpReplayRuntimeLabels = ({
+  stageNameStr = "",
+  startTipTopName = "",
+  startTipStage = "",
+  runtimeLabels = null,
+} = {}) => {
+  const providedLabels = toPlainObject(runtimeLabels) || {};
+  const resolvedStageNameStr = toNonEmptyString(
+    stageNameStr,
+    providedLabels.stageNameStr,
+    providedLabels.stageName,
+    FIGHT_PVP_REPLAY_DEFAULT_STAGE_NAME,
+  );
+
+  return {
+    stageNameStr: resolvedStageNameStr,
+    startTipTopName: toNonEmptyString(
+      startTipTopName,
+      providedLabels.startTipTopName,
+      providedLabels.topName,
+      resolvedStageNameStr,
+      FIGHT_PVP_REPLAY_DEFAULT_STAGE_NAME,
+    ),
+    startTipStage: toNonEmptyString(
+      startTipStage,
+      providedLabels.startTipStage,
+      providedLabels.stageAction,
+      FIGHT_PVP_REPLAY_DEFAULT_START_TIP_STAGE,
+    ),
+  };
+};
+
+export const resolveFightPvpReplayRuntimeOptionsSnapshot = ({
+  runtimeOptionsSnapshot = null,
+  targetId = "",
+  targetName = "",
+  right = null,
+} = {}) => {
+  const snapshot = toPlainObject(runtimeOptionsSnapshot) || {};
+  const targetRole = clonePlainObject(snapshot.targetRole)
+    || (() => {
+      const roleId = toNonEmptyString(targetId, right?.roleId);
+      const name = toNonEmptyString(targetName, right?.name);
+      const headImg = toNonEmptyString(right?.headImg);
+      if (!roleId && !name && !headImg) {
+        return null;
+      }
+      return {
+        roleId,
+        name,
+        headImg,
+      };
+    })();
+
+  return {
+    targetRole,
+    selfScore: toFiniteNumber(snapshot.selfScore, null),
+    oppoScore: toFiniteNumber(snapshot.oppoScore, null),
+    replayFlag: snapshot.replayFlag !== false,
+  };
+};
+
 export function normalizeFightPvpReplayPayload({
   battleData,
+  battleResult,
   tokenId = "",
   targetId = "",
   targetName = "",
@@ -130,10 +236,16 @@ export function normalizeFightPvpReplayPayload({
   createdAt,
   leftContext = null,
   rightContext = null,
+  mapId = null,
+  selfRoleRaw = null,
+  roleInfo = null,
+  stageNameStr = "",
+  startTipTopName = "",
+  startTipStage = "",
+  runtimeLabels = null,
+  runtimeOptionsSnapshot = null,
 } = {}) {
-  const safeBattleData = battleData && typeof battleData === "object"
-    ? battleData
-    : null;
+  const safeBattleData = toPlainObject(battleData);
   const normalizedCreatedAt = normalizeReplayTimestamp(
     createdAt
     ?? safeBattleData?.createdAt
@@ -141,20 +253,19 @@ export function normalizeFightPvpReplayPayload({
     ?? safeBattleData?.battleTime,
   );
 
-  const battleResult = safeBattleData?.result && typeof safeBattleData.result === "object"
-    ? safeBattleData.result
-    : null;
+  const normalizedBattleResult = toPlainObject(battleResult)
+    || toPlainObject(safeBattleData?.result);
   const left = normalizeReplaySide(safeBattleData?.leftTeam, leftContext);
   const right = normalizeReplaySide(safeBattleData?.rightTeam, rightContext);
   const normalizedTargetId = toNonEmptyString(
     targetId,
     right?.roleId,
-    battleResult?.accept?.roleId,
+    normalizedBattleResult?.accept?.roleId,
   );
   const normalizedTargetName = toNonEmptyString(
     targetName,
     right?.name,
-    battleResult?.accept?.name,
+    normalizedBattleResult?.accept?.name,
   );
   const battleVersion = getFightPvpReplayBattleVersion({
     battleVersion: safeBattleData?.version,
@@ -170,6 +281,12 @@ export function normalizeFightPvpReplayPayload({
       right,
     });
   const replayId = `${toNonEmptyString(source, FIGHT_PVP_REPLAY_SOURCE)}:${battleId}`;
+  const resolvedRuntimeLabels = resolveFightPvpReplayRuntimeLabels({
+    stageNameStr,
+    startTipTopName,
+    startTipStage,
+    runtimeLabels,
+  });
 
   return {
     replayId,
@@ -179,10 +296,26 @@ export function normalizeFightPvpReplayPayload({
     battleVersion,
     battleId,
     battleData: safeBattleData,
-    battleResult,
+    battleResult: normalizedBattleResult,
     left,
     right,
     targetId: normalizedTargetId,
     targetName: normalizedTargetName,
+    mapId: resolveFightPvpReplayMapId({
+      mapId,
+      battleData: safeBattleData,
+      selfRoleRaw,
+      roleInfo,
+      leftContext,
+    }),
+    stageNameStr: resolvedRuntimeLabels.stageNameStr,
+    startTipTopName: resolvedRuntimeLabels.startTipTopName,
+    startTipStage: resolvedRuntimeLabels.startTipStage,
+    runtimeOptionsSnapshot: resolveFightPvpReplayRuntimeOptionsSnapshot({
+      runtimeOptionsSnapshot,
+      targetId: normalizedTargetId,
+      targetName: normalizedTargetName,
+      right,
+    }),
   };
 }

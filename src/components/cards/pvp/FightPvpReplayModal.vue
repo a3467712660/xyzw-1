@@ -163,6 +163,20 @@ const diagnosticLines = computed(() => {
   if (diagnostics.replayEntrypoint) {
     lines.push(`replayEntrypoint: ${diagnostics.replayEntrypoint}`);
   }
+  if (Array.isArray(diagnostics.missingRuntimeFields) && diagnostics.missingRuntimeFields.length > 0) {
+    lines.push(`missingRuntimeFields: ${diagnostics.missingRuntimeFields.join(", ")}`);
+  }
+  if (diagnostics.replayInputSummary) {
+    const summary = diagnostics.replayInputSummary;
+    lines.push(
+      `replayInputSummary: mode=${summary.battleMode ?? "null"}, mapId=${summary.mapId ?? "null"}, stage=${summary.stageNameStr || "-"}, top=${summary.startTipTopName || "-"}, start=${summary.startTipStage || "-"}, teams=${summary.leftTeamSize ?? 0}/${summary.rightTeamSize ?? 0}, scores=${summary.selfScore ?? "-"}:${summary.oppoScore ?? "-"}, targetRole=${summary.hasTargetRole ? "yes" : "no"}`,
+    );
+  }
+  if (diagnostics.replayStartSignal !== undefined) {
+    lines.push(
+      `replayStart: signal=${diagnostics.replayStartSignal ? "true" : "false"}, panel=${diagnostics.replayStartPanel || "-"}, isReplay=${diagnostics.replayStartIsReplay ?? "-"}, mapId=${diagnostics.replayStartMapId ?? "-"}, mode=${diagnostics.replayStartBattleMode ?? "-"}`,
+    );
+  }
   if (diagnostics.error) {
     lines.push(`error: ${diagnostics.error}`);
   }

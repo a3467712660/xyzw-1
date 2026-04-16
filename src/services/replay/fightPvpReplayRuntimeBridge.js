@@ -2,10 +2,14 @@ import {
   ensureXyzwRuntimeLoaded,
   XYZW_RUNTIME_VARIANTS,
 } from "./xyzwRuntimeLoader.js";
+import {
+  buildFightPvpReplayBattleInput,
+} from "./fightPvpBattleInputAdapter.js";
 
 const BOOT_TIMEOUT_MS = 2500;
 const BOOTSTRAP_TIMEOUT_MS = 7000;
 const POLL_INTERVAL_MS = 50;
+const REPLAY_START_TIMEOUT_MS = 2500;
 const BOOTSTRAP_SCENE_NAME = "FightPvpReplayBootstrap";
 const GAME_SCENE_NAME = "Game";
 const REPLAY_AUXILIARY_SCRIPT_ATTR = "data-fight-pvp-replay-aux-script";
@@ -723,6 +727,90 @@ export const installReplayPageExitGuard = ({
   };
 };
 
+export const installReplayPrivacyGuard = ({
+  runtimeWindow = getRuntimeWindow(),
+  diagnostics,
+} = {}) => {
+  const runtimeRequire = runtimeWindow.__require;
+  const gameLoginModule = typeof runtimeRequire === "function"
+    ? safeRequireModule(runtimeRequire, "game-login")
+    : null;
+  const gameLoginPrototype = gameLoginModule?.GameLoginState?.prototype;
+  const previousCheckShowPrivacy = gameLoginPrototype?._checkShowPrivacy;
+  const previousBegin = gameLoginPrototype?.begin;
+  if (!gameLoginPrototype) {
+    return {
+      dispose() {},
+    };
+  }
+
+  const guardedCheckShowPrivacy = async function guardedCheckShowPrivacy() {
+    diagnostics?.steps?.push?.("blocked-game-login-privacy-check");
+    return null;
+  };
+  const guardedBegin = async function guardedBegin() {
+    diagnostics?.steps?.push?.("blocked-game-login-begin");
+    return null;
+  };
+
+  if (typeof previousCheckShowPrivacy === "function") {
+    gameLoginPrototype._checkShowPrivacy = guardedCheckShowPrivacy;
+  }
+  if (typeof previousBegin === "function") {
+    gameLoginPrototype.begin = guardedBegin;
+  }
+
+  return {
+    dispose() {
+      if (
+        typeof previousCheckShowPrivacy === "function"
+        && gameLoginPrototype._checkShowPrivacy === guardedCheckShowPrivacy
+      ) {
+        gameLoginPrototype._checkShowPrivacy = previousCheckShowPrivacy;
+      }
+      if (
+        typeof previousBegin === "function"
+        && gameLoginPrototype.begin === guardedBegin
+      ) {
+        gameLoginPrototype.begin = previousBegin;
+      }
+    },
+  };
+};
+
+export const installReplayPromiseUtilShim = ({
+  runtimeWindow = getRuntimeWindow(),
+  diagnostics,
+} = {}) => {
+  const runtimeRequire = runtimeWindow.__require;
+  const promiseUtilModule = typeof runtimeRequire === "function"
+    ? safeRequireModule(runtimeRequire, "PromiseUtil")
+    : null;
+  const promiseUtil = promiseUtilModule?.default || promiseUtilModule;
+  const previousWait = promiseUtil?.wait;
+  if (!promiseUtil || typeof previousWait !== "function") {
+    return {
+      dispose() {},
+    };
+  }
+
+  const guardedWait = function guardedWait(seconds = 0) {
+    diagnostics?.steps?.push?.("shim-promise-util-wait");
+    const delayMs = Math.max(0, Number(seconds) || 0) * 1000;
+    return new Promise((resolve) => runtimeWindow.setTimeout(resolve, delayMs));
+  };
+
+  promiseUtil.wait = guardedWait;
+
+  return {
+    dispose() {
+      if (promiseUtil.wait === guardedWait) {
+        promiseUtil.wait = previousWait;
+      }
+    },
+  };
+};
+
 export const installReplayLoadingErrorObserver = ({
   runtimeWindow = getRuntimeWindow(),
   diagnostics,
@@ -808,11 +896,13 @@ const readRuntimeModules = () => {
   }
 
   return {
+    BattleUIManager: safeRequireModule(runtimeRequire, "BattleUIManager"),
     Game: safeRequireModule(runtimeRequire, "Game"),
     GlobalVarManager: safeRequireModule(runtimeRequire, "GlobalVarManager"),
     Launcher: safeRequireModule(runtimeRequire, "Launcher"),
     PlatformManager: safeRequireModule(runtimeRequire, "PlatformManager"),
     ResourceManager: safeRequireModule(runtimeRequire, "ResourceManager"),
+    consts: safeRequireModule(runtimeRequire, "consts"),
   };
 };
 
@@ -1321,12 +1411,139 @@ const waitForRuntimeReadyForReplay = async ({
   };
 };
 
-const adaptFightPvpReplayPayloadForRuntime = (replay) => ({
-  replay,
-  battleData: replay?.battleData || null,
-  battleResult: replay?.battleResult || replay?.battleData?.result || null,
-  battleVersion: replay?.battleVersion || replay?.battleData?.version || null,
-});
+const describeReplayStartPanel = (value) => {
+  if (!value) {
+    return null;
+  }
+  if (typeof value === "string") {
+    return value;
+  }
+  return value.__classname__ || value.panelName || value.name || value.constructor?.name || String(value);
+};
+
+export const installReplayBattleStartProbe = ({
+  modules,
+  runtimeWindow = getRuntimeWindow(),
+  diagnostics,
+} = {}) => {
+  const runtimeRequire = runtimeWindow.__require;
+  const battleUIManagerModule = modules?.BattleUIManager
+    || (typeof runtimeRequire === "function"
+      ? safeRequireModule(runtimeRequire, "BattleUIManager")
+      : null);
+  let replayStartEvent = null;
+  diagnostics.replayStartSignal = false;
+  diagnostics.replayStartPanel = null;
+  diagnostics.replayStartIsReplay = null;
+  diagnostics.replayStartMapId = null;
+  diagnostics.replayStartBattleMode = null;
+
+  const restoreCallbacks = [];
+  const recordReplayStartEvent = (event) => {
+    diagnostics.replayStartObservedCalls = [
+      ...(diagnostics.replayStartObservedCalls || []),
+      event,
+    ];
+    if (!event.isReplay) {
+      return;
+    }
+    replayStartEvent = event;
+    diagnostics.replayStartSignal = true;
+    diagnostics.replayStartPanel = event.panel;
+    diagnostics.replayStartIsReplay = event.isReplay;
+    diagnostics.replayStartMapId = event.mapId;
+    diagnostics.replayStartBattleMode = event.battleMode;
+  };
+
+  const patchShowBattleLoading = (target, label) => {
+    const previousShowBattleLoading = target?.showBattleLoading;
+    if (!target || typeof previousShowBattleLoading !== "function") {
+      return false;
+    }
+
+    const patchedShowBattleLoading = function patchedShowBattleLoading(...args) {
+      const [panel, _loadingPanel, battleInput, isReplay] = args;
+      recordReplayStartEvent({
+        label,
+        panel: describeReplayStartPanel(panel),
+        isReplay: isReplay === true,
+        mapId: battleInput?.mapId ?? null,
+        battleMode: battleInput?.battleData?.mode ?? null,
+      });
+      return previousShowBattleLoading.apply(this, args);
+    };
+
+    target.showBattleLoading = patchedShowBattleLoading;
+    restoreCallbacks.push(() => {
+      if (target.showBattleLoading === patchedShowBattleLoading) {
+        target.showBattleLoading = previousShowBattleLoading;
+      }
+    });
+    return true;
+  };
+
+  const hasProbe = (
+    patchShowBattleLoading(
+      battleUIManagerModule?.BattleUIManager?.prototype,
+      "BattleUIManager.prototype.showBattleLoading",
+    )
+    || patchShowBattleLoading(
+      battleUIManagerModule,
+      "BattleUIManager.showBattleLoading",
+    )
+    || patchShowBattleLoading(
+      runtimeWindow.BattleUIManager,
+      "window.BattleUIManager.showBattleLoading",
+    )
+  );
+
+  return {
+    async waitForSignal({ timeoutMs = REPLAY_START_TIMEOUT_MS } = {}) {
+      if (replayStartEvent) {
+        return {
+          ok: true,
+          ...replayStartEvent,
+        };
+      }
+
+      if (!hasProbe) {
+        return {
+          ok: false,
+          message: "运行时未找到 showBattleLoading 探针挂载点。",
+        };
+      }
+
+      try {
+        await waitForValue({
+          read: () => replayStartEvent,
+          runtimeWindow,
+          timeoutMs,
+          timeoutMessage: "Replay start probe timed out.",
+        });
+      } catch {
+        return {
+          ok: false,
+          message: "已调用回放入口，但未观测到 showBattleLoading(..., true, ...) 启动信号。",
+        };
+      }
+
+      return replayStartEvent
+        ? {
+            ok: true,
+            ...replayStartEvent,
+          }
+        : {
+            ok: false,
+            message: "回放启动探针未返回有效事件。",
+          };
+    },
+    dispose() {
+      while (restoreCallbacks.length > 0) {
+        restoreCallbacks.pop()?.();
+      }
+    },
+  };
+};
 
 const locateReplayEntrypoint = ({ diagnostics } = {}) => {
   const runtimeWindow = getRuntimeWindow();
@@ -1415,10 +1632,13 @@ const locateReplayEntrypoint = ({ diagnostics } = {}) => {
   return [...globalCandidates, ...requireCandidates].find(Boolean) || null;
 };
 
-const startReplayEntrypoint = async ({ entrypoint, replay, diagnostics } = {}) => {
-  const payload = adaptFightPvpReplayPayloadForRuntime(replay);
-  diagnostics.replayPayloadKeys = Object.keys(payload).sort();
-  await Promise.resolve(entrypoint.invoke(payload));
+const startReplayEntrypoint = async ({
+  entrypoint,
+  battleInput,
+  diagnostics,
+} = {}) => {
+  diagnostics.replayPayloadKeys = Object.keys(battleInput || {}).sort();
+  await Promise.resolve(entrypoint.invoke(battleInput));
   return {
     ok: true,
     entrypoint: entrypoint.label,
@@ -1449,6 +1669,9 @@ export const startFightPvpReplayRuntime = async ({
     installPageExitGuard: installReplayPageExitGuard,
     installResourceManagerGuard: installReplayResourceManagerGuard,
     installBundleResolverPatch: installReplayBundleResolverPatch,
+    installReplayPrivacyGuard,
+    installReplayPromiseUtilShim,
+    installReplayBattleStartProbe,
     installMissingModuleShims: installReplayMissingModuleShims,
     inspectGameBundleModuleCoverage: inspectReplayGameBundleModuleCoverage,
     ensureReplayBootstrapScene,
@@ -1622,6 +1845,44 @@ export const startFightPvpReplayRuntime = async ({
       };
     }
 
+    diagnostics.steps.push("install-replay-privacy-guard");
+    const replayPrivacyGuard = adapter.installReplayPrivacyGuard({
+      diagnostics,
+    });
+    cleanups.push(() => replayPrivacyGuard.dispose?.());
+
+    diagnostics.steps.push("install-replay-promise-util-shim");
+    const replayPromiseUtilShim = adapter.installReplayPromiseUtilShim({
+      diagnostics,
+    });
+    cleanups.push(() => replayPromiseUtilShim.dispose?.());
+
+    diagnostics.steps.push("build-replay-battle-input");
+    const replayBattleInputResult = buildFightPvpReplayBattleInput(replay, {
+      modules,
+    });
+    diagnostics.replayInputSummary = replayBattleInputResult.replayInputSummary;
+    diagnostics.missingRuntimeFields = replayBattleInputResult.missingRuntimeFields;
+
+    if (!replayBattleInputResult.ok) {
+      return {
+        ok: false,
+        reason: "replay-start-failed",
+        message:
+          replayBattleInputResult.message
+          || "回放 battle input 不完整，无法启动运行时回放。",
+        diagnostics,
+        dispose,
+      };
+    }
+
+    diagnostics.steps.push("install-replay-start-probe");
+    const replayStartProbe = adapter.installReplayBattleStartProbe({
+      modules,
+      diagnostics,
+    });
+    cleanups.push(() => replayStartProbe.dispose?.());
+
     diagnostics.steps.push("locate-replay-entrypoint");
     const replayEntrypoint = adapter.locateReplayEntrypoint({
       modules,
@@ -1645,7 +1906,7 @@ export const startFightPvpReplayRuntime = async ({
     diagnostics.steps.push("start-replay-entrypoint");
     const replayStartResult = await adapter.startReplayEntrypoint({
       entrypoint: replayEntrypoint,
-      replay,
+      battleInput: replayBattleInputResult.battleInput,
       modules,
       diagnostics,
     });
@@ -1663,6 +1924,29 @@ export const startFightPvpReplayRuntime = async ({
     }
 
     diagnostics.replayEntrypoint = replayStartResult.entrypoint || replayEntrypoint.label;
+
+    diagnostics.steps.push("wait-for-replay-start-signal");
+    const replayStartSignal = await replayStartProbe.waitForSignal?.({
+      timeoutMs: REPLAY_START_TIMEOUT_MS,
+    });
+
+    if (!replayStartSignal?.ok) {
+      return {
+        ok: false,
+        reason: "replay-start-failed",
+        message:
+          replayStartSignal?.message
+          || `已定位回放入口 ${replayEntrypoint.label}，但未观测到真实回放启动信号。`,
+        diagnostics,
+        dispose,
+      };
+    }
+
+    diagnostics.replayStartSignal = true;
+    diagnostics.replayStartPanel = replayStartSignal.panel ?? diagnostics.replayStartPanel ?? null;
+    diagnostics.replayStartIsReplay = replayStartSignal.isReplay ?? diagnostics.replayStartIsReplay ?? null;
+    diagnostics.replayStartMapId = replayStartSignal.mapId ?? diagnostics.replayStartMapId ?? null;
+    diagnostics.replayStartBattleMode = replayStartSignal.battleMode ?? diagnostics.replayStartBattleMode ?? null;
 
     return {
       ok: true,

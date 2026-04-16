@@ -40,6 +40,12 @@ export function useFightPvpActions({
     return tokenId;
   };
 
+  const getReplayRuntimeLabels = () => ({
+    stageNameStr: t("fightPvpCard.title"),
+    startTipTopName: t("fightPvpCard.title"),
+    startTipStage: t("fightPvpCard.actions.startFight"),
+  });
+
   const fetchfightPVP = async () => {
     const tokenId = ensureConnectedToken();
     if (!tokenId)
@@ -105,11 +111,36 @@ export function useFightPvpActions({
         rawBattles.push(result.battleData);
         const replay = normalizeFightPvpReplayPayload({
           battleData: result.battleData,
+          battleResult: result.battleResult,
           tokenId,
           targetId: targetId.value,
           targetName: memberData.value?.name,
-          leftContext: selfRoleRaw?.role || selfRoleRaw?.roleInfo || null,
+          leftContext:
+            selfRoleRaw?.role
+            || selfRoleRaw?.roleInfo
+            || tokenStore.gameData?.roleInfo?.role
+            || tokenStore.gameData?.roleInfo
+            || null,
           rightContext: memberData.value,
+          mapId:
+            selfRoleRaw?.role?.pvpMapId
+            || selfRoleRaw?.roleInfo?.pvpMapId
+            || tokenStore.gameData?.roleInfo?.role?.pvpMapId
+            || tokenStore.gameData?.roleInfo?.pvpMapId
+            || null,
+          selfRoleRaw,
+          roleInfo: tokenStore.gameData?.roleInfo || null,
+          runtimeLabels: getReplayRuntimeLabels(),
+          runtimeOptionsSnapshot: {
+            targetRole: result?.targetRole || {
+              roleId: String(memberData.value?.roleId || targetId.value || ""),
+              name: memberData.value?.name || "",
+              headImg: memberData.value?.headImg || "",
+            },
+            selfScore: result?.selfScore ?? null,
+            oppoScore: result?.oppoScore ?? null,
+            replayFlag: true,
+          },
         });
         replays.push(replay);
 

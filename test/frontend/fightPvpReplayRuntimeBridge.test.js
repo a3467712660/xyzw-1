@@ -5,6 +5,9 @@ import {
   analyzeBundleExternalModuleCoverage,
   createScopedReplayVm2Shim,
   ensureReplayBundleVersionContainers,
+  installReplayBattleStartProbe,
+  installReplayPrivacyGuard,
+  installReplayPromiseUtilShim,
   installReplayResourceManagerGuard,
   installReplayPageExitGuard,
   installReplayMissingModuleShims,
@@ -194,6 +197,75 @@ test("fight pvp replay runtime bridge blocks page exit and restart inside replay
   assert.throws(() => platformManager.exitGame(), /should be blocked/);
 });
 
+test("fight pvp replay runtime bridge bypasses privacy checks inside replay session", async () => {
+  class MockGameLoginState {
+    async begin() {
+      throw new Error("should not login");
+    }
+
+    async _checkShowPrivacy() {
+      throw new Error("should be blocked");
+    }
+  }
+
+  const diagnostics = { steps: [] };
+  const guard = installReplayPrivacyGuard({
+    runtimeWindow: {
+      __require(name) {
+        if (name === "game-login") {
+          return {
+            GameLoginState: MockGameLoginState,
+          };
+        }
+        throw new Error(`unexpected:${name}`);
+      },
+    },
+    diagnostics,
+  });
+
+  const loginState = new MockGameLoginState();
+  await assert.doesNotReject(loginState._checkShowPrivacy());
+  await assert.doesNotReject(loginState.begin());
+  assert.ok(diagnostics.steps.includes("blocked-game-login-privacy-check"));
+  assert.ok(diagnostics.steps.includes("blocked-game-login-begin"));
+
+  guard.dispose();
+  await assert.rejects(loginState._checkShowPrivacy(), /should be blocked/);
+  await assert.rejects(loginState.begin(), /should not login/);
+});
+
+test("fight pvp replay runtime bridge replaces PromiseUtil.wait with browser timers during replay", async () => {
+  const diagnostics = { steps: [] };
+  const promiseUtilModule = {
+    default: {
+      wait() {
+        throw new Error("should be replaced");
+      },
+    },
+  };
+  const runtimeWindow = {
+    __require(name) {
+      if (name === "PromiseUtil") {
+        return promiseUtilModule;
+      }
+      throw new Error(`unexpected:${name}`);
+    },
+    setTimeout,
+  };
+  const originalWait = promiseUtilModule.default.wait;
+  const shim = installReplayPromiseUtilShim({
+    runtimeWindow,
+    diagnostics,
+  });
+
+  assert.notEqual(promiseUtilModule.default.wait, originalWait);
+  await assert.doesNotReject(() => promiseUtilModule.default.wait(0));
+  assert.ok(diagnostics.steps.includes("shim-promise-util-wait"));
+
+  shim.dispose();
+  assert.throws(() => promiseUtilModule.default.wait(0), /should be replaced/);
+});
+
 test("fight pvp replay runtime bridge guards resource manager bundle maps before loadBundle", async () => {
   class MockResourceManager {
     async loadBundle(bundleName) {
@@ -287,6 +359,53 @@ test("fight pvp replay runtime bridge reports missing external modules from inco
   ]);
 });
 
+test("fight pvp replay runtime bridge probes showBattleLoading replay start signal", async () => {
+  class MockBattleUIManager {}
+
+  MockBattleUIManager.prototype.showBattleLoading = function showBattleLoading(...args) {
+    this.lastArgs = args;
+    return args;
+  };
+
+  const diagnostics = { steps: [] };
+  const probe = installReplayBattleStartProbe({
+    modules: {
+      BattleUIManager: {
+        BattleUIManager: MockBattleUIManager,
+      },
+    },
+    runtimeWindow: {
+      clearTimeout,
+      setTimeout,
+    },
+    diagnostics,
+  });
+
+  const instance = new MockBattleUIManager();
+  instance.showBattleLoading(
+    { name: "CommonBattleTeamPanel" },
+    { name: "NormalSwitchLoading" },
+    {
+      mapId: 110001,
+      battleData: {
+        mode: 7,
+      },
+    },
+    true,
+  );
+
+  const result = await probe.waitForSignal({ timeoutMs: 50 });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.panel, "CommonBattleTeamPanel");
+  assert.equal(result.isReplay, true);
+  assert.equal(result.mapId, 110001);
+  assert.equal(result.battleMode, 7);
+  assert.equal(diagnostics.replayStartSignal, true);
+  assert.equal(diagnostics.replayStartPanel, "CommonBattleTeamPanel");
+  probe.dispose();
+});
+
 test("fight pvp replay runtime bridge returns ok true when replay entrypoint starts successfully", async () => {
   class MockHTMLElement {
     constructor() {
@@ -298,6 +417,11 @@ test("fight pvp replay runtime bridge returns ok true when replay entrypoint sta
 
   globalThis.window = {
     HTMLElement: MockHTMLElement,
+    clearTimeout,
+    requestAnimationFrame(callback) {
+      return setTimeout(callback, 0);
+    },
+    setTimeout,
   };
   globalThis.HTMLElement = MockHTMLElement;
 
@@ -305,8 +429,31 @@ test("fight pvp replay runtime bridge returns ok true when replay entrypoint sta
   const session = await startFightPvpReplayRuntime({
     replay: {
       battleVersion: 123,
+      mapId: 110001,
+      stageNameStr: "切磋系统",
+      startTipTopName: "切磋系统",
+      startTipStage: "开始切磋",
+      runtimeOptionsSnapshot: {
+        targetRole: {
+          roleId: "target-1",
+          name: "对手",
+        },
+        selfScore: 10,
+        oppoScore: 8,
+        replayFlag: true,
+      },
       battleData: {
         version: 123,
+        mode: 7,
+        leftTeam: {
+          team: [{ heroId: 1001 }],
+        },
+        rightTeam: {
+          team: [{ heroId: 2001 }],
+        },
+        result: {
+          isWin: true,
+        },
       },
     },
     hostElement,
@@ -331,6 +478,16 @@ test("fight pvp replay runtime bridge returns ok true when replay entrypoint sta
       ensureAuxiliaryBundlesLoaded: async () => ({
         dispose() {},
       }),
+      installReplayBattleStartProbe: () => ({
+        dispose() {},
+        waitForSignal: async () => ({
+          ok: true,
+          panel: "CommonBattleTeamPanel",
+          isReplay: true,
+          mapId: 110001,
+          battleMode: 7,
+        }),
+      }),
       locateReplayEntrypoint: () => ({
         label: "mock-entrypoint",
         invoke() {},
@@ -340,8 +497,11 @@ test("fight pvp replay runtime bridge returns ok true when replay entrypoint sta
       }),
       probeGameBundleAssets: async () => [],
       readRuntimeModules: () => ({}),
-      startReplayEntrypoint: async ({ replay }) => {
-        assert.equal(replay.battleVersion, 123);
+      startReplayEntrypoint: async ({ battleInput }) => {
+        assert.equal("replay" in battleInput, false);
+        assert.equal(battleInput.mapId, 110001);
+        assert.equal(battleInput.startTipStage, "开始切磋");
+        assert.equal(battleInput.options.get("selfScore"), 10);
         return { ok: true, entrypoint: "mock-entrypoint" };
       },
       waitForRuntimeReadyForReplay: async () => ({
@@ -353,7 +513,106 @@ test("fight pvp replay runtime bridge returns ok true when replay entrypoint sta
 
   assert.equal(session.ok, true);
   assert.equal(session.reason, "ok");
+  assert.equal(session.diagnostics.replayStartSignal, true);
+  assert.equal(session.diagnostics.replayStartPanel, "CommonBattleTeamPanel");
   session.dispose();
+
+  delete globalThis.window;
+  delete globalThis.HTMLElement;
+});
+
+test("fight pvp replay runtime bridge fails when replay entrypoint does not trigger replay-start probe", async () => {
+  class MockHTMLElement {
+    constructor() {
+      this.innerHTML = "";
+      this.clientWidth = 960;
+      this.clientHeight = 540;
+    }
+  }
+
+  globalThis.window = {
+    HTMLElement: MockHTMLElement,
+    clearTimeout,
+    requestAnimationFrame(callback) {
+      return setTimeout(callback, 0);
+    },
+    setTimeout,
+  };
+  globalThis.HTMLElement = MockHTMLElement;
+
+  const session = await startFightPvpReplayRuntime({
+    replay: {
+      battleVersion: 123,
+      mapId: 110001,
+      stageNameStr: "切磋系统",
+      startTipTopName: "切磋系统",
+      startTipStage: "开始切磋",
+      battleData: {
+        version: 123,
+        mode: 7,
+        leftTeam: {
+          team: [{ heroId: 1001 }],
+        },
+        rightTeam: {
+          team: [{ heroId: 2001 }],
+        },
+        result: {
+          isWin: true,
+        },
+      },
+    },
+    hostElement: new MockHTMLElement(),
+    runtimeAdapter: {
+      createCanvasHost: () => ({
+        canvas: { id: "replay-canvas", width: 960, height: 540 },
+        viewport: {},
+      }),
+      createWxShim: () => ({
+        dispose() {},
+      }),
+      ensureBundleVersionContainers() {},
+      ensureReplayBootstrapScene: async () => ({
+        bootstrapSceneName: "Bootstrap",
+        cleanup() {},
+      }),
+      ensureRuntimeBooted: async () => {},
+      ensureRuntimeLoaded: async () => {},
+      createVm2Shim: () => ({
+        dispose() {},
+      }),
+      ensureAuxiliaryBundlesLoaded: async () => ({
+        dispose() {},
+      }),
+      installReplayBattleStartProbe: () => ({
+        dispose() {},
+        waitForSignal: async () => ({
+          ok: false,
+          message: "已调用回放入口，但未观测到 showBattleLoading(..., true, ...) 启动信号。",
+        }),
+      }),
+      locateReplayEntrypoint: () => ({
+        label: "mock-entrypoint",
+        invoke() {},
+      }),
+      inspectGameBundleModuleCoverage: async () => ({
+        missingModules: [],
+      }),
+      probeGameBundleAssets: async () => [],
+      readRuntimeModules: () => ({}),
+      startReplayEntrypoint: async ({ battleInput }) => {
+        assert.equal("replay" in battleInput, false);
+        return { ok: true, entrypoint: "mock-entrypoint" };
+      },
+      waitForRuntimeReadyForReplay: async () => ({
+        ok: true,
+        sceneName: "Game",
+      }),
+    },
+  });
+
+  assert.equal(session.ok, false);
+  assert.equal(session.reason, "replay-start-failed");
+  assert.match(session.message, /showBattleLoading/);
 
   delete globalThis.window;
   delete globalThis.HTMLElement;

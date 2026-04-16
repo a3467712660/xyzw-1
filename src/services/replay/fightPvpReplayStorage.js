@@ -32,6 +32,7 @@ const sanitizeFightPvpReplay = (value) => {
 
   const normalized = normalizeFightPvpReplayPayload({
     battleData: value?.battleData,
+    battleResult: value?.battleResult,
     tokenId: value?.tokenId,
     targetId: value?.targetId,
     targetName: value?.targetName,
@@ -39,6 +40,11 @@ const sanitizeFightPvpReplay = (value) => {
     source: value?.source,
     leftContext: value?.left,
     rightContext: value?.right,
+    mapId: value?.mapId,
+    stageNameStr: value?.stageNameStr,
+    startTipTopName: value?.startTipTopName,
+    startTipStage: value?.startTipStage,
+    runtimeOptionsSnapshot: value?.runtimeOptionsSnapshot,
   });
 
   if (!normalized?.battleId || !normalized?.battleData) {
