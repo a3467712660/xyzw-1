@@ -10,9 +10,11 @@ const PVP_MAP_DRESS_TYPE_KEYS = Object.freeze([
   "pvp_map",
 ]);
 const PVP_MAP_CONF_MODULE_NAMES = Object.freeze([
+  "Configs",
   "data-index",
   "ConfigsExt",
   "consts",
+  "../../../../../launcher/config/Configs",
 ]);
 
 const toPlainObject = (value) =>
@@ -175,6 +177,79 @@ const buildResolutionResult = ({
   diagnostics: diagnostics || createDiagnostics(),
 });
 
+const hasDressResolutionMetadata = (result) =>
+  Boolean(
+    toPositiveNumber(result?.dressPvpMapUsedId, null)
+    || toPositiveNumber(result?.dressPvpMapMapId, null),
+  );
+
+const isLegacyDressUsedPvpMapIdLeak = ({
+  pvpMapId = null,
+  dressPvpMapUsedId = null,
+  dressPvpMapMapId = null,
+} = {}) => {
+  const resolvedPvpMapId = toPositiveNumber(pvpMapId, null);
+  const resolvedDressUsedId = toPositiveNumber(dressPvpMapUsedId, null);
+  const resolvedDressMapId = toPositiveNumber(dressPvpMapMapId, null);
+  return Boolean(
+    resolvedPvpMapId
+    && resolvedDressUsedId
+    && resolvedPvpMapId === resolvedDressUsedId
+    && !resolvedDressMapId,
+  );
+};
+
+const getReplayPvpMapLeakLinks = (replayObject, scope = "all") => {
+  const contextLink = {
+    usedId: replayObject?.context?.dressPvpMapUsedId,
+    usedPath: "replay.context.dressPvpMapUsedId",
+    dressMapId: replayObject?.context?.dressPvpMapMapId,
+    mapPath: "replay.context.dressPvpMapMapId",
+  };
+  const snapshotLink = {
+    usedId: replayObject?.selfRoleSnapshot?.dressPvpMapUsedId,
+    usedPath: "replay.selfRoleSnapshot.dressPvpMapUsedId",
+    dressMapId: replayObject?.selfRoleSnapshot?.dressPvpMapMapId,
+    mapPath: "replay.selfRoleSnapshot.dressPvpMapMapId",
+  };
+
+  if (scope === "context") {
+    return [contextLink];
+  }
+  if (scope === "selfRoleSnapshot") {
+    return [snapshotLink];
+  }
+
+  return [contextLink, snapshotLink];
+};
+
+const isTrustedReplayPvpMapCandidate = ({
+  candidate,
+  replayObject,
+  diagnostics,
+} = {}) => {
+  const resolvedPvpMapId = toPositiveNumber(candidate?.value, null);
+  if (!resolvedPvpMapId) {
+    return false;
+  }
+
+  for (const link of getReplayPvpMapLeakLinks(replayObject, candidate?.leakScope)) {
+    recordCandidate(diagnostics, link.usedPath, link.usedId);
+    recordCandidate(diagnostics, link.mapPath, link.dressMapId);
+    if (isLegacyDressUsedPvpMapIdLeak({
+      pvpMapId: resolvedPvpMapId,
+      dressPvpMapUsedId: link.usedId,
+      dressPvpMapMapId: link.dressMapId,
+    })) {
+      recordCandidate(diagnostics, `${candidate.path}.suspectLegacyDressUsedLeak`, true);
+      recordCandidate(diagnostics, `${candidate.path}.suspectLegacyDressUsedLeakSource`, link.usedPath);
+      return false;
+    }
+  }
+
+  return true;
+};
+
 const getGlobalRequire = () => {
   if (typeof globalThis === "undefined") {
     return null;
@@ -331,8 +406,6 @@ const resolveDressMapIdFromSources = ({
         recordCandidate(diagnostics, `${source?.path}.configLookup`, "dress-config-unavailable");
         return buildResolutionResult({
           ok: false,
-          pvpMapId: usedId,
-          pvpMapIdSource: `${source?.path}.used`,
           dressPvpMapUsedId: usedId,
           diagnostics,
         });
@@ -349,9 +422,9 @@ const resolveDressMapIdFromSources = ({
       return buildResolutionResult({
         ok: true,
         mapId,
-        pvpMapId: usedId,
+        pvpMapId: mapId,
         mapIdSource: `${source?.path}.PVPMapConf.mapId`,
-        pvpMapIdSource: `${source?.path}.used`,
+        pvpMapIdSource: `${source?.path}.PVPMapConf.mapId`,
         dressPvpMapUsedId: usedId,
         dressPvpMapMapId: mapId,
         diagnostics,
@@ -484,7 +557,7 @@ export function resolveFightPvpMapIdFromLiveContext({
     }),
     diagnostics,
   });
-  if (dressResolution.ok || dressResolution.pvpMapId) {
+  if (dressResolution.ok || hasDressResolutionMetadata(dressResolution)) {
     return dressResolution;
   }
 
@@ -518,13 +591,9 @@ export function resolveFightPvpMapIdFromReplay({
     return buildResolutionResult({
       ok: true,
       mapId: storedMapId,
-      pvpMapId: toPositiveNumber(replayObject.pvpMapId, storedMapId),
+      pvpMapId: storedMapId,
       mapIdSource: toNonEmptyString(replayObject.mapIdSource, "replay.mapId"),
-      pvpMapIdSource: toNonEmptyString(
-        replayObject.pvpMapIdSource,
-        replayObject.mapIdSource,
-        replayObject.pvpMapId ? "replay.pvpMapId" : "replay.mapId",
-      ),
+      pvpMapIdSource: toNonEmptyString(replayObject.mapIdSource, "replay.mapId"),
       diagnostics,
     });
   }
@@ -535,12 +604,9 @@ export function resolveFightPvpMapIdFromReplay({
     return buildResolutionResult({
       ok: true,
       mapId: battleDataMapId,
-      pvpMapId: toPositiveNumber(replayObject.pvpMapId, battleDataMapId),
+      pvpMapId: battleDataMapId,
       mapIdSource: "replay.battleData.mapId",
-      pvpMapIdSource: toNonEmptyString(
-        replayObject.pvpMapIdSource,
-        replayObject.pvpMapId ? "replay.pvpMapId" : "replay.battleData.mapId",
-      ),
+      pvpMapIdSource: "replay.battleData.mapId",
       diagnostics,
     });
   }
@@ -550,21 +616,25 @@ export function resolveFightPvpMapIdFromReplay({
       path: "replay.pvpMapId",
       value: replayObject.pvpMapId,
       sourceFallback: "replay.pvpMapId",
+      leakScope: "all",
     },
     {
       path: "replay.meta.pvpMapId",
       value: replayObject.meta?.pvpMapId,
       sourceFallback: "replay.meta.pvpMapId",
+      leakScope: "all",
     },
     {
       path: "replay.context.pvpMapId",
       value: replayObject.context?.pvpMapId,
       sourceFallback: "replay.context.pvpMapId",
+      leakScope: "context",
     },
     {
       path: "replay.selfRoleSnapshot.pvpMapId",
       value: replayObject.selfRoleSnapshot?.pvpMapId,
       sourceFallback: "replay.selfRoleSnapshot.pvpMapId",
+      leakScope: "selfRoleSnapshot",
     },
   ];
 
@@ -572,6 +642,13 @@ export function resolveFightPvpMapIdFromReplay({
     const resolvedPvpMapId = toPositiveNumber(candidate.value, null);
     recordCandidate(diagnostics, candidate.path, candidate.value);
     if (!resolvedPvpMapId) {
+      continue;
+    }
+    if (!isTrustedReplayPvpMapCandidate({
+      candidate,
+      replayObject,
+      diagnostics,
+    })) {
       continue;
     }
 
@@ -611,9 +688,9 @@ export function resolveFightPvpMapIdFromReplay({
     return buildResolutionResult({
       ok: true,
       mapId: resolvedMapId,
-      pvpMapId: toPositiveNumber(candidate.usedId, resolvedMapId),
+      pvpMapId: resolvedMapId,
       mapIdSource: candidate.path,
-      pvpMapIdSource: toPositiveNumber(candidate.usedId, null) ? candidate.usedPath : candidate.path,
+      pvpMapIdSource: candidate.path,
       dressPvpMapUsedId: candidate.usedId,
       dressPvpMapMapId: resolvedMapId,
       diagnostics,
@@ -624,9 +701,12 @@ export function resolveFightPvpMapIdFromReplay({
     dressSources: buildReplayDressSources(replayObject),
     diagnostics,
   });
-  if (dressResolution.ok || dressResolution.pvpMapId) {
+  if (dressResolution.ok) {
     return dressResolution;
   }
+  const failedDressResolution = hasDressResolutionMetadata(dressResolution)
+    ? dressResolution
+    : null;
 
   if (liveContext) {
     const liveResolution = resolveFightPvpMapIdFromLiveContext(liveContext);
@@ -645,26 +725,17 @@ export function resolveFightPvpMapIdFromReplay({
     return buildResolutionResult({
       ok: true,
       mapId: FIGHT_PVP_REPLAY_FIXTURE_FALLBACK_MAP_ID,
-      pvpMapId: toPositiveNumber(
-        replayObject.pvpMapId,
-        toPositiveNumber(
-          replayObject.meta?.pvpMapId,
-          toPositiveNumber(replayObject.context?.pvpMapId, null),
-        ),
-      ),
+      pvpMapId: FIGHT_PVP_REPLAY_FIXTURE_FALLBACK_MAP_ID,
       mapIdSource: "fixture.110001",
-      pvpMapIdSource: toNonEmptyString(
-        replayObject.pvpMapIdSource,
-        replayObject.pvpMapId ? "replay.pvpMapId" : "",
-        replayObject.meta?.pvpMapId ? "replay.meta.pvpMapId" : "",
-        replayObject.context?.pvpMapId ? "replay.context.pvpMapId" : "",
-      ) || null,
+      pvpMapIdSource: "fixture.110001",
       fixtureMapFallbackUsed: true,
+      dressPvpMapUsedId: failedDressResolution?.dressPvpMapUsedId,
+      dressPvpMapMapId: failedDressResolution?.dressPvpMapMapId,
       diagnostics,
     });
   }
 
-  return buildResolutionResult({
+  return failedDressResolution || buildResolutionResult({
     ok: false,
     diagnostics,
   });

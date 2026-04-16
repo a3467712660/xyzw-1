@@ -33,6 +33,37 @@ const hasPersistedReplayMapId = (value) => {
   return Number.isFinite(mapId) && mapId > 0;
 };
 
+const toComparablePositiveNumber = (value) => {
+  const num = Number(value);
+  return Number.isFinite(num) && num > 0 ? num : null;
+};
+
+const toComparableText = (value) => {
+  const text = String(value ?? "").trim();
+  return text || null;
+};
+
+const pickReplayMapFieldSnapshot = (value) => ({
+  mapId: toComparablePositiveNumber(value?.mapId),
+  pvpMapId: toComparablePositiveNumber(value?.pvpMapId),
+  mapIdSource: toComparableText(value?.mapIdSource),
+  pvpMapIdSource: toComparableText(value?.pvpMapIdSource),
+  selfRoleSnapshot: {
+    pvpMapId: toComparablePositiveNumber(value?.selfRoleSnapshot?.pvpMapId),
+    dressPvpMapUsedId: toComparablePositiveNumber(value?.selfRoleSnapshot?.dressPvpMapUsedId),
+    dressPvpMapMapId: toComparablePositiveNumber(value?.selfRoleSnapshot?.dressPvpMapMapId),
+  },
+  context: {
+    pvpMapId: toComparablePositiveNumber(value?.context?.pvpMapId),
+    dressPvpMapUsedId: toComparablePositiveNumber(value?.context?.dressPvpMapUsedId),
+    dressPvpMapMapId: toComparablePositiveNumber(value?.context?.dressPvpMapMapId),
+  },
+});
+
+const didReplayMapFieldsChange = (before, after) =>
+  JSON.stringify(pickReplayMapFieldSnapshot(before))
+  !== JSON.stringify(pickReplayMapFieldSnapshot(after));
+
 const sanitizeFightPvpReplay = (value, { liveContext = null } = {}) => {
   if (!value || typeof value !== "object") {
     return null;
@@ -77,6 +108,7 @@ const sanitizeFightPvpReplay = (value, { liveContext = null } = {}) => {
   return {
     normalized,
     didBackfillMapId,
+    didRepairMapFields: didReplayMapFieldsChange(value, normalized),
   };
 };
 
@@ -85,11 +117,13 @@ const sanitizeFightPvpReplays = (records, { liveContext = null } = {}) => {
     return {
       records: [],
       didBackfillMapId: false,
+      didRepairMapFields: false,
     };
   }
 
   const deduped = new Map();
   let didBackfillMapId = false;
+  let didRepairMapFields = false;
   for (const item of records) {
     const sanitized = sanitizeFightPvpReplay(item, { liveContext });
     const normalized = sanitized?.normalized || null;
@@ -98,6 +132,7 @@ const sanitizeFightPvpReplays = (records, { liveContext = null } = {}) => {
     }
 
     didBackfillMapId = didBackfillMapId || sanitized.didBackfillMapId === true;
+    didRepairMapFields = didRepairMapFields || sanitized.didRepairMapFields === true;
     const dedupeKey = dedupeReplayKey(normalized);
     if (!dedupeKey) {
       continue;
@@ -114,6 +149,7 @@ const sanitizeFightPvpReplays = (records, { liveContext = null } = {}) => {
       .sort((left, right) => toTimestamp(right.createdAt) - toTimestamp(left.createdAt))
       .slice(0, MAX_FIGHT_PVP_REPLAYS),
     didBackfillMapId,
+    didRepairMapFields,
   };
 };
 
@@ -163,8 +199,10 @@ export const loadFightPvpReplays = ({ userId, tokenId, liveContext = null } = {}
     const sanitized = sanitizeFightPvpReplays(JSON.parse(raw), {
       liveContext,
     });
-    if (sanitized.didBackfillMapId) {
-      writeFightPvpReplayRecords(storageKey, sanitized.records);
+    if (sanitized.didRepairMapFields) {
+      writeFightPvpReplayRecords(storageKey, sanitized.records, {
+        liveContext,
+      });
     }
     return sanitized.records;
   } catch {

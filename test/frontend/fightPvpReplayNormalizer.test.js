@@ -12,6 +12,11 @@ import {
   normalizeFightPvpReplayPayload,
 } from "../../src/services/replay/fightPvpReplayNormalizer.js";
 
+test.afterEach(() => {
+  delete globalThis.PVPMapConf;
+  delete globalThis.__require;
+});
+
 test("fight pvp replay normalizer keeps runtime fields stable and persists map diagnostics", () => {
   const selfRoleRaw = {
     role: {
@@ -149,6 +154,142 @@ test("fight pvp replay normalizer builds a stable fallback battle id for legacy 
   assert.equal(left.replayId, right.replayId);
   assert.equal(left.mapId, 120001);
   assert.equal(left.mapIdSource, "tokenStore.gameData.roleInfo.role.pvpMapId");
+});
+
+test("fight pvp replay normalizer preserves dress used id without polluting pvpMapId when config is unavailable", () => {
+  const replay = normalizeFightPvpReplayPayload({
+    tokenId: "token-dress-missing",
+    battleData: {
+      id: "battle-dress-missing",
+      version: 1,
+      mode: 7,
+      leftTeam: {},
+      rightTeam: {},
+      result: {
+        isWin: true,
+      },
+    },
+    selfRoleRaw: {
+      role: {
+        roleId: "role-1",
+        dress: new Map([[6, { used: 7001 }]]),
+      },
+    },
+    roleInfo: {
+      role: {
+        roleId: "role-1",
+      },
+    },
+  });
+
+  assert.equal(replay.mapId, null);
+  assert.equal(replay.pvpMapId, null);
+  assert.equal(replay.mapIdSource, null);
+  assert.equal(replay.pvpMapIdSource, null);
+  assert.deepEqual(replay.selfRoleSnapshot, {
+    roleId: "role-1",
+    pvpMapId: null,
+    dressPvpMapUsedId: 7001,
+    dressPvpMapMapId: null,
+  });
+  assert.deepEqual(replay.context, {
+    pvpMapId: null,
+    dressPvpMapUsedId: 7001,
+    dressPvpMapMapId: null,
+  });
+  assert.equal(
+    replay.meta.mapIdDiagnostics.availableValues["selfRoleRaw.role.dress.configLookup"],
+    "dress-config-unavailable",
+  );
+});
+
+test("fight pvp replay normalizer stores final mapId separately from dress used id after config mapping", () => {
+  globalThis.PVPMapConf = {
+    getById(id) {
+      return id === 7001 ? { mapId: 120005 } : null;
+    },
+  };
+
+  const replay = normalizeFightPvpReplayPayload({
+    tokenId: "token-dress-mapped",
+    battleData: {
+      id: "battle-dress-mapped",
+      version: 1,
+      mode: 7,
+      leftTeam: {},
+      rightTeam: {},
+      result: {
+        isWin: false,
+      },
+    },
+    selfRoleRaw: {
+      role: {
+        roleId: "role-1",
+        dress: new Map([[6, { used: 7001 }]]),
+      },
+    },
+    roleInfo: {
+      role: {
+        roleId: "role-1",
+      },
+    },
+  });
+
+  assert.equal(replay.mapId, 120005);
+  assert.equal(replay.pvpMapId, 120005);
+  assert.equal(replay.mapIdSource, "selfRoleRaw.role.dress.PVPMapConf.mapId");
+  assert.equal(replay.pvpMapIdSource, "selfRoleRaw.role.dress.PVPMapConf.mapId");
+  assert.deepEqual(replay.selfRoleSnapshot, {
+    roleId: "role-1",
+    pvpMapId: 120005,
+    dressPvpMapUsedId: 7001,
+    dressPvpMapMapId: 120005,
+  });
+  assert.deepEqual(replay.context, {
+    pvpMapId: 120005,
+    dressPvpMapUsedId: 7001,
+    dressPvpMapMapId: 120005,
+  });
+});
+
+test("fight pvp replay normalizer clears leaked dress used ids from persisted replay pvpMapId fields", () => {
+  const replay = normalizeFightPvpReplayPayload({
+    source: FIGHT_PVP_REPLAY_SOURCE,
+    battleData: {
+      id: "battle-leaked-map",
+      version: 1,
+      mode: 7,
+      leftTeam: {},
+      rightTeam: {},
+      result: {
+        isWin: true,
+      },
+    },
+    selfRoleSnapshot: {
+      roleId: "role-1",
+      pvpMapId: 7001,
+      dressPvpMapUsedId: 7001,
+    },
+    context: {
+      pvpMapId: 7001,
+      dressPvpMapUsedId: 7001,
+    },
+  });
+
+  assert.equal(replay.mapId, null);
+  assert.equal(replay.pvpMapId, null);
+  assert.equal(replay.pvpMapIdSource, null);
+  assert.deepEqual(replay.selfRoleSnapshot, {
+    roleId: "role-1",
+    pvpMapId: null,
+    dressPvpMapUsedId: 7001,
+    dressPvpMapMapId: null,
+  });
+  assert.deepEqual(replay.context, {
+    pvpMapId: null,
+    dressPvpMapUsedId: 7001,
+    dressPvpMapMapId: null,
+  });
 });
 
 test("fight pvp replay adapter converts replay record into runtime-ready battle input", () => {

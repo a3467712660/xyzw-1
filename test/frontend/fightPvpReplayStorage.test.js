@@ -208,6 +208,67 @@ test("fight pvp replay storage backfills missing mapId once and rewrites the rec
   assert.ok(stored[0].backfilledAt);
 });
 
+test("fight pvp replay storage rewrites leaked dress used ids without inventing a fallback mapId", () => {
+  const storageKey = buildFightPvpReplayStorageKey({
+    userId: "user-a",
+    tokenId: "token-a",
+  });
+  globalThis.localStorage.setItem(storageKey, JSON.stringify([
+    {
+      ...createReplay(13),
+      mapId: null,
+      pvpMapId: 7001,
+      mapIdSource: null,
+      pvpMapIdSource: "replay.pvpMapId",
+      selfRoleSnapshot: {
+        roleId: "role-left",
+        pvpMapId: 7001,
+        dressPvpMapUsedId: 7001,
+        dressPvpMapMapId: null,
+      },
+      context: {
+        pvpMapId: 7001,
+        dressPvpMapUsedId: 7001,
+        dressPvpMapMapId: null,
+      },
+      meta: {},
+      backfilledAt: null,
+    },
+  ]));
+
+  const records = loadFightPvpReplays({
+    userId: "user-a",
+    tokenId: "token-a",
+  });
+
+  assert.equal(records.length, 1);
+  assert.equal(records[0].mapId, null);
+  assert.equal(records[0].pvpMapId, null);
+  assert.equal(records[0].pvpMapIdSource, null);
+  assert.deepEqual(records[0].selfRoleSnapshot, {
+    roleId: "role-left",
+    pvpMapId: null,
+    dressPvpMapUsedId: 7001,
+    dressPvpMapMapId: null,
+  });
+  assert.deepEqual(records[0].context, {
+    pvpMapId: null,
+    dressPvpMapUsedId: 7001,
+    dressPvpMapMapId: null,
+  });
+  assert.equal(records[0].backfilledAt, null);
+
+  const stored = JSON.parse(globalThis.localStorage.getItem(storageKey));
+  assert.equal(stored[0].mapId, null);
+  assert.equal(stored[0].pvpMapId, null);
+  assert.equal(stored[0].pvpMapIdSource, null);
+  assert.equal(stored[0].selfRoleSnapshot.pvpMapId, null);
+  assert.equal(stored[0].context.pvpMapId, null);
+  assert.equal(stored[0].selfRoleSnapshot.dressPvpMapUsedId, 7001);
+  assert.equal(stored[0].context.dressPvpMapUsedId, 7001);
+  assert.equal(stored[0].backfilledAt, null);
+});
+
 test("fight pvp replay storage leaves unreadable missing-map records untouched", () => {
   const storageKey = buildFightPvpReplayStorageKey({
     userId: "user-a",

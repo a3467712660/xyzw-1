@@ -57,6 +57,36 @@ const cloneJsonValue = (value) => {
   }
 };
 
+const isLegacyDressUsedPvpMapIdLeak = ({
+  pvpMapId = null,
+  dressPvpMapUsedId = null,
+  dressPvpMapMapId = null,
+} = {}) => {
+  const resolvedPvpMapId = toPositiveNumber(pvpMapId, null);
+  const resolvedDressUsedId = toPositiveNumber(dressPvpMapUsedId, null);
+  const resolvedDressMapId = toPositiveNumber(dressPvpMapMapId, null);
+  return Boolean(
+    resolvedPvpMapId
+    && resolvedDressUsedId
+    && resolvedPvpMapId === resolvedDressUsedId
+    && !resolvedDressMapId,
+  );
+};
+
+const sanitizePersistedPvpMapId = ({
+  pvpMapId = null,
+  dressPvpMapUsedId = null,
+  dressPvpMapMapId = null,
+} = {}) => (
+  isLegacyDressUsedPvpMapIdLeak({
+    pvpMapId,
+    dressPvpMapUsedId,
+    dressPvpMapMapId,
+  })
+    ? null
+    : toPositiveNumber(pvpMapId, null)
+);
+
 const normalizeReplayTimestamp = (value) => {
   if (typeof value === "string" && value.trim()) {
     const time = Date.parse(value);
@@ -236,6 +266,19 @@ const buildFightPvpReplaySelfRoleSnapshot = ({
   tokenStoreRoleInfo = null,
   mapResolution = null,
 } = {}) => {
+  const dressPvpMapUsedId = toPositiveNumber(
+    existingSnapshot?.dressPvpMapUsedId,
+    mapResolution?.dressPvpMapUsedId,
+  );
+  const dressPvpMapMapId = toPositiveNumber(
+    existingSnapshot?.dressPvpMapMapId,
+    mapResolution?.dressPvpMapMapId,
+  );
+  const existingPvpMapId = sanitizePersistedPvpMapId({
+    pvpMapId: existingSnapshot?.pvpMapId,
+    dressPvpMapUsedId,
+    dressPvpMapMapId,
+  });
   const snapshot = {
     roleId: toNonEmptyString(
       existingSnapshot?.roleId,
@@ -248,7 +291,7 @@ const buildFightPvpReplaySelfRoleSnapshot = ({
       tokenStoreRoleInfo?.role?.roleid,
     ),
     pvpMapId: toPositiveNumber(
-      existingSnapshot?.pvpMapId,
+      existingPvpMapId,
       toPositiveNumber(
         selfRoleRaw?.role?.pvpMapId,
         toPositiveNumber(
@@ -263,14 +306,8 @@ const buildFightPvpReplaySelfRoleSnapshot = ({
         ),
       ),
     ),
-    dressPvpMapUsedId: toPositiveNumber(
-      existingSnapshot?.dressPvpMapUsedId,
-      mapResolution?.dressPvpMapUsedId,
-    ),
-    dressPvpMapMapId: toPositiveNumber(
-      existingSnapshot?.dressPvpMapMapId,
-      mapResolution?.dressPvpMapMapId,
-    ),
+    dressPvpMapUsedId,
+    dressPvpMapMapId,
   };
 
   if (
@@ -289,19 +326,26 @@ const buildFightPvpReplayContext = ({
   existingContext = null,
   mapResolution = null,
 } = {}) => {
+  const dressPvpMapUsedId = toPositiveNumber(
+    existingContext?.dressPvpMapUsedId,
+    mapResolution?.dressPvpMapUsedId,
+  );
+  const dressPvpMapMapId = toPositiveNumber(
+    existingContext?.dressPvpMapMapId,
+    mapResolution?.dressPvpMapMapId,
+  );
+  const existingPvpMapId = sanitizePersistedPvpMapId({
+    pvpMapId: existingContext?.pvpMapId,
+    dressPvpMapUsedId,
+    dressPvpMapMapId,
+  });
   const context = {
     pvpMapId: toPositiveNumber(
-      existingContext?.pvpMapId,
+      existingPvpMapId,
       mapResolution?.pvpMapId,
     ),
-    dressPvpMapUsedId: toPositiveNumber(
-      existingContext?.dressPvpMapUsedId,
-      mapResolution?.dressPvpMapUsedId,
-    ),
-    dressPvpMapMapId: toPositiveNumber(
-      existingContext?.dressPvpMapMapId,
-      mapResolution?.dressPvpMapMapId,
-    ),
+    dressPvpMapUsedId,
+    dressPvpMapMapId,
   };
 
   if (!context.pvpMapId && !context.dressPvpMapUsedId && !context.dressPvpMapMapId) {
@@ -438,6 +482,21 @@ export function normalizeFightPvpReplayPayload({
     existingContext: context,
     mapResolution: resolvedMapId,
   });
+  const normalizedMapId = toPositiveNumber(resolvedMapId?.mapId, null);
+  const normalizedPvpMapId = toPositiveNumber(resolvedMapId?.pvpMapId, null);
+  const normalizedMapIdSource = normalizedMapId
+    ? (toNonEmptyString(resolvedMapId?.mapIdSource, mapIdSource) || null)
+    : null;
+  const normalizedPvpMapIdSource = normalizedPvpMapId
+    ? (
+        toNonEmptyString(
+          resolvedMapId?.pvpMapIdSource,
+          resolvedMapId?.mapIdSource,
+          pvpMapIdSource,
+          mapIdSource,
+        ) || null
+      )
+    : null;
 
   return {
     replayId,
@@ -452,10 +511,10 @@ export function normalizeFightPvpReplayPayload({
     right,
     targetId: normalizedTargetId,
     targetName: normalizedTargetName,
-    mapId: resolvedMapId.mapId,
-    pvpMapId: resolvedMapId.pvpMapId,
-    mapIdSource: toNonEmptyString(resolvedMapId.mapIdSource, mapIdSource) || null,
-    pvpMapIdSource: toNonEmptyString(resolvedMapId.pvpMapIdSource, pvpMapIdSource) || null,
+    mapId: normalizedMapId,
+    pvpMapId: normalizedPvpMapId,
+    mapIdSource: normalizedMapIdSource,
+    pvpMapIdSource: normalizedPvpMapIdSource,
     selfRoleSnapshot: normalizedSelfRoleSnapshot,
     context: normalizedContext,
     backfilledAt: normalizeOptionalReplayTimestamp(backfilledAt),
