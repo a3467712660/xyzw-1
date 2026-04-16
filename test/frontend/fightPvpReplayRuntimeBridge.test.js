@@ -3,8 +3,10 @@ import test from "node:test";
 
 import {
   analyzeBundleExternalModuleCoverage,
+  classifyRuntimeLoadFailure,
   createScopedReplayVm2Shim,
   ensureReplayBundleVersionContainers,
+  installReplayAssetRequestObserver,
   installReplayBattleStartProbe,
   installReplayPrivacyGuard,
   installReplayPromiseUtilShim,
@@ -12,8 +14,10 @@ import {
   installReplayPageExitGuard,
   installReplayMissingModuleShims,
   installReplayManifestShim,
+  probeGameSceneAssets,
   startFightPvpReplayRuntime,
   toAbsoluteBundleRequestTarget,
+  waitForRuntimeReadyForReplay,
 } from "../../src/services/replay/fightPvpReplayRuntimeBridge.js";
 import {
   createFightPvpRealReplayFixture,
@@ -362,6 +366,277 @@ test("fight pvp replay runtime bridge reports missing external modules from inco
   ]);
 });
 
+test("fight pvp replay runtime bridge observes asset requests and restores fetch after dispose", async () => {
+  const originalFetch = async (input) => {
+    const url = String(input);
+    if (url.includes("html-fallback")) {
+      return {
+        ok: true,
+        status: 200,
+        headers: {
+          get(name) {
+            return name === "content-type" ? "text/html; charset=utf-8" : "";
+          },
+        },
+      };
+    }
+    if (url.includes("missing")) {
+      return {
+        ok: false,
+        status: 404,
+        headers: {
+          get(name) {
+            return name === "content-type" ? "application/json" : "";
+          },
+        },
+      };
+    }
+    if (url.includes("pending")) {
+      return new Promise(() => {});
+    }
+    return {
+      ok: true,
+      status: 200,
+      headers: {
+        get(name) {
+          return name === "content-type" ? "application/json" : "";
+        },
+      },
+    };
+  };
+  const runtimeWindow = {
+    fetch: originalFetch,
+    location: {
+      href: "https://xyzw.xq5007.fun/replay-runtime-probe.html",
+    },
+  };
+  const diagnostics = {};
+
+  const observer = installReplayAssetRequestObserver({
+    runtimeWindow,
+    diagnostics,
+  });
+
+  await runtimeWindow.fetch("https://xyzw.xq5007.fun/assets/game/import/missing.json");
+  await runtimeWindow.fetch("https://xyzw.xq5007.fun/assets/game/import/html-fallback.json");
+  void runtimeWindow.fetch("https://xyzw.xq5007.fun/assets/main/pending.bin");
+
+  assert.equal(diagnostics.firstFailedAssetRequest.pathname, "/assets/game/import/missing.json");
+  assert.equal(
+    diagnostics.firstHtmlFallbackAssetRequest.pathname,
+    "/assets/game/import/html-fallback.json",
+  );
+  assert.equal(diagnostics.firstPendingAssetRequest.pathname, "/assets/main/pending.bin");
+  assert.equal(Array.isArray(diagnostics.assetRequestLog), true);
+  assert.equal(diagnostics.assetRequestLog.length, 3);
+
+  observer.dispose();
+  assert.equal(runtimeWindow.fetch, originalFetch);
+});
+
+test("fight pvp replay runtime bridge probes the real Game scene import asset and reports the first missing path", async () => {
+  const diagnostics = {};
+  const runtimeWindow = {
+    fetch: async (url) => {
+      if (String(url).includes("/assets/game/config.json")) {
+        return {
+          ok: true,
+          status: 200,
+          clone() {
+            return {
+              async json() {
+                return {
+                  uuids: ["unused-0", "unused-1", "unused-2", "unused-3", "73788c49-686e-46bd-b737-8f681d06f0be"],
+                  scenes: {
+                    "db://assets/game/scenes/Game.fire": 4,
+                  },
+                  versions: {
+                    import: [4, "42ab3"],
+                  },
+                };
+              },
+            };
+          },
+          headers: {
+            get(name) {
+              return name === "content-type" ? "application/json" : "";
+            },
+          },
+        };
+      }
+      return {
+        ok: false,
+        status: 404,
+        headers: {
+          get(name) {
+            return name === "content-type" ? "application/json" : "";
+          },
+        },
+      };
+    },
+    location: {
+      href: "https://xyzw.xq5007.fun/replay-runtime-probe.html",
+    },
+  };
+
+  const probe = await probeGameSceneAssets({
+    diagnostics,
+    runtimeWindow,
+  });
+  const failure = classifyRuntimeLoadFailure({
+    stateId: "LoadGameScene",
+    diagnostics,
+    timedOut: false,
+  });
+
+  assert.equal(probe[1].stage, "scene-record");
+  assert.equal(
+    probe[1].pathname,
+    "/assets/game/import/73/73788c49-686e-46bd-b737-8f681d06f0be.42ab3.json",
+  );
+  assert.equal(probe[2].stage, "scene-import");
+  assert.equal(probe[2].ok, false);
+  assert.equal(
+    diagnostics.firstMissingAsset,
+    "/assets/game/import/73/73788c49-686e-46bd-b737-8f681d06f0be.42ab3.json",
+  );
+  assert.match(failure.message, /Game scene 依赖资源加载失败/);
+  assert.match(failure.message, /73788c49-686e-46bd-b737-8f681d06f0be/);
+});
+
+test("fight pvp replay runtime bridge keeps waiting while LoadGameScene is still loading within timeout budget", async () => {
+  let now = 0;
+  const runtimeWindow = {
+    cc: {
+      director: {
+        getScene() {
+          return {
+            name: now >= 300 ? "Game" : "FightPvpReplayBootstrap",
+          };
+        },
+      },
+      game: {
+        _prepared: true,
+        _rendererInitialized: true,
+      },
+    },
+    setTimeout(callback) {
+      now += 100;
+      callback();
+    },
+  };
+  const modules = {
+    Game: {
+      Game: {
+        _instance: {
+          stateMachine: {
+            current: {
+              get stateId() {
+                return now >= 300 ? "GameRunning" : "LoadGameScene";
+              },
+            },
+          },
+        },
+      },
+    },
+    Launcher: {
+      Launcher: {
+        _instance: {},
+      },
+    },
+    PlatformManager: {
+      PlatformManager: {
+        _instance: {
+          getBattleVersion() {
+            return 0;
+          },
+        },
+      },
+    },
+  };
+  const diagnostics = {};
+
+  const result = await waitForRuntimeReadyForReplay({
+    modules,
+    diagnostics,
+    runtimeWindow,
+    bootstrapSceneName: "FightPvpReplayBootstrap",
+    timeoutMs: 35000,
+    intervalMs: 0,
+    getNow: () => now,
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.sceneName, "Game");
+  assert.ok(diagnostics.gameStateHistory.includes("LoadGameScene"));
+});
+
+test("fight pvp replay runtime bridge fails immediately when LoadingError is observed", async () => {
+  const runtimeWindow = {
+    cc: {
+      director: {
+        getScene() {
+          return {
+            name: "FightPvpReplayBootstrap",
+          };
+        },
+      },
+      game: {
+        _prepared: true,
+        _rendererInitialized: true,
+      },
+    },
+    setTimeout(callback) {
+      callback();
+    },
+  };
+  const modules = {
+    Game: {
+      Game: {
+        _instance: {
+          stateMachine: {
+            current: {
+              stateId: "LoadingError",
+            },
+          },
+        },
+      },
+    },
+    Launcher: {
+      Launcher: {
+        _instance: {},
+      },
+    },
+    PlatformManager: {
+      PlatformManager: {
+        _instance: {
+          getBattleVersion() {
+            return 0;
+          },
+        },
+      },
+    },
+  };
+  const diagnostics = {
+    loadingErrorReason: "scene import missing",
+  };
+
+  const result = await waitForRuntimeReadyForReplay({
+    modules,
+    diagnostics,
+    runtimeWindow,
+    bootstrapSceneName: "FightPvpReplayBootstrap",
+    timeoutMs: 35000,
+    intervalMs: 0,
+    getNow: () => 0,
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.stateId, "LoadingError");
+  assert.match(result.message, /LoadingError/);
+  assert.match(result.message, /scene import missing/);
+});
+
 test("fight pvp replay runtime bridge probes showBattleLoading replay start signal", async () => {
   class MockBattleUIManager {}
 
@@ -499,6 +774,7 @@ test("fight pvp replay runtime bridge returns ok true when replay entrypoint sta
         missingModules: [],
       }),
       probeGameBundleAssets: async () => [],
+      probeGameSceneAssets: async () => [],
       readRuntimeModules: () => ({}),
       startReplayEntrypoint: async ({ battleInput }) => {
         assert.equal("replay" in battleInput, false);
@@ -586,6 +862,7 @@ test("fight pvp replay runtime bridge accepts the real fight_startpvp fixture th
         missingModules: [],
       }),
       probeGameBundleAssets: async () => [],
+      probeGameSceneAssets: async () => [],
       readRuntimeModules: () => ({
         consts: {
           ModelConst: {
@@ -700,6 +977,7 @@ test("fight pvp replay runtime bridge fails when replay entrypoint does not trig
         missingModules: [],
       }),
       probeGameBundleAssets: async () => [],
+      probeGameSceneAssets: async () => [],
       readRuntimeModules: () => ({}),
       startReplayEntrypoint: async ({ battleInput }) => {
         assert.equal("replay" in battleInput, false);
@@ -802,6 +1080,7 @@ test("fight pvp replay runtime bridge reports readable legacy-field failures wit
         missingModules: [],
       }),
       probeGameBundleAssets: async () => [],
+      probeGameSceneAssets: async () => [],
       readRuntimeModules: () => ({
         consts: {
           ModelConst: {

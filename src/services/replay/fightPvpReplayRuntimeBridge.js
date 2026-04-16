@@ -7,12 +7,19 @@ import {
 } from "./fightPvpBattleInputAdapter.js";
 
 const BOOT_TIMEOUT_MS = 2500;
-const BOOTSTRAP_TIMEOUT_MS = 7000;
+const GAME_SCENE_LOAD_TIMEOUT_MS = 35000;
 const POLL_INTERVAL_MS = 50;
 const REPLAY_START_TIMEOUT_MS = 2500;
 const BOOTSTRAP_SCENE_NAME = "FightPvpReplayBootstrap";
 const GAME_SCENE_NAME = "Game";
 const REPLAY_AUXILIARY_SCRIPT_ATTR = "data-fight-pvp-replay-aux-script";
+const REPLAY_PROBE_REQUEST_HEADER = "x-fight-pvp-replay-probe";
+const REPLAY_OBSERVED_ASSET_PREFIXES = Object.freeze([
+  "/assets/game/",
+  "/assets/main/",
+  "/assets/internal/",
+  "/assets/TEST_REMOTE_MODULE/",
+]);
 const REPLAY_AUXILIARY_SCRIPT_URLS = Object.freeze([
   "/assets/main/index.js",
   "/assets/TEST_REMOTE_MODULE/index.js",
@@ -281,6 +288,118 @@ export const toAbsoluteBundleRequestTarget = (
   return new URL(`/assets/${bundleName}`, runtimeWindow.location.origin).toString();
 };
 
+const buildReplayProbeRequestInit = (init = {}) => {
+  const headers = new Headers(init?.headers || {});
+  headers.set(REPLAY_PROBE_REQUEST_HEADER, "1");
+  return {
+    cache: "no-store",
+    credentials: "same-origin",
+    method: "GET",
+    ...init,
+    headers,
+  };
+};
+
+const toAbsoluteAssetRequestUrl = (target, runtimeWindow = getRuntimeWindow()) => {
+  const raw = typeof target === "string"
+    ? target
+    : (
+        target?.url
+        || target?.href
+        || ""
+      );
+  if (!raw) {
+    return "";
+  }
+  try {
+    return new URL(raw, runtimeWindow.location.href).toString();
+  } catch {
+    return String(raw);
+  }
+};
+
+const isObservedReplayAssetUrl = (target, runtimeWindow = getRuntimeWindow()) => {
+  const absoluteUrl = toAbsoluteAssetRequestUrl(target, runtimeWindow);
+  if (!absoluteUrl) {
+    return false;
+  }
+  try {
+    const pathname = new URL(absoluteUrl).pathname;
+    return REPLAY_OBSERVED_ASSET_PREFIXES.some((prefix) => pathname.startsWith(prefix));
+  } catch {
+    return false;
+  }
+};
+
+const isHtmlFallbackContentType = (contentType = "") =>
+  String(contentType || "").toLowerCase().includes("text/html");
+
+const snapshotAssetRequestEntry = (entry) => ({
+  transport: entry?.transport || null,
+  url: entry?.url || null,
+  pathname: entry?.pathname || null,
+  method: entry?.method || null,
+  status: Number(entry?.status) || 0,
+  contentType: entry?.contentType || null,
+  state: entry?.state || null,
+  error: entry?.error || null,
+});
+
+const buildVersionLookup = (pairs = []) => {
+  const versionLookup = new Map();
+  if (!Array.isArray(pairs)) {
+    return versionLookup;
+  }
+  for (let index = 0; index < pairs.length; index += 2) {
+    versionLookup.set(Number(pairs[index]), String(pairs[index + 1] || ""));
+  }
+  return versionLookup;
+};
+
+const decodeCompactAssetUuid = (uuid = "") => {
+  const normalizedUuid = String(uuid || "").trim();
+  if (normalizedUuid.length !== 22) {
+    return normalizedUuid;
+  }
+
+  const base64Values = new Uint8Array(123);
+  const base64Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  for (let index = 0; index < base64Chars.length; index += 1) {
+    base64Values[base64Chars.charCodeAt(index)] = index;
+  }
+
+  const hexChars = "0123456789abcdef";
+  let hex = normalizedUuid.slice(0, 2);
+  for (let index = 2; index < normalizedUuid.length; index += 2) {
+    const lhs = base64Values[normalizedUuid.charCodeAt(index)];
+    const rhs = base64Values[normalizedUuid.charCodeAt(index + 1)];
+    hex += hexChars[lhs >> 2];
+    hex += hexChars[((lhs & 3) << 2) | (rhs >> 4)];
+    hex += hexChars[rhs & 15];
+  }
+
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+};
+
+const buildImportAssetPath = ({
+  bundleName = "game",
+  uuid = "",
+  version = "",
+} = {}) => {
+  const normalizedUuid = decodeCompactAssetUuid(uuid);
+  if (!normalizedUuid) {
+    return "";
+  }
+  const normalizedVersion = String(version || "").trim();
+  const suffix = normalizedVersion ? `.${normalizedVersion}` : "";
+  return `/assets/${bundleName}/import/${normalizedUuid.slice(0, 2)}/${normalizedUuid}${suffix}.json`;
+};
+
+const findFirstProbeFailure = (probeEntries = []) =>
+  Array.isArray(probeEntries)
+    ? probeEntries.find((entry) => entry && entry.ok === false) || null
+    : null;
+
 const loadReplayAuxiliaryScript = (
   src,
   targetDocument = getRuntimeWindow().document,
@@ -408,6 +527,212 @@ export const ensureReplayAuxiliaryBundlesLoaded = async ({
     rollback();
     throw error;
   }
+};
+
+export const installReplayAssetRequestObserver = ({
+  runtimeWindow = getRuntimeWindow(),
+  diagnostics,
+} = {}) => {
+  const requestLog = [];
+  diagnostics.assetRequestLog = requestLog;
+  diagnostics.firstFailedAssetRequest = null;
+  diagnostics.firstHtmlFallbackAssetRequest = null;
+  diagnostics.firstPendingAssetRequest = null;
+
+  let requestId = 0;
+
+  const refreshFirstPendingAssetRequest = () => {
+    const pendingEntry = requestLog.find((entry) => entry.state === "pending") || null;
+    diagnostics.firstPendingAssetRequest = pendingEntry
+      ? snapshotAssetRequestEntry(pendingEntry)
+      : null;
+  };
+
+  const registerEntry = ({
+    transport,
+    url,
+    method = "GET",
+  }) => {
+    const entry = {
+      id: ++requestId,
+      transport,
+      url,
+      pathname: (() => {
+        try {
+          return new URL(url).pathname;
+        } catch {
+          return url;
+        }
+      })(),
+      method,
+      state: "pending",
+      status: 0,
+      contentType: null,
+      error: null,
+    };
+    requestLog.push(entry);
+    refreshFirstPendingAssetRequest();
+    return entry;
+  };
+
+  const finalizeEntry = (entry, updates = {}) => {
+    if (!entry || entry.state !== "pending") {
+      return;
+    }
+
+    Object.assign(entry, updates);
+
+    if (entry.state === "failed" && !diagnostics.firstFailedAssetRequest) {
+      diagnostics.firstFailedAssetRequest = snapshotAssetRequestEntry(entry);
+    }
+    if (entry.state === "html-fallback" && !diagnostics.firstHtmlFallbackAssetRequest) {
+      diagnostics.firstHtmlFallbackAssetRequest = snapshotAssetRequestEntry(entry);
+    }
+
+    refreshFirstPendingAssetRequest();
+  };
+
+  const originalFetch = typeof runtimeWindow.fetch === "function"
+    ? runtimeWindow.fetch
+    : null;
+  if (originalFetch) {
+    runtimeWindow.fetch = async function observedReplayAssetFetch(input, init) {
+      const requestUrl = toAbsoluteAssetRequestUrl(input, runtimeWindow);
+      const mergedHeaders = new Headers(
+        init?.headers
+        || (typeof input === "object" && input?.headers)
+        || undefined,
+      );
+      if (
+        !isObservedReplayAssetUrl(requestUrl, runtimeWindow)
+        || mergedHeaders.get(REPLAY_PROBE_REQUEST_HEADER) === "1"
+      ) {
+        return originalFetch.call(runtimeWindow, input, init);
+      }
+
+      const method = String(
+        init?.method
+        || (typeof input === "object" && input?.method)
+        || "GET",
+      ).toUpperCase();
+      const entry = registerEntry({
+        transport: "fetch",
+        url: requestUrl,
+        method,
+      });
+
+      try {
+        const response = await originalFetch.call(runtimeWindow, input, init);
+        const contentType = response.headers.get("content-type") || "";
+        finalizeEntry(entry, {
+          state:
+            response.ok && !isHtmlFallbackContentType(contentType)
+              ? "ok"
+              : (
+                  response.ok && isHtmlFallbackContentType(contentType)
+                    ? "html-fallback"
+                    : "failed"
+                ),
+          status: response.status,
+          contentType,
+        });
+        return response;
+      } catch (error) {
+        finalizeEntry(entry, {
+          state: "failed",
+          error: toErrorMessage(error, "Fetch failed."),
+        });
+        throw error;
+      }
+    };
+  }
+
+  const OriginalXMLHttpRequest = runtimeWindow.XMLHttpRequest;
+  if (typeof OriginalXMLHttpRequest === "function") {
+    const WrappedXMLHttpRequest = function WrappedXMLHttpRequest() {
+      const xhr = new OriginalXMLHttpRequest();
+      let trackedUrl = "";
+      let trackedMethod = "GET";
+      let trackedEntry = null;
+
+      const finalizeTrackedEntry = (fallbackError = null) => {
+        if (!trackedEntry) {
+          return;
+        }
+        const contentType = xhr.getResponseHeader?.("content-type") || "";
+        finalizeEntry(trackedEntry, {
+          state:
+            xhr.status >= 200 && xhr.status < 400 && !isHtmlFallbackContentType(contentType)
+              ? "ok"
+              : (
+                  xhr.status >= 200 && xhr.status < 400 && isHtmlFallbackContentType(contentType)
+                    ? "html-fallback"
+                    : "failed"
+                ),
+          status: xhr.status || 0,
+          contentType,
+          error: fallbackError,
+        });
+      };
+
+      const originalOpen = xhr.open;
+      xhr.open = function observedReplayAssetOpen(method, url, ...rest) {
+        trackedMethod = String(method || "GET").toUpperCase();
+        trackedUrl = toAbsoluteAssetRequestUrl(url, runtimeWindow);
+        return originalOpen.call(this, method, url, ...rest);
+      };
+
+      const originalSend = xhr.send;
+      xhr.send = function observedReplayAssetSend(...args) {
+        if (isObservedReplayAssetUrl(trackedUrl, runtimeWindow)) {
+          trackedEntry = registerEntry({
+            transport: "xhr",
+            url: trackedUrl,
+            method: trackedMethod,
+          });
+          xhr.addEventListener?.("loadend", () => finalizeTrackedEntry(), { once: true });
+          xhr.addEventListener?.(
+            "error",
+            () => finalizeTrackedEntry("XMLHttpRequest failed."),
+            { once: true },
+          );
+          xhr.addEventListener?.(
+            "abort",
+            () => finalizeTrackedEntry("XMLHttpRequest aborted."),
+            { once: true },
+          );
+        }
+        return originalSend.apply(this, args);
+      };
+
+      return xhr;
+    };
+
+    for (const constantName of [
+      "UNSENT",
+      "OPENED",
+      "HEADERS_RECEIVED",
+      "LOADING",
+      "DONE",
+    ]) {
+      if (constantName in OriginalXMLHttpRequest) {
+        WrappedXMLHttpRequest[constantName] = OriginalXMLHttpRequest[constantName];
+      }
+    }
+    WrappedXMLHttpRequest.prototype = OriginalXMLHttpRequest.prototype;
+    runtimeWindow.XMLHttpRequest = WrappedXMLHttpRequest;
+  }
+
+  return {
+    dispose() {
+      if (originalFetch && runtimeWindow.fetch !== originalFetch) {
+        runtimeWindow.fetch = originalFetch;
+      }
+      if (typeof OriginalXMLHttpRequest === "function") {
+        runtimeWindow.XMLHttpRequest = OriginalXMLHttpRequest;
+      }
+    },
+  };
 };
 
 const waitForValue = async ({
@@ -909,8 +1234,10 @@ const readRuntimeModules = () => {
 const readCurrentGameState = (modules) =>
   modules?.Game?.Game?._instance?.stateMachine?.current?.stateId ?? null;
 
-const getRuntimeSnapshot = (modules) => {
-  const runtimeWindow = getRuntimeWindow();
+const getRuntimeSnapshot = (
+  modules,
+  runtimeWindow = getRuntimeWindow(),
+) => {
   return {
     hasCc: typeof runtimeWindow.cc !== "undefined",
     runtimePlatform: runtimeWindow.PLATFORM || null,
@@ -1218,15 +1545,11 @@ export const inspectReplayGameBundleModuleCoverage = async ({
   const gameBundleUrl = new URL("/assets/game/index.js", runtimeWindow.location.origin).toString();
   const [gameBundleSource, ...supplementalBundleSources] = await Promise.all([
     runtimeWindow.fetch(gameBundleUrl, {
-      cache: "no-store",
-      credentials: "same-origin",
-      method: "GET",
+      ...buildReplayProbeRequestInit(),
     }).then((response) => response.text()),
     ...sourceUrls.map((sourceUrl) => (
       runtimeWindow.fetch(new URL(sourceUrl, runtimeWindow.location.origin).toString(), {
-        cache: "no-store",
-        credentials: "same-origin",
-        method: "GET",
+        ...buildReplayProbeRequestInit(),
       }).then((response) => response.text())
     )),
   ]);
@@ -1268,6 +1591,83 @@ const buildBundleAssetProbeTargets = ({
   ];
 };
 
+const probeReplayAsset = async ({
+  pathname,
+  expectedContentType,
+  parseJson = false,
+  runtimeWindow = getRuntimeWindow(),
+} = {}) => {
+  const url = new URL(pathname, runtimeWindow.location.href).toString();
+  try {
+    const response = await runtimeWindow.fetch(url, buildReplayProbeRequestInit());
+    const contentType = response.headers.get("content-type") || "";
+    const htmlFallback = isHtmlFallbackContentType(contentType);
+    let json = null;
+    if (parseJson && response.ok && !htmlFallback) {
+      try {
+        json = await response.clone().json();
+      } catch {
+        json = null;
+      }
+    }
+    return {
+      ok:
+        response.ok
+        && contentType.toLowerCase().includes(String(expectedContentType || "").toLowerCase())
+        && !htmlFallback
+        && (!parseJson || Boolean(json)),
+      contentType,
+      expectedContentType,
+      htmlFallback,
+      json,
+      pathname,
+      status: response.status,
+      url,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      contentType: "",
+      expectedContentType,
+      htmlFallback: false,
+      json: null,
+      pathname,
+      status: 0,
+      url,
+      error: toErrorMessage(error, "Failed to fetch asset."),
+    };
+  }
+};
+
+const syncProbeFailureDiagnostics = (diagnostics) => {
+  const firstProbeFailure = findFirstProbeFailure([
+    ...(diagnostics?.bundleAssetProbe || []),
+    ...(diagnostics?.sceneAssetProbe || []),
+  ]);
+  if (!firstProbeFailure) {
+    return;
+  }
+  if (!diagnostics.firstMissingAsset) {
+    diagnostics.firstMissingAsset = firstProbeFailure.pathname || firstProbeFailure.scenePath || null;
+  }
+  const hasBadContentType = Boolean(
+    firstProbeFailure.contentType
+    && (
+      firstProbeFailure.htmlFallback
+      || !String(firstProbeFailure.contentType).toLowerCase().includes(
+        String(firstProbeFailure.expectedContentType || "").toLowerCase(),
+      )
+    ),
+  );
+  if (!diagnostics.firstBadContentType && hasBadContentType) {
+    diagnostics.firstBadContentType = {
+      pathname: firstProbeFailure.pathname || null,
+      contentType: firstProbeFailure.contentType,
+      expectedContentType: firstProbeFailure.expectedContentType || null,
+    };
+  }
+};
+
 const probeGameBundleAssets = async ({ diagnostics } = {}) => {
   const runtimeWindow = getRuntimeWindow();
   const targets = buildBundleAssetProbeTargets();
@@ -1275,76 +1675,225 @@ const probeGameBundleAssets = async ({ diagnostics } = {}) => {
   diagnostics?.steps?.push?.("probe-game-bundle-assets");
 
   const results = await Promise.all(
-    targets.map(async (pathname) => {
-      const url = new URL(pathname, runtimeWindow.location.href).toString();
-      const expectedContentType = pathname.endsWith(".json")
+    targets.map((pathname) => probeReplayAsset({
+      pathname,
+      expectedContentType: pathname.endsWith(".json")
         ? "application/json"
-        : "javascript";
-      try {
-        const response = await runtimeWindow.fetch(url, {
-          cache: "no-store",
-          credentials: "same-origin",
-          method: "GET",
-        });
-        const contentType = response.headers.get("content-type") || "";
-        return {
-          ok:
-            response.ok
-            && contentType.toLowerCase().includes(expectedContentType)
-            && !contentType.toLowerCase().includes("text/html"),
-          contentType,
-          expectedContentType,
-          pathname,
-          status: response.status,
-          url,
-        };
-      } catch (error) {
-        return {
-          ok: false,
-          expectedContentType,
-          pathname,
-          status: 0,
-          url,
-          error: toErrorMessage(error, "Failed to fetch bundle asset."),
-        };
-      }
-    }),
+        : "javascript",
+      runtimeWindow,
+    })),
   );
 
   diagnostics.bundleAssetProbe = results;
+  syncProbeFailureDiagnostics(diagnostics);
   return results;
 };
 
-const buildMissingGameBundleMessage = ({
-  bundleAssetProbe,
-  runtimeState,
-  loadError,
+export const probeGameSceneAssets = async ({
+  diagnostics,
+  runtimeWindow = getRuntimeWindow(),
+  scenePath = "db://assets/game/scenes/Game.fire",
 } = {}) => {
-  const missingAssets = Array.isArray(bundleAssetProbe)
-    ? bundleAssetProbe.filter((entry) => !entry.ok)
-    : [];
+  diagnostics?.steps?.push?.("probe-game-scene-assets");
+  const sceneAssetProbe = [];
+  const [configPathname] = buildBundleAssetProbeTargets({
+    runtimeWindow,
+    bundleName: "game",
+  });
 
-  if (missingAssets.length > 0) {
-    const details = missingAssets
-      .map((entry) => `${entry.pathname} (${entry.status || entry.error || "missing"})`)
-      .join(", ");
-    return `浏览器模式运行时已完成 Cocos boot，并进入 ${runtimeState || "LoadGameScene"}，但缺少 game bundle 资源：${details}。`;
+  const configProbe = await probeReplayAsset({
+    pathname: configPathname,
+    expectedContentType: "application/json",
+    parseJson: true,
+    runtimeWindow,
+  });
+  sceneAssetProbe.push({
+    stage: "config",
+    ok: configProbe.ok,
+    pathname: configProbe.pathname,
+    status: configProbe.status,
+    htmlFallback: configProbe.htmlFallback,
+    contentType: configProbe.contentType,
+    expectedContentType: configProbe.expectedContentType,
+    error: configProbe.error || null,
+  });
+
+  if (!configProbe.ok || !configProbe.json) {
+    diagnostics.sceneAssetProbe = sceneAssetProbe;
+    syncProbeFailureDiagnostics(diagnostics);
+    return sceneAssetProbe;
   }
 
-  if (loadError) {
-    return `浏览器模式运行时已进入 ${runtimeState || "LoadGameScene"}，但加载 game bundle 失败：${loadError}。`;
+  const configJson = configProbe.json || {};
+  const sceneIndex = Number(configJson.scenes?.[scenePath]);
+  const sceneUuid = Number.isFinite(sceneIndex)
+    ? String(configJson.uuids?.[sceneIndex] || "")
+    : "";
+  const importVersion = buildVersionLookup(configJson.versions?.import).get(sceneIndex) || "";
+  const sceneImportPath = buildImportAssetPath({
+    bundleName: "game",
+    uuid: sceneUuid,
+    version: importVersion,
+  });
+
+  sceneAssetProbe.push({
+    stage: "scene-record",
+    ok: Number.isFinite(sceneIndex) && Boolean(sceneUuid) && Boolean(sceneImportPath),
+    scenePath,
+    sceneIndex: Number.isFinite(sceneIndex) ? sceneIndex : null,
+    sceneUuid: sceneUuid || null,
+    importVersion: importVersion || null,
+    pathname: sceneImportPath || null,
+    error:
+      !Number.isFinite(sceneIndex)
+        ? "scene-record-missing"
+        : (
+            !sceneUuid
+              ? "scene-uuid-missing"
+              : (!sceneImportPath ? "scene-import-path-missing" : null)
+          ),
+  });
+
+  if (!(Number.isFinite(sceneIndex) && sceneUuid && sceneImportPath)) {
+    diagnostics.sceneAssetProbe = sceneAssetProbe;
+    syncProbeFailureDiagnostics(diagnostics);
+    return sceneAssetProbe;
   }
 
-  return `浏览器模式运行时已进入 ${runtimeState || "LoadGameScene"}，但仍未进入 Game scene。`;
+  const sceneImportProbe = await probeReplayAsset({
+    pathname: sceneImportPath,
+    expectedContentType: "application/json",
+    runtimeWindow,
+  });
+  sceneAssetProbe.push({
+    stage: "scene-import",
+    ok: sceneImportProbe.ok,
+    scenePath,
+    sceneIndex,
+    sceneUuid,
+    importVersion: importVersion || null,
+    pathname: sceneImportProbe.pathname,
+    status: sceneImportProbe.status,
+    htmlFallback: sceneImportProbe.htmlFallback,
+    contentType: sceneImportProbe.contentType,
+    expectedContentType: sceneImportProbe.expectedContentType,
+    error: sceneImportProbe.error || null,
+  });
+
+  diagnostics.sceneAssetProbe = sceneAssetProbe;
+  syncProbeFailureDiagnostics(diagnostics);
+  return sceneAssetProbe;
 };
 
-const waitForRuntimeReadyForReplay = async ({
+const describeProbeFailure = (entry, fallbackLabel) => {
+  const target = entry?.pathname || entry?.scenePath || fallbackLabel;
+  const detail = entry?.htmlFallback
+    ? "HTML fallback"
+    : (
+        entry?.contentType
+        && !String(entry.contentType).toLowerCase().includes(
+          String(entry.expectedContentType || "").toLowerCase(),
+        )
+          ? `content-type ${entry.contentType}`
+          : (
+              entry?.status
+                ? `HTTP ${entry.status}`
+                : (entry?.error || entry?.contentType || "unknown error")
+            )
+      );
+  return {
+    target,
+    detail,
+  };
+};
+
+export const classifyRuntimeLoadFailure = ({
+  stateId = null,
+  sceneName = null,
+  diagnostics = null,
+  timedOut = false,
+} = {}) => {
+  if (stateId === "LoadingError" || diagnostics?.loadingErrorReason) {
+    return {
+      kind: "loading-error",
+      message: `浏览器模式运行时进入 LoadingError：${diagnostics?.loadingErrorReason || "Unknown loading error."}`,
+    };
+  }
+
+  const topLevelFailure = findFirstProbeFailure(diagnostics?.bundleAssetProbe);
+  if (topLevelFailure) {
+    const { target, detail } = describeProbeFailure(topLevelFailure, "/assets/game");
+    return {
+      kind: "bundle-asset-failed",
+      message: `顶层 game bundle 资源缺失或不可用：${target} (${detail})。`,
+    };
+  }
+
+  const sceneFailure = findFirstProbeFailure(diagnostics?.sceneAssetProbe);
+  if (sceneFailure) {
+    if (sceneFailure.stage === "scene-record") {
+      return {
+        kind: "scene-record-missing",
+        message: `Game scene 配置缺失：${sceneFailure.scenePath || "db://assets/game/scenes/Game.fire"}。`,
+      };
+    }
+    const { target, detail } = describeProbeFailure(
+      sceneFailure,
+      "/assets/game/import/",
+    );
+    return {
+      kind: "scene-asset-failed",
+      message: `Game scene 依赖资源加载失败：${target} (${detail})。`,
+    };
+  }
+
+  if (diagnostics?.firstHtmlFallbackAssetRequest) {
+    const firstHtmlFallbackAssetRequest = diagnostics.firstHtmlFallbackAssetRequest;
+    return {
+      kind: "asset-html-fallback",
+      message: `Game scene 依赖资源返回了 HTML fallback：${firstHtmlFallbackAssetRequest.pathname || firstHtmlFallbackAssetRequest.url}。`,
+    };
+  }
+
+  if (diagnostics?.firstFailedAssetRequest) {
+    const firstFailedAssetRequest = diagnostics.firstFailedAssetRequest;
+    return {
+      kind: "asset-request-failed",
+      message: `Game scene 依赖资源加载失败：${firstFailedAssetRequest.pathname || firstFailedAssetRequest.url} (${firstFailedAssetRequest.status || firstFailedAssetRequest.error || "unknown error"})。`,
+    };
+  }
+
+  if (!timedOut) {
+    return null;
+  }
+
+  if (stateId === "LoadGameScene") {
+    const pendingPath = diagnostics?.firstPendingAssetRequest?.pathname
+      || diagnostics?.firstPendingAssetRequest?.url
+      || null;
+    return {
+      kind: "scene-load-timeout",
+      message: pendingPath
+        ? `Game scene 加载超过 bridge 等待窗口，但尚未收到明确 LoadingError；请优先查看首个 pending/failed asset diagnostics。首个 pending asset：${pendingPath}。`
+        : "Game scene 加载超过 bridge 等待窗口，但尚未收到明确 LoadingError；请优先查看首个 pending/failed asset diagnostics。",
+    };
+  }
+
+  return {
+    kind: "runtime-load-timeout",
+    message: `浏览器模式运行时在 ${stateId || sceneName || "unknown state"} 停留过久，且尚未拿到明确失败信号。`,
+  };
+};
+
+export const waitForRuntimeReadyForReplay = async ({
   modules,
   diagnostics,
+  runtimeWindow = getRuntimeWindow(),
   bootstrapSceneName = BOOTSTRAP_SCENE_NAME,
-  bundleAssetProbe,
+  timeoutMs = GAME_SCENE_LOAD_TIMEOUT_MS,
+  intervalMs = POLL_INTERVAL_MS,
+  getNow = Date.now,
 } = {}) => {
-  const runtimeWindow = getRuntimeWindow();
   const stateHistory = [];
   const seenStates = new Set();
 
@@ -1356,59 +1905,59 @@ const waitForRuntimeReadyForReplay = async ({
     }
   };
 
-  let waitError = null;
-  let result = null;
-  try {
-    result = await waitForValue({
-      read: () => {
-        collectState();
-        const sceneName = runtimeWindow.cc?.director?.getScene?.()?.name ?? null;
-        const stateId = readCurrentGameState(modules);
-        if (sceneName && sceneName !== bootstrapSceneName) {
-          return {
-            ok: true,
-            sceneName,
-            stateId,
-          };
-        }
-        if (stateId === "LoadingError") {
-          return {
-            ok: false,
-            sceneName,
-            stateId,
-          };
-        }
-        return null;
-      },
-      onTick: collectState,
-      runtimeWindow,
-      timeoutMs: BOOTSTRAP_TIMEOUT_MS,
-      timeoutMessage:
-        "Launcher/Game startup timed out before entering Game scene or LoadingError.",
+  diagnostics.runtimeSceneTimeoutMs = timeoutMs;
+  const startedAt = getNow();
+
+  while (true) {
+    collectState();
+    const sceneName = runtimeWindow.cc?.director?.getScene?.()?.name ?? null;
+    const stateId = readCurrentGameState(modules);
+
+    diagnostics.gameStateHistory = stateHistory;
+    diagnostics.runtimeSnapshotAfterLauncher = getRuntimeSnapshot(modules, runtimeWindow);
+
+    if (sceneName && sceneName !== bootstrapSceneName) {
+      return {
+        ok: true,
+        sceneName,
+        stateId,
+      };
+    }
+
+    const explicitFailure = classifyRuntimeLoadFailure({
+      stateId,
+      sceneName,
+      diagnostics,
+      timedOut: false,
     });
-  } catch (error) {
-    waitError = error;
+    if (explicitFailure) {
+      return {
+        ok: false,
+        stateId,
+        sceneName,
+        message: explicitFailure.message,
+      };
+    }
+
+    if (getNow() - startedAt >= timeoutMs) {
+      const timeoutFailure = classifyRuntimeLoadFailure({
+        stateId,
+        sceneName,
+        diagnostics,
+        timedOut: true,
+      });
+      return {
+        ok: false,
+        stateId,
+        sceneName,
+        message:
+          timeoutFailure?.message
+          || "浏览器模式运行时仍在加载 Game scene，尚未拿到明确失败信号。",
+      };
+    }
+
+    await wait(runtimeWindow, intervalMs);
   }
-
-  diagnostics.gameStateHistory = stateHistory;
-  diagnostics.runtimeSnapshotAfterLauncher = getRuntimeSnapshot(modules);
-
-  if (result?.ok) {
-    return result;
-  }
-
-  return {
-    ok: false,
-    stateId: result?.stateId || readCurrentGameState(modules),
-    sceneName: result?.sceneName || runtimeWindow.cc?.director?.getScene?.()?.name || null,
-    message: buildMissingGameBundleMessage({
-      bundleAssetProbe,
-      runtimeState: result?.stateId || readCurrentGameState(modules),
-      loadError:
-        diagnostics?.loadingErrorReason
-        || (waitError ? toErrorMessage(waitError) : null),
-    }),
-  };
 };
 
 const describeReplayStartPanel = (value) => {
@@ -1661,6 +2210,7 @@ export const startFightPvpReplayRuntime = async ({
     createCanvasHost,
     createVm2Shim: createScopedReplayVm2Shim,
     createWxShim: createScopedReplayWxShim,
+    installReplayAssetRequestObserver,
     ensureRuntimeBooted,
     ensureRuntimeLoaded: ensureXyzwRuntimeLoaded,
     ensureAuxiliaryBundlesLoaded: ensureReplayAuxiliaryBundlesLoaded,
@@ -1675,6 +2225,7 @@ export const startFightPvpReplayRuntime = async ({
     installReplayBattleStartProbe,
     installMissingModuleShims: installReplayMissingModuleShims,
     inspectGameBundleModuleCoverage: inspectReplayGameBundleModuleCoverage,
+    probeGameSceneAssets,
     ensureReplayBootstrapScene,
     locateReplayEntrypoint,
     probeGameBundleAssets,
@@ -1735,6 +2286,12 @@ export const startFightPvpReplayRuntime = async ({
     cleanups.push(() => {
       hostElement.innerHTML = "";
     });
+
+    diagnostics.steps.push("install-asset-request-observer");
+    const assetRequestObserver = adapter.installReplayAssetRequestObserver({
+      diagnostics,
+    });
+    cleanups.push(() => assetRequestObserver.dispose?.());
 
     diagnostics.steps.push("install-wx-shim");
     const wxShim = adapter.createWxShim({
@@ -1805,10 +2362,28 @@ export const startFightPvpReplayRuntime = async ({
     });
     cleanups.push(() => bundleResolverPatch.dispose?.());
 
-    const bundleAssetProbe = await adapter.probeGameBundleAssets({
+    await adapter.probeGameBundleAssets({
       modules,
       diagnostics,
     });
+    await adapter.probeGameSceneAssets({
+      diagnostics,
+    });
+    const staticRuntimeFailure = classifyRuntimeLoadFailure({
+      stateId: readCurrentGameState(modules),
+      sceneName: getRuntimeSnapshot(modules).sceneName,
+      diagnostics,
+      timedOut: false,
+    });
+    if (staticRuntimeFailure) {
+      return {
+        ok: false,
+        reason: "runtime-load-failed",
+        message: staticRuntimeFailure.message,
+        diagnostics,
+        dispose,
+      };
+    }
 
     diagnostics.steps.push("inspect-game-bundle-module-coverage");
     const gameBundleCoverage = await adapter.inspectGameBundleModuleCoverage({
@@ -1833,7 +2408,6 @@ export const startFightPvpReplayRuntime = async ({
       modules,
       diagnostics,
       bootstrapSceneName: bootstrapArtifacts.bootstrapSceneName,
-      bundleAssetProbe,
     });
 
     if (!runtimeReady?.ok) {

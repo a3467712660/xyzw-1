@@ -183,9 +183,29 @@ const diagnosticLines = computed(() => {
       `bundleProbe: ${diagnostics.bundleAssetProbe.map((entry) => `${entry.pathname}:${entry.status || (entry.ok ? "ok" : "error")}`).join(", ")}`,
     );
   }
+  if (Array.isArray(diagnostics.sceneAssetProbe) && diagnostics.sceneAssetProbe.length > 0) {
+    lines.push(
+      `sceneProbe: ${diagnostics.sceneAssetProbe.map((entry) => `${entry.stage}:${entry.pathname || entry.scenePath || "-"}:${entry.status || (entry.ok ? "ok" : (entry.error || "error"))}`).join(", ")}`,
+    );
+  }
+  if (diagnostics.firstMissingAsset) {
+    lines.push(`firstMissingAsset: ${diagnostics.firstMissingAsset}`);
+  }
+  if (diagnostics.firstBadContentType) {
+    lines.push(`firstBadContentType: ${formatDiagnosticValue(diagnostics.firstBadContentType)}`);
+  }
   if (Array.isArray(diagnostics.wxAccessLog) && diagnostics.wxAccessLog.length > 0) {
     const firstAccess = diagnostics.wxAccessLog[0];
     lines.push(`wxFirstAccess: ${firstAccess.name}`);
+  }
+  if (diagnostics.firstFailedAssetRequest) {
+    lines.push(`firstFailedAssetRequest: ${formatDiagnosticValue(diagnostics.firstFailedAssetRequest)}`);
+  }
+  if (diagnostics.firstHtmlFallbackAssetRequest) {
+    lines.push(`firstHtmlFallbackAssetRequest: ${formatDiagnosticValue(diagnostics.firstHtmlFallbackAssetRequest)}`);
+  }
+  if (diagnostics.firstPendingAssetRequest) {
+    lines.push(`firstPendingAssetRequest: ${formatDiagnosticValue(diagnostics.firstPendingAssetRequest)}`);
   }
   if (diagnostics.replayEntrypoint) {
     lines.push(`replayEntrypoint: ${diagnostics.replayEntrypoint}`);
