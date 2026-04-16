@@ -17,6 +17,7 @@ import {
 
 test.afterEach(() => {
   delete globalThis.PVPMapConf;
+  delete globalThis.ROLE;
   delete globalThis.__require;
 });
 
@@ -136,14 +137,15 @@ test("fight pvp battle input snapshot keeps mapId, mode, and Map semantics", () 
 });
 
 test("fight pvp replay record creation keeps live map resolution and builds snapshot-backed record", () => {
-  const selfRoleRaw = {
-    role: {
-      roleId: "role-1",
-      pvpMapId: 130001,
-    },
-  };
   const mapResolution = resolveFightPvpMapIdFromLiveContext({
-    selfRoleRaw,
+    runtimeContext: {
+      runtimeRoot: {
+        ROLE: {
+          roleId: "role-1",
+          pvpMapId: 40001,
+        },
+      },
+    },
   });
   const battleInputData = buildFightPvpBattleInputData({
     battleData: {
@@ -174,6 +176,10 @@ test("fight pvp replay record creation keeps live map resolution and builds snap
       round: 6,
     },
     mapId: mapResolution.mapId,
+    mapIdSource: mapResolution.mapIdSource,
+    mapIdResolveReason: mapResolution.mapIdResolveReason,
+    runtimeRoleAvailable: mapResolution.runtimeRoleAvailable,
+    runtimeRolePath: mapResolution.runtimeRolePath,
     stageNameStr: "切磋系统",
     startTipTopName: "切磋系统",
     startTipStage: "开始切磋",
@@ -189,7 +195,11 @@ test("fight pvp replay record creation keeps live map resolution and builds snap
     tokenId: "token-1",
     targetId: "role-2",
     targetName: "对手",
-    selfRoleRaw,
+    selfRoleRaw: {
+      role: {
+        roleId: "role-1",
+      },
+    },
     roleInfo: {
       role: {
         roleId: "role-1",
@@ -201,24 +211,35 @@ test("fight pvp replay record creation keeps live map resolution and builds snap
   assert.equal(record.replayId, "fight-pvp-live:battle-3");
   assert.equal(record.battleId, "battle-3");
   assert.equal(record.battleVersion, 99);
-  assert.equal(record.mapId, 130001);
-  assert.equal(record.pvpMapId, 130001);
-  assert.equal(record.mapIdSource, "selfRoleRaw.role.pvpMapId");
-  assert.equal(record.pvpMapIdSource, "selfRoleRaw.role.pvpMapId");
+  assert.equal(record.mapId, 40001);
+  assert.equal(record.pvpMapId, 40001);
+  assert.equal(record.mapIdSource, "runtime.ROLE.pvpMapId");
+  assert.equal(record.pvpMapIdSource, "runtime.ROLE.pvpMapId");
   assert.equal(record.mapIdResolveReason, null);
   assert.equal(record.dressPvpMapUsedId, null);
-  assert.equal(record.selfRoleContextSource, "selfRoleRaw");
-  assert.equal(record.runtimeRoleAvailable, false);
+  assert.equal(record.selfRoleContextSource, "window.ROLE");
+  assert.equal(record.runtimeRoleAvailable, true);
+  assert.equal(record.runtimeRolePath, "runtime.ROLE");
+  assert.equal(record.runtimeRoleMapId, 40001);
   assert.equal(record.battleInputAvailable, false);
   assert.equal(record.isPlayable, true);
   assert.ok(record.exactBattleInputData);
   assert.ok(record.battleInputSnapshot);
-  assert.equal(record.battleInputSnapshot.mapId, 130001);
+  assert.equal(record.exactBattleInputData.mapId, 40001);
+  assert.equal(record.exactBattleInputData.mapIdSource, "runtime.ROLE.pvpMapId");
+  assert.equal(record.battleInputSnapshot.mapId, 40001);
+  assert.equal(record.battleInputSnapshot.mapIdSource, "runtime.ROLE.pvpMapId");
+  assert.equal(record.battleInputSnapshot.runtimeRoleAvailable, true);
+  assert.equal(record.battleInputSnapshot.runtimeRolePath, "runtime.ROLE");
   assert.equal(record.battleInputSnapshot.battleData.mode, 7);
   assert.equal(record.sourceType, "live-memory-battle-input");
   assert.equal(record.battleInputSource, "live-memory-battle-input");
   assert.equal(record.battleInputSummary.sourceType, "live-memory-battle-input");
   assert.equal(record.battleInputSummary.battleInputSource, "live-memory-battle-input");
+  assert.equal(record.battleInputSummary.mapId, 40001);
+  assert.equal(record.battleInputSummary.mapIdSource, "runtime.ROLE.pvpMapId");
+  assert.equal(record.battleInputSummary.runtimeRoleAvailable, true);
+  assert.equal(record.battleInputSummary.runtimeRolePath, "runtime.ROLE");
   assert.deepEqual(record.missingRuntimeFields, []);
 });
 
@@ -259,21 +280,24 @@ test("fight pvp replay record keeps live mapId failure metadata for unplayable l
     tokenId: "token-1",
     targetId: "role-2",
     targetName: "对手",
-    mapIdResolveReason: "pvp-map-conf-unavailable",
-    dressPvpMapUsedId: 7001,
-    selfRoleContextSource: "refreshed-role_getroleinfo",
+    mapIdResolveReason: "runtime-role-unavailable",
+    selfRoleContextSource: "window.ROLE",
     runtimeRoleAvailable: false,
+    runtimeRolePath: "runtime.ROLE",
     battleInputAvailable: false,
-    disabledReason: "当前自身角色拿到了 PVP 外观 used 值，但运行时里没有可用的 PVPMapConf 配置。",
+    disabledReason: "当前 live capture 无法直接读取运行时 self role，因而拿不到 ROLE.pvpMapId。",
   });
 
   assert.equal(record.isPlayable, false);
   assert.equal(record.mapId, null);
   assert.equal(record.battleInputSnapshot.mapId, null);
-  assert.equal(record.mapIdResolveReason, "pvp-map-conf-unavailable");
-  assert.equal(record.dressPvpMapUsedId, 7001);
-  assert.equal(record.selfRoleContextSource, "refreshed-role_getroleinfo");
+  assert.equal(record.mapIdResolveReason, "runtime-role-unavailable");
+  assert.equal(record.dressPvpMapUsedId, null);
+  assert.equal(record.selfRoleContextSource, "window.ROLE");
   assert.equal(record.runtimeRoleAvailable, false);
+  assert.equal(record.runtimeRolePath, "runtime.ROLE");
   assert.equal(record.battleInputAvailable, false);
-  assert.match(record.disabledReason, /PVPMapConf/);
+  assert.equal(record.battleInputSnapshot.mapIdResolveReason, "runtime-role-unavailable");
+  assert.equal(record.battleInputSnapshot.runtimeRolePath, "runtime.ROLE");
+  assert.match(record.disabledReason, /ROLE\.pvpMapId/);
 });

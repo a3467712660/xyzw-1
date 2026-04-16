@@ -50,7 +50,11 @@ const createLiveReplayRecord = (index) => {
     battleResult: {
       isWin: index % 2 === 0,
     },
-    mapId: 120001,
+    mapId: 40001,
+    mapIdSource: "runtime.ROLE.pvpMapId",
+    mapIdResolveReason: null,
+    runtimeRoleAvailable: true,
+    runtimeRolePath: "runtime.ROLE",
     stageNameStr: "切磋系统",
     startTipTopName: "切磋系统",
     startTipStage: "开始切磋",
@@ -67,10 +71,13 @@ const createLiveReplayRecord = (index) => {
     targetId: "role-right",
     targetName: "敌方",
     createdAt: new Date(Date.UTC(2026, 3, 15, 12, 0, index)).toISOString(),
-    mapId: 120001,
-    pvpMapId: 120001,
-    mapIdSource: "live.mapId",
-    pvpMapIdSource: "live.mapId",
+    mapId: 40001,
+    pvpMapId: 40001,
+    mapIdSource: "runtime.ROLE.pvpMapId",
+    pvpMapIdSource: "runtime.ROLE.pvpMapId",
+    runtimeRoleAvailable: true,
+    runtimeRolePath: "runtime.ROLE",
+    runtimeRoleMapId: 40001,
   });
 };
 
@@ -293,7 +300,7 @@ test("fight pvp replay storage appends, stores snapshots, dedupes, and keeps new
   assert.equal(records[0].exactBattleInputData, null);
   assert.equal(records[0].battleInputData, null);
   assert.ok(records[0].battleInputSnapshot);
-  assert.equal(records[0].mapIdSource, "live.mapId");
+  assert.equal(records[0].mapIdSource, "runtime.ROLE.pvpMapId");
   assert.equal(records[0].mapIdResolveReason, null);
 
   const stored = JSON.parse(globalThis.localStorage.getItem(
@@ -301,7 +308,7 @@ test("fight pvp replay storage appends, stores snapshots, dedupes, and keeps new
   ));
   assert.equal(stored[0].battleInputData, undefined);
   assert.ok(stored[0].battleInputSnapshot);
-  assert.equal(stored[0].mapIdSource, "live.mapId");
+  assert.equal(stored[0].mapIdSource, "runtime.ROLE.pvpMapId");
 });
 
 test("fight pvp replay storage trims old records and supports remove and clear", () => {
@@ -443,12 +450,13 @@ test("fight pvp replay storage keeps live mapId failure metadata on current reco
         ["targetRole", { roleId: "role-right", name: "敌方" }],
       ]),
     }),
-    mapIdResolveReason: "pvp-map-conf-unavailable",
-    dressPvpMapUsedId: 7001,
-    selfRoleContextSource: "refreshed-role_getroleinfo",
-    runtimeRoleAvailable: false,
-    battleInputAvailable: false,
-    disabledReason: "当前自身角色拿到了 PVP 外观 used 值，但运行时里没有可用的 PVPMapConf 配置。",
+    mapIdResolveReason: "battle-input-mapId-not-written",
+    dressPvpMapUsedId: null,
+    selfRoleContextSource: "window.ROLE",
+    runtimeRoleAvailable: true,
+    runtimeRolePath: "runtime.ROLE",
+    battleInputAvailable: true,
+    disabledReason: "当前 live capture 没有把解析出的 mapId 写进 battleInput 或 snapshot，这属于新切磋主路径缺陷。",
     isPlayable: false,
   };
 

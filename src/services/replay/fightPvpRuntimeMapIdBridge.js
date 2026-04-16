@@ -87,6 +87,11 @@ const createDiagnostics = () => ({
 const findRuntimeRoleFromGlobals = (runtimeRoot) => {
   const candidates = [
     {
+      source: "window.ROLE",
+      role: runtimeRoot?.ROLE,
+      serverData: null,
+    },
+    {
       source: "window.ServerData.ROLE",
       role: runtimeRoot?.ServerData?.ROLE,
       serverData: runtimeRoot?.ServerData || null,
@@ -95,11 +100,6 @@ const findRuntimeRoleFromGlobals = (runtimeRoot) => {
       source: "window.serverData.ROLE",
       role: runtimeRoot?.serverData?.ROLE,
       serverData: runtimeRoot?.serverData || null,
-    },
-    {
-      source: "window.ROLE",
-      role: runtimeRoot?.ROLE,
-      serverData: null,
     },
   ];
 

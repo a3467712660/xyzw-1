@@ -146,6 +146,12 @@ export const createFightPvpExactBattleInput = (
   target.battleData = battleData;
   target.battleResult = battleResult;
   target.mapId = toPositiveNumber(target.mapId, null);
+  target.mapIdSource = toNonEmptyString(target.mapIdSource) || null;
+  target.mapIdResolveReason = toNonEmptyString(target.mapIdResolveReason) || null;
+  target.runtimeRoleAvailable = typeof target.runtimeRoleAvailable === "boolean"
+    ? target.runtimeRoleAvailable
+    : null;
+  target.runtimeRolePath = toNonEmptyString(target.runtimeRolePath) || null;
   target.stageNameStr = runtimeLabels.stageNameStr;
   target.startTipTopName = runtimeLabels.startTipTopName;
   target.startTipStage = runtimeLabels.startTipStage;
@@ -185,6 +191,12 @@ export const serializeFightPvpBattleInputSnapshot = (
     battleData: cloneJsonValue(runtimeInput.battleData),
     battleResult: cloneJsonValue(runtimeInput.battleResult),
     mapId: toPositiveNumber(runtimeInput.mapId, null),
+    mapIdSource: toNonEmptyString(runtimeInput.mapIdSource) || null,
+    mapIdResolveReason: toNonEmptyString(runtimeInput.mapIdResolveReason) || null,
+    runtimeRoleAvailable: typeof runtimeInput.runtimeRoleAvailable === "boolean"
+      ? runtimeInput.runtimeRoleAvailable
+      : null,
+    runtimeRolePath: toNonEmptyString(runtimeInput.runtimeRolePath) || null,
     stageNameStr: runtimeInput.stageNameStr,
     startTipTopName: runtimeInput.startTipTopName,
     startTipStage: runtimeInput.startTipStage,
@@ -210,6 +222,12 @@ export const rehydrateFightPvpBattleInputSnapshot = (
     battleData: cloneJsonValue(source.battleData),
     battleResult: cloneJsonValue(source.battleResult),
     mapId: source.mapId,
+    mapIdSource: source.mapIdSource,
+    mapIdResolveReason: source.mapIdResolveReason,
+    runtimeRoleAvailable: typeof source.runtimeRoleAvailable === "boolean"
+      ? source.runtimeRoleAvailable
+      : null,
+    runtimeRolePath: source.runtimeRolePath,
     stageNameStr: source.stageNameStr,
     startTipTopName: source.startTipTopName,
     startTipStage: source.startTipStage,
@@ -288,6 +306,9 @@ export const summarizeFightPvpBattleInput = (
     pvpMapIdSource = null,
     fixtureMapFallbackUsed = false,
     runtimeRoleMapId = null,
+    runtimeRoleAvailable = null,
+    runtimeRolePath = null,
+    mapIdResolveReason = null,
     engineReplayEntrypoint = null,
   } = {},
 ) => ({
@@ -318,8 +339,23 @@ export const summarizeFightPvpBattleInput = (
   battleInputSource: toNonEmptyString(battleInputSource, sourceType) || null,
   mapIdSource: toNonEmptyString(mapIdSource) || null,
   pvpMapIdSource: toNonEmptyString(pvpMapIdSource) || null,
+  mapIdResolveReason: toNonEmptyString(
+    mapIdResolveReason,
+    battleInput?.mapIdResolveReason,
+  ) || null,
   fixtureMapFallbackUsed: Boolean(fixtureMapFallbackUsed),
   runtimeRoleMapId: toPositiveNumber(runtimeRoleMapId, null),
+  runtimeRoleAvailable: typeof runtimeRoleAvailable === "boolean"
+    ? runtimeRoleAvailable
+    : (
+        typeof battleInput?.runtimeRoleAvailable === "boolean"
+          ? battleInput.runtimeRoleAvailable
+          : null
+      ),
+  runtimeRolePath: toNonEmptyString(
+    runtimeRolePath,
+    battleInput?.runtimeRolePath,
+  ) || null,
   engineReplayEntrypoint: toNonEmptyString(engineReplayEntrypoint) || null,
   missingRuntimeFields: [...missingRuntimeFields],
 });

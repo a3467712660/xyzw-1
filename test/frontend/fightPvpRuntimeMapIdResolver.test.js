@@ -34,7 +34,7 @@ test("fight pvp runtime mapId resolver reads pvpMapId from runtime self role fir
 
   assert.equal(result.ok, true);
   assert.equal(result.mapId, 120001);
-  assert.equal(result.source, "runtime.ROLE.pvpMapId");
+  assert.equal(result.source, "runtime.ServerData.ROLE.pvpMapId");
   assert.equal(result.runtimeRoleAvailable, true);
 });
 
@@ -78,7 +78,7 @@ test("fight pvp runtime mapId resolver still succeeds when role payload has no e
 
   assert.equal(result.ok, true);
   assert.equal(result.mapId, 120009);
-  assert.equal(result.source, "runtime.ROLE.pvpMapId");
+  assert.equal(result.source, "runtime.ServerData.ROLE.pvpMapId");
   assert.equal(result.runtimeRoleAvailable, true);
 });
 
@@ -115,7 +115,7 @@ test("fight pvp runtime mapId resolver marks dress-only numeric keys as ambiguou
 
   assert.equal(result.ok, false);
   assert.equal(result.mapId, null);
-  assert.equal(result.reason, "dress-ambiguous");
+  assert.equal(result.reason, "legacy-dress-ambiguous");
 });
 
 test("fight pvp runtime mapId resolver never uses 110001 on ordinary live path", () => {
@@ -186,6 +186,6 @@ test("fight pvp runtime mapId ensure returns runtime-self-role-unavailable when 
 
   assert.equal(ensured.ok, false);
   assert.equal(ensured.refreshed, true);
-  assert.equal(ensured.reason, "runtime-self-role-unavailable");
+  assert.equal(ensured.reason, "runtime-role-unavailable");
   assert.equal(ensured.selfRoleContextSource, "refreshed-role_getroleinfo");
 });

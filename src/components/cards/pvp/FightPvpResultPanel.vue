@@ -131,6 +131,7 @@
 <script setup>
 import { computed } from "vue";
 import DuelBattleDetailReport from "@/components/Common/DuelBattleDetailReport.vue";
+import { getFightPvpLiveMapIdReasonMessageKey } from "@/services/replay/fightPvpLiveMapIdResolver.js";
 import { buildFightPvpResultSummary } from "./pvpDisplayHelpers.js";
 
 const props = defineProps({
@@ -163,6 +164,27 @@ const summary = computed(() =>
   buildFightPvpResultSummary(props.fightNum, props.fightResult),
 );
 
+const buildReplayUnavailableTitle = (replay) => {
+  if (replay?.mapIdResolveReason) {
+    const detailParts = [];
+    if (replay?.runtimeRolePath) {
+      detailParts.push(`runtimeRolePath=${replay.runtimeRolePath}`);
+    }
+    if (replay?.mapIdSource) {
+      detailParts.push(`mapIdSource=${replay.mapIdSource}`);
+    }
+
+    const lead = props.t(
+      getFightPvpLiveMapIdReasonMessageKey(replay.mapIdResolveReason),
+    );
+    return detailParts.length > 0
+      ? `${lead} (${detailParts.join(", ")})`
+      : lead;
+  }
+
+  return replay?.disabledReason || props.t("fightPvpCard.replay.unavailableDescription");
+};
+
 const resolveReplayState = (replay) => {
   if (!replay?.exactBattleInputData && !replay?.battleInputData && !replay?.battleInputSnapshot) {
     return {
@@ -187,7 +209,7 @@ const resolveReplayState = (replay) => {
       visible: true,
       disabled: true,
       label: props.t("fightPvpCard.replay.unavailableShort"),
-      title: replay?.disabledReason || props.t("fightPvpCard.replay.unavailableDescription"),
+      title: buildReplayUnavailableTitle(replay),
     };
   }
 

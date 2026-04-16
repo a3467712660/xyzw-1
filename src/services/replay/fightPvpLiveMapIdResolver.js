@@ -1,8 +1,8 @@
 import {
-  getFightPvpRuntimeMapIdReasonMessageKey,
+  getFightPvpRuntimeRoleMapIdReasonMessageKey,
   resolveFightPvpMapIdForLiveCapture,
   resolveFightPvpMapIdFromRolePayload,
-} from "./fightPvpRuntimeMapIdResolver.js";
+} from "./fightPvpRuntimeRoleMapIdResolver.js";
 
 export const resolveFightPvpMapIdFromLiveRole = (
   roleLike,
@@ -65,7 +65,7 @@ export const ensureFightPvpSelfRoleContext = async ({
       ok: false,
       roleInfo: null,
       refreshed: false,
-      reason: "runtime-self-role-unavailable",
+      reason: "runtime-role-unavailable",
       selfRoleContextSource: null,
     };
   }
@@ -77,7 +77,7 @@ export const ensureFightPvpSelfRoleContext = async ({
         ok: false,
         roleInfo: null,
         refreshed: true,
-        reason: "runtime-self-role-unavailable",
+        reason: "runtime-role-unavailable",
         selfRoleContextSource: "refreshed-role_getroleinfo",
       };
     }
@@ -94,11 +94,11 @@ export const ensureFightPvpSelfRoleContext = async ({
       ok: false,
       roleInfo: null,
       refreshed: true,
-      reason: "runtime-self-role-unavailable",
+      reason: "runtime-role-unavailable",
       selfRoleContextSource: "refreshed-role_getroleinfo",
     };
   }
 };
 
 export const getFightPvpLiveMapIdReasonMessageKey = (reason) =>
-  getFightPvpRuntimeMapIdReasonMessageKey(reason);
+  getFightPvpRuntimeRoleMapIdReasonMessageKey(reason);

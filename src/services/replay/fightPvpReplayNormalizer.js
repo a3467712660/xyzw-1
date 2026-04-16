@@ -375,6 +375,7 @@ export const createFightPvpReplayRecordFromBattleInput = ({
   dressPvpMapUsedId = null,
   selfRoleContextSource = null,
   runtimeRoleAvailable = null,
+  runtimeRolePath = null,
   battleInputAvailable = null,
   disabledReason = "",
   selfRoleRaw = null,
@@ -434,11 +435,19 @@ export const createFightPvpReplayRecordFromBattleInput = ({
     toPositiveNumber(pvpMapId, normalizedMapId),
   );
   const normalizedMapIdSource = normalizedMapId
-    ? (toNonEmptyString(mapResolution?.mapIdSource, mapResolution?.source, mapIdSource) || null)
+    ? (
+        toNonEmptyString(
+          runtimeInput?.mapIdSource,
+          mapResolution?.mapIdSource,
+          mapResolution?.source,
+          mapIdSource,
+        ) || null
+      )
     : null;
   const normalizedPvpMapIdSource = normalizedPvpMapId
     ? (
         toNonEmptyString(
+          runtimeInput?.mapIdSource,
           mapResolution?.pvpMapIdSource,
           mapResolution?.mapIdSource,
           mapResolution?.source,
@@ -459,11 +468,8 @@ export const createFightPvpReplayRecordFromBattleInput = ({
     tokenStoreRoleInfo,
     mapResolution,
   });
-  const battleInputSnapshot = serializeFightPvpBattleInputSnapshot(runtimeInput, {
-    diagnostics: mapResolution?.diagnostics || null,
-  });
-  const missingRuntimeFields = getFightPvpBattleInputMissingFields(runtimeInput);
   const normalizedMapIdResolveReason = toNonEmptyString(
+    runtimeInput?.mapIdResolveReason,
     mapIdResolveReason,
     mapResolution?.reason,
   ) || null;
@@ -475,16 +481,38 @@ export const createFightPvpReplayRecordFromBattleInput = ({
     selfRoleContextSource,
     mapResolution?.selfRoleContextSource,
   ) || null;
-  const normalizedRuntimeRoleAvailable = typeof (
-    mapResolution?.runtimeRoleAvailable
-  ) === "boolean"
-    ? mapResolution.runtimeRoleAvailable
-    : Boolean(runtimeRoleAvailable);
+  let normalizedRuntimeRoleAvailable = Boolean(runtimeRoleAvailable);
+  if (typeof mapResolution?.runtimeRoleAvailable === "boolean") {
+    normalizedRuntimeRoleAvailable = mapResolution.runtimeRoleAvailable;
+  }
+  if (typeof runtimeInput?.runtimeRoleAvailable === "boolean") {
+    normalizedRuntimeRoleAvailable = runtimeInput.runtimeRoleAvailable;
+  }
+  const normalizedRuntimeRolePath = toNonEmptyString(
+    runtimeInput?.runtimeRolePath,
+    runtimeRolePath,
+    mapResolution?.runtimeRolePath,
+  ) || null;
   const normalizedBattleInputAvailable = typeof (
     mapResolution?.battleInputAvailable
   ) === "boolean"
     ? mapResolution.battleInputAvailable
     : Boolean(battleInputAvailable);
+  const normalizedRuntimeRoleMapId = toPositiveNumber(
+    mapResolution?.runtimeRoleMapId,
+    normalizedMapIdSource?.startsWith("runtime.")
+      ? normalizedMapId
+      : null,
+  );
+  runtimeInput.mapId = normalizedMapId;
+  runtimeInput.mapIdSource = normalizedMapIdSource;
+  runtimeInput.mapIdResolveReason = normalizedMapIdResolveReason;
+  runtimeInput.runtimeRoleAvailable = normalizedRuntimeRoleAvailable;
+  runtimeInput.runtimeRolePath = normalizedRuntimeRolePath;
+  const battleInputSnapshot = serializeFightPvpBattleInputSnapshot(runtimeInput, {
+    diagnostics: mapResolution?.diagnostics || null,
+  });
+  const missingRuntimeFields = getFightPvpBattleInputMissingFields(runtimeInput);
   const normalizedDisabledReason = toNonEmptyString(disabledReason)
     || buildFightPvpBattleInputMissingMessage(missingRuntimeFields);
 
@@ -508,6 +536,8 @@ export const createFightPvpReplayRecordFromBattleInput = ({
     dressPvpMapUsedId: normalizedDressPvpMapUsedId,
     selfRoleContextSource: normalizedSelfRoleContextSource,
     runtimeRoleAvailable: normalizedRuntimeRoleAvailable,
+    runtimeRolePath: normalizedRuntimeRolePath,
+    runtimeRoleMapId: normalizedRuntimeRoleMapId,
     battleInputAvailable: normalizedBattleInputAvailable,
     selfRoleSnapshot: normalizedSelfRoleSnapshot,
     context: normalizedContext,
@@ -533,9 +563,10 @@ export const createFightPvpReplayRecordFromBattleInput = ({
       battleInputSource,
       mapIdSource: normalizedMapIdSource,
       pvpMapIdSource: normalizedPvpMapIdSource,
-      runtimeRoleMapId: mapResolution?.runtimeRoleAvailable
-        ? mapResolution?.mapId
-        : null,
+      mapIdResolveReason: normalizedMapIdResolveReason,
+      runtimeRoleMapId: normalizedRuntimeRoleMapId,
+      runtimeRoleAvailable: normalizedRuntimeRoleAvailable,
+      runtimeRolePath: normalizedRuntimeRolePath,
       fixtureMapFallbackUsed: Boolean(mapResolution?.fixtureMapFallbackUsed),
     }),
   };

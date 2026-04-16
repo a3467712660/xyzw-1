@@ -1069,32 +1069,72 @@ const safeRequireModule = (runtimeRequire, name) => {
 const resolveReplayBattleVersion = (replay) =>
   getFightPvpReplayBattleVersion(replay) || 0;
 
-const buildReplayMapResolutionFromRecord = (replay) => ({
-  mapId:
-    replay?.mapId
-    ?? replay?.battleInputSnapshot?.mapId
-    ?? replay?.exactBattleInputData?.mapId
-    ?? replay?.battleInputData?.mapId
-    ?? null,
-  pvpMapId: replay?.pvpMapId ?? replay?.mapId ?? replay?.battleInputSnapshot?.mapId ?? null,
-  mapIdSource: replay?.mapIdSource ?? null,
-  pvpMapIdSource: replay?.pvpMapIdSource ?? replay?.mapIdSource ?? null,
-  mapIdResolveReason: replay?.mapIdResolveReason ?? null,
-  dressPvpMapUsedId: replay?.dressPvpMapUsedId ?? null,
-  runtimeRoleMapId: replay?.runtimeRoleMapId ?? replay?.pvpMapId ?? replay?.mapId ?? null,
-  selfRoleContextSource: replay?.selfRoleContextSource ?? null,
-  runtimeRoleAvailable: typeof replay?.runtimeRoleAvailable === "boolean"
+const buildReplayMapResolutionFromRecord = (replay) => {
+  const mapId
+    = replay?.mapId
+      ?? replay?.battleInputSnapshot?.mapId
+      ?? replay?.exactBattleInputData?.mapId
+      ?? replay?.battleInputData?.mapId
+      ?? null;
+  const mapIdSource
+    = replay?.mapIdSource
+      ?? replay?.battleInputSnapshot?.mapIdSource
+      ?? replay?.exactBattleInputData?.mapIdSource
+      ?? replay?.battleInputData?.mapIdSource
+      ?? null;
+  const runtimeRoleAvailable = typeof replay?.runtimeRoleAvailable === "boolean"
     ? replay.runtimeRoleAvailable
-    : false,
-  battleInputAvailable: typeof replay?.battleInputAvailable === "boolean"
-    ? replay.battleInputAvailable
-    : Boolean(replay?.exactBattleInputData || replay?.battleInputData || replay?.battleInputSnapshot),
-  fixtureMapFallbackUsed: Boolean(
-    replay?.meta?.fixtureMapFallback
-    || replay?.meta?.fixtureMapFallbackUsed,
-  ),
-  diagnostics: replay?.meta?.mapIdDiagnostics || null,
-});
+    : typeof replay?.battleInputSnapshot?.runtimeRoleAvailable === "boolean"
+      ? replay.battleInputSnapshot.runtimeRoleAvailable
+      : typeof replay?.exactBattleInputData?.runtimeRoleAvailable === "boolean"
+        ? replay.exactBattleInputData.runtimeRoleAvailable
+        : typeof replay?.battleInputData?.runtimeRoleAvailable === "boolean"
+          ? replay.battleInputData.runtimeRoleAvailable
+          : false;
+
+  return {
+    mapId,
+    pvpMapId: replay?.pvpMapId ?? replay?.mapId ?? replay?.battleInputSnapshot?.mapId ?? null,
+    mapIdSource,
+    pvpMapIdSource:
+      replay?.pvpMapIdSource
+      ?? replay?.battleInputSnapshot?.mapIdSource
+      ?? replay?.exactBattleInputData?.mapIdSource
+      ?? replay?.battleInputData?.mapIdSource
+      ?? mapIdSource
+      ?? null,
+    mapIdResolveReason:
+      replay?.mapIdResolveReason
+      ?? replay?.battleInputSnapshot?.mapIdResolveReason
+      ?? replay?.exactBattleInputData?.mapIdResolveReason
+      ?? replay?.battleInputData?.mapIdResolveReason
+      ?? null,
+    dressPvpMapUsedId: replay?.dressPvpMapUsedId ?? null,
+    runtimeRoleMapId:
+      replay?.runtimeRoleMapId
+      ?? (
+        runtimeRoleAvailable && typeof mapIdSource === "string" && mapIdSource.startsWith("runtime.")
+          ? mapId
+          : null
+      ),
+    runtimeRolePath:
+      replay?.runtimeRolePath
+      ?? replay?.battleInputSnapshot?.runtimeRolePath
+      ?? replay?.exactBattleInputData?.runtimeRolePath
+      ?? replay?.battleInputData?.runtimeRolePath
+      ?? null,
+    selfRoleContextSource: replay?.selfRoleContextSource ?? null,
+    runtimeRoleAvailable,
+    battleInputAvailable: typeof replay?.battleInputAvailable === "boolean"
+      ? replay.battleInputAvailable
+      : Boolean(replay?.exactBattleInputData || replay?.battleInputData || replay?.battleInputSnapshot),
+    fixtureMapFallbackUsed: Boolean(
+      replay?.meta?.fixtureMapFallback
+      || replay?.meta?.fixtureMapFallbackUsed,
+    ),
+    diagnostics: replay?.meta?.mapIdDiagnostics || null,
+  };
+};
 
 const resolveReplayRuntimeBattleInput = ({
   replay,
@@ -1125,7 +1165,10 @@ const resolveReplayRuntimeBattleInput = ({
             battleInputSource: sourceType,
             mapIdSource: mapIdResolution?.mapIdSource,
             pvpMapIdSource: mapIdResolution?.pvpMapIdSource,
+            mapIdResolveReason: mapIdResolution?.mapIdResolveReason,
             runtimeRoleMapId: mapIdResolution?.runtimeRoleMapId,
+            runtimeRoleAvailable: mapIdResolution?.runtimeRoleAvailable,
+            runtimeRolePath: mapIdResolution?.runtimeRolePath,
             fixtureMapFallbackUsed: Boolean(mapIdResolution?.fixtureMapFallbackUsed),
           })
         : null,
@@ -2874,12 +2917,16 @@ export const startFightPvpReplayRuntime = async ({
     diagnostics.sourceType = replayBattleInputResult.sourceType;
     diagnostics.battleInputSource = replayBattleInputResult.battleInputSource;
     diagnostics.battleInputSummary = replayBattleInputResult.battleInputSummary;
+    diagnostics.mapId = replayBattleInputResult.mapIdResolution?.mapId
+      ?? replayBattleInputResult.battleInputSummary?.mapId
+      ?? null;
     diagnostics.missingRuntimeFields = replayBattleInputResult.missingRuntimeFields;
     diagnostics.mapIdSource = replayBattleInputResult.mapIdResolution?.mapIdSource ?? null;
     diagnostics.pvpMapIdSource = replayBattleInputResult.mapIdResolution?.pvpMapIdSource ?? null;
     diagnostics.mapIdResolveReason = replayBattleInputResult.mapIdResolution?.mapIdResolveReason ?? null;
     diagnostics.dressPvpMapUsedId = replayBattleInputResult.mapIdResolution?.dressPvpMapUsedId ?? null;
     diagnostics.runtimeRoleMapId = replayBattleInputResult.mapIdResolution?.runtimeRoleMapId ?? null;
+    diagnostics.runtimeRolePath = replayBattleInputResult.mapIdResolution?.runtimeRolePath ?? null;
     diagnostics.selfRoleContextSource = replayBattleInputResult.mapIdResolution?.selfRoleContextSource ?? null;
     diagnostics.runtimeRoleAvailable = replayBattleInputResult.mapIdResolution?.runtimeRoleAvailable ?? false;
     diagnostics.battleInputAvailable = replayBattleInputResult.mapIdResolution?.battleInputAvailable ?? false;

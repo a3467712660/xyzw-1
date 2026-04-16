@@ -28,6 +28,7 @@ import {
 } from "../../src/services/replay/fightPvpBattleInputSnapshot.js";
 import {
   createFightPvpRealReplayFixture,
+  createFightPvpRuntimeRoleReplayFixture,
 } from "../fixtures/replay/fightPvpRealReplayFixture.js";
 
 const createReplayBattleInput = ({
@@ -1282,6 +1283,100 @@ test("fight pvp replay runtime bridge accepts the real fight_startpvp fixture th
   delete globalThis.HTMLElement;
 });
 
+test("fight pvp replay runtime bridge surfaces runtime self-role mapId diagnostics for persisted snapshot records", async () => {
+  class MockHTMLElement {
+    constructor() {
+      this.innerHTML = "";
+      this.clientWidth = 960;
+      this.clientHeight = 540;
+    }
+  }
+
+  globalThis.window = {
+    HTMLElement: MockHTMLElement,
+    clearTimeout,
+    requestAnimationFrame(callback) {
+      return setTimeout(callback, 0);
+    },
+    setTimeout,
+  };
+  globalThis.HTMLElement = MockHTMLElement;
+
+  const runtimeReplay = createFightPvpRuntimeRoleReplayFixture();
+
+  const session = await startFightPvpReplayRuntime({
+    replay: runtimeReplay,
+    hostElement: new MockHTMLElement(),
+    runtimeAdapter: {
+      createCanvasHost: () => ({
+        canvas: { id: "replay-canvas", width: 960, height: 540 },
+        viewport: {},
+      }),
+      createWxShim: () => ({
+        dispose() {},
+      }),
+      ensureBundleVersionContainers() {},
+      ensureReplayBootstrapScene: async () => ({
+        bootstrapSceneName: "Bootstrap",
+        cleanup() {},
+      }),
+      ensureRuntimeBooted: async () => {},
+      ensureRuntimeLoaded: async () => {},
+      createVm2Shim: () => ({
+        dispose() {},
+      }),
+      ensureAuxiliaryBundlesLoaded: async () => ({
+        dispose() {},
+      }),
+      installReplayBattleStartProbe: () => ({
+        dispose() {},
+        waitForSignal: async () => ({
+          ok: true,
+          event: {
+            isReplay: true,
+            mapId: 40001,
+            mode: 32,
+          },
+        }),
+      }),
+      locateReplayEntrypoint: () => ({
+        label: "mock-entrypoint",
+        invoke() {},
+      }),
+      inspectGameBundleModuleCoverage: async () => ({
+        missingModules: [],
+      }),
+      probeGameBundleAssets: async () => [],
+      probeGameSceneAssets: async () => [],
+      readRuntimeModules: () => ({ consts: {} }),
+      startReplayEntrypoint: async ({ battleInput }) => {
+        assert.equal(battleInput.mapId, 40001);
+        assert.equal(battleInput.mapIdSource, "runtime.ROLE.pvpMapId");
+        assert.equal(battleInput.runtimeRolePath, "runtime.ROLE");
+        return { ok: true, entrypoint: "mock-entrypoint" };
+      },
+      waitForRuntimeReadyForReplay: async () => ({
+        ok: true,
+        sceneName: "Game",
+      }),
+    },
+  });
+
+  assert.equal(session.ok, true);
+  assert.equal(session.reason, "ok");
+  assert.equal(session.diagnostics.mapId, 40001);
+  assert.equal(session.diagnostics.mapIdSource, "runtime.ROLE.pvpMapId");
+  assert.equal(session.diagnostics.runtimeRolePath, "runtime.ROLE");
+  assert.equal(session.diagnostics.runtimeRoleAvailable, true);
+  assert.equal(session.diagnostics.runtimeRoleMapId, 40001);
+  assert.equal(session.diagnostics.battleInputSummary.mapId, 40001);
+  assert.equal(session.diagnostics.battleInputSummary.mapIdSource, "runtime.ROLE.pvpMapId");
+  assert.equal(session.diagnostics.battleInputSummary.runtimeRolePath, "runtime.ROLE");
+
+  delete globalThis.window;
+  delete globalThis.HTMLElement;
+});
+
 test("fight pvp replay runtime bridge installs privacy guard before runtime boot", async () => {
   class MockHTMLElement {
     constructor() {
@@ -1588,11 +1683,12 @@ test("fight pvp replay runtime bridge surfaces live mapId failure metadata from 
     mapId: null,
     mapIdSource: null,
     pvpMapIdSource: null,
-    mapIdResolveReason: "pvp-map-conf-unavailable",
-    dressPvpMapUsedId: 7001,
-    selfRoleContextSource: "refreshed-role_getroleinfo",
-    runtimeRoleAvailable: false,
-    battleInputAvailable: false,
+    mapIdResolveReason: "battle-input-mapId-not-written",
+    dressPvpMapUsedId: null,
+    selfRoleContextSource: "window.ROLE",
+    runtimeRoleAvailable: true,
+    runtimeRolePath: "runtime.ROLE",
+    battleInputAvailable: true,
   });
 
   const session = await startFightPvpReplayRuntime({
@@ -1644,11 +1740,12 @@ test("fight pvp replay runtime bridge surfaces live mapId failure metadata from 
 
   assert.equal(session.ok, false);
   assert.equal(session.reason, "replay-start-failed");
-  assert.equal(session.diagnostics.mapIdResolveReason, "pvp-map-conf-unavailable");
-  assert.equal(session.diagnostics.dressPvpMapUsedId, 7001);
-  assert.equal(session.diagnostics.selfRoleContextSource, "refreshed-role_getroleinfo");
-  assert.equal(session.diagnostics.runtimeRoleAvailable, false);
-  assert.equal(session.diagnostics.battleInputAvailable, false);
+  assert.equal(session.diagnostics.mapIdResolveReason, "battle-input-mapId-not-written");
+  assert.equal(session.diagnostics.dressPvpMapUsedId, null);
+  assert.equal(session.diagnostics.selfRoleContextSource, "window.ROLE");
+  assert.equal(session.diagnostics.runtimeRoleAvailable, true);
+  assert.equal(session.diagnostics.runtimeRolePath, "runtime.ROLE");
+  assert.equal(session.diagnostics.battleInputAvailable, true);
 
   delete globalThis.window;
   delete globalThis.HTMLElement;

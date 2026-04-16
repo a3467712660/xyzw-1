@@ -6,15 +6,12 @@ import {
   createFightPvpReplayRecordFromBattleInput,
 } from "@/services/replay/fightPvpReplayNormalizer.js";
 import {
-  ensureFightPvpSelfRoleContext,
-} from "@/services/replay/fightPvpLiveMapIdResolver.js";
-import {
   readFightPvpRuntimeMapIdContext,
 } from "@/services/replay/fightPvpRuntimeMapIdBridge.js";
 import {
-  getFightPvpRuntimeMapIdReasonMessageKey,
+  getFightPvpRuntimeRoleMapIdReasonMessageKey,
   resolveFightPvpMapIdForLiveCapture,
-} from "@/services/replay/fightPvpRuntimeMapIdResolver.js";
+} from "@/services/replay/fightPvpRuntimeRoleMapIdResolver.js";
 
 export function useFightPvpActions({
   tokenStore,
@@ -63,6 +60,9 @@ export function useFightPvpActions({
 
   const buildLiveMapIdFailureMessage = (mapResolution) => {
     const detailParts = [];
+    if (mapResolution?.runtimeRolePath) {
+      detailParts.push(`runtimeRolePath=${mapResolution.runtimeRolePath}`);
+    }
     if (mapResolution?.selfRoleContextSource) {
       detailParts.push(`selfRoleContextSource=${mapResolution.selfRoleContextSource}`);
     }
@@ -77,81 +77,20 @@ export function useFightPvpActions({
     }
 
     const lead = t(
-      getFightPvpRuntimeMapIdReasonMessageKey(mapResolution?.reason),
+      getFightPvpRuntimeRoleMapIdReasonMessageKey(mapResolution?.reason),
     );
     return detailParts.length > 0
       ? `${lead} (${detailParts.join(", ")})`
       : lead;
   };
 
-  const resolveLiveMapIdForFightPvp = async ({
-    selfRoleRaw,
+  const resolveLiveMapIdForFightPvp = ({
     battleInput,
-  } = {}) => {
-    const selectedTokenRoleInfo = tokenStore.selectedTokenRoleInfo || null;
-    const tokenStoreRoleInfo = tokenStore.gameData?.roleInfo || null;
-    const resolveMapId = ({
-      rolePayload = null,
-      roleInfo = null,
-    } = {}) =>
-      resolveFightPvpMapIdForLiveCapture({
-        runtimeContext: readFightPvpRuntimeMapIdContext(),
-        battleInput,
-        selfRoleRaw: rolePayload,
-        selectedTokenRoleInfo: tokenStore.selectedTokenRoleInfo || roleInfo,
-        tokenStoreRoleInfo: roleInfo || tokenStore.gameData?.roleInfo || null,
-      });
-
-    let mapResolution = resolveMapId({
-      rolePayload: selfRoleRaw,
-      roleInfo: tokenStoreRoleInfo,
+  } = {}) =>
+    resolveFightPvpMapIdForLiveCapture({
+      runtimeContext: readFightPvpRuntimeMapIdContext(),
+      battleInput,
     });
-
-    if (mapResolution.ok) {
-      return {
-        mapResolution,
-        resolvedSelfRoleRaw: selfRoleRaw,
-        resolvedRoleInfo: tokenStoreRoleInfo,
-      };
-    }
-
-    if (selfRoleRaw || selectedTokenRoleInfo || tokenStoreRoleInfo) {
-      return {
-        mapResolution,
-        resolvedSelfRoleRaw: selfRoleRaw,
-        resolvedRoleInfo: tokenStoreRoleInfo,
-      };
-    }
-
-    const ensuredSelfRoleContext = await ensureFightPvpSelfRoleContext({
-      tokenStore,
-      selectedToken: tokenStore.selectedToken,
-    });
-    const refreshedRoleInfo = ensuredSelfRoleContext?.roleInfo || null;
-
-    if (refreshedRoleInfo) {
-      mapResolution = resolveMapId({
-        rolePayload: selfRoleRaw || refreshedRoleInfo,
-        roleInfo: refreshedRoleInfo,
-      });
-    } else if (
-      ensuredSelfRoleContext?.reason === "runtime-self-role-unavailable"
-      && !mapResolution.ok
-    ) {
-      mapResolution = {
-        ...mapResolution,
-        reason: ensuredSelfRoleContext.reason,
-        mapIdResolveReason: ensuredSelfRoleContext.reason,
-        selfRoleContextSource: ensuredSelfRoleContext.selfRoleContextSource,
-      };
-    }
-
-    return {
-      mapResolution,
-      resolvedSelfRoleRaw: selfRoleRaw || refreshedRoleInfo,
-      resolvedRoleInfo: refreshedRoleInfo || tokenStoreRoleInfo,
-    };
-  };
 
   const buildReplayOptions = (result) =>
     new Map([
@@ -231,18 +170,9 @@ export function useFightPvpActions({
         }
 
         rawBattles.push(result.battleData);
-        const {
-          mapResolution,
-          resolvedSelfRoleRaw,
-          resolvedRoleInfo,
-        } = await resolveLiveMapIdForFightPvp({
-          selfRoleRaw,
+        const mapResolution = resolveLiveMapIdForFightPvp({
           battleInput: result,
         });
-        if (!selfRoleRaw && resolvedSelfRoleRaw) {
-          selfRoleRaw = resolvedSelfRoleRaw;
-        }
-
         const liveMapIdFailureMessage = !mapResolution.ok
           ? buildLiveMapIdFailureMessage(mapResolution)
           : "";
@@ -250,6 +180,10 @@ export function useFightPvpActions({
           battleData: result.battleData,
           battleResult: result.battleResult,
           mapId: mapResolution.mapId,
+          mapIdSource: mapResolution.mapIdSource || mapResolution.source,
+          mapIdResolveReason: mapResolution.reason,
+          runtimeRoleAvailable: mapResolution.runtimeRoleAvailable,
+          runtimeRolePath: mapResolution.runtimeRolePath,
           ...getReplayRuntimeLabels(),
           options: buildReplayOptions(result),
         }, {
@@ -261,16 +195,16 @@ export function useFightPvpActions({
           targetId: targetId.value,
           targetName: memberData.value?.name,
           leftContext:
-            resolvedSelfRoleRaw?.role
-            || resolvedSelfRoleRaw?.roleInfo
+            selfRoleRaw?.role
+            || selfRoleRaw?.roleInfo
             || tokenStore.selectedTokenRoleInfo?.role
             || tokenStore.selectedTokenRoleInfo
-            || resolvedRoleInfo?.role
-            || resolvedRoleInfo
+            || tokenStore.gameData?.roleInfo?.role
+            || tokenStore.gameData?.roleInfo
             || null,
           rightContext: memberData.value,
-          selfRoleRaw: resolvedSelfRoleRaw,
-          roleInfo: resolvedRoleInfo,
+          selfRoleRaw,
+          roleInfo: tokenStore.gameData?.roleInfo || null,
           mapId: mapResolution.mapId,
           pvpMapId: mapResolution.pvpMapId,
           mapIdSource: mapResolution.mapIdSource || mapResolution.source,
@@ -280,6 +214,7 @@ export function useFightPvpActions({
           dressPvpMapUsedId: mapResolution.dressPvpMapUsedId,
           selfRoleContextSource: mapResolution.selfRoleContextSource,
           runtimeRoleAvailable: mapResolution.runtimeRoleAvailable,
+          runtimeRolePath: mapResolution.runtimeRolePath,
           battleInputAvailable: mapResolution.battleInputAvailable,
           mapResolution,
         });

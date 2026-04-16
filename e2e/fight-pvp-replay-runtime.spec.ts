@@ -1,6 +1,6 @@
 import { expect, test } from "playwright/test";
 import {
-  createFightPvpRealReplayFixture,
+  createFightPvpRuntimeRoleReplayFixture,
 } from "../test/fixtures/replay/fightPvpRealReplayFixture.js";
 
 test.use({
@@ -9,7 +9,7 @@ test.use({
   },
 });
 
-const createReplayPayload = () => createFightPvpRealReplayFixture();
+const createReplayPayload = () => createFightPvpRuntimeRoleReplayFixture();
 
 test("fight pvp replay runtime real fixture smoke enters game scene and starts replay playback", async ({
   page,
@@ -80,11 +80,13 @@ test("fight pvp replay runtime real fixture smoke enters game scene and starts r
   );
   expect(result.diagnostics.replayStartSignal).toBeTruthy();
   expect(result.diagnostics.replayStartIsReplay).toBeTruthy();
-  expect(result.diagnostics.replayStartMapId).toBe(110001);
+  expect(result.diagnostics.replayStartMapId).toBe(40001);
   expect(result.diagnostics.replayStartBattleMode).toBe(32);
-  expect(result.diagnostics.battleInputSummary.mapId).toBe(110001);
-  expect(result.diagnostics.mapIdSource).toBe("fixture.110001");
-  expect(result.diagnostics.fixtureMapFallbackUsed).toBeTruthy();
+  expect(result.diagnostics.battleInputSummary.mapId).toBe(40001);
+  expect(result.diagnostics.mapIdSource).toBe("runtime.ROLE.pvpMapId");
+  expect(result.diagnostics.runtimeRolePath).toBe("runtime.ROLE");
+  expect(result.diagnostics.runtimeRoleAvailable).toBeTruthy();
+  expect(result.diagnostics.fixtureMapFallbackUsed).toBeFalsy();
   expect(result.diagnostics.battleInputSummary.battleMode).toBe(32);
   expect(result.diagnostics.battleInputSummary.stageNameStr).toBe("切磋系统");
   expect(result.diagnostics.battleInputSource).toBe("persisted-battle-input-snapshot");

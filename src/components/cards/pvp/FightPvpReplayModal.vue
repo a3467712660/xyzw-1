@@ -214,6 +214,13 @@ const diagnosticLines = computed(() => {
   if (diagnostics.battleInputSource) {
     lines.push(`battleInputSource: ${diagnostics.battleInputSource}`);
   }
+  const directMapId = diagnostics.mapId
+    ?? diagnostics.battleInputSummary?.mapId
+    ?? diagnostics.replayStartMapId
+    ?? null;
+  if (directMapId !== null && directMapId !== undefined) {
+    lines.push(`mapId: ${directMapId}`);
+  }
   if (diagnostics.replayEntrypoint) {
     lines.push(`replayEntrypoint: ${diagnostics.replayEntrypoint}`);
   }
@@ -234,6 +241,9 @@ const diagnosticLines = computed(() => {
   }
   if (typeof diagnostics.runtimeRoleAvailable === "boolean") {
     lines.push(`runtimeRoleAvailable: ${diagnostics.runtimeRoleAvailable}`);
+  }
+  if (diagnostics.runtimeRolePath) {
+    lines.push(`runtimeRolePath: ${diagnostics.runtimeRolePath}`);
   }
   if (typeof diagnostics.battleInputAvailable === "boolean") {
     lines.push(`battleInputAvailable: ${diagnostics.battleInputAvailable}`);
@@ -317,6 +327,9 @@ const buildSpecificMapIdFailureMessage = (diagnostics) => {
     diagnostics?.mapIdResolveReason,
   );
   const detailParts = [];
+  if (diagnostics?.runtimeRolePath) {
+    detailParts.push(`runtimeRolePath=${diagnostics.runtimeRolePath}`);
+  }
   if (diagnostics?.selfRoleContextSource) {
     detailParts.push(`selfRoleContextSource=${diagnostics.selfRoleContextSource}`);
   }

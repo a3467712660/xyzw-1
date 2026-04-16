@@ -191,26 +191,32 @@ v6Ct9tWYn2qr/QfVrb4TVyP/PXG1n6ts/Ic0rt6r9McaV99ItnMzFXVy66Zz+2g1QTfm7ed6+zxRlkz3
 `.replace(/\s+/g, "");
 
 let cachedRealFixture = null;
+let cachedRuntimeRoleFixture = null;
 
 const cloneFixture = (value) =>
   typeof structuredClone === "function"
     ? structuredClone(value)
     : JSON.parse(JSON.stringify(value));
 
-const inflateRealFixture = () => {
-  if (cachedRealFixture) {
-    return cloneFixture(cachedRealFixture);
-  }
-
-  const raw = gunzipSync(
-    Buffer.from(FIGHT_PVP_REAL_FIXTURE_GZIP_BASE64, "base64"),
-  ).toString("utf8");
-  const parsed = JSON.parse(raw);
+const buildFixtureRecord = ({
+  parsed,
+  mapId,
+  mapIdSource,
+  fixtureMapFallback = false,
+  runtimeRoleAvailable = false,
+  runtimeRolePath = null,
+  runtimeRoleMapId = null,
+  source = "fight-pvp-real-fixture",
+}) => {
   const battleData = parsed?.battleData || {};
   const exactBattleInputData = createFightPvpExactBattleInput({
     battleData,
     battleResult: parsed?.battleResult || battleData?.result || null,
-    mapId: 110001,
+    mapId,
+    mapIdSource,
+    mapIdResolveReason: null,
+    runtimeRoleAvailable,
+    runtimeRolePath,
     stageNameStr: "切磋系统",
     startTipTopName: "切磋系统",
     startTipStage: "开始切磋",
@@ -227,14 +233,14 @@ const inflateRealFixture = () => {
   });
   const baseRecord = createFightPvpReplayRecordFromBattleInput({
     exactBattleInputData,
-    source: "fight-pvp-real-fixture",
+    source,
     createdAt: "2026-04-12T12:34:08.000Z",
     targetId: String(battleData?.rightTeam?.roleId || ""),
     targetName: String(battleData?.rightTeam?.name || ""),
-    mapId: 110001,
-    pvpMapId: 110001,
-    mapIdSource: "fixture.110001",
-    pvpMapIdSource: "fixture.110001",
+    mapId,
+    pvpMapId: mapId,
+    mapIdSource,
+    pvpMapIdSource: mapIdSource,
     leftContext: {
       roleId: String(battleData?.leftTeam?.roleId || ""),
       name: String(battleData?.leftTeam?.name || ""),
@@ -249,32 +255,36 @@ const inflateRealFixture = () => {
     },
     meta: {
       ...(parsed?.meta || {}),
-      fixtureMapFallback: true,
-      fixtureName: "fight-pvp-real-replay",
+      fixtureMapFallback,
+      fixtureName: fixtureMapFallback
+        ? "fight-pvp-real-replay"
+        : "fight-pvp-runtime-role-replay",
     },
     mapResolution: {
       ok: true,
-      mapId: 110001,
-      pvpMapId: 110001,
-      source: "fixture.110001",
-      mapIdSource: "fixture.110001",
-      pvpMapIdSource: "fixture.110001",
-      fixtureMapFallbackUsed: true,
-      runtimeRoleAvailable: false,
+      mapId,
+      pvpMapId: mapId,
+      source: mapIdSource,
+      mapIdSource,
+      pvpMapIdSource: mapIdSource,
+      fixtureMapFallbackUsed: fixtureMapFallback,
+      runtimeRoleAvailable,
+      runtimeRolePath,
+      runtimeRoleMapId,
       battleInputAvailable: false,
       diagnostics: {
-        tried: ["fixture.110001"],
+        tried: [mapIdSource],
         values: {
-          "fixture.110001": 110001,
+          [mapIdSource]: mapId,
         },
         availableValues: {
-          "fixture.110001": 110001,
+          [mapIdSource]: mapId,
         },
       },
     },
   });
 
-  cachedRealFixture = {
+  return {
     ...baseRecord,
     exactBattleInputData: null,
     battleInputData: null,
@@ -286,8 +296,50 @@ const inflateRealFixture = () => {
       battleInputSource: FIGHT_PVP_REPLAY_SOURCE_TYPES.PERSISTED_BATTLE_INPUT_SNAPSHOT,
     },
   };
+};
+
+const parseBaseFixture = () => {
+  const raw = gunzipSync(
+    Buffer.from(FIGHT_PVP_REAL_FIXTURE_GZIP_BASE64, "base64"),
+  ).toString("utf8");
+  return JSON.parse(raw);
+};
+
+const inflateRealFixture = () => {
+  if (cachedRealFixture) {
+    return cloneFixture(cachedRealFixture);
+  }
+
+  const parsed = parseBaseFixture();
+  cachedRealFixture = buildFixtureRecord({
+    parsed,
+    mapId: 110001,
+    mapIdSource: "fixture.110001",
+    fixtureMapFallback: true,
+    source: "fight-pvp-real-fixture",
+  });
 
   return cloneFixture(cachedRealFixture);
 };
 
+const inflateRuntimeRoleFixture = () => {
+  if (cachedRuntimeRoleFixture) {
+    return cloneFixture(cachedRuntimeRoleFixture);
+  }
+
+  const parsed = parseBaseFixture();
+  cachedRuntimeRoleFixture = buildFixtureRecord({
+    parsed,
+    mapId: 40001,
+    mapIdSource: "runtime.ROLE.pvpMapId",
+    runtimeRoleAvailable: true,
+    runtimeRolePath: "runtime.ROLE",
+    runtimeRoleMapId: 40001,
+    source: "fight-pvp-runtime-role-fixture",
+  });
+
+  return cloneFixture(cachedRuntimeRoleFixture);
+};
+
 export const createFightPvpRealReplayFixture = () => inflateRealFixture();
+export const createFightPvpRuntimeRoleReplayFixture = () => inflateRuntimeRoleFixture();
