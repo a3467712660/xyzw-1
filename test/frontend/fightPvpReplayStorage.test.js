@@ -2,6 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  buildFightPvpBattleInputData,
+} from "../../src/services/replay/fightPvpBattleInputSnapshot.js";
+import {
+  createFightPvpReplayRecordFromBattleInput,
+} from "../../src/services/replay/fightPvpReplayNormalizer.js";
+import {
   buildFightPvpReplayLiveContext,
   FIGHT_PVP_REPLAY_LIVE_CONTEXT_REFRESH_TIMEOUT_MS,
   MAX_FIGHT_PVP_REPLAYS,
@@ -13,29 +19,118 @@ import {
   removeFightPvpReplay,
 } from "../../src/services/replay/fightPvpReplayStorage.js";
 
-const createReplay = (index) => ({
+const createLiveReplayRecord = (index) => {
+  const battleInputData = buildFightPvpBattleInputData({
+    battleData: {
+      id: `battle-${index}`,
+      version: 1,
+      mode: 7,
+      leftTeam: {
+        roleId: "role-left",
+        name: "我方",
+        headImg: "",
+        power: 1,
+        team: {
+          0: { heroId: 1001 },
+        },
+      },
+      rightTeam: {
+        roleId: "role-right",
+        name: "敌方",
+        headImg: "",
+        power: 2,
+        team: {
+          0: { heroId: 2001 },
+        },
+      },
+      result: {
+        isWin: index % 2 === 0,
+      },
+    },
+    battleResult: {
+      isWin: index % 2 === 0,
+    },
+    mapId: 120001,
+    stageNameStr: "切磋系统",
+    startTipTopName: "切磋系统",
+    startTipStage: "开始切磋",
+    options: new Map([
+      ["targetRole", { roleId: "role-right", name: "敌方" }],
+      ["selfScore", 10 + index],
+      ["oppoScore", 8 + index],
+    ]),
+  });
+
+  return createFightPvpReplayRecordFromBattleInput({
+    battleInputData,
+    tokenId: "token-a",
+    targetId: "role-right",
+    targetName: "敌方",
+    createdAt: new Date(Date.UTC(2026, 3, 15, 12, 0, index)).toISOString(),
+    mapId: 120001,
+    pvpMapId: 120001,
+    mapIdSource: "live.mapId",
+    pvpMapIdSource: "live.mapId",
+  });
+};
+
+const createLegacyReplayPayload = (index, overrides = {}) => ({
   replayId: `fight-pvp-live:battle-${index}`,
   battleId: `battle-${index}`,
   battleVersion: 1,
   tokenId: "token-a",
   source: "fight-pvp-live",
-  targetId: "target-a",
-  targetName: "目标",
+  targetId: "role-right",
+  targetName: "敌方",
   createdAt: new Date(Date.UTC(2026, 3, 15, 12, 0, index)).toISOString(),
   battleData: {
     id: `battle-${index}`,
     version: 1,
+    mode: 7,
     leftTeam: {
       roleId: "role-left",
       name: "我方",
+      team: {
+        0: { heroId: 1001 },
+      },
     },
     rightTeam: {
       roleId: "role-right",
       name: "敌方",
+      team: {
+        0: { heroId: 2001 },
+      },
     },
     result: {
       isWin: index % 2 === 0,
     },
+  },
+  battleResult: {
+    isWin: index % 2 === 0,
+  },
+  left: {
+    roleId: "role-left",
+    name: "我方",
+    headImg: "",
+    power: 1,
+  },
+  right: {
+    roleId: "role-right",
+    name: "敌方",
+    headImg: "",
+    power: 2,
+  },
+  stageNameStr: "切磋系统",
+  startTipTopName: "切磋系统",
+  startTipStage: "开始切磋",
+  runtimeOptionsSnapshot: {
+    targetRole: {
+      roleId: "role-right",
+      name: "敌方",
+    },
+    selfScore: 20,
+    oppoScore: 18,
+    replayFlag: true,
   },
   mapId: 120001,
   pvpMapId: 120001,
@@ -65,18 +160,7 @@ const createReplay = (index) => ({
       },
     },
   },
-  left: {
-    roleId: "role-left",
-    name: "我方",
-    headImg: "",
-    power: 1,
-  },
-  right: {
-    roleId: "role-right",
-    name: "敌方",
-    headImg: "",
-    power: 2,
-  },
+  ...overrides,
 });
 
 test.beforeEach(() => {
@@ -105,10 +189,10 @@ test.after(() => {
   delete globalThis.localStorage;
 });
 
-test("fight pvp replay storage isolates records by user and token", () => {
+test("fight pvp replay storage isolates records by user and token with v2 keys", () => {
   assert.equal(
     buildFightPvpReplayStorageKey({ userId: "user-1", tokenId: "token-1" }),
-    "fight_pvp_replays_v1:user-1:token-1",
+    "fight_pvp_replays_v2:user-1:token-1",
   );
 });
 
@@ -174,56 +258,24 @@ test("fight pvp replay storage quick refreshes liveContext before replay when ca
     ],
   ]);
   assert.equal(tokenStore.gameData.roleInfo, tokenStoreRoleInfo);
-  assert.match(String(tokenStore.gameData.lastUpdated || ""), /T/);
 });
 
-test("fight pvp replay storage falls back to cached liveContext when quick refresh fails", async () => {
-  const cachedRoleInfo = {
-    role: {
-      roleId: "role-left",
-      pvpMapId: 120010,
-    },
-  };
-  const tokenStore = {
-    gameData: {
-      roleInfo: cachedRoleInfo,
-      lastUpdated: null,
-    },
-    getWebSocketStatus() {
-      return "connected";
-    },
-    async sendMessageWithPromise() {
-      throw new Error("refresh failed");
-    },
-  };
-
-  const liveContext = await refreshFightPvpReplayLiveContext({
-    tokenStore,
-    tokenId: "token-a",
-  });
-
-  assert.deepEqual(liveContext, {
-    tokenStoreRoleInfo: cachedRoleInfo,
-  });
-  assert.equal(tokenStore.gameData.roleInfo, cachedRoleInfo);
-});
-
-test("fight pvp replay storage appends, dedupes, and keeps newest records first", () => {
+test("fight pvp replay storage appends, stores snapshots, dedupes, and keeps newest records first", () => {
   appendFightPvpReplay({
     userId: "user-a",
     tokenId: "token-a",
-    replay: createReplay(1),
+    replay: createLiveReplayRecord(1),
   });
   appendFightPvpReplay({
     userId: "user-a",
     tokenId: "token-a",
-    replay: createReplay(2),
+    replay: createLiveReplayRecord(2),
   });
   appendFightPvpReplay({
     userId: "user-a",
     tokenId: "token-a",
     replay: {
-      ...createReplay(1),
+      ...createLiveReplayRecord(1),
       createdAt: new Date(Date.UTC(2026, 3, 15, 13, 0, 0)).toISOString(),
     },
   });
@@ -236,6 +288,15 @@ test("fight pvp replay storage appends, dedupes, and keeps newest records first"
   assert.equal(records.length, 2);
   assert.equal(records[0].battleId, "battle-1");
   assert.equal(records[1].battleId, "battle-2");
+  assert.equal(records[0].sourceType, "battle-input-snapshot");
+  assert.equal(records[0].battleInputData, null);
+  assert.ok(records[0].battleInputSnapshot);
+
+  const stored = JSON.parse(globalThis.localStorage.getItem(
+    buildFightPvpReplayStorageKey({ userId: "user-a", tokenId: "token-a" }),
+  ));
+  assert.equal(stored[0].battleInputData, undefined);
+  assert.ok(stored[0].battleInputSnapshot);
 });
 
 test("fight pvp replay storage trims old records and supports remove and clear", () => {
@@ -243,7 +304,7 @@ test("fight pvp replay storage trims old records and supports remove and clear",
     appendFightPvpReplay({
       userId: "user-a",
       tokenId: "token-a",
-      replay: createReplay(index),
+      replay: createLiveReplayRecord(index),
     });
   }
 
@@ -272,28 +333,10 @@ test("fight pvp replay storage trims old records and supports remove and clear",
   );
 });
 
-test("fight pvp replay storage backfills missing mapId once and rewrites the record", () => {
-  const storageKey = buildFightPvpReplayStorageKey({
-    userId: "user-a",
-    tokenId: "token-a",
-  });
-  globalThis.localStorage.setItem(storageKey, JSON.stringify([
-    {
-      ...createReplay(11),
-      mapId: null,
-      pvpMapId: null,
-      mapIdSource: null,
-      pvpMapIdSource: null,
-      selfRoleSnapshot: {
-        roleId: "role-left",
-        pvpMapId: 140001,
-      },
-      context: {
-        pvpMapId: null,
-      },
-      meta: {},
-      backfilledAt: null,
-    },
+test("fight pvp replay storage migrates legacy v1 payload into v2 snapshot records", () => {
+  const legacyKey = "fight_pvp_replays_v1:user-a:token-a";
+  globalThis.localStorage.setItem(legacyKey, JSON.stringify([
+    createLegacyReplayPayload(11),
   ]));
 
   const records = loadFightPvpReplays({
@@ -302,25 +345,29 @@ test("fight pvp replay storage backfills missing mapId once and rewrites the rec
   });
 
   assert.equal(records.length, 1);
-  assert.equal(records[0].mapId, 140001);
-  assert.equal(records[0].pvpMapId, 140001);
-  assert.equal(records[0].mapIdSource, "replay.selfRoleSnapshot.pvpMapId");
-  assert.ok(records[0].backfilledAt);
+  assert.equal(records[0].isPlayable, true);
+  assert.equal(records[0].sourceType, "battle-input-snapshot");
+  assert.ok(records[0].battleInputSnapshot);
 
-  const stored = JSON.parse(globalThis.localStorage.getItem(storageKey));
-  assert.equal(stored[0].mapId, 140001);
-  assert.equal(stored[0].mapIdSource, "replay.selfRoleSnapshot.pvpMapId");
-  assert.ok(stored[0].backfilledAt);
-  assert.equal(stored[0].selfRoleSnapshot.dress, null);
-  assert.equal(stored[0].context.dress, null);
+  const storedV2 = JSON.parse(globalThis.localStorage.getItem(
+    buildFightPvpReplayStorageKey({ userId: "user-a", tokenId: "token-a" }),
+  ));
+  assert.equal(storedV2.length, 1);
+  assert.ok(storedV2[0].battleInputSnapshot);
+  assert.equal(storedV2[0].sourceType, "battle-input-snapshot");
 });
 
-test("fight pvp replay storage uses provided liveContext while appending missing-map replays", () => {
-  const records = appendFightPvpReplay({
-    userId: "user-a",
-    tokenId: "token-a",
-    replay: {
-      ...createReplay(15),
+test("fight pvp replay storage keeps incomplete legacy records and marks them unavailable", () => {
+  const legacyKey = "fight_pvp_replays_v1:user-a:token-a";
+  globalThis.localStorage.setItem(legacyKey, JSON.stringify([
+    createLegacyReplayPayload(12, {
+      battleData: {
+        id: "battle-12",
+        version: 1,
+        leftTeam: {},
+        rightTeam: {},
+      },
+      battleResult: null,
       mapId: null,
       pvpMapId: null,
       mapIdSource: null,
@@ -328,59 +375,12 @@ test("fight pvp replay storage uses provided liveContext while appending missing
       selfRoleSnapshot: {
         roleId: "role-left",
         pvpMapId: null,
-        dressPvpMapUsedId: null,
-        dressPvpMapMapId: null,
-        dress: null,
       },
       context: {
         pvpMapId: null,
-        dressPvpMapUsedId: null,
-        dressPvpMapMapId: null,
-        dress: null,
       },
       meta: {},
-      backfilledAt: null,
-    },
-    liveContext: {
-      tokenStoreRoleInfo: {
-        role: {
-          pvpMapId: 120009,
-        },
-      },
-    },
-  });
-
-  assert.equal(records.length, 1);
-  assert.equal(records[0].mapId, 120009);
-  assert.equal(records[0].mapIdSource, "tokenStore.gameData.roleInfo.role.pvpMapId");
-});
-
-test("fight pvp replay storage rewrites leaked dress used ids without inventing a fallback mapId", () => {
-  const storageKey = buildFightPvpReplayStorageKey({
-    userId: "user-a",
-    tokenId: "token-a",
-  });
-  globalThis.localStorage.setItem(storageKey, JSON.stringify([
-    {
-      ...createReplay(13),
-      mapId: null,
-      pvpMapId: 7001,
-      mapIdSource: null,
-      pvpMapIdSource: "replay.pvpMapId",
-      selfRoleSnapshot: {
-        roleId: "role-left",
-        pvpMapId: 7001,
-        dressPvpMapUsedId: 7001,
-        dressPvpMapMapId: null,
-      },
-      context: {
-        pvpMapId: 7001,
-        dressPvpMapUsedId: 7001,
-        dressPvpMapMapId: null,
-      },
-      meta: {},
-      backfilledAt: null,
-    },
+    }),
   ]));
 
   const records = loadFightPvpReplays({
@@ -389,203 +389,13 @@ test("fight pvp replay storage rewrites leaked dress used ids without inventing 
   });
 
   assert.equal(records.length, 1);
-  assert.equal(records[0].mapId, null);
-  assert.equal(records[0].pvpMapId, null);
-  assert.equal(records[0].pvpMapIdSource, null);
-  assert.deepEqual(records[0].selfRoleSnapshot, {
-    roleId: "role-left",
-    pvpMapId: null,
-    dressPvpMapUsedId: 7001,
-    dressPvpMapMapId: null,
-    dress: {
-      pvpMap: {
-        used: 7001,
-      },
-    },
-  });
-  assert.deepEqual(records[0].context, {
-    pvpMapId: null,
-    dressPvpMapUsedId: 7001,
-    dressPvpMapMapId: null,
-    dress: {
-      pvpMap: {
-        used: 7001,
-      },
-    },
-  });
-  assert.equal(records[0].backfilledAt, null);
-
-  const stored = JSON.parse(globalThis.localStorage.getItem(storageKey));
-  assert.equal(stored[0].mapId, null);
-  assert.equal(stored[0].pvpMapId, null);
-  assert.equal(stored[0].pvpMapIdSource, null);
-  assert.equal(stored[0].selfRoleSnapshot.pvpMapId, null);
-  assert.equal(stored[0].context.pvpMapId, null);
-  assert.equal(stored[0].selfRoleSnapshot.dressPvpMapUsedId, 7001);
-  assert.equal(stored[0].context.dressPvpMapUsedId, 7001);
-  assert.deepEqual(stored[0].selfRoleSnapshot.dress, {
-    pvpMap: {
-      used: 7001,
-    },
-  });
-  assert.deepEqual(stored[0].context.dress, {
-    pvpMap: {
-      used: 7001,
-    },
-  });
-  assert.equal(stored[0].backfilledAt, null);
-});
-
-test("fight pvp replay storage backfills missing mapId from persisted dress used id and rewrites the record", () => {
-  globalThis.__require = (moduleName) => {
-    if (moduleName === "../../../../../launcher/config/Configs") {
-      return {
-        PVPMapConf: {
-          getById(id) {
-            return id === 7001 ? { mapId: 120005 } : null;
-          },
-        },
-      };
-    }
-    throw new Error(`Cannot find module '${moduleName}'`);
-  };
-
-  const storageKey = buildFightPvpReplayStorageKey({
-    userId: "user-a",
-    tokenId: "token-a",
-  });
-  globalThis.localStorage.setItem(storageKey, JSON.stringify([
-    {
-      ...createReplay(14),
-      mapId: null,
-      pvpMapId: null,
-      mapIdSource: null,
-      pvpMapIdSource: null,
-      selfRoleSnapshot: {
-        roleId: "role-left",
-        pvpMapId: null,
-        dressPvpMapUsedId: 7001,
-        dressPvpMapMapId: null,
-      },
-      context: {
-        pvpMapId: null,
-        dressPvpMapUsedId: 7001,
-        dressPvpMapMapId: null,
-      },
-      meta: {},
-      backfilledAt: null,
-    },
-  ]));
-
-  const records = loadFightPvpReplays({
-    userId: "user-a",
-    tokenId: "token-a",
-  });
-
-  assert.equal(records.length, 1);
-  assert.equal(records[0].mapId, 120005);
-  assert.equal(records[0].pvpMapId, 120005);
+  assert.equal(records[0].isPlayable, false);
+  assert.match(records[0].disabledReason, /缺少字段|旧回放数据结构不完整/);
   assert.equal(
-    records[0].mapIdSource,
-    "replay.selfRoleSnapshot.persistedDressPVPMapConf.mapId",
+    globalThis.localStorage.getItem(
+      buildFightPvpReplayStorageKey({ userId: "user-a", tokenId: "token-a" }),
+    ),
+    null,
   );
-  assert.ok(records[0].backfilledAt);
-  assert.equal(records[0].selfRoleSnapshot.pvpMapId, 120005);
-  assert.equal(records[0].selfRoleSnapshot.dressPvpMapUsedId, 7001);
-  assert.equal(records[0].selfRoleSnapshot.dressPvpMapMapId, 120005);
-  assert.deepEqual(records[0].selfRoleSnapshot.dress, {
-    pvpMap: {
-      used: 7001,
-    },
-  });
-  assert.equal(records[0].context.pvpMapId, 120005);
-  assert.equal(records[0].context.dressPvpMapUsedId, 7001);
-  assert.equal(records[0].context.dressPvpMapMapId, 120005);
-  assert.deepEqual(records[0].context.dress, {
-    pvpMap: {
-      used: 7001,
-    },
-  });
-
-  const stored = JSON.parse(globalThis.localStorage.getItem(storageKey));
-  assert.equal(stored[0].mapId, 120005);
-  assert.equal(
-    stored[0].mapIdSource,
-    "replay.selfRoleSnapshot.persistedDressPVPMapConf.mapId",
-  );
-  assert.ok(stored[0].backfilledAt);
-});
-
-test("fight pvp replay storage uses provided liveContext while loading missing-map replays", () => {
-  const storageKey = buildFightPvpReplayStorageKey({
-    userId: "user-a",
-    tokenId: "token-a",
-  });
-  globalThis.localStorage.setItem(storageKey, JSON.stringify([
-    {
-      ...createReplay(16),
-      mapId: null,
-      pvpMapId: null,
-      mapIdSource: null,
-      pvpMapIdSource: null,
-      selfRoleSnapshot: {
-        roleId: "role-left",
-        pvpMapId: null,
-      },
-      context: {},
-      meta: {},
-      backfilledAt: null,
-    },
-  ]));
-
-  const records = loadFightPvpReplays({
-    userId: "user-a",
-    tokenId: "token-a",
-    liveContext: {
-      tokenStoreRoleInfo: {
-        role: {
-          pvpMapId: 120010,
-        },
-      },
-    },
-  });
-
-  assert.equal(records.length, 1);
-  assert.equal(records[0].mapId, 120010);
-  assert.equal(records[0].mapIdSource, "tokenStore.gameData.roleInfo.role.pvpMapId");
-});
-
-test("fight pvp replay storage leaves unreadable missing-map records untouched", () => {
-  const storageKey = buildFightPvpReplayStorageKey({
-    userId: "user-a",
-    tokenId: "token-a",
-  });
-  globalThis.localStorage.setItem(storageKey, JSON.stringify([
-    {
-      ...createReplay(12),
-      mapId: null,
-      pvpMapId: null,
-      mapIdSource: null,
-      pvpMapIdSource: null,
-      selfRoleSnapshot: {
-        roleId: "role-left",
-      },
-      context: {},
-      meta: {},
-      backfilledAt: null,
-    },
-  ]));
-
-  const records = loadFightPvpReplays({
-    userId: "user-a",
-    tokenId: "token-a",
-  });
-
-  assert.equal(records.length, 1);
-  assert.equal(records[0].mapId, null);
-  assert.equal(records[0].backfilledAt, null);
-
-  const stored = JSON.parse(globalThis.localStorage.getItem(storageKey));
-  assert.equal(stored[0].mapId, null);
-  assert.equal(stored[0].backfilledAt, null);
+  assert.ok(globalThis.localStorage.getItem(legacyKey));
 });

@@ -1,4 +1,6 @@
 import { gunzipSync } from "node:zlib";
+import { Buffer } from "node:buffer";
+import { convertLegacyFightPvpReplayPayload } from "../../../src/services/replay/fightPvpBattleInputAdapter.js";
 
 export const FIGHT_PVP_REAL_FIXTURE_META = Object.freeze({
   zipPath: "/Users/qian/Desktop/xyzw/xyzw切磋.zip",
@@ -203,13 +205,14 @@ const inflateRealFixture = () => {
   delete restParsed.mapId;
   delete restParsed.meta;
   const battleData = parsed?.battleData || {};
-
-  cachedRealFixture = {
+  const legacyReplay = {
     ...restParsed,
     source: "fight-pvp-real-fixture",
     createdAt: "2026-04-12T12:34:08.000Z",
     targetId: String(battleData?.rightTeam?.roleId || ""),
     targetName: String(battleData?.rightTeam?.name || ""),
+    mapId: null,
+    pvpMapId: null,
     meta: {
       ...(legacyMeta || {}),
       fixtureMapFallback: true,
@@ -228,6 +231,14 @@ const inflateRealFixture = () => {
       power: Number(battleData?.rightTeam?.power || 0),
     },
   };
+  const migrated = convertLegacyFightPvpReplayPayload(legacyReplay);
+
+  cachedRealFixture = migrated.record
+    ? {
+        ...migrated.record,
+        sourceType: "battle-input-snapshot",
+      }
+    : legacyReplay;
 
   return cloneFixture(cachedRealFixture);
 };

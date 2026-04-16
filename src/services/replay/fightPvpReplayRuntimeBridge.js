@@ -3,8 +3,17 @@ import {
   XYZW_RUNTIME_VARIANTS,
 } from "./xyzwRuntimeLoader.js";
 import {
-  buildFightPvpReplayBattleInput,
+  convertLegacyFightPvpReplayPayload,
+  isLegacyFightPvpReplayPayload,
 } from "./fightPvpBattleInputAdapter.js";
+import {
+  buildFightPvpBattleInputData,
+  buildFightPvpBattleInputMissingMessage,
+  getFightPvpBattleInputMissingFields,
+  getFightPvpReplayBattleVersion,
+  rehydrateFightPvpBattleInputSnapshot,
+  summarizeFightPvpBattleInput,
+} from "./fightPvpBattleInputSnapshot.js";
 
 const BOOT_TIMEOUT_MS = 2500;
 const GAME_SCENE_LOAD_TIMEOUT_MS = 35000;
@@ -34,11 +43,11 @@ const REPLAY_AUXILIARY_REQUIRED_MODULES = Object.freeze([
   "@o4e/bon",
 ]);
 const REPLAY_AUXILIARY_MODULE_ALIASES = Object.freeze({
-  ConfigsExt: [
+  "ConfigsExt": [
     "../../../launcher/config/ConfigsExt",
     "../../../../../launcher/config/ConfigsExt",
   ],
-  LanguageExt: [
+  "LanguageExt": [
     "../../../config/extensions/LanguageExt",
     "../../../../config/extensions/LanguageExt",
     "../../../../../config/extensions/LanguageExt",
@@ -46,7 +55,7 @@ const REPLAY_AUXILIARY_MODULE_ALIASES = Object.freeze({
     "../../../../extras/config/extensions/LanguageExt",
     "../../../../../extras/config/extensions/LanguageExt",
   ],
-  consts: [
+  "consts": [
     "../consts/consts",
     "../../../consts/consts",
     "../../../extras/consts/consts",
@@ -1057,18 +1066,104 @@ const safeRequireModule = (runtimeRequire, name) => {
   }
 };
 
-const resolveReplayBattleVersion = (replay) => {
-  for (const candidate of [
-    replay?.battleVersion,
-    replay?.battleData?.version,
-    replay?.battleResult?.battleVersion,
-  ]) {
-    const parsed = Number(candidate);
-    if (Number.isFinite(parsed) && parsed > 0) {
-      return parsed;
-    }
+const resolveReplayBattleVersion = (replay) =>
+  getFightPvpReplayBattleVersion(replay) || 0;
+
+const buildReplayMapResolutionFromRecord = (replay) => ({
+  mapId: replay?.mapId ?? replay?.battleInputSnapshot?.mapId ?? replay?.battleInputData?.mapId ?? null,
+  pvpMapId: replay?.pvpMapId ?? replay?.mapId ?? replay?.battleInputSnapshot?.mapId ?? null,
+  mapIdSource: replay?.mapIdSource ?? null,
+  pvpMapIdSource: replay?.pvpMapIdSource ?? replay?.mapIdSource ?? null,
+  fixtureMapFallbackUsed: Boolean(
+    replay?.meta?.fixtureMapFallback
+    || replay?.meta?.fixtureMapFallbackUsed,
+  ),
+  diagnostics: replay?.meta?.mapIdDiagnostics || null,
+});
+
+const resolveReplayRuntimeBattleInput = ({
+  replay,
+  liveContext = null,
+} = {}) => {
+  const finalize = ({
+    battleInput,
+    sourceType,
+    mapIdResolution = null,
+    resolutionExplanation = null,
+    message = "",
+  } = {}) => {
+    const missingRuntimeFields = battleInput
+      ? getFightPvpBattleInputMissingFields(battleInput)
+      : ["battleInputData"];
+    const finalMessage = message || buildFightPvpBattleInputMissingMessage(missingRuntimeFields);
+
+    return {
+      ok: battleInput !== null && missingRuntimeFields.length === 0,
+      battleInput,
+      sourceType,
+      missingRuntimeFields,
+      battleInputSummary: battleInput
+        ? summarizeFightPvpBattleInput(battleInput, {
+            missingRuntimeFields,
+            sourceType,
+            mapIdSource: mapIdResolution?.mapIdSource,
+            pvpMapIdSource: mapIdResolution?.pvpMapIdSource,
+            fixtureMapFallbackUsed: Boolean(mapIdResolution?.fixtureMapFallbackUsed),
+          })
+        : null,
+      mapIdResolution,
+      resolutionExplanation,
+      message: finalMessage,
+    };
+  };
+
+  if (replay?.battleInputData) {
+    const battleInput = buildFightPvpBattleInputData(replay.battleInputData, {
+      mutate: true,
+    });
+    return finalize({
+      battleInput,
+      sourceType: "battle-input-data",
+      mapIdResolution: buildReplayMapResolutionFromRecord(replay),
+    });
   }
-  return 0;
+
+  if (replay?.battleInputSnapshot) {
+    const battleInput = rehydrateFightPvpBattleInputSnapshot(
+      replay.battleInputSnapshot,
+    );
+    return finalize({
+      battleInput,
+      sourceType: "battle-input-snapshot",
+      mapIdResolution: buildReplayMapResolutionFromRecord(replay),
+    });
+  }
+
+  if (isLegacyFightPvpReplayPayload(replay)) {
+    const legacyResult = convertLegacyFightPvpReplayPayload(replay, {
+      liveContext,
+    });
+    const battleInput = legacyResult?.record?.battleInputSnapshot
+      ? rehydrateFightPvpBattleInputSnapshot(
+          legacyResult.record.battleInputSnapshot,
+        )
+      : null;
+
+    return finalize({
+      battleInput,
+      sourceType: "legacy-payload",
+      mapIdResolution: legacyResult?.mapIdResolution || buildReplayMapResolutionFromRecord(replay),
+      resolutionExplanation: legacyResult?.resolutionExplanation || null,
+      message: legacyResult?.message || "",
+    });
+  }
+
+  return finalize({
+    battleInput: null,
+    sourceType: "unknown",
+    mapIdResolution: buildReplayMapResolutionFromRecord(replay),
+    message: "回放数据为空，无法启动运行时。",
+  });
 };
 
 export const installReplayManifestShim = ({
@@ -2485,7 +2580,11 @@ export const startFightPvpReplayRuntime = async ({
       throw new TypeError("Replay host container is not ready.");
     }
 
-    if (!replay?.battleData) {
+    if (
+      !replay?.battleInputData
+      && !replay?.battleInputSnapshot
+      && !isLegacyFightPvpReplayPayload(replay)
+    ) {
       return {
         ok: false,
         reason: "empty-payload",
@@ -2667,11 +2766,12 @@ export const startFightPvpReplayRuntime = async ({
     cleanups.push(() => replayPromiseUtilShim.dispose?.());
 
     diagnostics.steps.push("build-replay-battle-input");
-    const replayBattleInputResult = buildFightPvpReplayBattleInput(replay, {
-      modules,
+    const replayBattleInputResult = resolveReplayRuntimeBattleInput({
+      replay,
       liveContext,
     });
-    diagnostics.replayInputSummary = replayBattleInputResult.replayInputSummary;
+    diagnostics.sourceType = replayBattleInputResult.sourceType;
+    diagnostics.battleInputSummary = replayBattleInputResult.battleInputSummary;
     diagnostics.missingRuntimeFields = replayBattleInputResult.missingRuntimeFields;
     diagnostics.mapIdSource = replayBattleInputResult.mapIdResolution?.mapIdSource ?? null;
     diagnostics.pvpMapIdSource = replayBattleInputResult.mapIdResolution?.pvpMapIdSource ?? null;

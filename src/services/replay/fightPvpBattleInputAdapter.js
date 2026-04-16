@@ -1,79 +1,38 @@
 import {
-  FIGHT_PVP_REPLAY_DEFAULT_STAGE_NAME,
-  FIGHT_PVP_REPLAY_DEFAULT_START_TIP_STAGE,
-  getFightPvpReplayBattleVersion,
+  buildFightPvpBattleInputData,
+  buildFightPvpBattleInputMissingMessage,
+  getFightPvpBattleInputMissingFields,
   resolveFightPvpReplayRuntimeLabels,
+  summarizeFightPvpBattleInput,
+} from "./fightPvpBattleInputSnapshot.js";
+import {
+  createFightPvpReplayRecordFromBattleInput,
+  FIGHT_PVP_REPLAY_SOURCE,
   resolveFightPvpReplayRuntimeOptionsSnapshot,
-  toFiniteNumber,
-  toNonEmptyString,
 } from "./fightPvpReplayNormalizer.js";
 import {
   explainFightPvpMapIdResolution,
   resolveFightPvpMapIdFromReplay,
 } from "./fightPvpReplayMapIdResolver.js";
 
-const cloneBattleTeamMember = (member) =>
-  member && typeof member === "object" ? { ...member } : member;
+export const isLegacyFightPvpReplayPayload = (value) =>
+  Boolean(
+    value
+    && typeof value === "object"
+    && !value.battleInputData
+    && !value.battleInputSnapshot
+    && value.battleData,
+  );
 
-const normalizeBattleTeamCollection = (collection) => {
-  if (Array.isArray(collection)) {
-    return collection.map(cloneBattleTeamMember);
-  }
-
-  if (collection && typeof collection === "object") {
-    return Object.values(collection).map(cloneBattleTeamMember);
-  }
-
-  return [];
-};
-
-const normalizeBattleSideForRuntime = (side) => {
-  const source = side && typeof side === "object" ? side : {};
-  return {
-    ...source,
-    team: normalizeBattleTeamCollection(source.team),
-  };
-};
-
-const normalizeBattleDataForRuntime = (battleData, battleResult) => {
-  const source = battleData && typeof battleData === "object" ? battleData : null;
-  if (!source) {
-    return null;
-  }
-
-  return {
-    ...source,
-    leftTeam: normalizeBattleSideForRuntime(source.leftTeam),
-    rightTeam: normalizeBattleSideForRuntime(source.rightTeam),
-    result:
-      (battleResult && typeof battleResult === "object" ? battleResult : null)
-      || source.result
-      || null,
-  };
-};
-
-const createReplaySafeBattleEnd = () => (battleInput, battleResult, uiProxy) => {
-  try {
-    uiProxy?.close?.();
-  } catch (error) {
-    console.warn("[FightPvp replay battleEnd]", error);
-  }
-  return {
-    replayOnly: true,
-    battleVersion: getFightPvpReplayBattleVersion(battleInput),
-    isWin: battleResult?.isWin ?? battleInput?.battleResult?.isWin ?? null,
-  };
-};
-
-const buildRuntimeOptionsMap = ({ replay, modules } = {}) => {
+const buildLegacyRuntimeOptionsMap = (legacyReplay) => {
   const snapshot = resolveFightPvpReplayRuntimeOptionsSnapshot({
-    runtimeOptionsSnapshot: replay?.runtimeOptionsSnapshot,
-    targetId: replay?.targetId,
-    targetName: replay?.targetName,
-    right: replay?.right,
+    runtimeOptionsSnapshot: legacyReplay?.runtimeOptionsSnapshot,
+    targetId: legacyReplay?.targetId,
+    targetName: legacyReplay?.targetName,
+    right: legacyReplay?.right,
   });
-  const options = new Map();
 
+  const options = new Map();
   if (snapshot.targetRole) {
     options.set("targetRole", snapshot.targetRole);
   }
@@ -84,121 +43,95 @@ const buildRuntimeOptionsMap = ({ replay, modules } = {}) => {
     options.set("oppoScore", snapshot.oppoScore);
   }
 
-  const replayFlagKeys = [
-    modules?.consts?.ModelConst?.BATTLE_REPLAY,
-    "BATTLE_REPLAY",
-    "battleReplay",
-    "isReplay",
-  ].filter((value) => value !== null && value !== undefined && value !== "");
-
-  for (const key of replayFlagKeys) {
-    options.set(key, snapshot.replayFlag);
-  }
-
   return options;
 };
 
-export const summarizeFightPvpReplayBattleInput = (
-  battleInput,
-  { missingRuntimeFields = [], mapIdResolution = null } = {},
-) => ({
-  battleVersion: getFightPvpReplayBattleVersion(battleInput),
-  mapId: battleInput?.mapId ?? null,
-  battleMode: toFiniteNumber(battleInput?.battleData?.mode, null),
-  stageNameStr: toNonEmptyString(
-    battleInput?.stageNameStr,
-    FIGHT_PVP_REPLAY_DEFAULT_STAGE_NAME,
-  ),
-  startTipTopName: toNonEmptyString(
-    battleInput?.startTipTopName,
-    FIGHT_PVP_REPLAY_DEFAULT_STAGE_NAME,
-  ),
-  startTipStage: toNonEmptyString(
-    battleInput?.startTipStage,
-    FIGHT_PVP_REPLAY_DEFAULT_START_TIP_STAGE,
-  ),
-  leftTeamSize: Array.isArray(battleInput?.battleData?.leftTeam?.team)
-    ? battleInput.battleData.leftTeam.team.length
-    : 0,
-  rightTeamSize: Array.isArray(battleInput?.battleData?.rightTeam?.team)
-    ? battleInput.battleData.rightTeam.team.length
-    : 0,
-  hasTargetRole: Boolean(battleInput?.options?.get?.("targetRole")),
-  selfScore: toFiniteNumber(battleInput?.options?.get?.("selfScore"), null),
-  oppoScore: toFiniteNumber(battleInput?.options?.get?.("oppoScore"), null),
-  mapIdSource: mapIdResolution?.mapIdSource ?? null,
-  pvpMapIdSource: mapIdResolution?.pvpMapIdSource ?? null,
-  fixtureMapFallbackUsed: Boolean(mapIdResolution?.fixtureMapFallbackUsed),
-  missingRuntimeFields: [...missingRuntimeFields],
-});
-
-export const buildFightPvpReplayBattleInput = (
-  replay,
-  { modules, liveContext = null } = {},
+export const convertLegacyFightPvpReplayPayload = (
+  legacyReplay,
+  { liveContext = null } = {},
 ) => {
-  const battleResult = (
-    replay?.battleResult && typeof replay.battleResult === "object"
-      ? replay.battleResult
-      : replay?.battleData?.result
-  ) || null;
-  const battleData = normalizeBattleDataForRuntime(replay?.battleData, battleResult);
-  const runtimeLabels = resolveFightPvpReplayRuntimeLabels({
-    stageNameStr: replay?.stageNameStr,
-    startTipTopName: replay?.startTipTopName,
-    startTipStage: replay?.startTipStage,
-  });
+  if (!isLegacyFightPvpReplayPayload(legacyReplay)) {
+    return {
+      ok: false,
+      record: null,
+      message: "旧回放记录不包含可迁移的 battleData。",
+      missingRuntimeFields: ["battleData"],
+      mapIdResolution: null,
+      resolutionExplanation: null,
+    };
+  }
+
   const mapIdResolution = resolveFightPvpMapIdFromReplay({
-    replay,
+    replay: legacyReplay,
     liveContext,
   });
-  const battleInput = {
-    battleData,
-    battleResult,
+  const runtimeLabels = resolveFightPvpReplayRuntimeLabels({
+    stageNameStr: legacyReplay?.stageNameStr,
+    startTipTopName: legacyReplay?.startTipTopName,
+    startTipStage: legacyReplay?.startTipStage,
+  });
+  const battleInputData = buildFightPvpBattleInputData({
+    battleData: legacyReplay?.battleData,
+    battleResult: legacyReplay?.battleResult,
     mapId: mapIdResolution.mapId,
     stageNameStr: runtimeLabels.stageNameStr,
     startTipTopName: runtimeLabels.startTipTopName,
     startTipStage: runtimeLabels.startTipStage,
-    battleEnd: createReplaySafeBattleEnd(),
-    options: buildRuntimeOptionsMap({ replay, modules }),
-  };
+    options: buildLegacyRuntimeOptionsMap(legacyReplay),
+  });
 
-  const missingRuntimeFields = [];
-  if (!battleInput.battleData) {
-    missingRuntimeFields.push("battleData");
-  }
-  if (!battleInput.battleResult) {
-    missingRuntimeFields.push("battleResult");
-  }
-  if (!Number.isFinite(Number(battleInput.mapId)) || Number(battleInput.mapId) <= 0) {
-    missingRuntimeFields.push("mapId");
-  }
-  if (!Number.isFinite(Number(battleInput?.battleData?.mode))) {
-    missingRuntimeFields.push("battleData.mode");
-  }
-
-  const replayInputSummary = summarizeFightPvpReplayBattleInput(battleInput, {
-    missingRuntimeFields,
-    mapIdResolution,
+  const record = createFightPvpReplayRecordFromBattleInput({
+    battleInputData,
+    tokenId: legacyReplay?.tokenId,
+    targetId: legacyReplay?.targetId,
+    targetName: legacyReplay?.targetName,
+    createdAt: legacyReplay?.createdAt,
+    source: legacyReplay?.source || FIGHT_PVP_REPLAY_SOURCE,
+    leftContext: legacyReplay?.left,
+    rightContext: legacyReplay?.right,
+    mapId: legacyReplay?.mapId,
+    pvpMapId: legacyReplay?.pvpMapId,
+    mapIdSource: legacyReplay?.mapIdSource,
+    pvpMapIdSource: legacyReplay?.pvpMapIdSource,
+    selfRoleSnapshot: legacyReplay?.selfRoleSnapshot,
+    context: legacyReplay?.context,
+    meta: legacyReplay?.meta,
+    backfilledAt:
+      !legacyReplay?.mapId && mapIdResolution?.ok
+        ? new Date().toISOString()
+        : legacyReplay?.backfilledAt,
+    mapResolution: mapIdResolution,
+    liveContext,
   });
   const resolutionExplanation = explainFightPvpMapIdResolution({
-    replay,
+    replay: legacyReplay,
     liveContext,
   });
 
   return {
-    ok: missingRuntimeFields.length === 0,
-    battleInput,
-    missingRuntimeFields,
-    replayInputSummary,
+    ok: Boolean(record?.isPlayable),
+    record: record
+      ? {
+          ...record,
+          battleInputData: null,
+          sourceType: "legacy-payload",
+          battleInputSummary: summarizeFightPvpBattleInput(battleInputData, {
+            missingRuntimeFields: record?.missingRuntimeFields || [],
+            sourceType: "legacy-payload",
+            mapIdSource: record?.mapIdSource,
+            pvpMapIdSource: record?.pvpMapIdSource,
+            fixtureMapFallbackUsed: Boolean(mapIdResolution?.fixtureMapFallbackUsed),
+          }),
+        }
+      : null,
+    message:
+      record?.disabledReason
+      || buildFightPvpBattleInputMissingMessage(
+        getFightPvpBattleInputMissingFields(battleInputData),
+      ),
+    missingRuntimeFields: record?.missingRuntimeFields
+      || getFightPvpBattleInputMissingFields(battleInputData),
     mapIdResolution,
     resolutionExplanation,
-    message:
-      missingRuntimeFields.length > 0
-        ? (
-            missingRuntimeFields.includes("mapId")
-              ? `无法确定本场切磋地图，当前回放无法播放。缺少字段：${missingRuntimeFields.join(", ")}。`
-              : `该历史回放缺少必要字段，当前无法播放。缺少字段：${missingRuntimeFields.join(", ")}。`
-          )
-        : "",
   };
 };

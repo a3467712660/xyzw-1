@@ -103,7 +103,7 @@ defineEmits(["clear", "open", "remove"]);
 const visibleRecords = computed(() => (props.records || []).slice(0, 5));
 
 const resolveReplayState = (replay) => {
-  if (!replay?.battleData) {
+  if (!replay?.battleInputData && !replay?.battleInputSnapshot) {
     return {
       visible: false,
       disabled: true,
@@ -118,6 +118,15 @@ const resolveReplayState = (replay) => {
       disabled: true,
       label: props.t("fightPvpCard.replay.missingVersion"),
       title: props.t("fightPvpCard.replay.missingVersion"),
+    };
+  }
+
+  if (replay?.isPlayable === false) {
+    return {
+      visible: true,
+      disabled: true,
+      label: props.t("fightPvpCard.replay.unavailableShort"),
+      title: replay?.disabledReason || props.t("fightPvpCard.replay.unavailableDescription"),
     };
   }
 

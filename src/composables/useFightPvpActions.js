@@ -1,5 +1,10 @@
 import { buildDuelDetailReport } from "@/utils/duelBattleDetailReport";
-import { normalizeFightPvpReplayPayload } from "@/services/replay/fightPvpReplayNormalizer.js";
+import {
+  buildFightPvpBattleInputData,
+} from "@/services/replay/fightPvpBattleInputSnapshot.js";
+import {
+  createFightPvpReplayRecordFromBattleInput,
+} from "@/services/replay/fightPvpReplayNormalizer.js";
 import { resolveFightPvpMapIdFromLiveContext } from "@/services/replay/fightPvpReplayMapIdResolver.js";
 
 export function useFightPvpActions({
@@ -46,6 +51,20 @@ export function useFightPvpActions({
     startTipTopName: t("fightPvpCard.title"),
     startTipStage: t("fightPvpCard.actions.startFight"),
   });
+
+  const buildReplayOptions = (result) =>
+    new Map([
+      [
+        "targetRole",
+        result?.targetRole || {
+          roleId: String(memberData.value?.roleId || targetId.value || ""),
+          name: memberData.value?.name || "",
+          headImg: memberData.value?.headImg || "",
+        },
+      ],
+      ["selfScore", result?.selfScore ?? null],
+      ["oppoScore", result?.oppoScore ?? null],
+    ]);
 
   const fetchfightPVP = async () => {
     const tokenId = ensureConnectedToken();
@@ -115,9 +134,17 @@ export function useFightPvpActions({
           selfRoleRaw,
           tokenStoreRoleInfo,
         });
-        const replay = normalizeFightPvpReplayPayload({
+        const battleInputData = buildFightPvpBattleInputData({
           battleData: result.battleData,
           battleResult: result.battleResult,
+          mapId: mapResolution.mapId,
+          ...getReplayRuntimeLabels(),
+          options: buildReplayOptions(result),
+        }, {
+          mutate: true,
+        });
+        const replay = createFightPvpReplayRecordFromBattleInput({
+          battleInputData,
           tokenId,
           targetId: targetId.value,
           targetName: memberData.value?.name,
@@ -130,18 +157,11 @@ export function useFightPvpActions({
           rightContext: memberData.value,
           selfRoleRaw,
           roleInfo: tokenStoreRoleInfo,
+          mapId: mapResolution.mapId,
+          pvpMapId: mapResolution.pvpMapId,
+          mapIdSource: mapResolution.mapIdSource,
+          pvpMapIdSource: mapResolution.pvpMapIdSource,
           mapResolution,
-          runtimeLabels: getReplayRuntimeLabels(),
-          runtimeOptionsSnapshot: {
-            targetRole: result?.targetRole || {
-              roleId: String(memberData.value?.roleId || targetId.value || ""),
-              name: memberData.value?.name || "",
-              headImg: memberData.value?.headImg || "",
-            },
-            selfScore: result?.selfScore ?? null,
-            oppoScore: result?.oppoScore ?? null,
-            replayFlag: true,
-          },
         });
         replays.push(replay);
 

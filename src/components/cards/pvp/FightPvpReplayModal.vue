@@ -229,10 +229,10 @@ const diagnosticLines = computed(() => {
   if (diagnostics.fixtureMapFallbackUsed) {
     lines.push("fixtureMapFallbackUsed: true");
   }
-  if (diagnostics.replayInputSummary) {
-    const summary = diagnostics.replayInputSummary;
+  if (diagnostics.battleInputSummary) {
+    const summary = diagnostics.battleInputSummary;
     lines.push(
-      `replayInputSummary: mode=${summary.battleMode ?? "null"}, mapId=${summary.mapId ?? "null"}, stage=${summary.stageNameStr || "-"}, top=${summary.startTipTopName || "-"}, start=${summary.startTipStage || "-"}, teams=${summary.leftTeamSize ?? 0}/${summary.rightTeamSize ?? 0}, scores=${summary.selfScore ?? "-"}:${summary.oppoScore ?? "-"}, targetRole=${summary.hasTargetRole ? "yes" : "no"}`,
+      `battleInputSummary: source=${summary.sourceType || "-"}, mode=${summary.battleMode ?? "null"}, mapId=${summary.mapId ?? "null"}, stage=${summary.stageNameStr || "-"}, top=${summary.startTipTopName || "-"}, start=${summary.startTipStage || "-"}, teams=${summary.leftTeamSize ?? 0}/${summary.rightTeamSize ?? 0}, scores=${summary.selfScore ?? "-"}:${summary.oppoScore ?? "-"}, targetRole=${summary.hasTargetRole ? "yes" : "no"}, options=${(summary.optionsKeys || []).join("|") || "-"}`,
     );
   }
   if (diagnostics.replayStartSignal !== undefined) {
@@ -334,9 +334,20 @@ const startReplay = async () => {
   resetRuntime();
   clearState();
 
-  if (!replay.value?.battleData) {
+  if (
+    !replay.value?.battleInputData
+    && !replay.value?.battleInputSnapshot
+    && !replay.value?.battleData
+  ) {
     state.value = "empty-payload";
     currentMessage.value = props.t("fightPvpCard.replay.emptyDescription");
+    emitErrorMessage(currentMessage.value);
+    return;
+  }
+
+  if (replay.value?.isPlayable === false) {
+    state.value = "replay-start-failed";
+    currentMessage.value = replay.value?.disabledReason || props.t("fightPvpCard.replay.emptyDescription");
     emitErrorMessage(currentMessage.value);
     return;
   }

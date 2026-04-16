@@ -79,11 +79,12 @@ test("fight pvp replay runtime real fixture smoke enters game scene and starts r
   expect(result.diagnostics.replayStartIsReplay).toBeTruthy();
   expect(result.diagnostics.replayStartMapId).toBe(110001);
   expect(result.diagnostics.replayStartBattleMode).toBe(32);
-  expect(result.diagnostics.replayInputSummary.mapId).toBe(110001);
+  expect(result.diagnostics.battleInputSummary.mapId).toBe(110001);
   expect(result.diagnostics.mapIdSource).toBe("fixture.110001");
   expect(result.diagnostics.fixtureMapFallbackUsed).toBeTruthy();
-  expect(result.diagnostics.replayInputSummary.battleMode).toBe(32);
-  expect(result.diagnostics.replayInputSummary.stageNameStr).toBe("切磋系统");
+  expect(result.diagnostics.battleInputSummary.battleMode).toBe(32);
+  expect(result.diagnostics.battleInputSummary.stageNameStr).toBe("切磋系统");
+  expect(result.diagnostics.battleInputSummary.sourceType).toBe("battle-input-snapshot");
   expect(result.diagnostics.missingRuntimeFields).toEqual([]);
   expect(result.diagnostics.firstFailedAssetRequest).toBeFalsy();
   expect(result.hostStats.childElementCount).toBeGreaterThan(0);

@@ -23,8 +23,64 @@ import {
   waitForRuntimeReadyForReplay,
 } from "../../src/services/replay/fightPvpReplayRuntimeBridge.js";
 import {
+  buildFightPvpBattleInputData,
+  createFightPvpBattleInputSnapshot,
+} from "../../src/services/replay/fightPvpBattleInputSnapshot.js";
+import {
   createFightPvpRealReplayFixture,
 } from "../fixtures/replay/fightPvpRealReplayFixture.js";
+
+const createReplayBattleInput = ({
+  battleVersion = 123,
+  mapId = 110001,
+  mode = 7,
+  selfScore = 10,
+  oppoScore = 8,
+} = {}) =>
+  buildFightPvpBattleInputData({
+    battleData: {
+      id: `battle-${battleVersion}-${mode}`,
+      version: battleVersion,
+      mode,
+      leftTeam: {
+        roleId: "self-1",
+        name: "我方",
+        team: [{ heroId: 1001 }],
+      },
+      rightTeam: {
+        roleId: "target-1",
+        name: "对手",
+        team: [{ heroId: 2001 }],
+      },
+      result: {
+        isWin: true,
+      },
+    },
+    battleResult: {
+      isWin: true,
+    },
+    mapId,
+    stageNameStr: "切磋系统",
+    startTipTopName: "切磋系统",
+    startTipStage: "开始切磋",
+    options: new Map([
+      ["targetRole", { roleId: "target-1", name: "对手" }],
+      ["selfScore", selfScore],
+      ["oppoScore", oppoScore],
+    ]),
+  });
+
+const createSnapshotReplayRecord = ({
+  battleInputData = createReplayBattleInput(),
+  ...overrides
+} = {}) => ({
+  battleVersion: battleInputData.battleData.version,
+  mapId: battleInputData.mapId,
+  mapIdSource: "test.mapId",
+  pvpMapIdSource: "test.mapId",
+  battleInputSnapshot: createFightPvpBattleInputSnapshot(battleInputData),
+  ...overrides,
+});
 
 test("fight pvp replay runtime bridge initializes missing bundle version containers", () => {
   const runtimeWindow = {
@@ -1043,36 +1099,22 @@ test("fight pvp replay runtime bridge returns ok true when replay entrypoint sta
   };
   globalThis.HTMLElement = MockHTMLElement;
 
+  const battleInputData = createReplayBattleInput();
   const hostElement = new MockHTMLElement();
   const session = await startFightPvpReplayRuntime({
     replay: {
       battleVersion: 123,
       mapId: 110001,
-      stageNameStr: "切磋系统",
-      startTipTopName: "切磋系统",
-      startTipStage: "开始切磋",
-      runtimeOptionsSnapshot: {
-        targetRole: {
-          roleId: "target-1",
-          name: "对手",
-        },
-        selfScore: 10,
-        oppoScore: 8,
-        replayFlag: true,
-      },
-      battleData: {
-        version: 123,
-        mode: 7,
-        leftTeam: {
-          team: [{ heroId: 1001 }],
-        },
-        rightTeam: {
-          team: [{ heroId: 2001 }],
-        },
-        result: {
-          isWin: true,
-        },
-      },
+      mapIdSource: "test.mapId",
+      pvpMapIdSource: "test.mapId",
+      battleInputData,
+      battleInputSnapshot: createFightPvpBattleInputSnapshot(
+        createReplayBattleInput({
+          battleVersion: 123,
+          mapId: 999999,
+          selfScore: 99,
+        }),
+      ),
     },
     hostElement,
     runtimeAdapter: {
@@ -1132,6 +1174,7 @@ test("fight pvp replay runtime bridge returns ok true when replay entrypoint sta
 
   assert.equal(session.ok, true);
   assert.equal(session.reason, "ok");
+  assert.equal(session.diagnostics.sourceType, "battle-input-data");
   assert.equal(session.diagnostics.replayStartSignal, true);
   assert.equal(session.diagnostics.replayStartPanel, "CommonBattleTeamPanel");
   session.dispose();
@@ -1203,20 +1246,14 @@ test("fight pvp replay runtime bridge accepts the real fight_startpvp fixture th
       }),
       probeGameBundleAssets: async () => [],
       probeGameSceneAssets: async () => [],
-      readRuntimeModules: () => ({
-        consts: {
-          ModelConst: {
-            BATTLE_REPLAY: "BATTLE_REPLAY",
-          },
-        },
-      }),
+      readRuntimeModules: () => ({ consts: {} }),
       startReplayEntrypoint: async ({ battleInput }) => {
         assert.equal(battleInput.battleData.mode, 32);
         assert.equal(battleInput.mapId, 110001);
         assert.equal(battleInput.battleResult.isWin, true);
         assert.equal(
           battleInput.options.get("targetRole")?.roleId,
-          String(realReplay.battleData.rightTeam.roleId),
+          String(realReplay.battleInputSnapshot.battleData.rightTeam.roleId),
         );
         return { ok: true, entrypoint: "mock-entrypoint" };
       },
@@ -1230,8 +1267,9 @@ test("fight pvp replay runtime bridge accepts the real fight_startpvp fixture th
   assert.equal(session.ok, true);
   assert.equal(session.reason, "ok");
   assert.deepEqual(session.diagnostics.missingRuntimeFields, []);
-  assert.equal(session.diagnostics.replayInputSummary.battleMode, 32);
-  assert.equal(session.diagnostics.replayInputSummary.mapId, 110001);
+  assert.equal(session.diagnostics.battleInputSummary.battleMode, 32);
+  assert.equal(session.diagnostics.battleInputSummary.mapId, 110001);
+  assert.equal(session.diagnostics.battleInputSummary.sourceType, "battle-input-snapshot");
   assert.equal(session.diagnostics.mapIdSource, "fixture.110001");
   assert.equal(session.diagnostics.fixtureMapFallbackUsed, true);
   assert.equal(session.diagnostics.replayStartSignal, true);
@@ -1261,17 +1299,7 @@ test("fight pvp replay runtime bridge installs privacy guard before runtime boot
 
   const callOrder = [];
   const session = await startFightPvpReplayRuntime({
-    replay: {
-      battleVersion: 123,
-      mapId: 110001,
-      battleData: {
-        version: 123,
-        mode: 7,
-        leftTeam: { team: [{ heroId: 1001 }] },
-        rightTeam: { team: [{ heroId: 2001 }] },
-        result: { isWin: true },
-      },
-    },
+    replay: createSnapshotReplayRecord(),
     hostElement: new MockHTMLElement(),
     runtimeAdapter: {
       createCanvasHost: () => ({
@@ -1357,26 +1385,7 @@ test("fight pvp replay runtime bridge fails when replay entrypoint does not trig
   globalThis.HTMLElement = MockHTMLElement;
 
   const session = await startFightPvpReplayRuntime({
-    replay: {
-      battleVersion: 123,
-      mapId: 110001,
-      stageNameStr: "切磋系统",
-      startTipTopName: "切磋系统",
-      startTipStage: "开始切磋",
-      battleData: {
-        version: 123,
-        mode: 7,
-        leftTeam: {
-          team: [{ heroId: 1001 }],
-        },
-        rightTeam: {
-          team: [{ heroId: 2001 }],
-        },
-        result: {
-          isWin: true,
-        },
-      },
-    },
+    replay: createSnapshotReplayRecord(),
     hostElement: new MockHTMLElement(),
     runtimeAdapter: {
       createCanvasHost: () => ({
