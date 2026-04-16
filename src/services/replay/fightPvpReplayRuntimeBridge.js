@@ -14,6 +14,10 @@ import {
   rehydrateFightPvpBattleInputSnapshot,
   summarizeFightPvpBattleInput,
 } from "./fightPvpExactBattleInput.js";
+import {
+  FIGHT_PVP_DEFAULT_FALLBACK_MAP_ID,
+  FIGHT_PVP_DEFAULT_FALLBACK_MAP_ID_SOURCE,
+} from "./fightPvpRuntimeRoleMapIdResolver.js";
 
 const BOOT_TIMEOUT_MS = 2500;
 const GAME_SCENE_LOAD_TIMEOUT_MS = 35000;
@@ -1070,13 +1074,13 @@ const resolveReplayBattleVersion = (replay) =>
   getFightPvpReplayBattleVersion(replay) || 0;
 
 const buildReplayMapResolutionFromRecord = (replay) => {
-  const mapId
+  const resolvedMapId
     = replay?.mapId
       ?? replay?.battleInputSnapshot?.mapId
       ?? replay?.exactBattleInputData?.mapId
       ?? replay?.battleInputData?.mapId
       ?? null;
-  const mapIdSource
+  const resolvedMapIdSource
     = replay?.mapIdSource
       ?? replay?.battleInputSnapshot?.mapIdSource
       ?? replay?.exactBattleInputData?.mapIdSource
@@ -1091,6 +1095,8 @@ const buildReplayMapResolutionFromRecord = (replay) => {
         : typeof replay?.battleInputData?.runtimeRoleAvailable === "boolean"
           ? replay.battleInputData.runtimeRoleAvailable
           : false;
+  const mapId = resolvedMapId ?? FIGHT_PVP_DEFAULT_FALLBACK_MAP_ID;
+  const mapIdSource = resolvedMapIdSource || FIGHT_PVP_DEFAULT_FALLBACK_MAP_ID_SOURCE;
 
   return {
     mapId,
@@ -1136,6 +1142,30 @@ const buildReplayMapResolutionFromRecord = (replay) => {
   };
 };
 
+const applyResolvedMapIdToBattleInput = ({
+  battleInput = null,
+  mapIdResolution = null,
+} = {}) => {
+  if (
+    !battleInput
+    || (
+      Number.isFinite(Number(battleInput?.mapId))
+      && Number(battleInput.mapId) > 0
+    )
+  ) {
+    return battleInput;
+  }
+
+  battleInput.mapId = mapIdResolution?.mapId ?? FIGHT_PVP_DEFAULT_FALLBACK_MAP_ID;
+  battleInput.mapIdSource = mapIdResolution?.mapIdSource || FIGHT_PVP_DEFAULT_FALLBACK_MAP_ID_SOURCE;
+  battleInput.mapIdResolveReason = mapIdResolution?.mapIdResolveReason || null;
+  if (typeof battleInput.runtimeRoleAvailable !== "boolean" && typeof mapIdResolution?.runtimeRoleAvailable === "boolean") {
+    battleInput.runtimeRoleAvailable = mapIdResolution.runtimeRoleAvailable;
+  }
+  battleInput.runtimeRolePath = battleInput.runtimeRolePath || mapIdResolution?.runtimeRolePath || null;
+  return battleInput;
+};
+
 const resolveReplayRuntimeBattleInput = ({
   replay,
   liveContext = null,
@@ -1179,27 +1209,37 @@ const resolveReplayRuntimeBattleInput = ({
   };
 
   if (replay?.exactBattleInputData || replay?.battleInputData) {
+    const mapIdResolution = buildReplayMapResolutionFromRecord(replay);
     const battleInput = createFightPvpExactBattleInput(
       replay?.exactBattleInputData || replay?.battleInputData,
       {
         mutate: true,
       },
     );
+    applyResolvedMapIdToBattleInput({
+      battleInput,
+      mapIdResolution,
+    });
     return finalize({
       battleInput,
       sourceType: "live-memory-battle-input",
-      mapIdResolution: buildReplayMapResolutionFromRecord(replay),
+      mapIdResolution,
     });
   }
 
   if (replay?.battleInputSnapshot) {
+    const mapIdResolution = buildReplayMapResolutionFromRecord(replay);
     const battleInput = rehydrateFightPvpBattleInputSnapshot(
       replay.battleInputSnapshot,
     );
+    applyResolvedMapIdToBattleInput({
+      battleInput,
+      mapIdResolution,
+    });
     return finalize({
       battleInput,
       sourceType: "persisted-battle-input-snapshot",
-      mapIdResolution: buildReplayMapResolutionFromRecord(replay),
+      mapIdResolution,
     });
   }
 
@@ -2489,7 +2529,12 @@ export const installReplayBattleStartProbe = ({
 
 const locateReplayEntrypoint = ({ diagnostics } = {}) => {
   const runtimeWindow = getRuntimeWindow();
-  const runtimeRequire = runtimeWindow.__require;
+  const runtimeRequire
+    = runtimeWindow.__require
+      || globalThis.__require
+      || runtimeWindow.require
+      || runtimeWindow.cc?.require
+      || null;
   const scannedCandidates = [];
 
   const registerCandidate = (label, value, invoke) => {
@@ -2551,10 +2596,27 @@ const locateReplayEntrypoint = ({ diagnostics } = {}) => {
         ? (payload) => runtimeWindow.BattleUIManager.showBattleReplayUI(payload)
         : null,
     ),
+    registerCandidate(
+      "window.BattleUIManager.instance.showBattleReplayUI",
+      runtimeWindow.BattleUIManager?.instance?.showBattleReplayUI,
+      typeof runtimeWindow.BattleUIManager?.instance?.showBattleReplayUI === "function"
+        ? (payload) => runtimeWindow.BattleUIManager.instance.showBattleReplayUI(payload)
+        : null,
+    ),
+    registerCandidate(
+      "window.BattleUIManager.SHOW_BATTLE_REPLAY_UI",
+      runtimeWindow.BattleUIManager?.SHOW_BATTLE_REPLAY_UI,
+      typeof runtimeWindow.BattleUIManager?.SHOW_BATTLE_REPLAY_UI === "function"
+        ? (payload) => runtimeWindow.BattleUIManager.SHOW_BATTLE_REPLAY_UI(payload)
+        : null,
+    ),
   ];
 
   const replayUiRequireCandidates = [
     "BattleUIManager",
+    "../managers/BattleUIManager",
+    "../../managers/BattleUIManager",
+    "../../../managers/BattleUIManager",
     "SHOW_BATTLE_REPLAY_UI",
     "showBattleReplayUI",
     "battleReplay",
@@ -2589,6 +2651,28 @@ const locateReplayEntrypoint = ({ diagnostics } = {}) => {
           : null,
       )
       || registerCandidate(
+        `require:${name}.BattleUIManager.instance.showBattleReplayUI`,
+        mod?.BattleUIManager?.instance?.showBattleReplayUI,
+        typeof mod?.BattleUIManager?.instance?.showBattleReplayUI === "function"
+          ? (payload) => mod.BattleUIManager.instance.showBattleReplayUI(payload)
+          : null,
+      )
+      || registerCandidate(
+        `require:${name}.BattleUIManager.SHOW_BATTLE_REPLAY_UI`,
+        mod?.BattleUIManager?.SHOW_BATTLE_REPLAY_UI,
+        typeof mod?.BattleUIManager?.SHOW_BATTLE_REPLAY_UI === "function"
+          ? (payload) => mod.BattleUIManager.SHOW_BATTLE_REPLAY_UI(payload)
+          : null,
+      )
+      || registerCandidate(
+        `require:${name}.GET_BATTLE_RESULT().showBattleReplayUI`,
+        mod?.GET_BATTLE_RESULT,
+        typeof mod?.GET_BATTLE_RESULT === "function"
+          && typeof mod?.GET_BATTLE_RESULT()?.showBattleReplayUI === "function"
+          ? (payload) => mod.GET_BATTLE_RESULT().showBattleReplayUI(payload)
+          : null,
+      )
+      || registerCandidate(
         `require:${name}.default`,
         mod?.default,
         typeof mod?.default === "function" && /replay/i.test(name)
@@ -2609,6 +2693,9 @@ const locateReplayEntrypoint = ({ diagnostics } = {}) => {
   const enterOssRequireCandidates = [
     "EnterOSSState",
     "enter-oss",
+    "../states/EnterOSSState",
+    "../../states/EnterOSSState",
+    "../../../states/EnterOSSState",
   ].map((name) => {
     if (typeof runtimeRequire !== "function") {
       scannedCandidates.push({ label: `require:${name}`, found: false });
@@ -2631,16 +2718,30 @@ const locateReplayEntrypoint = ({ diagnostics } = {}) => {
   ];
 
   const battleKitRequireCandidates = ["BattleKitCrossSite"].map((name) => {
+    const candidates = [
+      name,
+      "../utils/debug/BattleKitCrossSite",
+      "../../utils/debug/BattleKitCrossSite",
+      "../../../utils/debug/BattleKitCrossSite",
+    ];
     if (typeof runtimeRequire !== "function") {
-      scannedCandidates.push({ label: `require:${name}`, found: false });
+      candidates.forEach((candidate) => {
+        scannedCandidates.push({ label: `require:${candidate}`, found: false });
+      });
       return null;
     }
-    const mod = safeRequireModule(runtimeRequire, name);
-    return registerCandidate(
-      `require:${name}.instance.tryRaisePlayback`,
-      mod,
-      createBattleKitCrossSiteInvoker(mod),
-    );
+    for (const candidate of candidates) {
+      const mod = safeRequireModule(runtimeRequire, candidate);
+      const found = registerCandidate(
+        `require:${candidate}.instance.tryRaisePlayback`,
+        mod,
+        createBattleKitCrossSiteInvoker(mod),
+      );
+      if (found) {
+        return found;
+      }
+    }
+    return null;
   });
 
   diagnostics.replayEntrypointCandidates = scannedCandidates;

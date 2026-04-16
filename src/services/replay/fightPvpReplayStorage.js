@@ -17,6 +17,10 @@ import {
   normalizeReplaySide,
 } from "./fightPvpReplayNormalizer.js";
 import {
+  FIGHT_PVP_DEFAULT_FALLBACK_MAP_ID,
+  FIGHT_PVP_DEFAULT_FALLBACK_MAP_ID_SOURCE,
+} from "./fightPvpRuntimeRoleMapIdResolver.js";
+import {
   convertLegacyFightPvpReplayPayload,
   isLegacyFightPvpReplayPayload,
 } from "./fightPvpBattleInputAdapter.js";
@@ -55,6 +59,35 @@ const getTokenStoreGameData = (tokenStore) => {
     return gameData.value;
   }
   return gameData && typeof gameData === "object" ? gameData : null;
+};
+
+const applyDefaultMapIdFallbackToBattleInput = ({
+  battleInput = null,
+  record = null,
+} = {}) => {
+  if (!battleInput || toPositiveNumber(battleInput?.mapId, null)) {
+    return battleInput;
+  }
+
+  battleInput.mapId = FIGHT_PVP_DEFAULT_FALLBACK_MAP_ID;
+  battleInput.mapIdSource = toNonEmptyString(
+    battleInput?.mapIdSource,
+    record?.mapIdSource,
+    FIGHT_PVP_DEFAULT_FALLBACK_MAP_ID_SOURCE,
+  ) || FIGHT_PVP_DEFAULT_FALLBACK_MAP_ID_SOURCE;
+  battleInput.mapIdResolveReason = toNonEmptyString(
+    battleInput?.mapIdResolveReason,
+    record?.mapIdResolveReason,
+  ) || null;
+  if (typeof battleInput.runtimeRoleAvailable !== "boolean" && typeof record?.runtimeRoleAvailable === "boolean") {
+    battleInput.runtimeRoleAvailable = record.runtimeRoleAvailable;
+  }
+  battleInput.runtimeRolePath = toNonEmptyString(
+    battleInput?.runtimeRolePath,
+    record?.runtimeRolePath,
+  ) || null;
+
+  return battleInput;
 };
 
 export const buildFightPvpReplayLiveContext = ({
@@ -244,6 +277,10 @@ const normalizeCurrentFightPvpReplayRecord = (
         ? rehydrateFightPvpBattleInputSnapshot(persistedBattleInputSnapshot)
         : null
     );
+  applyDefaultMapIdFallbackToBattleInput({
+    battleInput: replayBattleInput,
+    record: value,
+  });
 
   if (!replayBattleInput) {
     return buildUnplayableLegacyRecord(

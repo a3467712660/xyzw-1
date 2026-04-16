@@ -64,10 +64,11 @@ test("fight pvp runtime-role resolver uses already-written battle input mapId on
 test("fight pvp runtime-role resolver reports runtime-role-unavailable when no runtime self role exists", () => {
   const result = resolveFightPvpMapIdForLiveCapture({});
 
-  assert.equal(result.ok, false);
+  assert.equal(result.ok, true);
   assert.equal(result.reason, "runtime-role-unavailable");
   assert.equal(result.runtimeRoleAvailable, false);
-  assert.equal(result.mapId, null);
+  assert.equal(result.mapId, 40001);
+  assert.equal(result.source, "fallback.defaultMapId.40001");
 });
 
 test("fight pvp runtime-role resolver reports runtime-role-no-pvpMapId when runtime self role has no pvpMapId", () => {
@@ -81,10 +82,12 @@ test("fight pvp runtime-role resolver reports runtime-role-no-pvpMapId when runt
     },
   });
 
-  assert.equal(result.ok, false);
+  assert.equal(result.ok, true);
   assert.equal(result.reason, "runtime-role-no-pvpMapId");
   assert.equal(result.runtimeRoleAvailable, true);
   assert.equal(result.runtimeRolePath, "runtime.ROLE");
+  assert.equal(result.mapId, 40001);
+  assert.equal(result.source, "fallback.defaultMapId.40001");
 });
 
 test("fight pvp runtime-role resolver reports battle-input-mapId-not-written when live battle input still misses mapId", () => {
@@ -103,9 +106,11 @@ test("fight pvp runtime-role resolver reports battle-input-mapId-not-written whe
     },
   });
 
-  assert.equal(result.ok, false);
+  assert.equal(result.ok, true);
   assert.equal(result.reason, "battle-input-mapId-not-written");
   assert.equal(result.battleInputAvailable, true);
+  assert.equal(result.mapId, 40001);
+  assert.equal(result.source, "fallback.defaultMapId.40001");
 });
 
 test("fight pvp runtime-role resolver never falls back to 110001 on ordinary live path", () => {
@@ -124,7 +129,7 @@ test("fight pvp runtime-role resolver never falls back to 110001 on ordinary liv
     },
   });
 
-  assert.equal(result.ok, false);
-  assert.notEqual(result.mapId, 110001);
+  assert.equal(result.ok, true);
+  assert.equal(result.mapId, 40001);
   assert.notEqual(result.source, "fixture.110001");
 });

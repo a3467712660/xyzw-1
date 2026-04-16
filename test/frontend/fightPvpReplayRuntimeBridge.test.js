@@ -1657,7 +1657,7 @@ test("fight pvp replay runtime bridge reports readable legacy-field failures wit
   delete globalThis.HTMLElement;
 });
 
-test("fight pvp replay runtime bridge surfaces live mapId failure metadata from snapshot records", async () => {
+test("fight pvp replay runtime bridge falls back to default 40001 for snapshot records without mapId", async () => {
   class MockHTMLElement {
     constructor() {
       this.innerHTML = "";
@@ -1717,7 +1717,14 @@ test("fight pvp replay runtime bridge surfaces live mapId failure metadata from 
       }),
       installReplayBattleStartProbe: () => ({
         dispose() {},
-        waitForSignal: async () => ({ ok: false }),
+        waitForSignal: async () => ({
+          ok: true,
+          event: {
+            isReplay: true,
+            mapId: 40001,
+            mode: 7,
+          },
+        }),
       }),
       locateReplayEntrypoint: () => ({
         label: "mock-entrypoint",
@@ -1731,6 +1738,11 @@ test("fight pvp replay runtime bridge surfaces live mapId failure metadata from 
       readRuntimeModules: () => ({
         consts: {},
       }),
+      startReplayEntrypoint: async ({ battleInput }) => {
+        assert.equal(battleInput.mapId, 40001);
+        assert.equal(battleInput.mapIdSource, "fallback.defaultMapId.40001");
+        return { ok: true, entrypoint: "mock-entrypoint" };
+      },
       waitForRuntimeReadyForReplay: async () => ({
         ok: true,
         sceneName: "Game",
@@ -1738,14 +1750,18 @@ test("fight pvp replay runtime bridge surfaces live mapId failure metadata from 
     },
   });
 
-  assert.equal(session.ok, false);
-  assert.equal(session.reason, "replay-start-failed");
+  assert.equal(session.ok, true);
+  assert.equal(session.reason, "ok");
+  assert.equal(session.diagnostics.mapId, 40001);
+  assert.equal(session.diagnostics.mapIdSource, "fallback.defaultMapId.40001");
   assert.equal(session.diagnostics.mapIdResolveReason, "battle-input-mapId-not-written");
   assert.equal(session.diagnostics.dressPvpMapUsedId, null);
   assert.equal(session.diagnostics.selfRoleContextSource, "window.ROLE");
   assert.equal(session.diagnostics.runtimeRoleAvailable, true);
   assert.equal(session.diagnostics.runtimeRolePath, "runtime.ROLE");
   assert.equal(session.diagnostics.battleInputAvailable, true);
+  assert.equal(session.diagnostics.battleInputSummary.mapId, 40001);
+  assert.equal(session.diagnostics.battleInputSummary.mapIdSource, "fallback.defaultMapId.40001");
 
   delete globalThis.window;
   delete globalThis.HTMLElement;

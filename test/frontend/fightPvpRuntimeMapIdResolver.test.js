@@ -98,8 +98,9 @@ test("fight pvp runtime mapId resolver never uses target role values", () => {
     },
   });
 
-  assert.equal(result.ok, false);
-  assert.equal(result.mapId, null);
+  assert.equal(result.ok, true);
+  assert.equal(result.mapId, 40001);
+  assert.equal(result.source, "fallback.defaultMapId.40001");
   assert.notEqual(result.mapId, 130001);
 });
 
@@ -127,8 +128,9 @@ test("fight pvp runtime mapId resolver never uses 110001 on ordinary live path",
     },
   });
 
-  assert.equal(result.ok, false);
-  assert.equal(result.mapId, null);
+  assert.equal(result.ok, true);
+  assert.equal(result.mapId, 40001);
+  assert.equal(result.source, "fallback.defaultMapId.40001");
   assert.notEqual(result.mapId, 110001);
   assert.notEqual(result.source, "fixture.110001");
 });

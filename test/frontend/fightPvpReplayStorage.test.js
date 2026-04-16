@@ -414,12 +414,14 @@ test("fight pvp replay storage keeps incomplete legacy records and marks them un
   assert.ok(globalThis.localStorage.getItem(legacyKey));
 });
 
-test("fight pvp replay storage keeps live mapId failure metadata on current records", () => {
+test("fight pvp replay storage defaults missing live mapId to 40001 on current records", () => {
   const failingRecord = {
     ...createLiveReplayRecord(20),
     exactBattleInputData: null,
     mapId: null,
     pvpMapId: null,
+    mapIdSource: null,
+    pvpMapIdSource: null,
     battleInputData: buildFightPvpBattleInputData({
       battleData: {
         id: "battle-20",
@@ -456,8 +458,8 @@ test("fight pvp replay storage keeps live mapId failure metadata on current reco
     runtimeRoleAvailable: true,
     runtimeRolePath: "runtime.ROLE",
     battleInputAvailable: true,
-    disabledReason: "当前 live capture 没有把解析出的 mapId 写进 battleInput 或 snapshot，这属于新切磋主路径缺陷。",
-    isPlayable: false,
+    disabledReason: "",
+    isPlayable: true,
   };
 
   const records = appendFightPvpReplay({
@@ -466,12 +468,15 @@ test("fight pvp replay storage keeps live mapId failure metadata on current reco
     replay: failingRecord,
   });
 
-  assert.equal(records.length, 0);
+  assert.equal(records.length, 1);
+  assert.equal(records[0].mapId, 40001);
+  assert.equal(records[0].mapIdSource, "fallback.defaultMapId.40001");
+  assert.equal(records[0].isPlayable, true);
 
-  assert.deepEqual(
-    JSON.parse(globalThis.localStorage.getItem(
-      buildFightPvpReplayStorageKey({ userId: "user-a", tokenId: "token-a" }),
-    )),
-    [],
-  );
+  const stored = JSON.parse(globalThis.localStorage.getItem(
+    buildFightPvpReplayStorageKey({ userId: "user-a", tokenId: "token-a" }),
+  ));
+  assert.equal(stored.length, 1);
+  assert.equal(stored[0].mapId, 40001);
+  assert.equal(stored[0].mapIdSource, "fallback.defaultMapId.40001");
 });

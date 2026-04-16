@@ -1,5 +1,8 @@
 import { readFightPvpRuntimeMapIdContext } from "./fightPvpRuntimeMapIdBridge.js";
 
+export const FIGHT_PVP_DEFAULT_FALLBACK_MAP_ID = 40001;
+export const FIGHT_PVP_DEFAULT_FALLBACK_MAP_ID_SOURCE = "fallback.defaultMapId.40001";
+
 export const FIGHT_PVP_RUNTIME_ROLE_MAP_ID_REASONS = Object.freeze({
   RUNTIME_ROLE_UNAVAILABLE: "runtime-role-unavailable",
   RUNTIME_ROLE_NO_PVP_MAP_ID: "runtime-role-no-pvpMapId",
@@ -231,6 +234,37 @@ const selectBestFailure = (currentFailure, nextFailure) => {
   return (priority[nextFailure.reason] || 0) >= (priority[currentFailure.reason] || 0)
     ? nextFailure
     : currentFailure;
+};
+
+const buildDefaultFallbackMapIdResult = ({
+  failure = null,
+  runtimeRoleAvailable = false,
+  runtimeRolePath = null,
+  runtimeRoleMapId = null,
+  selfRoleContextSource = null,
+  battleInputAvailable = false,
+  diagnostics = null,
+} = {}) => {
+  const mergedDiagnostics = diagnostics || createDiagnostics();
+  recordCandidate(
+    mergedDiagnostics,
+    FIGHT_PVP_DEFAULT_FALLBACK_MAP_ID_SOURCE,
+    FIGHT_PVP_DEFAULT_FALLBACK_MAP_ID,
+  );
+
+  return buildRuntimeRoleMapIdResult({
+    ok: true,
+    mapId: FIGHT_PVP_DEFAULT_FALLBACK_MAP_ID,
+    pvpMapId: FIGHT_PVP_DEFAULT_FALLBACK_MAP_ID,
+    source: FIGHT_PVP_DEFAULT_FALLBACK_MAP_ID_SOURCE,
+    reason: failure?.reason || null,
+    runtimeRoleAvailable,
+    runtimeRolePath,
+    runtimeRoleMapId,
+    selfRoleContextSource,
+    battleInputAvailable,
+    diagnostics: mergedDiagnostics,
+  });
 };
 
 const normalizeRuntimeRolePath = (value) => {
@@ -863,15 +897,15 @@ export const resolveFightPvpMapIdForLiveCapture = ({
       battleInputResult.reason ? battleInputResult : null,
     ) || runtimeResult;
 
-    return {
-      ...finalFailure,
+    return buildDefaultFallbackMapIdResult({
+      failure: finalFailure,
       runtimeRoleAvailable: runtimeResult.runtimeRoleAvailable,
       runtimeRolePath: runtimeResult.runtimeRolePath,
       runtimeRoleMapId: runtimeResult.runtimeRoleMapId,
       battleInputAvailable: battleInputResult.battleInputAvailable,
       selfRoleContextSource: runtimeResult.selfRoleContextSource,
       diagnostics: mergedDiagnostics,
-    };
+    });
   }
 
   const effectiveConfigsLike = configsLike || resolvedRuntimeContext?.configsLike || null;
