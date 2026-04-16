@@ -1648,6 +1648,7 @@ const startReplayEntrypoint = async ({
 export const startFightPvpReplayRuntime = async ({
   replay,
   hostElement,
+  liveContext = null,
   runtimeAdapter = {},
 } = {}) => {
   const diagnostics = {
@@ -1860,9 +1861,18 @@ export const startFightPvpReplayRuntime = async ({
     diagnostics.steps.push("build-replay-battle-input");
     const replayBattleInputResult = buildFightPvpReplayBattleInput(replay, {
       modules,
+      liveContext,
     });
     diagnostics.replayInputSummary = replayBattleInputResult.replayInputSummary;
     diagnostics.missingRuntimeFields = replayBattleInputResult.missingRuntimeFields;
+    diagnostics.mapIdSource = replayBattleInputResult.mapIdResolution?.mapIdSource ?? null;
+    diagnostics.pvpMapIdSource = replayBattleInputResult.mapIdResolution?.pvpMapIdSource ?? null;
+    diagnostics.fixtureMapFallbackUsed = Boolean(
+      replayBattleInputResult.mapIdResolution?.fixtureMapFallbackUsed,
+    );
+    diagnostics.mapIdDiagnostics = replayBattleInputResult.mapIdResolution?.diagnostics || null;
+    diagnostics.availableValues
+      = replayBattleInputResult.mapIdResolution?.diagnostics?.availableValues || {};
 
     if (!replayBattleInputResult.ok) {
       return {

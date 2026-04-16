@@ -3033,6 +3033,7 @@
       "versionMismatchDescription": "The current role battle version does not match this replay, so playback is unavailable.",
       "runtimeLoadFailedTitle": "Runtime Load Failed",
       "replayStartFailedTitle": "Replay Start Failed",
+      "missingMapIdDescription": "The map for this duel replay cannot be determined, so playback is unavailable.",
       "missingFieldsDescription": "This replay record is missing required fields, so it cannot be played.",
       "replaySignalMissingDescription": "The replay runtime is ready, but this record never entered the replay start chain.",
       "runtimeNotReady": "The runtime is not ready, so this replay cannot start yet.",

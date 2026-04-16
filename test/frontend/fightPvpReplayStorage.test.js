@@ -34,6 +34,32 @@ const createReplay = (index) => ({
       isWin: index % 2 === 0,
     },
   },
+  mapId: 120001,
+  pvpMapId: 120001,
+  mapIdSource: "replay.mapId",
+  pvpMapIdSource: "replay.pvpMapId",
+  selfRoleSnapshot: {
+    roleId: "role-left",
+    pvpMapId: 120001,
+    dressPvpMapUsedId: null,
+    dressPvpMapMapId: null,
+  },
+  context: {
+    pvpMapId: 120001,
+    dressPvpMapUsedId: null,
+    dressPvpMapMapId: null,
+  },
+  meta: {
+    mapIdDiagnostics: {
+      tried: ["replay.mapId"],
+      values: {
+        "replay.mapId": 120001,
+      },
+      availableValues: {
+        "replay.mapId": 120001,
+      },
+    },
+  },
   left: {
     roleId: "role-left",
     name: "我方",
@@ -139,4 +165,80 @@ test("fight pvp replay storage trims old records and supports remove and clear",
     loadFightPvpReplays({ userId: "user-a", tokenId: "token-a" }),
     [],
   );
+});
+
+test("fight pvp replay storage backfills missing mapId once and rewrites the record", () => {
+  const storageKey = buildFightPvpReplayStorageKey({
+    userId: "user-a",
+    tokenId: "token-a",
+  });
+  globalThis.localStorage.setItem(storageKey, JSON.stringify([
+    {
+      ...createReplay(11),
+      mapId: null,
+      pvpMapId: null,
+      mapIdSource: null,
+      pvpMapIdSource: null,
+      selfRoleSnapshot: {
+        roleId: "role-left",
+        pvpMapId: 140001,
+      },
+      context: {
+        pvpMapId: null,
+      },
+      meta: {},
+      backfilledAt: null,
+    },
+  ]));
+
+  const records = loadFightPvpReplays({
+    userId: "user-a",
+    tokenId: "token-a",
+  });
+
+  assert.equal(records.length, 1);
+  assert.equal(records[0].mapId, 140001);
+  assert.equal(records[0].pvpMapId, 140001);
+  assert.equal(records[0].mapIdSource, "replay.selfRoleSnapshot.pvpMapId");
+  assert.ok(records[0].backfilledAt);
+
+  const stored = JSON.parse(globalThis.localStorage.getItem(storageKey));
+  assert.equal(stored[0].mapId, 140001);
+  assert.equal(stored[0].mapIdSource, "replay.selfRoleSnapshot.pvpMapId");
+  assert.ok(stored[0].backfilledAt);
+});
+
+test("fight pvp replay storage leaves unreadable missing-map records untouched", () => {
+  const storageKey = buildFightPvpReplayStorageKey({
+    userId: "user-a",
+    tokenId: "token-a",
+  });
+  globalThis.localStorage.setItem(storageKey, JSON.stringify([
+    {
+      ...createReplay(12),
+      mapId: null,
+      pvpMapId: null,
+      mapIdSource: null,
+      pvpMapIdSource: null,
+      selfRoleSnapshot: {
+        roleId: "role-left",
+      },
+      context: {},
+      meta: {},
+      backfilledAt: null,
+    },
+  ]));
+
+  const records = loadFightPvpReplays({
+    userId: "user-a",
+    tokenId: "token-a",
+  });
+
+  assert.equal(records.length, 1);
+  assert.equal(records[0].mapId, null);
+  assert.equal(records[0].backfilledAt, null);
+
+  const stored = JSON.parse(globalThis.localStorage.getItem(storageKey));
+  assert.equal(stored[0].mapId, null);
+  assert.equal(stored[0].backfilledAt, null);
 });

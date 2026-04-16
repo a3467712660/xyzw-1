@@ -1,6 +1,9 @@
 import {
   normalizeFightPvpReplayPayload,
 } from "./fightPvpReplayNormalizer.js";
+import {
+  resolveFightPvpMapIdFromReplay,
+} from "./fightPvpReplayMapIdResolver.js";
 
 export const MAX_FIGHT_PVP_REPLAYS = 20;
 
@@ -25,11 +28,22 @@ const toTimestamp = (value) => {
 const dedupeReplayKey = (replay) =>
   String(replay?.replayId || replay?.battleId || "").trim();
 
-const sanitizeFightPvpReplay = (value) => {
+const hasPersistedReplayMapId = (value) => {
+  const mapId = Number(value?.mapId);
+  return Number.isFinite(mapId) && mapId > 0;
+};
+
+const sanitizeFightPvpReplay = (value, { liveContext = null } = {}) => {
   if (!value || typeof value !== "object") {
     return null;
   }
 
+  const shouldBackfillMapId = !hasPersistedReplayMapId(value);
+  const mapResolution = resolveFightPvpMapIdFromReplay({
+    replay: value,
+    liveContext,
+  });
+  const didBackfillMapId = shouldBackfillMapId && mapResolution.ok;
   const normalized = normalizeFightPvpReplayPayload({
     battleData: value?.battleData,
     battleResult: value?.battleResult,
@@ -41,30 +55,49 @@ const sanitizeFightPvpReplay = (value) => {
     leftContext: value?.left,
     rightContext: value?.right,
     mapId: value?.mapId,
+    pvpMapId: value?.pvpMapId,
+    mapIdSource: value?.mapIdSource,
+    pvpMapIdSource: value?.pvpMapIdSource,
+    selfRoleSnapshot: value?.selfRoleSnapshot,
+    context: value?.context,
+    meta: value?.meta,
+    backfilledAt: didBackfillMapId ? new Date().toISOString() : value?.backfilledAt,
     stageNameStr: value?.stageNameStr,
     startTipTopName: value?.startTipTopName,
     startTipStage: value?.startTipStage,
     runtimeOptionsSnapshot: value?.runtimeOptionsSnapshot,
+    mapResolution,
+    liveContext,
   });
 
   if (!normalized?.battleId || !normalized?.battleData) {
     return null;
   }
 
-  return normalized;
+  return {
+    normalized,
+    didBackfillMapId,
+  };
 };
 
-const sanitizeFightPvpReplays = (records) => {
+const sanitizeFightPvpReplays = (records, { liveContext = null } = {}) => {
   if (!Array.isArray(records)) {
-    return [];
+    return {
+      records: [],
+      didBackfillMapId: false,
+    };
   }
 
   const deduped = new Map();
+  let didBackfillMapId = false;
   for (const item of records) {
-    const normalized = sanitizeFightPvpReplay(item);
+    const sanitized = sanitizeFightPvpReplay(item, { liveContext });
+    const normalized = sanitized?.normalized || null;
     if (!normalized) {
       continue;
     }
+
+    didBackfillMapId = didBackfillMapId || sanitized.didBackfillMapId === true;
     const dedupeKey = dedupeReplayKey(normalized);
     if (!dedupeKey) {
       continue;
@@ -76,19 +109,26 @@ const sanitizeFightPvpReplays = (records) => {
     }
   }
 
-  return [...deduped.values()]
-    .sort((left, right) => toTimestamp(right.createdAt) - toTimestamp(left.createdAt))
-    .slice(0, MAX_FIGHT_PVP_REPLAYS);
+  return {
+    records: [...deduped.values()]
+      .sort((left, right) => toTimestamp(right.createdAt) - toTimestamp(left.createdAt))
+      .slice(0, MAX_FIGHT_PVP_REPLAYS),
+    didBackfillMapId,
+  };
 };
 
-const writeFightPvpReplayRecords = (storageKey, records) => {
+const writeFightPvpReplayRecords = (
+  storageKey,
+  records,
+  { liveContext = null } = {},
+) => {
   const storage = getStorage();
   if (!storage) {
     return [];
   }
 
-  const sanitized = sanitizeFightPvpReplays(records);
-  const queue = sanitized.slice();
+  const sanitized = sanitizeFightPvpReplays(records, { liveContext });
+  const queue = sanitized.records.slice();
   while (queue.length >= 0) {
     try {
       storage.setItem(storageKey, JSON.stringify(queue));
@@ -107,7 +147,7 @@ const writeFightPvpReplayRecords = (storageKey, records) => {
 export const buildFightPvpReplayStorageKey = ({ userId, tokenId } = {}) =>
   `fight_pvp_replays_v1:${toStorageSegment(userId, "guest")}:${toStorageSegment(tokenId, "unknown-token")}`;
 
-export const loadFightPvpReplays = ({ userId, tokenId } = {}) => {
+export const loadFightPvpReplays = ({ userId, tokenId, liveContext = null } = {}) => {
   const storage = getStorage();
   if (!storage) {
     return [];
@@ -120,7 +160,13 @@ export const loadFightPvpReplays = ({ userId, tokenId } = {}) => {
   }
 
   try {
-    return sanitizeFightPvpReplays(JSON.parse(raw));
+    const sanitized = sanitizeFightPvpReplays(JSON.parse(raw), {
+      liveContext,
+    });
+    if (sanitized.didBackfillMapId) {
+      writeFightPvpReplayRecords(storageKey, sanitized.records);
+    }
+    return sanitized.records;
   } catch {
     return [];
   }

@@ -2,12 +2,15 @@ import {
   FIGHT_PVP_REPLAY_DEFAULT_STAGE_NAME,
   FIGHT_PVP_REPLAY_DEFAULT_START_TIP_STAGE,
   getFightPvpReplayBattleVersion,
-  resolveFightPvpReplayMapId,
   resolveFightPvpReplayRuntimeLabels,
   resolveFightPvpReplayRuntimeOptionsSnapshot,
   toFiniteNumber,
   toNonEmptyString,
 } from "./fightPvpReplayNormalizer.js";
+import {
+  explainFightPvpMapIdResolution,
+  resolveFightPvpMapIdFromReplay,
+} from "./fightPvpReplayMapIdResolver.js";
 
 const cloneBattleTeamMember = (member) =>
   member && typeof member === "object" ? { ...member } : member;
@@ -97,7 +100,7 @@ const buildRuntimeOptionsMap = ({ replay, modules } = {}) => {
 
 export const summarizeFightPvpReplayBattleInput = (
   battleInput,
-  { missingRuntimeFields = [] } = {},
+  { missingRuntimeFields = [], mapIdResolution = null } = {},
 ) => ({
   battleVersion: getFightPvpReplayBattleVersion(battleInput),
   mapId: battleInput?.mapId ?? null,
@@ -123,12 +126,15 @@ export const summarizeFightPvpReplayBattleInput = (
   hasTargetRole: Boolean(battleInput?.options?.get?.("targetRole")),
   selfScore: toFiniteNumber(battleInput?.options?.get?.("selfScore"), null),
   oppoScore: toFiniteNumber(battleInput?.options?.get?.("oppoScore"), null),
+  mapIdSource: mapIdResolution?.mapIdSource ?? null,
+  pvpMapIdSource: mapIdResolution?.pvpMapIdSource ?? null,
+  fixtureMapFallbackUsed: Boolean(mapIdResolution?.fixtureMapFallbackUsed),
   missingRuntimeFields: [...missingRuntimeFields],
 });
 
 export const buildFightPvpReplayBattleInput = (
   replay,
-  { modules } = {},
+  { modules, liveContext = null } = {},
 ) => {
   const battleResult = (
     replay?.battleResult && typeof replay.battleResult === "object"
@@ -141,16 +147,14 @@ export const buildFightPvpReplayBattleInput = (
     startTipTopName: replay?.startTipTopName,
     startTipStage: replay?.startTipStage,
   });
+  const mapIdResolution = resolveFightPvpMapIdFromReplay({
+    replay,
+    liveContext,
+  });
   const battleInput = {
     battleData,
     battleResult,
-    mapId: resolveFightPvpReplayMapId({
-      mapId: replay?.mapId,
-      battleData,
-      selfRoleRaw: replay?.selfRoleRaw,
-      roleInfo: replay?.roleInfo,
-      leftContext: replay?.left,
-    }),
+    mapId: mapIdResolution.mapId,
     stageNameStr: runtimeLabels.stageNameStr,
     startTipTopName: runtimeLabels.startTipTopName,
     startTipStage: runtimeLabels.startTipStage,
@@ -174,6 +178,11 @@ export const buildFightPvpReplayBattleInput = (
 
   const replayInputSummary = summarizeFightPvpReplayBattleInput(battleInput, {
     missingRuntimeFields,
+    mapIdResolution,
+  });
+  const resolutionExplanation = explainFightPvpMapIdResolution({
+    replay,
+    liveContext,
   });
 
   return {
@@ -181,9 +190,15 @@ export const buildFightPvpReplayBattleInput = (
     battleInput,
     missingRuntimeFields,
     replayInputSummary,
+    mapIdResolution,
+    resolutionExplanation,
     message:
       missingRuntimeFields.length > 0
-        ? `该历史回放缺少必要字段，当前无法播放。缺少字段：${missingRuntimeFields.join(", ")}。`
+        ? (
+            missingRuntimeFields.includes("mapId")
+              ? `无法确定本场切磋地图，当前回放无法播放。缺少字段：${missingRuntimeFields.join(", ")}。`
+              : `该历史回放缺少必要字段，当前无法播放。缺少字段：${missingRuntimeFields.join(", ")}。`
+          )
         : "",
   };
 };

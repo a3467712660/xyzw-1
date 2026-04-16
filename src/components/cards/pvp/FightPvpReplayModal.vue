@@ -123,6 +123,33 @@ const showModel = computed({
 
 const replay = computed(() => props.replay || null);
 
+const formatDiagnosticValue = (value) => {
+  if (value === null || value === undefined || value === "") {
+    return "-";
+  }
+
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+};
+
+const buildReplayLiveContext = () => {
+  const tokenStoreRoleInfo = tokenStore.gameData?.roleInfo || null;
+  if (!tokenStoreRoleInfo) {
+    return null;
+  }
+
+  return {
+    tokenStoreRoleInfo,
+  };
+};
+
 const diagnosticLines = computed(() => {
   const diagnostics = currentDiagnostics.value;
   if (!diagnostics) {
@@ -165,6 +192,21 @@ const diagnosticLines = computed(() => {
   }
   if (Array.isArray(diagnostics.missingRuntimeFields) && diagnostics.missingRuntimeFields.length > 0) {
     lines.push(`missingRuntimeFields: ${diagnostics.missingRuntimeFields.join(", ")}`);
+  }
+  if (diagnostics.mapIdSource) {
+    lines.push(`mapIdSource: ${diagnostics.mapIdSource}`);
+  }
+  if (diagnostics.pvpMapIdSource) {
+    lines.push(`pvpMapIdSource: ${diagnostics.pvpMapIdSource}`);
+  }
+  if (Array.isArray(diagnostics.mapIdDiagnostics?.tried) && diagnostics.mapIdDiagnostics.tried.length > 0) {
+    lines.push(`tried: ${diagnostics.mapIdDiagnostics.tried.join(" -> ")}`);
+  }
+  if (diagnostics.availableValues && Object.keys(diagnostics.availableValues).length > 0) {
+    lines.push(`availableValues: ${formatDiagnosticValue(diagnostics.availableValues)}`);
+  }
+  if (diagnostics.fixtureMapFallbackUsed) {
+    lines.push("fixtureMapFallbackUsed: true");
   }
   if (diagnostics.replayInputSummary) {
     const summary = diagnostics.replayInputSummary;
@@ -240,6 +282,13 @@ const buildReplayFailureMessage = ({
     && diagnostics.missingRuntimeFields.length > 0
   ) {
     const missingFieldsDetail = `缺少字段：${diagnostics.missingRuntimeFields.join(", ")}。`;
+    if (diagnostics.missingRuntimeFields.includes("mapId")) {
+      return appendTechnicalMessage(
+        props.t("fightPvpCard.replay.missingMapIdDescription"),
+        missingFieldsDetail,
+      );
+    }
+
     return appendTechnicalMessage(
       props.t("fightPvpCard.replay.missingFieldsDescription"),
       missingFieldsDetail,
@@ -306,6 +355,7 @@ const startReplay = async () => {
   runtimeSession = await startFightPvpReplayRuntime({
     replay: replay.value,
     hostElement: replayHostRef.value,
+    liveContext: buildReplayLiveContext(),
   });
   currentDiagnostics.value = runtimeSession?.diagnostics || null;
 

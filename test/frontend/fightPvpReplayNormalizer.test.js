@@ -5,17 +5,35 @@ import {
   buildFightPvpReplayBattleInput,
 } from "../../src/services/replay/fightPvpBattleInputAdapter.js";
 import {
+  resolveFightPvpMapIdFromLiveContext,
+} from "../../src/services/replay/fightPvpReplayMapIdResolver.js";
+import {
   FIGHT_PVP_REPLAY_SOURCE,
   normalizeFightPvpReplayPayload,
 } from "../../src/services/replay/fightPvpReplayNormalizer.js";
 
-test("fight pvp replay normalizer keeps runtime fields stable", () => {
+test("fight pvp replay normalizer keeps runtime fields stable and persists map diagnostics", () => {
+  const selfRoleRaw = {
+    role: {
+      roleId: "role-1",
+      pvpMapId: 110001,
+    },
+  };
+  const mapResolution = resolveFightPvpMapIdFromLiveContext({
+    selfRoleRaw,
+  });
   const replay = normalizeFightPvpReplayPayload({
     tokenId: "token-1",
     targetId: "role-2",
     targetName: "对手",
     createdAt: "2026-04-15T12:00:00.000Z",
-    mapId: 110001,
+    selfRoleRaw,
+    roleInfo: {
+      role: {
+        roleId: "role-1",
+      },
+    },
+    mapResolution,
     runtimeLabels: {
       stageNameStr: "切磋系统",
       startTipTopName: "切磋系统",
@@ -62,6 +80,21 @@ test("fight pvp replay normalizer keeps runtime fields stable", () => {
   assert.equal(replay.targetId, "role-2");
   assert.equal(replay.targetName, "对手");
   assert.equal(replay.mapId, 110001);
+  assert.equal(replay.pvpMapId, 110001);
+  assert.equal(replay.mapIdSource, "selfRoleRaw.role.pvpMapId");
+  assert.equal(replay.pvpMapIdSource, "selfRoleRaw.role.pvpMapId");
+  assert.deepEqual(replay.selfRoleSnapshot, {
+    roleId: "role-1",
+    pvpMapId: 110001,
+    dressPvpMapUsedId: null,
+    dressPvpMapMapId: null,
+  });
+  assert.deepEqual(replay.context, {
+    pvpMapId: 110001,
+    dressPvpMapUsedId: null,
+    dressPvpMapMapId: null,
+  });
+  assert.equal(replay.meta.mapIdDiagnostics.availableValues["selfRoleRaw.role.pvpMapId"], 110001);
   assert.equal(replay.stageNameStr, "切磋系统");
   assert.equal(replay.startTipTopName, "切磋系统");
   assert.equal(replay.startTipStage, "开始切磋");
@@ -100,10 +133,11 @@ test("fight pvp replay normalizer builds a stable fallback battle id for legacy 
         totalFrame: 120,
       },
     },
-    leftContext: {
-      roleId: "self-1",
-      name: "我方",
-      pvpMapId: 120001,
+    roleInfo: {
+      role: {
+        roleId: "self-1",
+        pvpMapId: 120001,
+      },
     },
   };
 
@@ -114,6 +148,7 @@ test("fight pvp replay normalizer builds a stable fallback battle id for legacy 
   assert.equal(left.battleId, right.battleId);
   assert.equal(left.replayId, right.replayId);
   assert.equal(left.mapId, 120001);
+  assert.equal(left.mapIdSource, "tokenStore.gameData.roleInfo.role.pvpMapId");
 });
 
 test("fight pvp replay adapter converts replay record into runtime-ready battle input", () => {
@@ -121,7 +156,8 @@ test("fight pvp replay adapter converts replay record into runtime-ready battle 
     tokenId: "token-1",
     targetId: "role-2",
     targetName: "对手",
-    mapId: 110001,
+    pvpMapId: 110001,
+    pvpMapIdSource: "replay.pvpMapId",
     runtimeLabels: {
       stageNameStr: "切磋系统",
       startTipTopName: "切磋系统",
@@ -174,6 +210,9 @@ test("fight pvp replay adapter converts replay record into runtime-ready battle 
 
   assert.equal(result.ok, true);
   assert.equal(result.battleInput.mapId, 110001);
+  assert.equal(result.mapIdResolution.mapIdSource, "replay.pvpMapId");
+  assert.equal(result.replayInputSummary.mapIdSource, "replay.pvpMapId");
+  assert.equal(result.replayInputSummary.pvpMapIdSource, "replay.pvpMapId");
   assert.equal(result.battleInput.stageNameStr, "切磋系统");
   assert.equal(result.battleInput.startTipStage, "开始切磋");
   assert.equal(Array.isArray(result.battleInput.leftTeam), false);
@@ -206,5 +245,7 @@ test("fight pvp replay adapter reports missing runtime fields for legacy incompl
     "mapId",
     "battleData.mode",
   ]);
-  assert.match(result.message, /该历史回放缺少必要字段/);
+  assert.equal(result.mapIdResolution.ok, false);
+  assert.match(result.message, /无法确定本场切磋地图/);
+  assert.deepEqual(result.resolutionExplanation.availableValues, {});
 });

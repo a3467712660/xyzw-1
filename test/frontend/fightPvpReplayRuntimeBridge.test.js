@@ -615,6 +615,8 @@ test("fight pvp replay runtime bridge accepts the real fight_startpvp fixture th
   assert.deepEqual(session.diagnostics.missingRuntimeFields, []);
   assert.equal(session.diagnostics.replayInputSummary.battleMode, 32);
   assert.equal(session.diagnostics.replayInputSummary.mapId, 110001);
+  assert.equal(session.diagnostics.mapIdSource, "fixture.110001");
+  assert.equal(session.diagnostics.fixtureMapFallbackUsed, true);
   assert.equal(session.diagnostics.replayStartSignal, true);
 
   delete globalThis.window;
@@ -820,7 +822,10 @@ test("fight pvp replay runtime bridge reports readable legacy-field failures wit
     "mapId",
     "battleData.mode",
   ]);
-  assert.match(session.message, /该历史回放缺少必要字段/);
+  assert.equal(session.diagnostics.mapIdSource, null);
+  assert.equal(session.diagnostics.pvpMapIdSource, null);
+  assert.deepEqual(session.diagnostics.availableValues, {});
+  assert.match(session.message, /无法确定本场切磋地图/);
   assert.match(session.message, /mapId/);
   assert.match(session.message, /battleData\.mode/);
 

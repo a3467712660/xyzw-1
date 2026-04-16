@@ -5,7 +5,7 @@ export const FIGHT_PVP_REAL_FIXTURE_META = Object.freeze({
   requestMember: "xyzw切磋/切磋发1.txt",
   responseMember: "xyzw切磋/切磋收1.txt",
   note:
-    "battleData 来源于真实 Fight_StartPVPResp；mapId=110001 为当前仓库 replay runtime 已验证补齐值，原抓包未直接包含 mapId/pvpMapId。",
+    "battleData 来源于真实 Fight_StartPVPResp；110001 仅作为当前仓库 replay runtime 已验证的 fixture/test fallback，原抓包未直接包含 mapId/pvpMapId。",
 });
 
 const FIGHT_PVP_REAL_FIXTURE_GZIP_BASE64 = `
@@ -198,14 +198,23 @@ const inflateRealFixture = () => {
     Buffer.from(FIGHT_PVP_REAL_FIXTURE_GZIP_BASE64, "base64"),
   ).toString("utf8");
   const parsed = JSON.parse(raw);
+  const restParsed = { ...(parsed || {}) };
+  const legacyMeta = restParsed.meta || null;
+  delete restParsed.mapId;
+  delete restParsed.meta;
   const battleData = parsed?.battleData || {};
 
   cachedRealFixture = {
-    ...parsed,
+    ...restParsed,
     source: "fight-pvp-real-fixture",
     createdAt: "2026-04-12T12:34:08.000Z",
     targetId: String(battleData?.rightTeam?.roleId || ""),
     targetName: String(battleData?.rightTeam?.name || ""),
+    meta: {
+      ...(legacyMeta || {}),
+      fixtureMapFallback: true,
+      fixtureName: "fight-pvp-real-replay",
+    },
     left: {
       roleId: String(battleData?.leftTeam?.roleId || ""),
       name: String(battleData?.leftTeam?.name || ""),

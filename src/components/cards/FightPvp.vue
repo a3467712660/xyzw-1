@@ -1219,6 +1219,17 @@ const getReplayStorageUserId = () =>
 const getReplayStorageTokenId = () =>
   String(tokenStore.selectedToken?.id || "").trim();
 
+const buildReplayLiveContext = () => {
+  const tokenStoreRoleInfo = tokenStore.gameData?.roleInfo || null;
+  if (!tokenStoreRoleInfo) {
+    return null;
+  }
+
+  return {
+    tokenStoreRoleInfo,
+  };
+};
+
 const loadRecentFightPvpReplays = () => {
   const tokenId = getReplayStorageTokenId();
   if (!tokenId) {
@@ -1229,6 +1240,7 @@ const loadRecentFightPvpReplays = () => {
   recentFightPvpReplays.value = loadFightPvpReplays({
     userId: getReplayStorageUserId(),
     tokenId,
+    liveContext: buildReplayLiveContext(),
   });
 };
 

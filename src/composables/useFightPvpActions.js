@@ -1,5 +1,6 @@
 import { buildDuelDetailReport } from "@/utils/duelBattleDetailReport";
 import { normalizeFightPvpReplayPayload } from "@/services/replay/fightPvpReplayNormalizer.js";
+import { resolveFightPvpMapIdFromLiveContext } from "@/services/replay/fightPvpReplayMapIdResolver.js";
 
 export function useFightPvpActions({
   tokenStore,
@@ -109,6 +110,11 @@ export function useFightPvpActions({
         }
 
         rawBattles.push(result.battleData);
+        const tokenStoreRoleInfo = tokenStore.gameData?.roleInfo || null;
+        const mapResolution = resolveFightPvpMapIdFromLiveContext({
+          selfRoleRaw,
+          tokenStoreRoleInfo,
+        });
         const replay = normalizeFightPvpReplayPayload({
           battleData: result.battleData,
           battleResult: result.battleResult,
@@ -122,14 +128,9 @@ export function useFightPvpActions({
             || tokenStore.gameData?.roleInfo
             || null,
           rightContext: memberData.value,
-          mapId:
-            selfRoleRaw?.role?.pvpMapId
-            || selfRoleRaw?.roleInfo?.pvpMapId
-            || tokenStore.gameData?.roleInfo?.role?.pvpMapId
-            || tokenStore.gameData?.roleInfo?.pvpMapId
-            || null,
           selfRoleRaw,
-          roleInfo: tokenStore.gameData?.roleInfo || null,
+          roleInfo: tokenStoreRoleInfo,
+          mapResolution,
           runtimeLabels: getReplayRuntimeLabels(),
           runtimeOptionsSnapshot: {
             targetRole: result?.targetRole || {
