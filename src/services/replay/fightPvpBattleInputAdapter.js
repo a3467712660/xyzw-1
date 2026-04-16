@@ -183,7 +183,7 @@ export const buildFightPvpReplayBattleInput = (
     replayInputSummary,
     message:
       missingRuntimeFields.length > 0
-        ? `回放缺少 runtime 必需字段：${missingRuntimeFields.join(", ")}。`
+        ? `该历史回放缺少必要字段，当前无法播放。缺少字段：${missingRuntimeFields.join(", ")}。`
         : "",
   };
 };

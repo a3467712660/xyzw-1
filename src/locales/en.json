@@ -3030,11 +3030,15 @@
       "emptyTitle": "Replay Payload Missing",
       "emptyDescription": "This record does not contain usable battleData.",
       "versionMismatchTitle": "Replay Version Mismatch",
+      "versionMismatchDescription": "The current role battle version does not match this replay, so playback is unavailable.",
       "runtimeLoadFailedTitle": "Runtime Load Failed",
       "replayStartFailedTitle": "Replay Start Failed",
+      "missingFieldsDescription": "This replay record is missing required fields, so it cannot be played.",
+      "replaySignalMissingDescription": "The replay runtime is ready, but this record never entered the replay start chain.",
       "runtimeNotReady": "The runtime is not ready, so this replay cannot start yet.",
       "diagnosticTitle": "Bridge Diagnostics",
-      "lastErrorLabel": "Last error:"
+      "lastErrorLabel": "Last error:",
+      "technicalDetailLabel": "Diagnostics:"
     },
     "empty": {
       "history": "No duel history",

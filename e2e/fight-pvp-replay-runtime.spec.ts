@@ -1,4 +1,7 @@
 import { expect, test } from "playwright/test";
+import {
+  createFightPvpRealReplayFixture,
+} from "../test/fixtures/replay/fightPvpRealReplayFixture.js";
 
 test.use({
   launchOptions: {
@@ -6,58 +9,9 @@ test.use({
   },
 });
 
-const createReplayPayload = () => ({
-  replayId: "fight-pvp-live:e2e",
-  battleId: "battle-e2e",
-  battleVersion: 240495,
-  tokenId: "token-e2e",
-  mapId: 110001,
-  stageNameStr: "切磋系统",
-  startTipTopName: "切磋系统",
-  startTipStage: "开始切磋",
-  runtimeOptionsSnapshot: {
-    targetRole: {
-      roleId: "right-role",
-      name: "敌方",
-      headImg: "/right.png",
-    },
-    selfScore: 12,
-    oppoScore: 8,
-    replayFlag: true,
-  },
-  battleResult: {
-    isWin: true,
-  },
-  battleData: {
-    id: "battle-e2e",
-    version: 240495,
-    mode: 7,
-    leftTeam: {
-      roleId: "left-role",
-      name: "我方",
-      headImg: "/left.png",
-      team: [
-        { heroId: 1001, level: 1, color: 1, star: 1 },
-        { heroId: 1002, level: 1, color: 1, star: 1 },
-      ],
-    },
-    rightTeam: {
-      roleId: "right-role",
-      name: "敌方",
-      headImg: "/right.png",
-      team: [
-        { heroId: 2001, level: 1, color: 1, star: 1 },
-        { heroId: 2002, level: 1, color: 1, star: 1 },
-      ],
-    },
-    result: {
-      isWin: true,
-    },
-    memos: [],
-  },
-});
+const createReplayPayload = () => createFightPvpRealReplayFixture();
 
-test("fight pvp replay runtime enters game scene and starts replay playback", async ({
+test("fight pvp replay runtime real fixture smoke enters game scene and starts replay playback", async ({
   page,
 }) => {
   const consoleErrors: string[] = [];
@@ -90,6 +44,15 @@ test("fight pvp replay runtime enters game scene and starts replay playback", as
       reason: session.reason,
       message: session.message,
       diagnostics: session.diagnostics,
+      hostStats: {
+        childElementCount: hostElement?.childElementCount ?? 0,
+        hasRuntimeCanvas: Boolean(
+          hostElement?.querySelector(".fight-pvp-replay-runtime-canvas"),
+        ),
+        hasRuntimeViewport: Boolean(
+          hostElement?.querySelector(".fight-pvp-replay-runtime-viewport"),
+        ),
+      },
     };
   }, createReplayPayload());
 
@@ -107,11 +70,14 @@ test("fight pvp replay runtime enters game scene and starts replay playback", as
   expect(result.diagnostics.replayStartSignal).toBeTruthy();
   expect(result.diagnostics.replayStartIsReplay).toBeTruthy();
   expect(result.diagnostics.replayStartMapId).toBe(110001);
-  expect(result.diagnostics.replayStartBattleMode).toBe(7);
+  expect(result.diagnostics.replayStartBattleMode).toBe(32);
   expect(result.diagnostics.replayInputSummary.mapId).toBe(110001);
-  expect(result.diagnostics.replayInputSummary.battleMode).toBe(7);
+  expect(result.diagnostics.replayInputSummary.battleMode).toBe(32);
   expect(result.diagnostics.replayInputSummary.stageNameStr).toBe("切磋系统");
   expect(result.diagnostics.missingRuntimeFields).toEqual([]);
+  expect(result.hostStats.childElementCount).toBeGreaterThan(0);
+  expect(result.hostStats.hasRuntimeViewport).toBeTruthy();
+  expect(result.hostStats.hasRuntimeCanvas).toBeTruthy();
 
   const joinedErrors = [...consoleErrors, ...pageErrors].join("\n");
   expect(joinedErrors).not.toContain("wx is not defined");

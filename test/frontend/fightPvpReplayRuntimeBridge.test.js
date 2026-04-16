@@ -15,6 +15,9 @@ import {
   startFightPvpReplayRuntime,
   toAbsoluteBundleRequestTarget,
 } from "../../src/services/replay/fightPvpReplayRuntimeBridge.js";
+import {
+  createFightPvpRealReplayFixture,
+} from "../fixtures/replay/fightPvpRealReplayFixture.js";
 
 test("fight pvp replay runtime bridge initializes missing bundle version containers", () => {
   const runtimeWindow = {
@@ -521,6 +524,103 @@ test("fight pvp replay runtime bridge returns ok true when replay entrypoint sta
   delete globalThis.HTMLElement;
 });
 
+test("fight pvp replay runtime bridge accepts the real fight_startpvp fixture through the success path", async () => {
+  class MockHTMLElement {
+    constructor() {
+      this.innerHTML = "";
+      this.clientWidth = 960;
+      this.clientHeight = 540;
+    }
+  }
+
+  globalThis.window = {
+    HTMLElement: MockHTMLElement,
+    clearTimeout,
+    requestAnimationFrame(callback) {
+      return setTimeout(callback, 0);
+    },
+    setTimeout,
+  };
+  globalThis.HTMLElement = MockHTMLElement;
+
+  const realReplay = createFightPvpRealReplayFixture();
+  const session = await startFightPvpReplayRuntime({
+    replay: realReplay,
+    hostElement: new MockHTMLElement(),
+    runtimeAdapter: {
+      createCanvasHost: () => ({
+        canvas: { id: "replay-canvas", width: 960, height: 540 },
+        viewport: {},
+      }),
+      createWxShim: () => ({
+        dispose() {},
+      }),
+      ensureBundleVersionContainers() {},
+      ensureReplayBootstrapScene: async () => ({
+        bootstrapSceneName: "Bootstrap",
+        cleanup() {},
+      }),
+      ensureRuntimeBooted: async () => {},
+      ensureRuntimeLoaded: async () => {},
+      createVm2Shim: () => ({
+        dispose() {},
+      }),
+      ensureAuxiliaryBundlesLoaded: async () => ({
+        dispose() {},
+      }),
+      installReplayBattleStartProbe: () => ({
+        dispose() {},
+        waitForSignal: async () => ({
+          ok: true,
+          panel: "CommonBattleTeamPanel",
+          isReplay: true,
+          mapId: 110001,
+          battleMode: 32,
+        }),
+      }),
+      locateReplayEntrypoint: () => ({
+        label: "mock-entrypoint",
+        invoke() {},
+      }),
+      inspectGameBundleModuleCoverage: async () => ({
+        missingModules: [],
+      }),
+      probeGameBundleAssets: async () => [],
+      readRuntimeModules: () => ({
+        consts: {
+          ModelConst: {
+            BATTLE_REPLAY: "BATTLE_REPLAY",
+          },
+        },
+      }),
+      startReplayEntrypoint: async ({ battleInput }) => {
+        assert.equal(battleInput.battleData.mode, 32);
+        assert.equal(battleInput.mapId, 110001);
+        assert.equal(battleInput.battleResult.isWin, true);
+        assert.equal(
+          battleInput.options.get("targetRole")?.roleId,
+          String(realReplay.battleData.rightTeam.roleId),
+        );
+        return { ok: true, entrypoint: "mock-entrypoint" };
+      },
+      waitForRuntimeReadyForReplay: async () => ({
+        ok: true,
+        sceneName: "Game",
+      }),
+    },
+  });
+
+  assert.equal(session.ok, true);
+  assert.equal(session.reason, "ok");
+  assert.deepEqual(session.diagnostics.missingRuntimeFields, []);
+  assert.equal(session.diagnostics.replayInputSummary.battleMode, 32);
+  assert.equal(session.diagnostics.replayInputSummary.mapId, 110001);
+  assert.equal(session.diagnostics.replayStartSignal, true);
+
+  delete globalThis.window;
+  delete globalThis.HTMLElement;
+});
+
 test("fight pvp replay runtime bridge fails when replay entrypoint does not trigger replay-start probe", async () => {
   class MockHTMLElement {
     constructor() {
@@ -613,6 +713,116 @@ test("fight pvp replay runtime bridge fails when replay entrypoint does not trig
   assert.equal(session.ok, false);
   assert.equal(session.reason, "replay-start-failed");
   assert.match(session.message, /showBattleLoading/);
+
+  delete globalThis.window;
+  delete globalThis.HTMLElement;
+});
+
+test("fight pvp replay runtime bridge reports readable legacy-field failures without guessing mapId", async () => {
+  class MockHTMLElement {
+    constructor() {
+      this.innerHTML = "";
+      this.clientWidth = 960;
+      this.clientHeight = 540;
+    }
+  }
+
+  globalThis.window = {
+    HTMLElement: MockHTMLElement,
+    clearTimeout,
+    requestAnimationFrame(callback) {
+      return setTimeout(callback, 0);
+    },
+    setTimeout,
+  };
+  globalThis.HTMLElement = MockHTMLElement;
+
+  const session = await startFightPvpReplayRuntime({
+    replay: {
+      replayId: "legacy-missing-fields",
+      battleId: "legacy-missing-fields",
+      battleVersion: 240495,
+      stageNameStr: "切磋系统",
+      startTipTopName: "切磋系统",
+      startTipStage: "开始切磋",
+      battleData: {
+        id: "legacy-missing-fields",
+        version: 240495,
+        leftTeam: {
+          roleId: "left-role",
+          name: "我方",
+          team: [{ heroId: 1001 }],
+        },
+        rightTeam: {
+          roleId: "right-role",
+          name: "敌方",
+          team: [{ heroId: 2001 }],
+        },
+        result: {
+          isWin: true,
+        },
+      },
+      battleResult: {
+        isWin: true,
+      },
+    },
+    hostElement: new MockHTMLElement(),
+    runtimeAdapter: {
+      createCanvasHost: () => ({
+        canvas: { id: "replay-canvas", width: 960, height: 540 },
+        viewport: {},
+      }),
+      createWxShim: () => ({
+        dispose() {},
+      }),
+      ensureBundleVersionContainers() {},
+      ensureReplayBootstrapScene: async () => ({
+        bootstrapSceneName: "Bootstrap",
+        cleanup() {},
+      }),
+      ensureRuntimeBooted: async () => {},
+      ensureRuntimeLoaded: async () => {},
+      createVm2Shim: () => ({
+        dispose() {},
+      }),
+      ensureAuxiliaryBundlesLoaded: async () => ({
+        dispose() {},
+      }),
+      installReplayBattleStartProbe: () => ({
+        dispose() {},
+        waitForSignal: async () => ({ ok: false }),
+      }),
+      locateReplayEntrypoint: () => ({
+        label: "mock-entrypoint",
+        invoke() {},
+      }),
+      inspectGameBundleModuleCoverage: async () => ({
+        missingModules: [],
+      }),
+      probeGameBundleAssets: async () => [],
+      readRuntimeModules: () => ({
+        consts: {
+          ModelConst: {
+            BATTLE_REPLAY: "BATTLE_REPLAY",
+          },
+        },
+      }),
+      waitForRuntimeReadyForReplay: async () => ({
+        ok: true,
+        sceneName: "Game",
+      }),
+    },
+  });
+
+  assert.equal(session.ok, false);
+  assert.equal(session.reason, "replay-start-failed");
+  assert.deepEqual(session.diagnostics.missingRuntimeFields, [
+    "mapId",
+    "battleData.mode",
+  ]);
+  assert.match(session.message, /该历史回放缺少必要字段/);
+  assert.match(session.message, /mapId/);
+  assert.match(session.message, /battleData\.mode/);
 
   delete globalThis.window;
   delete globalThis.HTMLElement;

@@ -212,6 +212,54 @@ const emitErrorMessage = (message) => {
   emit("error", message || "");
 };
 
+const appendTechnicalMessage = (lead, detail) => {
+  const prefix = String(lead || "").trim();
+  const suffix = String(detail || "").trim();
+  if (!prefix)
+    return suffix;
+  if (!suffix || suffix === prefix)
+    return prefix;
+  return `${prefix} ${props.t("fightPvpCard.replay.technicalDetailLabel")} ${suffix}`;
+};
+
+const buildReplayFailureMessage = ({
+  failureState,
+  detail = "",
+  diagnostics = null,
+} = {}) => {
+  if (failureState === "version-mismatch") {
+    return appendTechnicalMessage(
+      props.t("fightPvpCard.replay.versionMismatchDescription"),
+      detail,
+    );
+  }
+
+  if (
+    failureState === "replay-start-failed"
+    && Array.isArray(diagnostics?.missingRuntimeFields)
+    && diagnostics.missingRuntimeFields.length > 0
+  ) {
+    const missingFieldsDetail = `缺少字段：${diagnostics.missingRuntimeFields.join(", ")}。`;
+    return appendTechnicalMessage(
+      props.t("fightPvpCard.replay.missingFieldsDescription"),
+      missingFieldsDetail,
+    );
+  }
+
+  if (
+    failureState === "replay-start-failed"
+    && diagnostics?.replayEntrypoint
+    && diagnostics?.replayStartSignal === false
+  ) {
+    return appendTechnicalMessage(
+      props.t("fightPvpCard.replay.replaySignalMissingDescription"),
+      detail,
+    );
+  }
+
+  return detail || props.t("fightPvpCard.replay.runtimeNotReady");
+};
+
 const startReplay = async () => {
   resetRuntime();
   clearState();
@@ -246,7 +294,11 @@ const startReplay = async () => {
     state.value = guardResult.reason === FIGHT_PVP_REPLAY_VERSION_GUARD_REASONS.VERSION_MISMATCH
       ? "version-mismatch"
       : "replay-start-failed";
-    currentMessage.value = guardResult.message;
+    currentMessage.value = buildReplayFailureMessage({
+      failureState: state.value,
+      detail: guardResult.message,
+      diagnostics: currentDiagnostics.value,
+    });
     emitErrorMessage(currentMessage.value);
     return;
   }
@@ -261,8 +313,11 @@ const startReplay = async () => {
     state.value = runtimeSession?.reason === "runtime-load-failed"
       ? "runtime-load-failed"
       : "replay-start-failed";
-    currentMessage.value = runtimeSession?.message
-      || props.t("fightPvpCard.replay.runtimeNotReady");
+    currentMessage.value = buildReplayFailureMessage({
+      failureState: state.value,
+      detail: runtimeSession?.message || "",
+      diagnostics: currentDiagnostics.value,
+    });
     emitErrorMessage(currentMessage.value);
     return;
   }

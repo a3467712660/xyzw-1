@@ -3006,11 +3006,15 @@
       "emptyTitle": "回放数据为空",
       "emptyDescription": "该记录没有可用的 battleData。",
       "versionMismatchTitle": "回放版本不匹配",
+      "versionMismatchDescription": "当前角色战斗版本与这条回放不一致，暂时不能播放。",
       "runtimeLoadFailedTitle": "运行时加载失败",
       "replayStartFailedTitle": "回放启动失败",
+      "missingFieldsDescription": "该历史回放缺少必要字段，当前无法播放。",
+      "replaySignalMissingDescription": "回放运行时已准备，但这场记录没有真正进入回放启动链。",
       "runtimeNotReady": "运行时尚未准备好，暂时无法播放该回放。",
       "diagnosticTitle": "桥接诊断",
-      "lastErrorLabel": "上次错误："
+      "lastErrorLabel": "上次错误：",
+      "technicalDetailLabel": "诊断："
     },
     "empty": {
       "history": "暂无历史切磋记录",

@@ -206,5 +206,5 @@ test("fight pvp replay adapter reports missing runtime fields for legacy incompl
     "mapId",
     "battleData.mode",
   ]);
-  assert.match(result.message, /runtime 必需字段/);
+  assert.match(result.message, /该历史回放缺少必要字段/);
 });
