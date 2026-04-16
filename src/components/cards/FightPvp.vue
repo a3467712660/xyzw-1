@@ -133,6 +133,7 @@ import {
 } from "@/services/preferences/fightPvpStorage";
 import {
   appendFightPvpReplay,
+  buildFightPvpReplayLiveContext,
   clearFightPvpReplays,
   loadFightPvpReplays,
   removeFightPvpReplay,
@@ -1220,16 +1221,10 @@ const getReplayStorageUserId = () =>
 const getReplayStorageTokenId = () =>
   String(tokenStore.selectedToken?.id || "").trim();
 
-const buildReplayLiveContext = () => {
-  const tokenStoreRoleInfo = tokenStore.gameData?.roleInfo || null;
-  if (!tokenStoreRoleInfo) {
-    return null;
-  }
-
-  return {
-    tokenStoreRoleInfo,
-  };
-};
+const getReplayLiveContext = () =>
+  buildFightPvpReplayLiveContext({
+    tokenStore,
+  });
 
 const loadRecentFightPvpReplays = () => {
   const tokenId = getReplayStorageTokenId();
@@ -1241,7 +1236,7 @@ const loadRecentFightPvpReplays = () => {
   recentFightPvpReplays.value = loadFightPvpReplays({
     userId: getReplayStorageUserId(),
     tokenId,
-    liveContext: buildReplayLiveContext(),
+    liveContext: getReplayLiveContext(),
   });
 };
 
@@ -1255,6 +1250,7 @@ const appendRecentFightPvpReplays = (replays) => {
     userId: getReplayStorageUserId(),
     tokenId,
     replay: replays,
+    liveContext: getReplayLiveContext(),
   });
 };
 

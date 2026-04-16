@@ -87,6 +87,10 @@
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { useTokenStore } from "@/stores/tokenStore";
 import {
+  buildFightPvpReplayLiveContext,
+  refreshFightPvpReplayLiveContext,
+} from "@/services/replay/fightPvpReplayStorage.js";
+import {
   FIGHT_PVP_REPLAY_VERSION_GUARD_REASONS,
   guardFightPvpReplayVersion,
 } from "@/services/replay/fightPvpReplayVersionGuard.js";
@@ -139,16 +143,13 @@ const formatDiagnosticValue = (value) => {
   }
 };
 
-const buildReplayLiveContext = () => {
-  const tokenStoreRoleInfo = tokenStore.gameData?.roleInfo || null;
-  if (!tokenStoreRoleInfo) {
-    return null;
-  }
+const getReplayTokenId = () =>
+  String(tokenStore.selectedToken?.id || replay.value?.tokenId || "").trim();
 
-  return {
-    tokenStoreRoleInfo,
-  };
-};
+const getReplayLiveContext = () =>
+  buildFightPvpReplayLiveContext({
+    tokenStore,
+  });
 
 const diagnosticLines = computed(() => {
   const diagnostics = currentDiagnostics.value;
@@ -344,6 +345,11 @@ const startReplay = async () => {
   currentMessage.value = props.t("fightPvpCard.replay.loading");
   emitErrorMessage("");
 
+  const liveContext = await refreshFightPvpReplayLiveContext({
+    tokenStore,
+    tokenId: getReplayTokenId(),
+  }) || getReplayLiveContext();
+
   const guardResult = await guardFightPvpReplayVersion({
     replay: replay.value,
     tokenStore,
@@ -375,7 +381,7 @@ const startReplay = async () => {
   runtimeSession = await startFightPvpReplayRuntime({
     replay: replay.value,
     hostElement: replayHostRef.value,
-    liveContext: buildReplayLiveContext(),
+    liveContext,
   });
   currentDiagnostics.value = runtimeSession?.diagnostics || null;
 

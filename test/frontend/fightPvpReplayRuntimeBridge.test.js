@@ -6,8 +6,10 @@ import {
   classifyRuntimeLoadFailure,
   createScopedReplayVm2Shim,
   ensureReplayBundleVersionContainers,
+  ensureReplayAuxiliaryBundlesLoaded,
   installReplayAssetRequestObserver,
   installReplayBattleStartProbe,
+  installReplayBundleResolverPatch,
   installReplayPrivacyGuard,
   installReplayPromiseUtilShim,
   installReplayResourceManagerGuard,
@@ -15,6 +17,7 @@ import {
   installReplayMissingModuleShims,
   installReplayManifestShim,
   probeGameSceneAssets,
+  resolveReplayAuxiliaryModuleRegistration,
   startFightPvpReplayRuntime,
   toAbsoluteBundleRequestTarget,
   waitForRuntimeReadyForReplay,
@@ -131,6 +134,92 @@ test("fight pvp replay runtime bridge installs a scoped VM2 shim for obfuscated 
   );
 });
 
+test("fight pvp replay runtime bridge resolves auxiliary module aliases when bare names are unavailable", () => {
+  const seen = [];
+  const resolution = resolveReplayAuxiliaryModuleRegistration({
+    moduleName: "LanguageExt",
+    runtimeRequire(name) {
+      seen.push(name);
+      if (name === "../../../config/extensions/LanguageExt") {
+        return {
+          LanguageExt: {},
+        };
+      }
+      throw new Error(`Cannot find module '${name}'`);
+    },
+  });
+
+  assert.equal(resolution.ok, true);
+  assert.equal(
+    resolution.resolvedName,
+    "../../../config/extensions/LanguageExt",
+  );
+  assert.ok(seen.includes("LanguageExt"));
+  assert.ok(seen.includes("../../../config/extensions/LanguageExt"));
+});
+
+test("fight pvp replay runtime bridge auxiliary bundle cleanup ignores non-configurable globals", async () => {
+  const headScripts = [];
+  const targetDocument = {
+    head: {
+      appendChild(script) {
+        headScripts.push(script);
+        Object.defineProperty(runtimeWindow, "nonConfigurableAuxKey", {
+          configurable: false,
+          enumerable: true,
+          value: "aux",
+          writable: true,
+        });
+        runtimeWindow.__require = (name) => {
+          if (name === "ConfigsExt") {
+            return { ConfigsExt: {} };
+          }
+          throw new Error(`Cannot find module '${name}'`);
+        };
+        script.dataset.loaded = "true";
+        script.onload?.();
+        return script;
+      },
+    },
+    createElement() {
+      return {
+        dataset: {},
+        remove() {},
+        addEventListener(type, handler) {
+          if (type === "load") {
+            this.onload = handler;
+          }
+          if (type === "error") {
+            this.onerror = handler;
+          }
+        },
+        setAttribute() {},
+      };
+    },
+    querySelector() {
+      return null;
+    },
+  };
+  const runtimeWindow = {
+    document: targetDocument,
+    __require(name) {
+      throw new Error(`unhandled:${name}`);
+    },
+  };
+  const diagnostics = { steps: [] };
+
+  const auxiliary = await ensureReplayAuxiliaryBundlesLoaded({
+    runtimeWindow,
+    targetDocument,
+    diagnostics,
+    scriptUrls: ["/assets/main/index.js"],
+    requiredModules: ["ConfigsExt"],
+  });
+
+  assert.equal(auxiliary.dispose(), undefined);
+  assert.equal(runtimeWindow.nonConfigurableAuxKey, "aux");
+});
+
 test("fight pvp replay runtime bridge installs a replay-local manifest shim", async () => {
   class MockPlatformManager {
     async manifest() {
@@ -241,6 +330,120 @@ test("fight pvp replay runtime bridge bypasses privacy checks inside replay sess
   await assert.rejects(loginState.begin(), /should not login/);
 });
 
+test("fight pvp replay runtime bridge blocks user auth and privacy policy ui modules in shipped runtime shape", async () => {
+  class MockUserAuth {
+    constructor() {
+      this.node = {
+        active: true,
+      };
+      this.deferred = {
+        resolveCalled: false,
+        resolve: () => {
+          this.deferred.resolveCalled = true;
+        },
+      };
+    }
+
+    onLoad() {
+      throw new Error("should not mount auth ui");
+    }
+
+    showAuth() {
+      throw new Error("should not show auth ui");
+    }
+  }
+
+  class MockPrivacyPolicy {
+    constructor() {
+      this.node = {
+        active: true,
+      };
+      this.labelPolicy = null;
+    }
+
+    onLoad() {
+      throw new Error("should not fetch privacy text");
+    }
+  }
+
+  const setGlobalCalls = [];
+  const diagnostics = { steps: [] };
+  const guard = installReplayPrivacyGuard({
+    runtimeWindow: {
+      __require(name) {
+        if (name === "UserAuth") {
+          return {
+            UserAuth: MockUserAuth,
+          };
+        }
+        if (name === "UserAgreementAndPrivacyPolicy") {
+          return {
+            UserAgreementAndPrivacyPolicy: MockPrivacyPolicy,
+          };
+        }
+        if (name === "GlobalVarManager") {
+          return {
+            GlobalVarManager: {
+              _instance: {
+                set() {},
+              },
+            },
+            SET_GLOBAL(key, value) {
+              setGlobalCalls.push([key, value]);
+            },
+          };
+        }
+        if (name === "types-common") {
+          return {
+            GlobalVarKey: {
+              UserAuthDeferred: "UserAuthDeferred",
+              UserAgreementPrefab: "UserAgreementPrefab",
+              PrivacyPolicyPrefab: "PrivacyPolicyPrefab",
+            },
+          };
+        }
+        throw new Error(`unexpected:${name}`);
+      },
+    },
+    diagnostics,
+  });
+
+  const userAuth = new MockUserAuth();
+  const privacyPolicy = new MockPrivacyPolicy();
+
+  assert.doesNotThrow(() => userAuth.onLoad());
+  assert.doesNotThrow(() => userAuth.showAuth(true));
+  assert.doesNotThrow(() => privacyPolicy.onLoad());
+
+  assert.equal(userAuth.node.active, false);
+  assert.equal(userAuth.deferred, null);
+  assert.equal(privacyPolicy.node.active, false);
+  assert.ok(diagnostics.steps.includes("blocked-user-auth-onload"));
+  assert.ok(diagnostics.steps.includes("blocked-user-auth-show-auth"));
+  assert.ok(diagnostics.steps.includes("blocked-privacy-policy-onload"));
+  assert.ok(
+    setGlobalCalls.some(([key, value]) =>
+      key === "UserAuthDeferred" && typeof value?.then === "function",
+    ),
+  );
+  assert.ok(
+    setGlobalCalls.some(([key, value]) =>
+      key === "UserAgreementPrefab" && value === null,
+    ),
+  );
+  assert.ok(
+    setGlobalCalls.some(([key, value]) =>
+      key === "PrivacyPolicyPrefab" && value === null,
+    ),
+  );
+
+  guard.dispose();
+
+  assert.throws(() => new MockUserAuth().onLoad(), /should not mount auth ui/);
+  assert.throws(() => new MockUserAuth().showAuth(), /should not show auth ui/);
+  assert.throws(() => new MockPrivacyPolicy().onLoad(), /should not fetch privacy text/);
+});
+
 test("fight pvp replay runtime bridge replaces PromiseUtil.wait with browser timers during replay", async () => {
   const diagnostics = { steps: [] };
   const promiseUtilModule = {
@@ -319,6 +522,71 @@ test("fight pvp replay runtime bridge guards resource manager bundle maps before
   assert.ok(diagnostics.steps.includes("init-resource-fgui-promises"));
 
   guard.dispose();
+});
+
+test("fight pvp replay runtime bridge patches assetManager loadBundle and bundle downloader to root absolute bundle urls", () => {
+  const seenTargets = [];
+  const runtimeWindow = {
+    location: {
+      origin: "https://xyzw.xq5007.fun",
+      href: "https://xyzw.xq5007.fun/admin/orders",
+    },
+    cc: {
+      path: {
+        basename(value) {
+          return String(value).split("/").filter(Boolean).at(-1) || "";
+        },
+      },
+      assetManager: {
+        loadBundle(target, ...args) {
+          seenTargets.push(["loadBundle", target, ...args]);
+          return target;
+        },
+        downloader: {
+          _downloaders: {
+            bundle(target, options, callback) {
+              seenTargets.push(["bundle", target, options, callback]);
+              return target;
+            },
+          },
+        },
+      },
+    },
+  };
+  const diagnostics = { steps: [] };
+  const patch = installReplayBundleResolverPatch({
+    runtimeWindow,
+    diagnostics,
+  });
+
+  runtimeWindow.cc.assetManager.loadBundle("TEST_REMOTE_MODULE", "extra");
+  runtimeWindow.cc.assetManager.downloader._downloaders.bundle(
+    "main",
+    { version: "1" },
+    () => {},
+  );
+
+  assert.deepEqual(seenTargets[0].slice(0, 3), [
+    "loadBundle",
+    "https://xyzw.xq5007.fun/assets/TEST_REMOTE_MODULE",
+    "extra",
+  ]);
+  assert.equal(
+    seenTargets[1][1],
+    "https://xyzw.xq5007.fun/assets/main",
+  );
+  assert.ok(diagnostics.steps.includes("patch-local-bundle-target"));
+  assert.deepEqual(diagnostics.patchedBundleTargets, [
+    "https://xyzw.xq5007.fun/assets/TEST_REMOTE_MODULE",
+    "https://xyzw.xq5007.fun/assets/main",
+  ]);
+
+  patch.dispose();
+
+  const restoredLoadResult = runtimeWindow.cc.assetManager.loadBundle("TEST_REMOTE_MODULE");
+  const restoredDownloaderResult = runtimeWindow.cc.assetManager.downloader._downloaders.bundle("main");
+  assert.equal(restoredLoadResult, "TEST_REMOTE_MODULE");
+  assert.equal(restoredDownloaderResult, "main");
 });
 
 test("fight pvp replay runtime bridge reports missing external modules from incomplete game bundle", () => {
@@ -967,6 +1235,103 @@ test("fight pvp replay runtime bridge accepts the real fight_startpvp fixture th
   assert.equal(session.diagnostics.mapIdSource, "fixture.110001");
   assert.equal(session.diagnostics.fixtureMapFallbackUsed, true);
   assert.equal(session.diagnostics.replayStartSignal, true);
+
+  delete globalThis.window;
+  delete globalThis.HTMLElement;
+});
+
+test("fight pvp replay runtime bridge installs privacy guard before runtime boot", async () => {
+  class MockHTMLElement {
+    constructor() {
+      this.innerHTML = "";
+      this.clientWidth = 960;
+      this.clientHeight = 540;
+    }
+  }
+
+  globalThis.window = {
+    HTMLElement: MockHTMLElement,
+    clearTimeout,
+    requestAnimationFrame(callback) {
+      return setTimeout(callback, 0);
+    },
+    setTimeout,
+  };
+  globalThis.HTMLElement = MockHTMLElement;
+
+  const callOrder = [];
+  const session = await startFightPvpReplayRuntime({
+    replay: {
+      battleVersion: 123,
+      mapId: 110001,
+      battleData: {
+        version: 123,
+        mode: 7,
+        leftTeam: { team: [{ heroId: 1001 }] },
+        rightTeam: { team: [{ heroId: 2001 }] },
+        result: { isWin: true },
+      },
+    },
+    hostElement: new MockHTMLElement(),
+    runtimeAdapter: {
+      createCanvasHost: () => ({
+        canvas: { id: "replay-canvas", width: 960, height: 540 },
+        viewport: {},
+      }),
+      createVm2Shim: () => ({ dispose() {} }),
+      createWxShim: () => ({ dispose() {} }),
+      ensureRuntimeLoaded: async () => {},
+      ensureAuxiliaryBundlesLoaded: async () => ({ dispose() {} }),
+      installLoadingErrorObserver: () => ({ dispose() {} }),
+      installReplayAssetRequestObserver: () => ({ dispose() {} }),
+      installMissingModuleShims: () => ({ dispose() {}, providedAliases: new Set() }),
+      readRuntimeModules: () => ({}),
+      installReplayPrivacyGuard: () => {
+        callOrder.push("privacy");
+        return { dispose() {} };
+      },
+      installManifestShim: () => ({ dispose() {} }),
+      installPageExitGuard: () => ({ dispose() {} }),
+      installResourceManagerGuard: () => ({ dispose() {} }),
+      ensureBundleVersionContainers() {},
+      installBundleResolverPatch: () => ({ dispose() {} }),
+      ensureRuntimeBooted: async () => {
+        callOrder.push("boot");
+      },
+      ensureReplayBootstrapScene: async () => ({
+        bootstrapSceneName: "Bootstrap",
+        cleanup() {},
+      }),
+      probeGameBundleAssets: async () => [],
+      probeGameSceneAssets: async () => [],
+      inspectGameBundleModuleCoverage: async () => ({ missingModules: [] }),
+      waitForRuntimeReadyForReplay: async () => ({
+        ok: true,
+        sceneName: "Game",
+      }),
+      installReplayPromiseUtilShim: () => ({ dispose() {} }),
+      installReplayBattleStartProbe: () => ({
+        dispose() {},
+        waitForSignal: async () => ({
+          ok: true,
+          panel: "CommonBattleTeamPanel",
+          isReplay: true,
+          mapId: 110001,
+          battleMode: 7,
+        }),
+      }),
+      locateReplayEntrypoint: () => ({
+        label: "mock-entrypoint",
+      }),
+      startReplayEntrypoint: async () => ({
+        ok: true,
+        entrypoint: "mock-entrypoint",
+      }),
+    },
+  });
+
+  assert.equal(session.ok, true);
+  assert.deepEqual(callOrder, ["privacy", "boot"]);
 
   delete globalThis.window;
   delete globalThis.HTMLElement;

@@ -2,6 +2,7 @@ import {
   resolveFightPvpMapId,
   resolveFightPvpMapIdFromLiveContext,
 } from "./fightPvpReplayMapIdResolver.js";
+import { buildPvpMapDressSnapshot } from "./fightPvpReplayDressSnapshot.js";
 
 export const FIGHT_PVP_REPLAY_SOURCE = "fight-pvp-live";
 export const FIGHT_PVP_REPLAY_DEFAULT_STAGE_NAME = "切磋系统";
@@ -110,6 +111,22 @@ const normalizeOptionalReplayTimestamp = (value) => {
     return null;
   }
   return normalizeReplayTimestamp(value);
+};
+
+const extractPvpMapDressSnapshot = ({
+  existingDress = null,
+  selfRoleRaw = null,
+  tokenStoreRoleInfo = null,
+  dressPvpMapUsedId = null,
+} = {}) => {
+  const dressSnapshot = buildPvpMapDressSnapshot(existingDress)
+    || buildPvpMapDressSnapshot(selfRoleRaw?.role?.dress)
+    || buildPvpMapDressSnapshot(selfRoleRaw?.roleInfo?.dress)
+    || buildPvpMapDressSnapshot(tokenStoreRoleInfo?.role?.dress)
+    || buildPvpMapDressSnapshot(tokenStoreRoleInfo?.dress)
+    || buildPvpMapDressSnapshot(dressPvpMapUsedId);
+
+  return dressSnapshot || null;
 };
 
 export const normalizeReplaySide = (side, fallback = {}) => {
@@ -308,6 +325,12 @@ const buildFightPvpReplaySelfRoleSnapshot = ({
     ),
     dressPvpMapUsedId,
     dressPvpMapMapId,
+    dress: extractPvpMapDressSnapshot({
+      existingDress: existingSnapshot?.dress,
+      selfRoleRaw,
+      tokenStoreRoleInfo,
+      dressPvpMapUsedId,
+    }),
   };
 
   if (
@@ -315,6 +338,7 @@ const buildFightPvpReplaySelfRoleSnapshot = ({
     && !snapshot.pvpMapId
     && !snapshot.dressPvpMapUsedId
     && !snapshot.dressPvpMapMapId
+    && !snapshot.dress
   ) {
     return null;
   }
@@ -324,6 +348,8 @@ const buildFightPvpReplaySelfRoleSnapshot = ({
 
 const buildFightPvpReplayContext = ({
   existingContext = null,
+  selfRoleRaw = null,
+  tokenStoreRoleInfo = null,
   mapResolution = null,
 } = {}) => {
   const dressPvpMapUsedId = toPositiveNumber(
@@ -346,9 +372,20 @@ const buildFightPvpReplayContext = ({
     ),
     dressPvpMapUsedId,
     dressPvpMapMapId,
+    dress: extractPvpMapDressSnapshot({
+      existingDress: existingContext?.dress,
+      selfRoleRaw,
+      tokenStoreRoleInfo,
+      dressPvpMapUsedId,
+    }),
   };
 
-  if (!context.pvpMapId && !context.dressPvpMapUsedId && !context.dressPvpMapMapId) {
+  if (
+    !context.pvpMapId
+    && !context.dressPvpMapUsedId
+    && !context.dressPvpMapMapId
+    && !context.dress
+  ) {
     return null;
   }
 
@@ -480,6 +517,8 @@ export function normalizeFightPvpReplayPayload({
   });
   const normalizedContext = buildFightPvpReplayContext({
     existingContext: context,
+    selfRoleRaw,
+    tokenStoreRoleInfo,
     mapResolution: resolvedMapId,
   });
   const normalizedMapId = toPositiveNumber(resolvedMapId?.mapId, null);

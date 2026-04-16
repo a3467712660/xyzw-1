@@ -26,12 +26,6 @@ const REPLAY_AUXILIARY_SCRIPT_URLS = Object.freeze([
 ]);
 const REPLAY_AUXILIARY_REQUIRED_MODULES = Object.freeze([
   "ConfigsExt",
-  "decimal",
-  "decimal-number",
-  "LanguageExt",
-  "consts",
-  "data-index",
-  "random-lcg",
   "@jimu/basis",
   "@jimu/ecs",
   "@o4e/core",
@@ -39,6 +33,47 @@ const REPLAY_AUXILIARY_REQUIRED_MODULES = Object.freeze([
   "ts-md5",
   "@o4e/bon",
 ]);
+const REPLAY_AUXILIARY_MODULE_ALIASES = Object.freeze({
+  ConfigsExt: [
+    "../../../launcher/config/ConfigsExt",
+    "../../../../../launcher/config/ConfigsExt",
+  ],
+  LanguageExt: [
+    "../../../config/extensions/LanguageExt",
+    "../../../../config/extensions/LanguageExt",
+    "../../../../../config/extensions/LanguageExt",
+    "../../../extras/config/extensions/LanguageExt",
+    "../../../../extras/config/extensions/LanguageExt",
+    "../../../../../extras/config/extensions/LanguageExt",
+  ],
+  consts: [
+    "../consts/consts",
+    "../../../consts/consts",
+    "../../../extras/consts/consts",
+    "../../../../extras/consts/consts",
+    "../../../../../extras/consts/consts",
+  ],
+  "data-index": [
+    "../orange/generated/data-index",
+    "../../orange/generated/data-index",
+    "../../../orange/generated/data-index",
+    "../../../../orange/generated/data-index",
+    "../../../../../orange/generated/data-index",
+    "../../../extras/orange/generated/data-index",
+    "../../../../extras/orange/generated/data-index",
+    "../../../../../extras/orange/generated/data-index",
+  ],
+  "random-lcg": [
+    "../random/random-lcg",
+    "../../random/random-lcg",
+    "../../../random/random-lcg",
+    "../../../../random/random-lcg",
+    "../../../../../random/random-lcg",
+    "../../../extras/battle/basis/random/random-lcg",
+    "../../../../extras/battle/basis/random/random-lcg",
+    "../../../../../extras/battle/basis/random/random-lcg",
+  ],
+});
 const REPLAY_AUXILIARY_SOURCE_URLS = Object.freeze([
   "/xyzw/index.js",
   "/assets/main/index.js",
@@ -48,6 +83,60 @@ const REPLAY_VM2_SHIM_KEY = "VM2_INTERNAL_STATE_DO_NOT_USE_OR_PROGRAM_WILL_FAIL"
 
 const toErrorMessage = (error, fallback) =>
   error?.message || String(error || fallback || "Unknown error");
+
+const getReplayAuxiliaryModuleCandidates = (moduleName) => {
+  const normalizedName = String(moduleName || "").trim();
+  const candidates = new Set();
+  if (normalizedName) {
+    candidates.add(normalizedName);
+  }
+  for (const alias of REPLAY_AUXILIARY_MODULE_ALIASES[normalizedName] || []) {
+    if (alias) {
+      candidates.add(alias);
+    }
+  }
+  return [...candidates];
+};
+
+export const resolveReplayAuxiliaryModuleRegistration = ({
+  runtimeRequire,
+  moduleName,
+} = {}) => {
+  const candidates = getReplayAuxiliaryModuleCandidates(moduleName);
+  let lastError = null;
+
+  if (typeof runtimeRequire !== "function") {
+    return {
+      ok: false,
+      candidates,
+      error: new TypeError("XYZW runtime require is unavailable."),
+      resolvedName: null,
+      value: null,
+    };
+  }
+
+  for (const candidate of candidates) {
+    try {
+      return {
+        ok: true,
+        candidates,
+        error: null,
+        resolvedName: candidate,
+        value: runtimeRequire(candidate),
+      };
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  return {
+    ok: false,
+    candidates,
+    error: lastError,
+    resolvedName: null,
+    value: null,
+  };
+};
 
 const getRuntimeWindow = () => {
   if (typeof window === "undefined") {
@@ -489,7 +578,11 @@ export const ensureReplayAuxiliaryBundlesLoaded = async ({
       if (previousWindowKeys.has(key)) {
         continue;
       }
-      delete runtimeWindow[key];
+      try {
+        delete runtimeWindow[key];
+      } catch {
+        // Some auxiliary bundles expose non-configurable globals; keep cleanup best-effort.
+      }
     }
     for (const scriptElement of loadedScripts.reverse()) {
       scriptElement.remove?.();
@@ -504,18 +597,23 @@ export const ensureReplayAuxiliaryBundlesLoaded = async ({
     }
 
     const resolvedModules = [];
+    const replayAuxiliaryModuleResolutions = {};
     for (const moduleName of requiredModules) {
-      try {
-        runtimeWindow.__require(moduleName);
-        resolvedModules.push(moduleName);
-      } catch (error) {
+      const resolution = resolveReplayAuxiliaryModuleRegistration({
+        runtimeRequire: runtimeWindow.__require,
+        moduleName,
+      });
+      if (!resolution.ok) {
         throw new Error(
-          `Replay auxiliary bundles did not register required module "${moduleName}": ${toErrorMessage(error)}`,
+          `Replay auxiliary bundles did not register required module "${moduleName}" via any known alias (${resolution.candidates.join(", ")}): ${toErrorMessage(resolution.error)}`,
         );
       }
+      resolvedModules.push(moduleName);
+      replayAuxiliaryModuleResolutions[moduleName] = resolution.resolvedName;
     }
 
     diagnostics.replayAuxiliaryModules = resolvedModules;
+    diagnostics.replayAuxiliaryModuleResolutions = replayAuxiliaryModuleResolutions;
     diagnostics.replayAuxiliaryScripts = [...scriptUrls];
 
     return {
@@ -1057,24 +1155,98 @@ export const installReplayPrivacyGuard = ({
   diagnostics,
 } = {}) => {
   const runtimeRequire = runtimeWindow.__require;
-  const gameLoginModule = typeof runtimeRequire === "function"
-    ? safeRequireModule(runtimeRequire, "game-login")
-    : null;
+  const readModule = (...names) => {
+    if (typeof runtimeRequire !== "function") {
+      return null;
+    }
+    for (const name of names) {
+      const moduleValue = safeRequireModule(runtimeRequire, name);
+      if (moduleValue) {
+        return moduleValue;
+      }
+    }
+    return null;
+  };
+
+  const gameLoginModule = readModule("game-login");
   const gameLoginPrototype = gameLoginModule?.GameLoginState?.prototype;
   const previousCheckShowPrivacy = gameLoginPrototype?._checkShowPrivacy;
   const previousBegin = gameLoginPrototype?.begin;
-  if (!gameLoginPrototype) {
+  const userAuthModule = readModule("UserAuth");
+  const userAuthPrototype = userAuthModule?.UserAuth?.prototype;
+  const previousUserAuthOnLoad = userAuthPrototype?.onLoad;
+  const previousUserAuthShowAuth = userAuthPrototype?.showAuth;
+  const privacyPolicyModule = readModule("UserAgreementAndPrivacyPolicy");
+  const privacyPolicyPrototype =
+    privacyPolicyModule?.UserAgreementAndPrivacyPolicy?.prototype;
+  const previousPrivacyPolicyOnLoad = privacyPolicyPrototype?.onLoad;
+  const globalVarModule = readModule("GlobalVarManager");
+  const globalVarKeyModule = readModule("types-common");
+  const setGlobal = globalVarModule?.SET_GLOBAL;
+  const globalVarKey = globalVarKeyModule?.GlobalVarKey || {};
+
+  if (
+    !gameLoginPrototype
+    && !userAuthPrototype
+    && !privacyPolicyPrototype
+  ) {
     return {
       dispose() {},
     };
   }
 
+  const resolvePrivacyGlobals = () => {
+    const globalVarManagerInstance = globalVarModule?.GlobalVarManager?._instance;
+    if (
+      typeof setGlobal !== "function"
+      || !globalVarManagerInstance
+      || typeof globalVarManagerInstance.set !== "function"
+    ) {
+      return;
+    }
+
+    if (globalVarKey.UserAuthDeferred) {
+      setGlobal(globalVarKey.UserAuthDeferred, Promise.resolve());
+    }
+    if (globalVarKey.UserAgreementPrefab) {
+      setGlobal(globalVarKey.UserAgreementPrefab, null);
+    }
+    if (globalVarKey.PrivacyPolicyPrefab) {
+      setGlobal(globalVarKey.PrivacyPolicyPrefab, null);
+    }
+  };
+
   const guardedCheckShowPrivacy = async function guardedCheckShowPrivacy() {
     diagnostics?.steps?.push?.("blocked-game-login-privacy-check");
+    resolvePrivacyGlobals();
     return null;
   };
   const guardedBegin = async function guardedBegin() {
     diagnostics?.steps?.push?.("blocked-game-login-begin");
+    resolvePrivacyGlobals();
+    return null;
+  };
+  const guardedUserAuthShowAuth = function guardedUserAuthShowAuth() {
+    diagnostics?.steps?.push?.("blocked-user-auth-show-auth");
+    if (this?.deferred?.resolve) {
+      this.deferred.resolve();
+    }
+    this.deferred = null;
+    if (this?.node) {
+      this.node.active = false;
+    }
+    resolvePrivacyGlobals();
+    return null;
+  };
+  const guardedUserAuthOnLoad = function guardedUserAuthOnLoad() {
+    diagnostics?.steps?.push?.("blocked-user-auth-onload");
+    return guardedUserAuthShowAuth.call(this, false);
+  };
+  const guardedPrivacyPolicyOnLoad = function guardedPrivacyPolicyOnLoad() {
+    diagnostics?.steps?.push?.("blocked-privacy-policy-onload");
+    if (this?.node) {
+      this.node.active = false;
+    }
     return null;
   };
 
@@ -1084,6 +1256,17 @@ export const installReplayPrivacyGuard = ({
   if (typeof previousBegin === "function") {
     gameLoginPrototype.begin = guardedBegin;
   }
+  if (typeof previousUserAuthOnLoad === "function") {
+    userAuthPrototype.onLoad = guardedUserAuthOnLoad;
+  }
+  if (typeof previousUserAuthShowAuth === "function") {
+    userAuthPrototype.showAuth = guardedUserAuthShowAuth;
+  }
+  if (typeof previousPrivacyPolicyOnLoad === "function") {
+    privacyPolicyPrototype.onLoad = guardedPrivacyPolicyOnLoad;
+  }
+
+  resolvePrivacyGlobals();
 
   return {
     dispose() {
@@ -1098,6 +1281,24 @@ export const installReplayPrivacyGuard = ({
         && gameLoginPrototype.begin === guardedBegin
       ) {
         gameLoginPrototype.begin = previousBegin;
+      }
+      if (
+        typeof previousUserAuthOnLoad === "function"
+        && userAuthPrototype?.onLoad === guardedUserAuthOnLoad
+      ) {
+        userAuthPrototype.onLoad = previousUserAuthOnLoad;
+      }
+      if (
+        typeof previousUserAuthShowAuth === "function"
+        && userAuthPrototype?.showAuth === guardedUserAuthShowAuth
+      ) {
+        userAuthPrototype.showAuth = previousUserAuthShowAuth;
+      }
+      if (
+        typeof previousPrivacyPolicyOnLoad === "function"
+        && privacyPolicyPrototype?.onLoad === guardedPrivacyPolicyOnLoad
+      ) {
+        privacyPolicyPrototype.onLoad = previousPrivacyPolicyOnLoad;
       }
     },
   };
@@ -1451,34 +1652,63 @@ export const installReplayBundleResolverPatch = ({
   runtimeWindow = getRuntimeWindow(),
   diagnostics,
 } = {}) => {
+  const assetManager = runtimeWindow.cc?.assetManager;
   const downloader = runtimeWindow.cc?.assetManager?.downloader;
   const bundleDownloaders = downloader?._downloaders;
   const originalBundleDownloader = bundleDownloaders?.bundle;
+  const originalLoadBundle = assetManager?.loadBundle;
 
-  if (!bundleDownloaders || typeof originalBundleDownloader !== "function") {
+  if (
+    (!bundleDownloaders || typeof originalBundleDownloader !== "function")
+    && typeof originalLoadBundle !== "function"
+  ) {
     return {
       dispose() {},
     };
   }
+
+  const patchedTargets = new Set();
+  const normalizeBundleTarget = (target) => {
+    const nextTarget = toAbsoluteBundleRequestTarget(target, runtimeWindow);
+    if (nextTarget !== target && !patchedTargets.has(nextTarget)) {
+      patchedTargets.add(nextTarget);
+      diagnostics?.steps?.push?.("patch-local-bundle-target");
+      diagnostics.patchedBundleTargets = [
+        ...(diagnostics.patchedBundleTargets || []),
+        nextTarget,
+      ];
+    }
+    return nextTarget;
+  };
 
   const patchedBundleDownloader = function patchedBundleDownloader(
     target,
     options,
     callback,
   ) {
-    const nextTarget = toAbsoluteBundleRequestTarget(target, runtimeWindow);
-    if (nextTarget !== target) {
-      diagnostics?.steps?.push?.("patch-local-bundle-target");
-    }
+    const nextTarget = normalizeBundleTarget(target);
     return originalBundleDownloader.call(this, nextTarget, options, callback);
   };
 
-  bundleDownloaders.bundle = patchedBundleDownloader;
+  if (bundleDownloaders && typeof originalBundleDownloader === "function") {
+    bundleDownloaders.bundle = patchedBundleDownloader;
+  }
+
+  const patchedLoadBundle = function patchedLoadBundle(target, ...args) {
+    return originalLoadBundle.call(this, normalizeBundleTarget(target), ...args);
+  };
+
+  if (assetManager && typeof originalLoadBundle === "function") {
+    assetManager.loadBundle = patchedLoadBundle;
+  }
 
   return {
     dispose() {
-      if (bundleDownloaders.bundle === patchedBundleDownloader) {
+      if (bundleDownloaders?.bundle === patchedBundleDownloader) {
         bundleDownloaders.bundle = originalBundleDownloader;
+      }
+      if (assetManager?.loadBundle === patchedLoadBundle) {
+        assetManager.loadBundle = originalLoadBundle;
       }
     },
   };
@@ -2314,6 +2544,12 @@ export const startFightPvpReplayRuntime = async ({
     const modules = adapter.readRuntimeModules();
     diagnostics.runtimeSnapshotBeforeBoot = getRuntimeSnapshot(modules);
 
+    diagnostics.steps.push("install-replay-privacy-guard");
+    const replayPrivacyGuard = adapter.installReplayPrivacyGuard({
+      diagnostics,
+    });
+    cleanups.push(() => replayPrivacyGuard.dispose?.());
+
     diagnostics.steps.push("install-manifest-shim");
     const manifestShim = adapter.installManifestShim({
       modules,
@@ -2342,6 +2578,12 @@ export const startFightPvpReplayRuntime = async ({
       diagnostics,
     });
 
+    diagnostics.steps.push("install-bundle-resolver-patch-preboot");
+    const bundleResolverPatch = adapter.installBundleResolverPatch({
+      diagnostics,
+    });
+    cleanups.push(() => bundleResolverPatch.dispose?.());
+
     diagnostics.steps.push("ensure-runtime-booted");
     await adapter.ensureRuntimeBooted({ canvas, diagnostics });
     diagnostics.runtimeSnapshotAfterBoot = getRuntimeSnapshot(modules);
@@ -2359,12 +2601,6 @@ export const startFightPvpReplayRuntime = async ({
       modules,
       diagnostics,
     });
-
-    diagnostics.steps.push("install-bundle-resolver-patch");
-    const bundleResolverPatch = adapter.installBundleResolverPatch({
-      diagnostics,
-    });
-    cleanups.push(() => bundleResolverPatch.dispose?.());
 
     await adapter.probeGameBundleAssets({
       modules,
@@ -2423,12 +2659,6 @@ export const startFightPvpReplayRuntime = async ({
         dispose,
       };
     }
-
-    diagnostics.steps.push("install-replay-privacy-guard");
-    const replayPrivacyGuard = adapter.installReplayPrivacyGuard({
-      diagnostics,
-    });
-    cleanups.push(() => replayPrivacyGuard.dispose?.());
 
     diagnostics.steps.push("install-replay-promise-util-shim");
     const replayPromiseUtilShim = adapter.installReplayPromiseUtilShim({

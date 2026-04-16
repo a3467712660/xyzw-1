@@ -93,11 +93,13 @@ test("fight pvp replay normalizer keeps runtime fields stable and persists map d
     pvpMapId: 110001,
     dressPvpMapUsedId: null,
     dressPvpMapMapId: null,
+    dress: null,
   });
   assert.deepEqual(replay.context, {
     pvpMapId: 110001,
     dressPvpMapUsedId: null,
     dressPvpMapMapId: null,
+    dress: null,
   });
   assert.equal(replay.meta.mapIdDiagnostics.availableValues["selfRoleRaw.role.pvpMapId"], 110001);
   assert.equal(replay.stageNameStr, "切磋系统");
@@ -191,11 +193,32 @@ test("fight pvp replay normalizer preserves dress used id without polluting pvpM
     pvpMapId: null,
     dressPvpMapUsedId: 7001,
     dressPvpMapMapId: null,
+    dress: {
+      pvpMap: {
+        used: 7001,
+      },
+    },
   });
   assert.deepEqual(replay.context, {
     pvpMapId: null,
     dressPvpMapUsedId: 7001,
     dressPvpMapMapId: null,
+    dress: {
+      pvpMap: {
+        used: 7001,
+      },
+    },
+  });
+  const serializedReplay = JSON.parse(JSON.stringify(replay));
+  assert.deepEqual(serializedReplay.selfRoleSnapshot?.dress, {
+    pvpMap: {
+      used: 7001,
+    },
+  });
+  assert.deepEqual(serializedReplay.context?.dress, {
+    pvpMap: {
+      used: 7001,
+    },
   });
   assert.equal(
     replay.meta.mapIdDiagnostics.availableValues["selfRoleRaw.role.dress.configLookup"],
@@ -244,11 +267,21 @@ test("fight pvp replay normalizer stores final mapId separately from dress used 
     pvpMapId: 120005,
     dressPvpMapUsedId: 7001,
     dressPvpMapMapId: 120005,
+    dress: {
+      pvpMap: {
+        used: 7001,
+      },
+    },
   });
   assert.deepEqual(replay.context, {
     pvpMapId: 120005,
     dressPvpMapUsedId: 7001,
     dressPvpMapMapId: 120005,
+    dress: {
+      pvpMap: {
+        used: 7001,
+      },
+    },
   });
 });
 
@@ -284,11 +317,21 @@ test("fight pvp replay normalizer clears leaked dress used ids from persisted re
     pvpMapId: null,
     dressPvpMapUsedId: 7001,
     dressPvpMapMapId: null,
+    dress: {
+      pvpMap: {
+        used: 7001,
+      },
+    },
   });
   assert.deepEqual(replay.context, {
     pvpMapId: null,
     dressPvpMapUsedId: 7001,
     dressPvpMapMapId: null,
+    dress: {
+      pvpMap: {
+        used: 7001,
+      },
+    },
   });
 });
 

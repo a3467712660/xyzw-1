@@ -4,8 +4,10 @@ import {
 import {
   resolveFightPvpMapIdFromReplay,
 } from "./fightPvpReplayMapIdResolver.js";
+import { buildPvpMapDressSnapshot } from "./fightPvpReplayDressSnapshot.js";
 
 export const MAX_FIGHT_PVP_REPLAYS = 20;
+export const FIGHT_PVP_REPLAY_LIVE_CONTEXT_REFRESH_TIMEOUT_MS = 2500;
 
 const getStorage = () => {
   if (typeof globalThis === "undefined") {
@@ -43,6 +45,76 @@ const toComparableText = (value) => {
   return text || null;
 };
 
+const getTokenStoreGameData = (tokenStore) => {
+  const gameData = tokenStore?.gameData;
+  if (gameData?.value && typeof gameData.value === "object") {
+    return gameData.value;
+  }
+  return gameData && typeof gameData === "object" ? gameData : null;
+};
+
+export const buildFightPvpReplayLiveContext = ({
+  tokenStore = null,
+  tokenStoreRoleInfo = null,
+} = {}) => {
+  const resolvedRoleInfo = tokenStoreRoleInfo || getTokenStoreGameData(tokenStore)?.roleInfo || null;
+  if (!resolvedRoleInfo) {
+    return null;
+  }
+
+  return {
+    tokenStoreRoleInfo: resolvedRoleInfo,
+  };
+};
+
+export const refreshFightPvpReplayLiveContext = async ({
+  tokenStore = null,
+  tokenId = "",
+  timeout = FIGHT_PVP_REPLAY_LIVE_CONTEXT_REFRESH_TIMEOUT_MS,
+} = {}) => {
+  const fallbackContext = buildFightPvpReplayLiveContext({ tokenStore });
+  const normalizedTokenId = String(tokenId || tokenStore?.selectedToken?.id || "").trim();
+  if (!normalizedTokenId) {
+    return fallbackContext;
+  }
+
+  const wsStatus = tokenStore?.getWebSocketStatus?.(normalizedTokenId);
+  if (wsStatus && wsStatus !== "connected") {
+    return fallbackContext;
+  }
+
+  if (typeof tokenStore?.sendMessageWithPromise !== "function") {
+    return fallbackContext;
+  }
+
+  try {
+    const roleInfo = await tokenStore.sendMessageWithPromise(
+      normalizedTokenId,
+      "role_getroleinfo",
+      {},
+      timeout,
+    );
+    if (!roleInfo) {
+      return buildFightPvpReplayLiveContext({ tokenStore });
+    }
+
+    const gameData = getTokenStoreGameData(tokenStore);
+    if (gameData) {
+      gameData.roleInfo = roleInfo;
+      if ("lastUpdated" in gameData) {
+        gameData.lastUpdated = new Date().toISOString();
+      }
+    }
+
+    return buildFightPvpReplayLiveContext({
+      tokenStore,
+      tokenStoreRoleInfo: roleInfo,
+    });
+  } catch {
+    return buildFightPvpReplayLiveContext({ tokenStore });
+  }
+};
+
 const pickReplayMapFieldSnapshot = (value) => ({
   mapId: toComparablePositiveNumber(value?.mapId),
   pvpMapId: toComparablePositiveNumber(value?.pvpMapId),
@@ -52,11 +124,13 @@ const pickReplayMapFieldSnapshot = (value) => ({
     pvpMapId: toComparablePositiveNumber(value?.selfRoleSnapshot?.pvpMapId),
     dressPvpMapUsedId: toComparablePositiveNumber(value?.selfRoleSnapshot?.dressPvpMapUsedId),
     dressPvpMapMapId: toComparablePositiveNumber(value?.selfRoleSnapshot?.dressPvpMapMapId),
+    dress: buildPvpMapDressSnapshot(value?.selfRoleSnapshot?.dress),
   },
   context: {
     pvpMapId: toComparablePositiveNumber(value?.context?.pvpMapId),
     dressPvpMapUsedId: toComparablePositiveNumber(value?.context?.dressPvpMapUsedId),
     dressPvpMapMapId: toComparablePositiveNumber(value?.context?.dressPvpMapMapId),
+    dress: buildPvpMapDressSnapshot(value?.context?.dress),
   },
 });
 
@@ -210,18 +284,29 @@ export const loadFightPvpReplays = ({ userId, tokenId, liveContext = null } = {}
   }
 };
 
-export const saveFightPvpReplays = ({ userId, tokenId, records } = {}) => {
+export const saveFightPvpReplays = ({
+  userId,
+  tokenId,
+  records,
+  liveContext = null,
+} = {}) => {
   const storageKey = buildFightPvpReplayStorageKey({ userId, tokenId });
-  return writeFightPvpReplayRecords(storageKey, records);
+  return writeFightPvpReplayRecords(storageKey, records, { liveContext });
 };
 
-export const appendFightPvpReplay = ({ userId, tokenId, replay } = {}) => {
-  const current = loadFightPvpReplays({ userId, tokenId });
+export const appendFightPvpReplay = ({
+  userId,
+  tokenId,
+  replay,
+  liveContext = null,
+} = {}) => {
+  const current = loadFightPvpReplays({ userId, tokenId, liveContext });
   const incoming = Array.isArray(replay) ? replay : [replay];
   return saveFightPvpReplays({
     userId,
     tokenId,
     records: [...incoming, ...current],
+    liveContext,
   });
 };
 

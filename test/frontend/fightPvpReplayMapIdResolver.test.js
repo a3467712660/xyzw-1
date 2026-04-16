@@ -254,6 +254,41 @@ test("fight pvp mapId resolver backfills from persisted selfRoleSnapshot dress u
   );
 });
 
+test("fight pvp mapId resolver backfills from persisted selfRoleSnapshot dress snapshot through PVPMapConf", () => {
+  globalThis.__require = (moduleName) => {
+    if (moduleName === "../../../../../launcher/config/Configs") {
+      return {
+        PVPMapConf: {
+          getById(id) {
+            return id === 7001 ? { mapId: 120005 } : null;
+          },
+        },
+      };
+    }
+    throw new Error(`Cannot find module '${moduleName}'`);
+  };
+
+  const result = resolveFightPvpMapIdFromReplay({
+    replay: {
+      selfRoleSnapshot: {
+        dress: {
+          pvpMap: {
+            used: 7001,
+          },
+        },
+      },
+    },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.mapId, 120005);
+  assert.equal(result.mapIdSource, "replay.selfRoleSnapshot.dress.PVPMapConf.mapId");
+  assert.equal(
+    result.diagnostics.availableValues["replay.selfRoleSnapshot.dress.PVPMapConf[7001].mapId"],
+    120005,
+  );
+});
+
 test("fight pvp mapId resolver backfills from persisted context dress used id through PVPMapConf", () => {
   globalThis.__require = (moduleName) => {
     if (moduleName === "../../../../../launcher/config/Configs") {
@@ -292,6 +327,41 @@ test("fight pvp mapId resolver backfills from persisted context dress used id th
   );
   assert.equal(
     result.diagnostics.availableValues["replay.context.PVPMapConf[7001].mapId"],
+    120005,
+  );
+});
+
+test("fight pvp mapId resolver backfills from persisted context dress snapshot through PVPMapConf", () => {
+  globalThis.__require = (moduleName) => {
+    if (moduleName === "../../../../../launcher/config/Configs") {
+      return {
+        PVPMapConf: {
+          getById(id) {
+            return id === 7001 ? { mapId: 120005 } : null;
+          },
+        },
+      };
+    }
+    throw new Error(`Cannot find module '${moduleName}'`);
+  };
+
+  const result = resolveFightPvpMapIdFromReplay({
+    replay: {
+      context: {
+        dress: {
+          pvpMap: {
+            used: 7001,
+          },
+        },
+      },
+    },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.mapId, 120005);
+  assert.equal(result.mapIdSource, "replay.context.dress.PVPMapConf.mapId");
+  assert.equal(
+    result.diagnostics.availableValues["replay.context.dress.PVPMapConf[7001].mapId"],
     120005,
   );
 });
