@@ -1,18 +1,19 @@
 import {
-  buildFightPvpBattleInputData,
   buildFightPvpBattleInputMissingMessage,
   cloneJsonValue,
-  createFightPvpBattleInputSnapshot,
+  createFightPvpExactBattleInput,
   getFightPvpBattleInputMissingFields,
   getFightPvpReplayBattleVersion,
   rehydrateFightPvpBattleInputSnapshot,
+  serializeFightPvpBattleInputSnapshot,
   summarizeFightPvpBattleInput,
   toNonEmptyString,
   toPositiveNumber,
-} from "./fightPvpBattleInputSnapshot.js";
+} from "./fightPvpExactBattleInput.js";
 import {
   createFightPvpReplayRecordFromBattleInput,
   FIGHT_PVP_REPLAY_SOURCE,
+  FIGHT_PVP_REPLAY_SOURCE_TYPES,
   normalizeReplaySide,
 } from "./fightPvpReplayNormalizer.js";
 import {
@@ -23,7 +24,8 @@ import {
 export const MAX_FIGHT_PVP_REPLAYS = 20;
 export const FIGHT_PVP_REPLAY_LIVE_CONTEXT_REFRESH_TIMEOUT_MS = 2500;
 
-const FIGHT_PVP_REPLAY_STORAGE_VERSION = "v2";
+const FIGHT_PVP_REPLAY_STORAGE_VERSION = "v3";
+const FIGHT_PVP_PREVIOUS_STORAGE_VERSION = "v2";
 const FIGHT_PVP_LEGACY_STORAGE_VERSION = "v1";
 
 const getStorage = () => {
@@ -134,6 +136,13 @@ const buildLegacyFightPvpReplayStorageKey = ({ userId, tokenId } = {}) =>
     version: FIGHT_PVP_LEGACY_STORAGE_VERSION,
   });
 
+const buildPreviousFightPvpReplayStorageKey = ({ userId, tokenId } = {}) =>
+  buildStorageKey({
+    userId,
+    tokenId,
+    version: FIGHT_PVP_PREVIOUS_STORAGE_VERSION,
+  });
+
 const parseStoredRecords = (raw) => {
   if (!raw) {
     return [];
@@ -176,6 +185,8 @@ const buildUnplayableLegacyRecord = (value, message) => {
     mapIdResolveReason: toNonEmptyString(value?.mapIdResolveReason) || null,
     dressPvpMapUsedId: toPositiveNumber(value?.dressPvpMapUsedId, null),
     selfRoleContextSource: toNonEmptyString(value?.selfRoleContextSource) || null,
+    runtimeRoleAvailable: Boolean(value?.runtimeRoleAvailable),
+    battleInputAvailable: Boolean(value?.battleInputAvailable),
     selfRoleSnapshot: cloneJsonValue(value?.selfRoleSnapshot) || null,
     context: cloneJsonValue(value?.context) || null,
     backfilledAt: value?.backfilledAt || null,
@@ -184,10 +195,16 @@ const buildUnplayableLegacyRecord = (value, message) => {
     startTipTopName: toNonEmptyString(value?.startTipTopName) || null,
     startTipStage: toNonEmptyString(value?.startTipStage) || null,
     battleInputSnapshot: cloneJsonValue(value?.battleInputSnapshot) || null,
+    exactBattleInputData: null,
     battleInputData: null,
     isPlayable: false,
     disabledReason: message || "旧回放数据结构不完整，当前无法播放。",
-    sourceType: value?.battleInputSnapshot ? "battle-input-snapshot" : "legacy-payload",
+    sourceType: value?.battleInputSnapshot
+      ? FIGHT_PVP_REPLAY_SOURCE_TYPES.PERSISTED_BATTLE_INPUT_SNAPSHOT
+      : FIGHT_PVP_REPLAY_SOURCE_TYPES.LEGACY_ADAPTED_REPLAY,
+    battleInputSource: value?.battleInputSnapshot
+      ? FIGHT_PVP_REPLAY_SOURCE_TYPES.PERSISTED_BATTLE_INPUT_SNAPSHOT
+      : FIGHT_PVP_REPLAY_SOURCE_TYPES.LEGACY_ADAPTED_REPLAY,
     missingRuntimeFields: value?.battleInputSnapshot ? [] : ["battleInputSnapshot"],
     battleInputSummary: null,
   };
@@ -201,20 +218,28 @@ const normalizeCurrentFightPvpReplayRecord = (
     return null;
   }
 
-  const directBattleInput = value?.battleInputData
-    ? buildFightPvpBattleInputData(value.battleInputData, { mutate: true })
-    : null;
-  const battleInputSnapshot = directBattleInput
-    ? createFightPvpBattleInputSnapshot(directBattleInput)
+  const directBattleInput = value?.exactBattleInputData
+    ? createFightPvpExactBattleInput(value.exactBattleInputData, { mutate: true })
     : (
-        value?.battleInputSnapshot
-          ? cloneJsonValue(value.battleInputSnapshot)
+        value?.battleInputData
+          ? createFightPvpExactBattleInput(value.battleInputData, { mutate: true })
           : null
       );
+  const battleInputSnapshot = directBattleInput
+    ? serializeFightPvpBattleInputSnapshot(directBattleInput, {
+        diagnostics: value?.battleInputSnapshot?.diagnostics || value?.meta?.mapIdDiagnostics || null,
+      })
+    : null;
+  const persistedBattleInputSnapshot = battleInputSnapshot
+    || (
+      value?.battleInputSnapshot
+        ? cloneJsonValue(value.battleInputSnapshot)
+        : null
+    );
   const replayBattleInput = directBattleInput
     || (
-      battleInputSnapshot
-        ? rehydrateFightPvpBattleInputSnapshot(battleInputSnapshot)
+      persistedBattleInputSnapshot
+        ? rehydrateFightPvpBattleInputSnapshot(persistedBattleInputSnapshot)
         : null
     );
 
@@ -226,7 +251,7 @@ const normalizeCurrentFightPvpReplayRecord = (
   }
 
   const normalizedRecord = createFightPvpReplayRecordFromBattleInput({
-    battleInputData: replayBattleInput,
+    exactBattleInputData: replayBattleInput,
     tokenId: value?.tokenId,
     targetId: value?.targetId,
     targetName: value?.targetName,
@@ -241,13 +266,19 @@ const normalizeCurrentFightPvpReplayRecord = (
     mapIdResolveReason: value?.mapIdResolveReason,
     dressPvpMapUsedId: value?.dressPvpMapUsedId,
     selfRoleContextSource: value?.selfRoleContextSource,
+    runtimeRoleAvailable: value?.runtimeRoleAvailable,
+    battleInputAvailable: value?.battleInputAvailable,
     selfRoleSnapshot: value?.selfRoleSnapshot,
     context: value?.context,
     meta: value?.meta,
     backfilledAt: value?.backfilledAt,
   });
   const sourceType = value?.sourceType
-    || (directBattleInput ? "battle-input-data" : "battle-input-snapshot");
+    || (
+      directBattleInput
+        ? FIGHT_PVP_REPLAY_SOURCE_TYPES.LIVE_MEMORY_BATTLE_INPUT
+        : FIGHT_PVP_REPLAY_SOURCE_TYPES.PERSISTED_BATTLE_INPUT_SNAPSHOT
+    );
   const missingRuntimeFields = getFightPvpBattleInputMissingFields(replayBattleInput);
   const disabledReason = missingRuntimeFields.length > 0
     ? buildFightPvpBattleInputMissingMessage(missingRuntimeFields)
@@ -255,17 +286,22 @@ const normalizeCurrentFightPvpReplayRecord = (
 
   return {
     ...normalizedRecord,
-    battleInputSnapshot: battleInputSnapshot || normalizedRecord.battleInputSnapshot,
+    battleInputSnapshot: persistedBattleInputSnapshot || normalizedRecord.battleInputSnapshot,
+    exactBattleInputData: keepRuntimeBattleInput
+      ? (directBattleInput || replayBattleInput)
+      : null,
     battleInputData: keepRuntimeBattleInput
       ? (directBattleInput || replayBattleInput)
       : null,
     isPlayable: missingRuntimeFields.length === 0,
     disabledReason,
     sourceType,
+    battleInputSource: sourceType,
     missingRuntimeFields,
     battleInputSummary: summarizeFightPvpBattleInput(replayBattleInput, {
       missingRuntimeFields,
       sourceType,
+      battleInputSource: sourceType,
       mapIdSource: normalizedRecord.mapIdSource,
       pvpMapIdSource: normalizedRecord.pvpMapIdSource,
       fixtureMapFallbackUsed: Boolean(
@@ -324,6 +360,8 @@ const toStoredCurrentFightPvpReplayRecord = (record) => ({
   mapIdResolveReason: record.mapIdResolveReason,
   dressPvpMapUsedId: record.dressPvpMapUsedId,
   selfRoleContextSource: record.selfRoleContextSource,
+  runtimeRoleAvailable: record.runtimeRoleAvailable,
+  battleInputAvailable: record.battleInputAvailable,
   selfRoleSnapshot: cloneJsonValue(record.selfRoleSnapshot),
   context: cloneJsonValue(record.context),
   backfilledAt: record.backfilledAt,
@@ -334,7 +372,8 @@ const toStoredCurrentFightPvpReplayRecord = (record) => ({
   battleInputSnapshot: cloneJsonValue(record.battleInputSnapshot),
   isPlayable: record.isPlayable,
   disabledReason: record.disabledReason,
-  sourceType: "battle-input-snapshot",
+  sourceType: FIGHT_PVP_REPLAY_SOURCE_TYPES.PERSISTED_BATTLE_INPUT_SNAPSHOT,
+  battleInputSource: FIGHT_PVP_REPLAY_SOURCE_TYPES.PERSISTED_BATTLE_INPUT_SNAPSHOT,
 });
 
 const writeCurrentFightPvpReplayRecords = (
@@ -348,7 +387,7 @@ const writeCurrentFightPvpReplayRecords = (
 
   const sanitized = sanitizeCurrentFightPvpReplayRecords(records);
   const storable = sanitized
-    .filter((record) => record?.battleInputSnapshot)
+    .filter((record) => record?.battleInputSnapshot && record?.isPlayable !== false)
     .map(toStoredCurrentFightPvpReplayRecord);
   const queue = storable.slice();
 
@@ -370,15 +409,28 @@ const writeCurrentFightPvpReplayRecords = (
 const loadStoredCurrentFightPvpReplayRecords = ({
   userId,
   tokenId,
+  storageKey = null,
 } = {}) => {
   const storage = getStorage();
   if (!storage) {
     return [];
   }
 
-  const raw = storage.getItem(buildFightPvpReplayStorageKey({ userId, tokenId }));
+  const raw = storage.getItem(
+    storageKey || buildFightPvpReplayStorageKey({ userId, tokenId }),
+  );
   return sanitizeCurrentFightPvpReplayRecords(parseStoredRecords(raw));
 };
+
+const loadPreviousFightPvpReplayRecords = ({
+  userId,
+  tokenId,
+} = {}) =>
+  loadStoredCurrentFightPvpReplayRecords({
+    userId,
+    tokenId,
+    storageKey: buildPreviousFightPvpReplayStorageKey({ userId, tokenId }),
+  });
 
 const loadLegacyFightPvpReplayRecords = ({
   userId,
@@ -451,9 +503,9 @@ const mergeReplayRecordLists = (...recordGroups) => {
 
   for (const group of recordGroups) {
     for (const item of group || []) {
-      const normalized = item?.battleInputSnapshot || item?.battleInputData
+      const normalized = item?.battleInputSnapshot || item?.battleInputData || item?.exactBattleInputData
         ? normalizeCurrentFightPvpReplayRecord(item, {
-            keepRuntimeBattleInput: Boolean(item?.battleInputData),
+            keepRuntimeBattleInput: Boolean(item?.battleInputData || item?.exactBattleInputData),
           })
         : item;
       const dedupeKey = dedupeReplayKey(normalized);
@@ -478,6 +530,10 @@ export const loadFightPvpReplays = ({ userId, tokenId, liveContext = null } = {}
     userId,
     tokenId,
   });
+  const previousCurrentRecords = loadPreviousFightPvpReplayRecords({
+    userId,
+    tokenId,
+  });
   const legacyRecords = loadLegacyFightPvpReplayRecords({
     userId,
     tokenId,
@@ -485,11 +541,17 @@ export const loadFightPvpReplays = ({ userId, tokenId, liveContext = null } = {}
   });
 
   let effectiveCurrentRecords = currentRecords;
-  if (legacyRecords.shouldRewriteCurrentStorage && legacyRecords.migratedRecords.length > 0) {
+  const shouldRewriteCurrentStorage = previousCurrentRecords.length > 0
+    || (legacyRecords.shouldRewriteCurrentStorage && legacyRecords.migratedRecords.length > 0);
+  if (shouldRewriteCurrentStorage) {
     const storageKey = buildFightPvpReplayStorageKey({ userId, tokenId });
     writeCurrentFightPvpReplayRecords(
       storageKey,
-      mergeReplayRecordLists(currentRecords, legacyRecords.migratedRecords),
+      mergeReplayRecordLists(
+        currentRecords,
+        previousCurrentRecords,
+        legacyRecords.migratedRecords,
+      ),
     );
     effectiveCurrentRecords = loadStoredCurrentFightPvpReplayRecords({
       userId,
@@ -499,6 +561,7 @@ export const loadFightPvpReplays = ({ userId, tokenId, liveContext = null } = {}
 
   return mergeReplayRecordLists(
     effectiveCurrentRecords,
+    previousCurrentRecords,
     legacyRecords.unresolvedRecords,
   );
 };
@@ -525,6 +588,7 @@ export const appendFightPvpReplay = ({
   liveContext = null,
 } = {}) => {
   const current = loadStoredCurrentFightPvpReplayRecords({ userId, tokenId });
+  const previousCurrent = loadPreviousFightPvpReplayRecords({ userId, tokenId });
   const incoming = sanitizeCurrentFightPvpReplayRecords(
     Array.isArray(replay) ? replay : [replay],
     { keepRuntimeBattleInput: true },
@@ -533,7 +597,7 @@ export const appendFightPvpReplay = ({
   return saveFightPvpReplays({
     userId,
     tokenId,
-    records: mergeReplayRecordLists(incoming, current),
+    records: mergeReplayRecordLists(incoming, current, previousCurrent),
     liveContext,
   });
 };
@@ -546,6 +610,7 @@ export const removeFightPvpReplay = ({ userId, tokenId, replayId } = {}) => {
 
   const normalizedReplayId = String(replayId || "").trim();
   const currentKey = buildFightPvpReplayStorageKey({ userId, tokenId });
+  const previousKey = buildPreviousFightPvpReplayStorageKey({ userId, tokenId });
   const legacyKey = buildLegacyFightPvpReplayStorageKey({ userId, tokenId });
   const currentRecords = loadStoredCurrentFightPvpReplayRecords({ userId, tokenId })
     .filter((item) => dedupeReplayKey(item) !== normalizedReplayId);
@@ -556,6 +621,10 @@ export const removeFightPvpReplay = ({ userId, tokenId, replayId } = {}) => {
     (item) => dedupeReplayKey(item) !== normalizedReplayId,
   );
   storage.setItem(legacyKey, JSON.stringify(legacyRaw));
+  const previousRaw = parseStoredRecords(storage.getItem(previousKey)).filter(
+    (item) => dedupeReplayKey(item) !== normalizedReplayId,
+  );
+  storage.setItem(previousKey, JSON.stringify(previousRaw));
 
   return loadFightPvpReplays({ userId, tokenId });
 };
@@ -567,6 +636,7 @@ export const clearFightPvpReplays = ({ userId, tokenId } = {}) => {
   }
 
   storage.removeItem(buildFightPvpReplayStorageKey({ userId, tokenId }));
+  storage.removeItem(buildPreviousFightPvpReplayStorageKey({ userId, tokenId }));
   storage.removeItem(buildLegacyFightPvpReplayStorageKey({ userId, tokenId }));
   return [];
 };

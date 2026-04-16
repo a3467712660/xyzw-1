@@ -1,37 +1,42 @@
 import {
-  buildFightPvpBattleInputData,
   buildFightPvpBattleInputMissingMessage,
   cloneJsonValue,
-  createFightPvpBattleInputSnapshot,
+  createFightPvpExactBattleInput,
   FIGHT_PVP_REPLAY_DEFAULT_STAGE_NAME,
   FIGHT_PVP_REPLAY_DEFAULT_START_TIP_STAGE,
   getFightPvpBattleInputMissingFields,
   getFightPvpReplayBattleVersion,
   resolveFightPvpReplayRuntimeLabels,
+  serializeFightPvpBattleInputSnapshot,
   summarizeFightPvpBattleInput,
   toFiniteNumber,
   toNonEmptyString,
   toPlainObject,
   toPositiveNumber,
-} from "./fightPvpBattleInputSnapshot.js";
+} from "./fightPvpExactBattleInput.js";
 import { buildPvpMapDressSnapshot } from "./fightPvpReplayDressSnapshot.js";
 
 export {
-  buildFightPvpBattleInputData,
   buildFightPvpBattleInputMissingMessage,
-  createFightPvpBattleInputSnapshot,
+  createFightPvpExactBattleInput,
   FIGHT_PVP_REPLAY_DEFAULT_STAGE_NAME,
   FIGHT_PVP_REPLAY_DEFAULT_START_TIP_STAGE,
   getFightPvpBattleInputMissingFields,
   getFightPvpReplayBattleVersion,
   resolveFightPvpReplayRuntimeLabels,
+  serializeFightPvpBattleInputSnapshot,
   summarizeFightPvpBattleInput,
   toFiniteNumber,
   toNonEmptyString,
   toPositiveNumber,
-} from "./fightPvpBattleInputSnapshot.js";
+} from "./fightPvpExactBattleInput.js";
 
 export const FIGHT_PVP_REPLAY_SOURCE = "fight-pvp-live";
+export const FIGHT_PVP_REPLAY_SOURCE_TYPES = Object.freeze({
+  LIVE_MEMORY_BATTLE_INPUT: "live-memory-battle-input",
+  PERSISTED_BATTLE_INPUT_SNAPSHOT: "persisted-battle-input-snapshot",
+  LEGACY_ADAPTED_REPLAY: "legacy-adapted-replay",
+});
 
 const isLegacyDressUsedPvpMapIdLeak = ({
   pvpMapId = null,
@@ -343,16 +348,17 @@ const normalizeFightPvpReplayMeta = ({
 };
 
 const buildFightPvpReplaySourceType = (record) => {
-  if (record?.battleInputData) {
-    return "battle-input-data";
+  if (record?.exactBattleInputData || record?.battleInputData) {
+    return FIGHT_PVP_REPLAY_SOURCE_TYPES.LIVE_MEMORY_BATTLE_INPUT;
   }
   if (record?.battleInputSnapshot) {
-    return "battle-input-snapshot";
+    return FIGHT_PVP_REPLAY_SOURCE_TYPES.PERSISTED_BATTLE_INPUT_SNAPSHOT;
   }
   return "unknown";
 };
 
 export const createFightPvpReplayRecordFromBattleInput = ({
+  exactBattleInputData = null,
   battleInputData,
   tokenId = "",
   targetId = "",
@@ -368,6 +374,8 @@ export const createFightPvpReplayRecordFromBattleInput = ({
   mapIdResolveReason = null,
   dressPvpMapUsedId = null,
   selfRoleContextSource = null,
+  runtimeRoleAvailable = null,
+  battleInputAvailable = null,
   disabledReason = "",
   selfRoleRaw = null,
   roleInfo = null,
@@ -378,8 +386,15 @@ export const createFightPvpReplayRecordFromBattleInput = ({
   mapResolution = null,
   liveContext = null,
 } = {}) => {
-  const runtimeInput = buildFightPvpBattleInputData(battleInputData, {
-    mutate: true,
+  const runtimeInput = createFightPvpExactBattleInput(
+    exactBattleInputData || battleInputData,
+    {
+      mutate: true,
+    },
+  );
+  const battleInputSource = buildFightPvpReplaySourceType({
+    exactBattleInputData: runtimeInput,
+    battleInputSnapshot: null,
   });
   const safeBattleData = runtimeInput?.battleData;
   const normalizedBattleResult = runtimeInput?.battleResult;
@@ -444,7 +459,9 @@ export const createFightPvpReplayRecordFromBattleInput = ({
     tokenStoreRoleInfo,
     mapResolution,
   });
-  const battleInputSnapshot = createFightPvpBattleInputSnapshot(runtimeInput);
+  const battleInputSnapshot = serializeFightPvpBattleInputSnapshot(runtimeInput, {
+    diagnostics: mapResolution?.diagnostics || null,
+  });
   const missingRuntimeFields = getFightPvpBattleInputMissingFields(runtimeInput);
   const normalizedMapIdResolveReason = toNonEmptyString(
     mapIdResolveReason,
@@ -458,6 +475,16 @@ export const createFightPvpReplayRecordFromBattleInput = ({
     selfRoleContextSource,
     mapResolution?.selfRoleContextSource,
   ) || null;
+  const normalizedRuntimeRoleAvailable = typeof (
+    mapResolution?.runtimeRoleAvailable
+  ) === "boolean"
+    ? mapResolution.runtimeRoleAvailable
+    : Boolean(runtimeRoleAvailable);
+  const normalizedBattleInputAvailable = typeof (
+    mapResolution?.battleInputAvailable
+  ) === "boolean"
+    ? mapResolution.battleInputAvailable
+    : Boolean(battleInputAvailable);
   const normalizedDisabledReason = toNonEmptyString(disabledReason)
     || buildFightPvpBattleInputMissingMessage(missingRuntimeFields);
 
@@ -480,6 +507,8 @@ export const createFightPvpReplayRecordFromBattleInput = ({
     mapIdResolveReason: normalizedMapIdResolveReason,
     dressPvpMapUsedId: normalizedDressPvpMapUsedId,
     selfRoleContextSource: normalizedSelfRoleContextSource,
+    runtimeRoleAvailable: normalizedRuntimeRoleAvailable,
+    battleInputAvailable: normalizedBattleInputAvailable,
     selfRoleSnapshot: normalizedSelfRoleSnapshot,
     context: normalizedContext,
     backfilledAt: normalizeOptionalReplayTimestamp(backfilledAt),
@@ -490,20 +519,23 @@ export const createFightPvpReplayRecordFromBattleInput = ({
     stageNameStr: runtimeInput?.stageNameStr || FIGHT_PVP_REPLAY_DEFAULT_STAGE_NAME,
     startTipTopName: runtimeInput?.startTipTopName || FIGHT_PVP_REPLAY_DEFAULT_STAGE_NAME,
     startTipStage: runtimeInput?.startTipStage || FIGHT_PVP_REPLAY_DEFAULT_START_TIP_STAGE,
+    exactBattleInputData: runtimeInput,
     battleInputData: runtimeInput,
     battleInputSnapshot,
     isPlayable: missingRuntimeFields.length === 0,
     disabledReason: normalizedDisabledReason,
-    sourceType: buildFightPvpReplaySourceType({
-      battleInputData: runtimeInput,
-      battleInputSnapshot,
-    }),
+    sourceType: battleInputSource,
+    battleInputSource,
     missingRuntimeFields,
     battleInputSummary: summarizeFightPvpBattleInput(runtimeInput, {
       missingRuntimeFields,
-      sourceType: "battle-input-data",
+      sourceType: battleInputSource,
+      battleInputSource,
       mapIdSource: normalizedMapIdSource,
       pvpMapIdSource: normalizedPvpMapIdSource,
+      runtimeRoleMapId: mapResolution?.runtimeRoleAvailable
+        ? mapResolution?.mapId
+        : null,
       fixtureMapFallbackUsed: Boolean(mapResolution?.fixtureMapFallbackUsed),
     }),
   };

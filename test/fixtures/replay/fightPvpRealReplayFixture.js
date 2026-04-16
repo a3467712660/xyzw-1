@@ -1,6 +1,12 @@
 import { gunzipSync } from "node:zlib";
 import { Buffer } from "node:buffer";
-import { convertLegacyFightPvpReplayPayload } from "../../../src/services/replay/fightPvpBattleInputAdapter.js";
+import {
+  createFightPvpExactBattleInput,
+} from "../../../src/services/replay/fightPvpExactBattleInput.js";
+import {
+  createFightPvpReplayRecordFromBattleInput,
+  FIGHT_PVP_REPLAY_SOURCE_TYPES,
+} from "../../../src/services/replay/fightPvpReplayNormalizer.js";
 
 export const FIGHT_PVP_REAL_FIXTURE_META = Object.freeze({
   zipPath: "/Users/qian/Desktop/xyzw/xyzw切磋.zip",
@@ -200,45 +206,86 @@ const inflateRealFixture = () => {
     Buffer.from(FIGHT_PVP_REAL_FIXTURE_GZIP_BASE64, "base64"),
   ).toString("utf8");
   const parsed = JSON.parse(raw);
-  const restParsed = { ...(parsed || {}) };
-  const legacyMeta = restParsed.meta || null;
-  delete restParsed.mapId;
-  delete restParsed.meta;
   const battleData = parsed?.battleData || {};
-  const legacyReplay = {
-    ...restParsed,
+  const exactBattleInputData = createFightPvpExactBattleInput({
+    battleData,
+    battleResult: parsed?.battleResult || battleData?.result || null,
+    mapId: 110001,
+    stageNameStr: "切磋系统",
+    startTipTopName: "切磋系统",
+    startTipStage: "开始切磋",
+    options: new Map([
+      [
+        "targetRole",
+        {
+          roleId: String(battleData?.rightTeam?.roleId || ""),
+          name: String(battleData?.rightTeam?.name || ""),
+          headImg: String(battleData?.rightTeam?.headImg || ""),
+        },
+      ],
+    ]),
+  });
+  const baseRecord = createFightPvpReplayRecordFromBattleInput({
+    exactBattleInputData,
     source: "fight-pvp-real-fixture",
     createdAt: "2026-04-12T12:34:08.000Z",
     targetId: String(battleData?.rightTeam?.roleId || ""),
     targetName: String(battleData?.rightTeam?.name || ""),
-    mapId: null,
-    pvpMapId: null,
-    meta: {
-      ...(legacyMeta || {}),
-      fixtureMapFallback: true,
-      fixtureName: "fight-pvp-real-replay",
-    },
-    left: {
+    mapId: 110001,
+    pvpMapId: 110001,
+    mapIdSource: "fixture.110001",
+    pvpMapIdSource: "fixture.110001",
+    leftContext: {
       roleId: String(battleData?.leftTeam?.roleId || ""),
       name: String(battleData?.leftTeam?.name || ""),
       headImg: String(battleData?.leftTeam?.headImg || ""),
       power: Number(battleData?.leftTeam?.power || 0),
     },
-    right: {
+    rightContext: {
       roleId: String(battleData?.rightTeam?.roleId || ""),
       name: String(battleData?.rightTeam?.name || ""),
       headImg: String(battleData?.rightTeam?.headImg || ""),
       power: Number(battleData?.rightTeam?.power || 0),
     },
-  };
-  const migrated = convertLegacyFightPvpReplayPayload(legacyReplay);
+    meta: {
+      ...(parsed?.meta || {}),
+      fixtureMapFallback: true,
+      fixtureName: "fight-pvp-real-replay",
+    },
+    mapResolution: {
+      ok: true,
+      mapId: 110001,
+      pvpMapId: 110001,
+      source: "fixture.110001",
+      mapIdSource: "fixture.110001",
+      pvpMapIdSource: "fixture.110001",
+      fixtureMapFallbackUsed: true,
+      runtimeRoleAvailable: false,
+      battleInputAvailable: false,
+      diagnostics: {
+        tried: ["fixture.110001"],
+        values: {
+          "fixture.110001": 110001,
+        },
+        availableValues: {
+          "fixture.110001": 110001,
+        },
+      },
+    },
+  });
 
-  cachedRealFixture = migrated.record
-    ? {
-        ...migrated.record,
-        sourceType: "battle-input-snapshot",
-      }
-    : legacyReplay;
+  cachedRealFixture = {
+    ...baseRecord,
+    exactBattleInputData: null,
+    battleInputData: null,
+    sourceType: FIGHT_PVP_REPLAY_SOURCE_TYPES.PERSISTED_BATTLE_INPUT_SNAPSHOT,
+    battleInputSource: FIGHT_PVP_REPLAY_SOURCE_TYPES.PERSISTED_BATTLE_INPUT_SNAPSHOT,
+    battleInputSummary: {
+      ...baseRecord.battleInputSummary,
+      sourceType: FIGHT_PVP_REPLAY_SOURCE_TYPES.PERSISTED_BATTLE_INPUT_SNAPSHOT,
+      battleInputSource: FIGHT_PVP_REPLAY_SOURCE_TYPES.PERSISTED_BATTLE_INPUT_SNAPSHOT,
+    },
+  };
 
   return cloneFixture(cachedRealFixture);
 };

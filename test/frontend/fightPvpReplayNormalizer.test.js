@@ -203,16 +203,22 @@ test("fight pvp replay record creation keeps live map resolution and builds snap
   assert.equal(record.battleVersion, 99);
   assert.equal(record.mapId, 130001);
   assert.equal(record.pvpMapId, 130001);
-  assert.equal(record.mapIdSource, "selfRole.role.pvpMapId");
-  assert.equal(record.pvpMapIdSource, "selfRole.role.pvpMapId");
+  assert.equal(record.mapIdSource, "selfRoleRaw.role.pvpMapId");
+  assert.equal(record.pvpMapIdSource, "selfRoleRaw.role.pvpMapId");
   assert.equal(record.mapIdResolveReason, null);
   assert.equal(record.dressPvpMapUsedId, null);
   assert.equal(record.selfRoleContextSource, "selfRoleRaw");
+  assert.equal(record.runtimeRoleAvailable, false);
+  assert.equal(record.battleInputAvailable, false);
   assert.equal(record.isPlayable, true);
+  assert.ok(record.exactBattleInputData);
   assert.ok(record.battleInputSnapshot);
   assert.equal(record.battleInputSnapshot.mapId, 130001);
   assert.equal(record.battleInputSnapshot.battleData.mode, 7);
-  assert.equal(record.battleInputSummary.sourceType, "battle-input-data");
+  assert.equal(record.sourceType, "live-memory-battle-input");
+  assert.equal(record.battleInputSource, "live-memory-battle-input");
+  assert.equal(record.battleInputSummary.sourceType, "live-memory-battle-input");
+  assert.equal(record.battleInputSummary.battleInputSource, "live-memory-battle-input");
   assert.deepEqual(record.missingRuntimeFields, []);
 });
 
@@ -253,17 +259,21 @@ test("fight pvp replay record keeps live mapId failure metadata for unplayable l
     tokenId: "token-1",
     targetId: "role-2",
     targetName: "对手",
-    mapIdResolveReason: "missing-pvp-map-conf",
+    mapIdResolveReason: "pvp-map-conf-unavailable",
     dressPvpMapUsedId: 7001,
     selfRoleContextSource: "refreshed-role_getroleinfo",
+    runtimeRoleAvailable: false,
+    battleInputAvailable: false,
     disabledReason: "当前自身角色拿到了 PVP 外观 used 值，但运行时里没有可用的 PVPMapConf 配置。",
   });
 
   assert.equal(record.isPlayable, false);
   assert.equal(record.mapId, null);
   assert.equal(record.battleInputSnapshot.mapId, null);
-  assert.equal(record.mapIdResolveReason, "missing-pvp-map-conf");
+  assert.equal(record.mapIdResolveReason, "pvp-map-conf-unavailable");
   assert.equal(record.dressPvpMapUsedId, 7001);
   assert.equal(record.selfRoleContextSource, "refreshed-role_getroleinfo");
+  assert.equal(record.runtimeRoleAvailable, false);
+  assert.equal(record.battleInputAvailable, false);
   assert.match(record.disabledReason, /PVPMapConf/);
 });

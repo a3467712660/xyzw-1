@@ -211,8 +211,14 @@ const diagnosticLines = computed(() => {
   if (diagnostics.firstPendingAssetRequest) {
     lines.push(`firstPendingAssetRequest: ${formatDiagnosticValue(diagnostics.firstPendingAssetRequest)}`);
   }
+  if (diagnostics.battleInputSource) {
+    lines.push(`battleInputSource: ${diagnostics.battleInputSource}`);
+  }
   if (diagnostics.replayEntrypoint) {
     lines.push(`replayEntrypoint: ${diagnostics.replayEntrypoint}`);
+  }
+  if (diagnostics.engineReplayEntrypoint) {
+    lines.push(`engineReplayEntrypoint: ${diagnostics.engineReplayEntrypoint}`);
   }
   if (Array.isArray(diagnostics.missingRuntimeFields) && diagnostics.missingRuntimeFields.length > 0) {
     lines.push(`missingRuntimeFields: ${diagnostics.missingRuntimeFields.join(", ")}`);
@@ -225,6 +231,15 @@ const diagnosticLines = computed(() => {
   }
   if (diagnostics.mapIdResolveReason) {
     lines.push(`mapIdResolveReason: ${diagnostics.mapIdResolveReason}`);
+  }
+  if (typeof diagnostics.runtimeRoleAvailable === "boolean") {
+    lines.push(`runtimeRoleAvailable: ${diagnostics.runtimeRoleAvailable}`);
+  }
+  if (typeof diagnostics.battleInputAvailable === "boolean") {
+    lines.push(`battleInputAvailable: ${diagnostics.battleInputAvailable}`);
+  }
+  if (diagnostics.runtimeRoleMapId) {
+    lines.push(`runtimeRoleMapId: ${diagnostics.runtimeRoleMapId}`);
   }
   if (diagnostics.dressPvpMapUsedId) {
     lines.push(`dressPvpMapUsedId: ${diagnostics.dressPvpMapUsedId}`);
@@ -244,7 +259,7 @@ const diagnosticLines = computed(() => {
   if (diagnostics.battleInputSummary) {
     const summary = diagnostics.battleInputSummary;
     lines.push(
-      `battleInputSummary: source=${summary.sourceType || "-"}, mode=${summary.battleMode ?? "null"}, mapId=${summary.mapId ?? "null"}, stage=${summary.stageNameStr || "-"}, top=${summary.startTipTopName || "-"}, start=${summary.startTipStage || "-"}, teams=${summary.leftTeamSize ?? 0}/${summary.rightTeamSize ?? 0}, scores=${summary.selfScore ?? "-"}:${summary.oppoScore ?? "-"}, targetRole=${summary.hasTargetRole ? "yes" : "no"}, options=${(summary.optionsKeys || []).join("|") || "-"}`,
+      `battleInputSummary: source=${summary.battleInputSource || summary.sourceType || "-"}, mode=${summary.battleMode ?? "null"}, mapId=${summary.mapId ?? "null"}, stage=${summary.stageNameStr || "-"}, top=${summary.startTipTopName || "-"}, start=${summary.startTipStage || "-"}, teams=${summary.leftTeamSize ?? 0}/${summary.rightTeamSize ?? 0}, scores=${summary.selfScore ?? "-"}:${summary.oppoScore ?? "-"}, targetRole=${summary.hasTargetRole ? "yes" : "no"}, options=${(summary.optionsKeys || []).join("|") || "-"}, runtimeRoleMapId=${summary.runtimeRoleMapId ?? "-"}, engine=${summary.engineReplayEntrypoint || "-"}`,
     );
   }
   if (diagnostics.replayStartSignal !== undefined) {
@@ -305,6 +320,12 @@ const buildSpecificMapIdFailureMessage = (diagnostics) => {
   if (diagnostics?.selfRoleContextSource) {
     detailParts.push(`selfRoleContextSource=${diagnostics.selfRoleContextSource}`);
   }
+  if (typeof diagnostics?.runtimeRoleAvailable === "boolean") {
+    detailParts.push(`runtimeRoleAvailable=${diagnostics.runtimeRoleAvailable}`);
+  }
+  if (typeof diagnostics?.battleInputAvailable === "boolean") {
+    detailParts.push(`battleInputAvailable=${diagnostics.battleInputAvailable}`);
+  }
   if (diagnostics?.dressPvpMapUsedId) {
     detailParts.push(`dressPvpMapUsedId=${diagnostics.dressPvpMapUsedId}`);
   }
@@ -360,6 +381,17 @@ const buildReplayFailureMessage = ({
     );
   }
 
+  if (
+    failureState === "replay-start-failed"
+    && Array.isArray(diagnostics?.replayEntrypointCandidates)
+    && diagnostics.replayEntrypointCandidates.every((entry) => entry?.found === false)
+  ) {
+    return appendTechnicalMessage(
+      props.t("fightPvpCard.replay.engineEntrypointUnavailableDescription"),
+      detail,
+    );
+  }
+
   return detail || props.t("fightPvpCard.replay.runtimeNotReady");
 };
 
@@ -368,7 +400,8 @@ const startReplay = async () => {
   clearState();
 
   if (
-    !replay.value?.battleInputData
+    !replay.value?.exactBattleInputData
+    && !replay.value?.battleInputData
     && !replay.value?.battleInputSnapshot
     && !replay.value?.battleData
   ) {

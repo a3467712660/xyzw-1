@@ -468,7 +468,7 @@ const getRoundReplay = (round) => {
 };
 
 const resolveReplayState = (replay) => {
-  if (!replay?.battleInputData && !replay?.battleInputSnapshot) {
+  if (!replay?.exactBattleInputData && !replay?.battleInputData && !replay?.battleInputSnapshot) {
     return {
       visible: false,
       disabled: true,

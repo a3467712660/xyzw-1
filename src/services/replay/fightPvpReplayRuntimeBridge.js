@@ -7,13 +7,13 @@ import {
   isLegacyFightPvpReplayPayload,
 } from "./fightPvpBattleInputAdapter.js";
 import {
-  buildFightPvpBattleInputData,
   buildFightPvpBattleInputMissingMessage,
+  createFightPvpExactBattleInput,
   getFightPvpBattleInputMissingFields,
   getFightPvpReplayBattleVersion,
   rehydrateFightPvpBattleInputSnapshot,
   summarizeFightPvpBattleInput,
-} from "./fightPvpBattleInputSnapshot.js";
+} from "./fightPvpExactBattleInput.js";
 
 const BOOT_TIMEOUT_MS = 2500;
 const GAME_SCENE_LOAD_TIMEOUT_MS = 35000;
@@ -1070,13 +1070,25 @@ const resolveReplayBattleVersion = (replay) =>
   getFightPvpReplayBattleVersion(replay) || 0;
 
 const buildReplayMapResolutionFromRecord = (replay) => ({
-  mapId: replay?.mapId ?? replay?.battleInputSnapshot?.mapId ?? replay?.battleInputData?.mapId ?? null,
+  mapId:
+    replay?.mapId
+    ?? replay?.battleInputSnapshot?.mapId
+    ?? replay?.exactBattleInputData?.mapId
+    ?? replay?.battleInputData?.mapId
+    ?? null,
   pvpMapId: replay?.pvpMapId ?? replay?.mapId ?? replay?.battleInputSnapshot?.mapId ?? null,
   mapIdSource: replay?.mapIdSource ?? null,
   pvpMapIdSource: replay?.pvpMapIdSource ?? replay?.mapIdSource ?? null,
   mapIdResolveReason: replay?.mapIdResolveReason ?? null,
   dressPvpMapUsedId: replay?.dressPvpMapUsedId ?? null,
+  runtimeRoleMapId: replay?.runtimeRoleMapId ?? replay?.pvpMapId ?? replay?.mapId ?? null,
   selfRoleContextSource: replay?.selfRoleContextSource ?? null,
+  runtimeRoleAvailable: typeof replay?.runtimeRoleAvailable === "boolean"
+    ? replay.runtimeRoleAvailable
+    : false,
+  battleInputAvailable: typeof replay?.battleInputAvailable === "boolean"
+    ? replay.battleInputAvailable
+    : Boolean(replay?.exactBattleInputData || replay?.battleInputData || replay?.battleInputSnapshot),
   fixtureMapFallbackUsed: Boolean(
     replay?.meta?.fixtureMapFallback
     || replay?.meta?.fixtureMapFallbackUsed,
@@ -1104,13 +1116,16 @@ const resolveReplayRuntimeBattleInput = ({
       ok: battleInput !== null && missingRuntimeFields.length === 0,
       battleInput,
       sourceType,
+      battleInputSource: sourceType,
       missingRuntimeFields,
       battleInputSummary: battleInput
         ? summarizeFightPvpBattleInput(battleInput, {
             missingRuntimeFields,
             sourceType,
+            battleInputSource: sourceType,
             mapIdSource: mapIdResolution?.mapIdSource,
             pvpMapIdSource: mapIdResolution?.pvpMapIdSource,
+            runtimeRoleMapId: mapIdResolution?.runtimeRoleMapId,
             fixtureMapFallbackUsed: Boolean(mapIdResolution?.fixtureMapFallbackUsed),
           })
         : null,
@@ -1120,13 +1135,16 @@ const resolveReplayRuntimeBattleInput = ({
     };
   };
 
-  if (replay?.battleInputData) {
-    const battleInput = buildFightPvpBattleInputData(replay.battleInputData, {
-      mutate: true,
-    });
+  if (replay?.exactBattleInputData || replay?.battleInputData) {
+    const battleInput = createFightPvpExactBattleInput(
+      replay?.exactBattleInputData || replay?.battleInputData,
+      {
+        mutate: true,
+      },
+    );
     return finalize({
       battleInput,
-      sourceType: "battle-input-data",
+      sourceType: "live-memory-battle-input",
       mapIdResolution: buildReplayMapResolutionFromRecord(replay),
     });
   }
@@ -1137,7 +1155,7 @@ const resolveReplayRuntimeBattleInput = ({
     );
     return finalize({
       battleInput,
-      sourceType: "battle-input-snapshot",
+      sourceType: "persisted-battle-input-snapshot",
       mapIdResolution: buildReplayMapResolutionFromRecord(replay),
     });
   }
@@ -1154,7 +1172,7 @@ const resolveReplayRuntimeBattleInput = ({
 
     return finalize({
       battleInput,
-      sourceType: "legacy-payload",
+      sourceType: "legacy-adapted-replay",
       mapIdResolution: legacyResult?.mapIdResolution || buildReplayMapResolutionFromRecord(replay),
       resolutionExplanation: legacyResult?.resolutionExplanation || null,
       message: legacyResult?.message || "",
@@ -2440,7 +2458,35 @@ const locateReplayEntrypoint = ({ diagnostics } = {}) => {
     return { label, invoke };
   };
 
-  const globalCandidates = [
+  const createEnterOSSInvoker = (value) => {
+    const EnterOSSState = value?.EnterOSSState
+      || value?.default?.EnterOSSState
+      || (typeof value === "function" ? value : null);
+    if (typeof EnterOSSState !== "function") {
+      return null;
+    }
+    return (payload) => new EnterOSSState().showBattleViewWithData(payload);
+  };
+
+  const createBattleKitCrossSiteInvoker = (value) => {
+    const BattleKitCrossSite = value?.BattleKitCrossSite
+      || value?.default?.BattleKitCrossSite
+      || value;
+    const instance = BattleKitCrossSite?.instance || BattleKitCrossSite?._inst || null;
+    if (!instance || typeof instance.tryRaisePlayback !== "function") {
+      return null;
+    }
+
+    return (payload) => {
+      instance._inputData = payload;
+      instance._initBattleData = instance._initBattleData || { replayOnly: true };
+      instance._stage = instance._stage ?? 2;
+      instance._isApplicationLoaded = true;
+      return instance.tryRaisePlayback(true);
+    };
+  };
+
+  const replayUiCandidates = [
     registerCandidate(
       "window.showBattleReplayUI",
       runtimeWindow.showBattleReplayUI,
@@ -2464,7 +2510,7 @@ const locateReplayEntrypoint = ({ diagnostics } = {}) => {
     ),
   ];
 
-  const requireCandidates = [
+  const replayUiRequireCandidates = [
     "BattleUIManager",
     "SHOW_BATTLE_REPLAY_UI",
     "showBattleReplayUI",
@@ -2509,8 +2555,60 @@ const locateReplayEntrypoint = ({ diagnostics } = {}) => {
     );
   });
 
+  const enterOssCandidates = [
+    registerCandidate(
+      "window.EnterOSSState.showBattleViewWithData",
+      runtimeWindow.EnterOSSState,
+      createEnterOSSInvoker(runtimeWindow.EnterOSSState),
+    ),
+  ];
+
+  const enterOssRequireCandidates = [
+    "EnterOSSState",
+    "enter-oss",
+  ].map((name) => {
+    if (typeof runtimeRequire !== "function") {
+      scannedCandidates.push({ label: `require:${name}`, found: false });
+      return null;
+    }
+    const mod = safeRequireModule(runtimeRequire, name);
+    return registerCandidate(
+      `require:${name}.EnterOSSState.showBattleViewWithData`,
+      mod,
+      createEnterOSSInvoker(mod),
+    );
+  });
+
+  const battleKitCandidates = [
+    registerCandidate(
+      "window.BattleKitCrossSite.instance.tryRaisePlayback",
+      runtimeWindow.BattleKitCrossSite,
+      createBattleKitCrossSiteInvoker(runtimeWindow.BattleKitCrossSite),
+    ),
+  ];
+
+  const battleKitRequireCandidates = ["BattleKitCrossSite"].map((name) => {
+    if (typeof runtimeRequire !== "function") {
+      scannedCandidates.push({ label: `require:${name}`, found: false });
+      return null;
+    }
+    const mod = safeRequireModule(runtimeRequire, name);
+    return registerCandidate(
+      `require:${name}.instance.tryRaisePlayback`,
+      mod,
+      createBattleKitCrossSiteInvoker(mod),
+    );
+  });
+
   diagnostics.replayEntrypointCandidates = scannedCandidates;
-  return [...globalCandidates, ...requireCandidates].find(Boolean) || null;
+  return [
+    ...replayUiCandidates,
+    ...replayUiRequireCandidates,
+    ...enterOssCandidates,
+    ...enterOssRequireCandidates,
+    ...battleKitCandidates,
+    ...battleKitRequireCandidates,
+  ].find(Boolean) || null;
 };
 
 const startReplayEntrypoint = async ({
@@ -2774,13 +2872,17 @@ export const startFightPvpReplayRuntime = async ({
       liveContext,
     });
     diagnostics.sourceType = replayBattleInputResult.sourceType;
+    diagnostics.battleInputSource = replayBattleInputResult.battleInputSource;
     diagnostics.battleInputSummary = replayBattleInputResult.battleInputSummary;
     diagnostics.missingRuntimeFields = replayBattleInputResult.missingRuntimeFields;
     diagnostics.mapIdSource = replayBattleInputResult.mapIdResolution?.mapIdSource ?? null;
     diagnostics.pvpMapIdSource = replayBattleInputResult.mapIdResolution?.pvpMapIdSource ?? null;
     diagnostics.mapIdResolveReason = replayBattleInputResult.mapIdResolution?.mapIdResolveReason ?? null;
     diagnostics.dressPvpMapUsedId = replayBattleInputResult.mapIdResolution?.dressPvpMapUsedId ?? null;
+    diagnostics.runtimeRoleMapId = replayBattleInputResult.mapIdResolution?.runtimeRoleMapId ?? null;
     diagnostics.selfRoleContextSource = replayBattleInputResult.mapIdResolution?.selfRoleContextSource ?? null;
+    diagnostics.runtimeRoleAvailable = replayBattleInputResult.mapIdResolution?.runtimeRoleAvailable ?? false;
+    diagnostics.battleInputAvailable = replayBattleInputResult.mapIdResolution?.battleInputAvailable ?? false;
     diagnostics.fixtureMapFallbackUsed = Boolean(
       replayBattleInputResult.mapIdResolution?.fixtureMapFallbackUsed,
     );
@@ -2848,6 +2950,11 @@ export const startFightPvpReplayRuntime = async ({
     }
 
     diagnostics.replayEntrypoint = replayStartResult.entrypoint || replayEntrypoint.label;
+    diagnostics.engineReplayEntrypoint = diagnostics.replayEntrypoint;
+    if (diagnostics.battleInputSummary) {
+      diagnostics.battleInputSummary.engineReplayEntrypoint = diagnostics.engineReplayEntrypoint;
+      diagnostics.battleInputSummary.runtimeRoleMapId = diagnostics.runtimeRoleMapId ?? null;
+    }
 
     diagnostics.steps.push("wait-for-replay-start-signal");
     const replayStartSignal = await replayStartProbe.waitForSignal?.({

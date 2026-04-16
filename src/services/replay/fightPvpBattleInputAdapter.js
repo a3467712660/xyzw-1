@@ -1,13 +1,14 @@
 import {
-  buildFightPvpBattleInputData,
   buildFightPvpBattleInputMissingMessage,
+  createFightPvpExactBattleInput,
   getFightPvpBattleInputMissingFields,
   resolveFightPvpReplayRuntimeLabels,
   summarizeFightPvpBattleInput,
-} from "./fightPvpBattleInputSnapshot.js";
+} from "./fightPvpExactBattleInput.js";
 import {
   createFightPvpReplayRecordFromBattleInput,
   FIGHT_PVP_REPLAY_SOURCE,
+  FIGHT_PVP_REPLAY_SOURCE_TYPES,
   resolveFightPvpReplayRuntimeOptionsSnapshot,
 } from "./fightPvpReplayNormalizer.js";
 import {
@@ -19,6 +20,7 @@ export const isLegacyFightPvpReplayPayload = (value) =>
   Boolean(
     value
     && typeof value === "object"
+    && !value.exactBattleInputData
     && !value.battleInputData
     && !value.battleInputSnapshot
     && value.battleData,
@@ -70,7 +72,7 @@ export const convertLegacyFightPvpReplayPayload = (
     startTipTopName: legacyReplay?.startTipTopName,
     startTipStage: legacyReplay?.startTipStage,
   });
-  const battleInputData = buildFightPvpBattleInputData({
+  const exactBattleInputData = createFightPvpExactBattleInput({
     battleData: legacyReplay?.battleData,
     battleResult: legacyReplay?.battleResult,
     mapId: mapIdResolution.mapId,
@@ -81,7 +83,7 @@ export const convertLegacyFightPvpReplayPayload = (
   });
 
   const record = createFightPvpReplayRecordFromBattleInput({
-    battleInputData,
+    exactBattleInputData,
     tokenId: legacyReplay?.tokenId,
     targetId: legacyReplay?.targetId,
     targetName: legacyReplay?.targetName,
@@ -113,11 +115,14 @@ export const convertLegacyFightPvpReplayPayload = (
     record: record
       ? {
           ...record,
+          exactBattleInputData: null,
           battleInputData: null,
-          sourceType: "legacy-payload",
-          battleInputSummary: summarizeFightPvpBattleInput(battleInputData, {
+          sourceType: FIGHT_PVP_REPLAY_SOURCE_TYPES.LEGACY_ADAPTED_REPLAY,
+          battleInputSource: FIGHT_PVP_REPLAY_SOURCE_TYPES.LEGACY_ADAPTED_REPLAY,
+          battleInputSummary: summarizeFightPvpBattleInput(exactBattleInputData, {
             missingRuntimeFields: record?.missingRuntimeFields || [],
-            sourceType: "legacy-payload",
+            sourceType: FIGHT_PVP_REPLAY_SOURCE_TYPES.LEGACY_ADAPTED_REPLAY,
+            battleInputSource: FIGHT_PVP_REPLAY_SOURCE_TYPES.LEGACY_ADAPTED_REPLAY,
             mapIdSource: record?.mapIdSource,
             pvpMapIdSource: record?.pvpMapIdSource,
             fixtureMapFallbackUsed: Boolean(mapIdResolution?.fixtureMapFallbackUsed),
@@ -127,10 +132,10 @@ export const convertLegacyFightPvpReplayPayload = (
     message:
       record?.disabledReason
       || buildFightPvpBattleInputMissingMessage(
-        getFightPvpBattleInputMissingFields(battleInputData),
+        getFightPvpBattleInputMissingFields(exactBattleInputData),
       ),
     missingRuntimeFields: record?.missingRuntimeFields
-      || getFightPvpBattleInputMissingFields(battleInputData),
+      || getFightPvpBattleInputMissingFields(exactBattleInputData),
     mapIdResolution,
     resolutionExplanation,
   };

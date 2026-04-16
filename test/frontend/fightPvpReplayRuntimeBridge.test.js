@@ -1174,7 +1174,9 @@ test("fight pvp replay runtime bridge returns ok true when replay entrypoint sta
 
   assert.equal(session.ok, true);
   assert.equal(session.reason, "ok");
-  assert.equal(session.diagnostics.sourceType, "battle-input-data");
+  assert.equal(session.diagnostics.sourceType, "live-memory-battle-input");
+  assert.equal(session.diagnostics.battleInputSource, "live-memory-battle-input");
+  assert.equal(session.diagnostics.engineReplayEntrypoint, "mock-entrypoint");
   assert.equal(session.diagnostics.replayStartSignal, true);
   assert.equal(session.diagnostics.replayStartPanel, "CommonBattleTeamPanel");
   session.dispose();
@@ -1269,7 +1271,9 @@ test("fight pvp replay runtime bridge accepts the real fight_startpvp fixture th
   assert.deepEqual(session.diagnostics.missingRuntimeFields, []);
   assert.equal(session.diagnostics.battleInputSummary.battleMode, 32);
   assert.equal(session.diagnostics.battleInputSummary.mapId, 110001);
-  assert.equal(session.diagnostics.battleInputSummary.sourceType, "battle-input-snapshot");
+  assert.equal(session.diagnostics.battleInputSummary.sourceType, "persisted-battle-input-snapshot");
+  assert.equal(session.diagnostics.battleInputSource, "persisted-battle-input-snapshot");
+  assert.equal(session.diagnostics.engineReplayEntrypoint, "mock-entrypoint");
   assert.equal(session.diagnostics.mapIdSource, "fixture.110001");
   assert.equal(session.diagnostics.fixtureMapFallbackUsed, true);
   assert.equal(session.diagnostics.replayStartSignal, true);
@@ -1584,9 +1588,11 @@ test("fight pvp replay runtime bridge surfaces live mapId failure metadata from 
     mapId: null,
     mapIdSource: null,
     pvpMapIdSource: null,
-    mapIdResolveReason: "missing-pvp-map-conf",
+    mapIdResolveReason: "pvp-map-conf-unavailable",
     dressPvpMapUsedId: 7001,
     selfRoleContextSource: "refreshed-role_getroleinfo",
+    runtimeRoleAvailable: false,
+    battleInputAvailable: false,
   });
 
   const session = await startFightPvpReplayRuntime({
@@ -1638,9 +1644,11 @@ test("fight pvp replay runtime bridge surfaces live mapId failure metadata from 
 
   assert.equal(session.ok, false);
   assert.equal(session.reason, "replay-start-failed");
-  assert.equal(session.diagnostics.mapIdResolveReason, "missing-pvp-map-conf");
+  assert.equal(session.diagnostics.mapIdResolveReason, "pvp-map-conf-unavailable");
   assert.equal(session.diagnostics.dressPvpMapUsedId, 7001);
   assert.equal(session.diagnostics.selfRoleContextSource, "refreshed-role_getroleinfo");
+  assert.equal(session.diagnostics.runtimeRoleAvailable, false);
+  assert.equal(session.diagnostics.battleInputAvailable, false);
 
   delete globalThis.window;
   delete globalThis.HTMLElement;

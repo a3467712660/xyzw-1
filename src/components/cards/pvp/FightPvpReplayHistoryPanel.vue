@@ -103,7 +103,7 @@ defineEmits(["clear", "open", "remove"]);
 const visibleRecords = computed(() => (props.records || []).slice(0, 5));
 
 const resolveReplayState = (replay) => {
-  if (!replay?.battleInputData && !replay?.battleInputSnapshot) {
+  if (!replay?.exactBattleInputData && !replay?.battleInputData && !replay?.battleInputSnapshot) {
     return {
       visible: false,
       disabled: true,
