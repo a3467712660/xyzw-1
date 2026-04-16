@@ -511,7 +511,12 @@ test("fight pvp replay runtime bridge keeps waiting while LoadGameScene is still
       director: {
         getScene() {
           return {
-            name: now >= 300 ? "Game" : "FightPvpReplayBootstrap",
+            name:
+              now >= 300
+                ? "Game"
+                : now >= 100
+                  ? "SomeOtherScene"
+                  : "FightPvpReplayBootstrap",
           };
         },
       },
@@ -569,6 +574,73 @@ test("fight pvp replay runtime bridge keeps waiting while LoadGameScene is still
   assert.equal(result.ok, true);
   assert.equal(result.sceneName, "Game");
   assert.ok(diagnostics.gameStateHistory.includes("LoadGameScene"));
+});
+
+test("fight pvp replay runtime bridge does not treat a non-bootstrap scene as success when LoadingError is observed", async () => {
+  const runtimeWindow = {
+    cc: {
+      director: {
+        getScene() {
+          return {
+            name: "SomeOtherScene",
+          };
+        },
+      },
+      game: {
+        _prepared: true,
+        _rendererInitialized: true,
+      },
+    },
+    setTimeout(callback) {
+      callback();
+    },
+  };
+  const modules = {
+    Game: {
+      Game: {
+        _instance: {
+          stateMachine: {
+            current: {
+              stateId: "LoadingError",
+            },
+          },
+        },
+      },
+    },
+    Launcher: {
+      Launcher: {
+        _instance: {},
+      },
+    },
+    PlatformManager: {
+      PlatformManager: {
+        _instance: {
+          getBattleVersion() {
+            return 0;
+          },
+        },
+      },
+    },
+  };
+  const diagnostics = {
+    loadingErrorReason: "scene import missing",
+  };
+
+  const result = await waitForRuntimeReadyForReplay({
+    modules,
+    diagnostics,
+    runtimeWindow,
+    bootstrapSceneName: "FightPvpReplayBootstrap",
+    timeoutMs: 35000,
+    intervalMs: 0,
+    getNow: () => 0,
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.sceneName, "SomeOtherScene");
+  assert.equal(result.stateId, "LoadingError");
+  assert.match(result.message, /LoadingError/);
+  assert.match(result.message, /scene import missing/);
 });
 
 test("fight pvp replay runtime bridge fails immediately when LoadingError is observed", async () => {

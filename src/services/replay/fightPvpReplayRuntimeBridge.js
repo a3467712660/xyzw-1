@@ -1885,6 +1885,10 @@ export const classifyRuntimeLoadFailure = ({
   };
 };
 
+const isRuntimeReadySceneForReplay = ({
+  sceneName = null,
+} = {}) => sceneName === GAME_SCENE_NAME;
+
 export const waitForRuntimeReadyForReplay = async ({
   modules,
   diagnostics,
@@ -1916,14 +1920,6 @@ export const waitForRuntimeReadyForReplay = async ({
     diagnostics.gameStateHistory = stateHistory;
     diagnostics.runtimeSnapshotAfterLauncher = getRuntimeSnapshot(modules, runtimeWindow);
 
-    if (sceneName && sceneName !== bootstrapSceneName) {
-      return {
-        ok: true,
-        sceneName,
-        stateId,
-      };
-    }
-
     const explicitFailure = classifyRuntimeLoadFailure({
       stateId,
       sceneName,
@@ -1936,6 +1932,14 @@ export const waitForRuntimeReadyForReplay = async ({
         stateId,
         sceneName,
         message: explicitFailure.message,
+      };
+    }
+
+    if (isRuntimeReadySceneForReplay({ sceneName })) {
+      return {
+        ok: true,
+        sceneName,
+        stateId,
       };
     }
 
