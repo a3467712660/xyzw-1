@@ -7,6 +7,7 @@ import {
   getFightPvpEquipmentQuenchSlots,
   isFightPvpOrangeQuenchSlot,
   isFightPvpRedQuenchSlot,
+  normalizeFightPvpCount,
 } from "../../src/components/cards/pvp/fightPvpFormatters.js";
 
 test("fight pvp formatters keep power and time display semantics stable", () => {
@@ -36,4 +37,19 @@ test("fight pvp quench helpers preserve equipment slot semantics", () => {
 test("fight pvp pearl orange slot counter stays stable", () => {
   assert.equal(countFightPvpPearlOrangeSlots([{ colorId: 5 }, { colorId: 6 }]), 1);
   assert.equal(countFightPvpPearlOrangeSlots(null), 0);
+});
+
+test("fight pvp count normalizer keeps preset and custom values while rejecting invalid input", () => {
+  assert.equal(normalizeFightPvpCount(10), 10);
+  assert.equal(normalizeFightPvpCount(25), 25);
+  assert.equal(normalizeFightPvpCount(50), 50);
+
+  assert.equal(normalizeFightPvpCount("2"), 2);
+  assert.equal(normalizeFightPvpCount("7"), 7);
+  assert.equal(normalizeFightPvpCount("13"), 13);
+
+  assert.equal(normalizeFightPvpCount(0), 1);
+  assert.equal(normalizeFightPvpCount(51), 1);
+  assert.equal(normalizeFightPvpCount(""), 1);
+  assert.equal(normalizeFightPvpCount("abc"), 1);
 });

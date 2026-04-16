@@ -20,6 +20,14 @@ export const formatFightPvpPower = (power) => {
   return String(power);
 };
 
+export const normalizeFightPvpCount = (value, fallback = 1) => {
+  const numeric = Number.parseInt(String(value ?? "").trim(), 10);
+  if (Number.isNaN(numeric) || numeric < 1 || numeric > 50) {
+    return fallback;
+  }
+  return numeric;
+};
+
 const normalizeFightPvpColorText = (value) => {
   const text = String(value || "").trim().toLowerCase();
   if (text === "red" || text === "红色" || text === "红") return 6;

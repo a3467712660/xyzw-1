@@ -33,7 +33,7 @@
           v-model:value="fightNumModel"
           :options="options"
           :placeholder="t('fightPvpCard.placeholders.fightCount')"
-          @update:value="$emit('normalize-fight-num')"
+          @update:value="(value) => $emit('normalize-fight-num', value)"
         ></n-select>
       </div>
 

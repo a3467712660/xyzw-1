@@ -146,6 +146,7 @@ import {
   getFightPvpEquipmentQuenchSlots,
   isFightPvpOrangeQuenchSlot,
   isFightPvpRedQuenchSlot,
+  normalizeFightPvpCount,
 } from "@/components/cards/pvp/fightPvpFormatters";
 import { triggerBlobDownload } from "@/utils/download";
 
@@ -1567,6 +1568,7 @@ const handlePageSizeChange = (size) => {
 };
 // 刷新战绩
 const fightPVPRefresh = async () => {
+  fightNum.value = normalizeFightPvpCount(fightNum.value);
   const result = await fetchfightPVP();
   if (result?.replays?.length > 0) {
     appendRecentFightPvpReplays(result.replays);
@@ -1575,25 +1577,7 @@ const fightPVPRefresh = async () => {
 
 // 处理切磋次数变化
 const handleFightNumChange = (value) => {
-  // 确保输入的是有效的数字
-  if (typeof value === "string") {
-    // 如果是字符串，转换为数字
-    const num = Number.parseInt(value, 10);
-    // 确保数字有效且大于0,尽量限制最大次数,万一谁请求打多了,可不是什么好事情
-    if (!isNaN(num) && num > 0 && num <= 50) {
-      fightNum.value = num;
-    } else {
-      // 否则重置为默认值1
-      fightNum.value = 1;
-    }
-  } else {
-    if (value > 0 && value <= 50) {
-      // 如果已经是数字类型，直接使用
-      fightNum.value = value;
-    } else {
-      fightNum.value = 1;
-    }
-  }
+  fightNum.value = normalizeFightPvpCount(value);
 };
 
 // 获取对手信息
