@@ -438,6 +438,85 @@ const resolveDressMapIdFromSources = ({
   });
 };
 
+const resolvePersistedDressMapIdFromUsedIdCandidates = ({
+  candidates = [],
+  diagnostics,
+} = {}) => {
+  const normalizedCandidates = Array.isArray(candidates)
+    ? candidates.map((candidate) => ({
+        ...candidate,
+        usedId: toPositiveNumber(candidate?.usedId, null),
+        dressMapId: toPositiveNumber(candidate?.dressMapId, null),
+      }))
+    : [];
+
+  for (const candidate of normalizedCandidates) {
+    recordCandidate(diagnostics, candidate.usedPath, candidate.usedId);
+    recordCandidate(diagnostics, candidate.mapPath, candidate.dressMapId);
+  }
+
+  const actionableCandidates = normalizedCandidates.filter((candidate) =>
+    candidate.usedId && !candidate.dressMapId,
+  );
+  if (actionableCandidates.length === 0) {
+    return buildResolutionResult({
+      ok: false,
+      diagnostics,
+    });
+  }
+
+  const pvpMapConfLookup = getPvpMapConfLookup();
+  if (!pvpMapConfLookup?.getById) {
+    for (const candidate of actionableCandidates) {
+      recordCandidate(
+        diagnostics,
+        `${candidate.scopePath}.persistedDressPVPMapConfLookup`,
+        "dress-config-unavailable",
+      );
+    }
+    return buildResolutionResult({
+      ok: false,
+      dressPvpMapUsedId: actionableCandidates[0].usedId,
+      diagnostics,
+    });
+  }
+
+  for (const candidate of actionableCandidates) {
+    const config = pvpMapConfLookup.getById(candidate.usedId);
+    recordCandidate(
+      diagnostics,
+      `${candidate.scopePath}.PVPMapConf[${candidate.usedId}]`,
+      config,
+    );
+    const mapId = toPositiveNumber(config?.mapId, null);
+    recordCandidate(
+      diagnostics,
+      `${candidate.scopePath}.PVPMapConf[${candidate.usedId}].mapId`,
+      mapId,
+    );
+    if (!mapId) {
+      continue;
+    }
+
+    return buildResolutionResult({
+      ok: true,
+      mapId,
+      pvpMapId: mapId,
+      mapIdSource: `${candidate.scopePath}.persistedDressPVPMapConf.mapId`,
+      pvpMapIdSource: `${candidate.scopePath}.persistedDressPVPMapConf.mapId`,
+      dressPvpMapUsedId: candidate.usedId,
+      dressPvpMapMapId: mapId,
+      diagnostics,
+    });
+  }
+
+  return buildResolutionResult({
+    ok: false,
+    dressPvpMapUsedId: actionableCandidates[0].usedId,
+    diagnostics,
+  });
+};
+
 const buildLiveDressSources = ({
   selfRoleRaw = null,
   tokenStoreRoleInfo = null,
@@ -664,16 +743,22 @@ export function resolveFightPvpMapIdFromReplay({
 
   const storedDressMapIdCandidates = [
     {
+      scopePath: "replay.selfRoleSnapshot",
       path: "replay.selfRoleSnapshot.dressPvpMapMapId",
       value: replayObject.selfRoleSnapshot?.dressPvpMapMapId,
       usedId: replayObject.selfRoleSnapshot?.dressPvpMapUsedId,
       usedPath: "replay.selfRoleSnapshot.dressPvpMapUsedId",
+      mapPath: "replay.selfRoleSnapshot.dressPvpMapMapId",
+      dressMapId: replayObject.selfRoleSnapshot?.dressPvpMapMapId,
     },
     {
+      scopePath: "replay.context",
       path: "replay.context.dressPvpMapMapId",
       value: replayObject.context?.dressPvpMapMapId,
       usedId: replayObject.context?.dressPvpMapUsedId,
       usedPath: "replay.context.dressPvpMapUsedId",
+      mapPath: "replay.context.dressPvpMapMapId",
+      dressMapId: replayObject.context?.dressPvpMapMapId,
     },
   ];
 
@@ -697,6 +782,17 @@ export function resolveFightPvpMapIdFromReplay({
     });
   }
 
+  const persistedDressResolution = resolvePersistedDressMapIdFromUsedIdCandidates({
+    candidates: storedDressMapIdCandidates,
+    diagnostics,
+  });
+  if (persistedDressResolution.ok) {
+    return persistedDressResolution;
+  }
+  let failedDressResolution = hasDressResolutionMetadata(persistedDressResolution)
+    ? persistedDressResolution
+    : null;
+
   const dressResolution = resolveDressMapIdFromSources({
     dressSources: buildReplayDressSources(replayObject),
     diagnostics,
@@ -704,9 +800,9 @@ export function resolveFightPvpMapIdFromReplay({
   if (dressResolution.ok) {
     return dressResolution;
   }
-  const failedDressResolution = hasDressResolutionMetadata(dressResolution)
-    ? dressResolution
-    : null;
+  if (!failedDressResolution && hasDressResolutionMetadata(dressResolution)) {
+    failedDressResolution = dressResolution;
+  }
 
   if (liveContext) {
     const liveResolution = resolveFightPvpMapIdFromLiveContext(liveContext);

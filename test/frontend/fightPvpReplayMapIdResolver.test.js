@@ -202,6 +202,132 @@ test("fight pvp mapId resolver backfills from selfRoleSnapshot pvpMapId", () => 
   assert.equal(result.mapIdSource, "replay.selfRoleSnapshot.pvpMapId");
 });
 
+test("fight pvp mapId resolver backfills from persisted selfRoleSnapshot dress used id through PVPMapConf", () => {
+  globalThis.__require = (moduleName) => {
+    if (moduleName === "../../../../../launcher/config/Configs") {
+      return {
+        PVPMapConf: {
+          getById(id) {
+            return id === 7001 ? { mapId: 120005 } : null;
+          },
+        },
+      };
+    }
+    throw new Error(`Cannot find module '${moduleName}'`);
+  };
+
+  const result = resolveFightPvpMapIdFromReplay({
+    replay: {
+      selfRoleSnapshot: {
+        pvpMapId: null,
+        dressPvpMapUsedId: 7001,
+        dressPvpMapMapId: null,
+      },
+      context: {
+        pvpMapId: null,
+        dressPvpMapUsedId: 7001,
+        dressPvpMapMapId: null,
+      },
+    },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.mapId, 120005);
+  assert.equal(result.pvpMapId, 120005);
+  assert.equal(
+    result.mapIdSource,
+    "replay.selfRoleSnapshot.persistedDressPVPMapConf.mapId",
+  );
+  assert.equal(
+    result.pvpMapIdSource,
+    "replay.selfRoleSnapshot.persistedDressPVPMapConf.mapId",
+  );
+  assert.equal(result.dressPvpMapUsedId, 7001);
+  assert.equal(result.dressPvpMapMapId, 120005);
+  assert.equal(
+    result.diagnostics.availableValues["replay.selfRoleSnapshot.PVPMapConf[7001].mapId"],
+    120005,
+  );
+  assert.equal(
+    result.diagnostics.availableValues["replay.context.dressPvpMapUsedId"],
+    7001,
+  );
+});
+
+test("fight pvp mapId resolver backfills from persisted context dress used id through PVPMapConf", () => {
+  globalThis.__require = (moduleName) => {
+    if (moduleName === "../../../../../launcher/config/Configs") {
+      return {
+        PVPMapConf: {
+          getById(id) {
+            return id === 7001 ? { mapId: 120005 } : null;
+          },
+        },
+      };
+    }
+    throw new Error(`Cannot find module '${moduleName}'`);
+  };
+
+  const result = resolveFightPvpMapIdFromReplay({
+    replay: {
+      selfRoleSnapshot: {
+        pvpMapId: null,
+        dressPvpMapUsedId: null,
+        dressPvpMapMapId: null,
+      },
+      context: {
+        pvpMapId: null,
+        dressPvpMapUsedId: 7001,
+        dressPvpMapMapId: null,
+      },
+    },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.mapId, 120005);
+  assert.equal(result.pvpMapId, 120005);
+  assert.equal(
+    result.mapIdSource,
+    "replay.context.persistedDressPVPMapConf.mapId",
+  );
+  assert.equal(
+    result.diagnostics.availableValues["replay.context.PVPMapConf[7001].mapId"],
+    120005,
+  );
+});
+
+test("fight pvp mapId resolver keeps failing when only persisted dress used id exists but PVPMapConf is unavailable", () => {
+  const result = resolveFightPvpMapIdFromReplay({
+    replay: {
+      selfRoleSnapshot: {
+        pvpMapId: null,
+        dressPvpMapUsedId: 7001,
+        dressPvpMapMapId: null,
+      },
+      context: {
+        pvpMapId: null,
+        dressPvpMapUsedId: 7001,
+        dressPvpMapMapId: null,
+      },
+      source: "fight-pvp-live",
+      meta: {},
+      battleData: {
+        id: "persisted-usedid-no-config",
+      },
+    },
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.mapId, null);
+  assert.equal(result.pvpMapId, null);
+  assert.equal(result.dressPvpMapUsedId, 7001);
+  assert.equal(result.dressPvpMapMapId, null);
+  assert.equal(
+    result.diagnostics.availableValues["replay.selfRoleSnapshot.persistedDressPVPMapConfLookup"],
+    "dress-config-unavailable",
+  );
+});
+
 test("fight pvp mapId resolver does not mistake leaked dress used ids for final replay mapId", () => {
   const result = resolveFightPvpMapIdFromReplay({
     replay: {
