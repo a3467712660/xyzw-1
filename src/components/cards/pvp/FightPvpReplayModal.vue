@@ -91,6 +91,9 @@ import {
   refreshFightPvpReplayLiveContext,
 } from "@/services/replay/fightPvpReplayStorage.js";
 import {
+  getFightPvpLiveMapIdReasonMessageKey,
+} from "@/services/replay/fightPvpLiveMapIdResolver.js";
+import {
   FIGHT_PVP_REPLAY_VERSION_GUARD_REASONS,
   guardFightPvpReplayVersion,
 } from "@/services/replay/fightPvpReplayVersionGuard.js";
@@ -220,6 +223,15 @@ const diagnosticLines = computed(() => {
   if (diagnostics.pvpMapIdSource) {
     lines.push(`pvpMapIdSource: ${diagnostics.pvpMapIdSource}`);
   }
+  if (diagnostics.mapIdResolveReason) {
+    lines.push(`mapIdResolveReason: ${diagnostics.mapIdResolveReason}`);
+  }
+  if (diagnostics.dressPvpMapUsedId) {
+    lines.push(`dressPvpMapUsedId: ${diagnostics.dressPvpMapUsedId}`);
+  }
+  if (diagnostics.selfRoleContextSource) {
+    lines.push(`selfRoleContextSource: ${diagnostics.selfRoleContextSource}`);
+  }
   if (Array.isArray(diagnostics.mapIdDiagnostics?.tried) && diagnostics.mapIdDiagnostics.tried.length > 0) {
     lines.push(`tried: ${diagnostics.mapIdDiagnostics.tried.join(" -> ")}`);
   }
@@ -285,6 +297,24 @@ const appendTechnicalMessage = (lead, detail) => {
   return `${prefix} ${props.t("fightPvpCard.replay.technicalDetailLabel")} ${suffix}`;
 };
 
+const buildSpecificMapIdFailureMessage = (diagnostics) => {
+  const messageKey = getFightPvpLiveMapIdReasonMessageKey(
+    diagnostics?.mapIdResolveReason,
+  );
+  const detailParts = [];
+  if (diagnostics?.selfRoleContextSource) {
+    detailParts.push(`selfRoleContextSource=${diagnostics.selfRoleContextSource}`);
+  }
+  if (diagnostics?.dressPvpMapUsedId) {
+    detailParts.push(`dressPvpMapUsedId=${diagnostics.dressPvpMapUsedId}`);
+  }
+
+  const lead = props.t(messageKey);
+  return detailParts.length > 0
+    ? appendTechnicalMessage(lead, detailParts.join(", "))
+    : lead;
+};
+
 const buildReplayFailureMessage = ({
   failureState,
   detail = "",
@@ -304,6 +334,9 @@ const buildReplayFailureMessage = ({
   ) {
     const missingFieldsDetail = `缺少字段：${diagnostics.missingRuntimeFields.join(", ")}。`;
     if (diagnostics.missingRuntimeFields.includes("mapId")) {
+      if (diagnostics?.mapIdResolveReason) {
+        return buildSpecificMapIdFailureMessage(diagnostics);
+      }
       return appendTechnicalMessage(
         props.t("fightPvpCard.replay.missingMapIdDescription"),
         missingFieldsDetail,
@@ -347,7 +380,12 @@ const startReplay = async () => {
 
   if (replay.value?.isPlayable === false) {
     state.value = "replay-start-failed";
-    currentMessage.value = replay.value?.disabledReason || props.t("fightPvpCard.replay.emptyDescription");
+    currentMessage.value = replay.value?.disabledReason
+      || (
+        replay.value?.mapIdResolveReason
+          ? buildSpecificMapIdFailureMessage(replay.value)
+          : props.t("fightPvpCard.replay.emptyDescription")
+      );
     emitErrorMessage(currentMessage.value);
     return;
   }

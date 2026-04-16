@@ -291,12 +291,15 @@ test("fight pvp replay storage appends, stores snapshots, dedupes, and keeps new
   assert.equal(records[0].sourceType, "battle-input-snapshot");
   assert.equal(records[0].battleInputData, null);
   assert.ok(records[0].battleInputSnapshot);
+  assert.equal(records[0].mapIdSource, "live.mapId");
+  assert.equal(records[0].mapIdResolveReason, null);
 
   const stored = JSON.parse(globalThis.localStorage.getItem(
     buildFightPvpReplayStorageKey({ userId: "user-a", tokenId: "token-a" }),
   ));
   assert.equal(stored[0].battleInputData, undefined);
   assert.ok(stored[0].battleInputSnapshot);
+  assert.equal(stored[0].mapIdSource, "live.mapId");
 });
 
 test("fight pvp replay storage trims old records and supports remove and clear", () => {
@@ -348,6 +351,7 @@ test("fight pvp replay storage migrates legacy v1 payload into v2 snapshot recor
   assert.equal(records[0].isPlayable, true);
   assert.equal(records[0].sourceType, "battle-input-snapshot");
   assert.ok(records[0].battleInputSnapshot);
+  assert.equal(records[0].mapIdSource, "replay.mapId");
 
   const storedV2 = JSON.parse(globalThis.localStorage.getItem(
     buildFightPvpReplayStorageKey({ userId: "user-a", tokenId: "token-a" }),
@@ -355,6 +359,7 @@ test("fight pvp replay storage migrates legacy v1 payload into v2 snapshot recor
   assert.equal(storedV2.length, 1);
   assert.ok(storedV2[0].battleInputSnapshot);
   assert.equal(storedV2[0].sourceType, "battle-input-snapshot");
+  assert.equal(storedV2[0].mapIdSource, "replay.mapId");
 });
 
 test("fight pvp replay storage keeps incomplete legacy records and marks them unavailable", () => {
@@ -398,4 +403,66 @@ test("fight pvp replay storage keeps incomplete legacy records and marks them un
     null,
   );
   assert.ok(globalThis.localStorage.getItem(legacyKey));
+});
+
+test("fight pvp replay storage keeps live mapId failure metadata on current records", () => {
+  const failingRecord = {
+    ...createLiveReplayRecord(20),
+    mapId: null,
+    pvpMapId: null,
+    battleInputData: buildFightPvpBattleInputData({
+      battleData: {
+        id: "battle-20",
+        version: 1,
+        mode: 7,
+        leftTeam: {
+          roleId: "role-left",
+          name: "我方",
+          team: { 0: { heroId: 1001 } },
+        },
+        rightTeam: {
+          roleId: "role-right",
+          name: "敌方",
+          team: { 0: { heroId: 2001 } },
+        },
+        result: {
+          isWin: true,
+        },
+      },
+      battleResult: {
+        isWin: true,
+      },
+      mapId: null,
+      stageNameStr: "切磋系统",
+      startTipTopName: "切磋系统",
+      startTipStage: "开始切磋",
+      options: new Map([
+        ["targetRole", { roleId: "role-right", name: "敌方" }],
+      ]),
+    }),
+    mapIdResolveReason: "missing-pvp-map-conf",
+    dressPvpMapUsedId: 7001,
+    selfRoleContextSource: "refreshed-role_getroleinfo",
+    disabledReason: "当前自身角色拿到了 PVP 外观 used 值，但运行时里没有可用的 PVPMapConf 配置。",
+    isPlayable: false,
+  };
+
+  const records = appendFightPvpReplay({
+    userId: "user-a",
+    tokenId: "token-a",
+    replay: failingRecord,
+  });
+
+  assert.equal(records.length, 1);
+  assert.equal(records[0].isPlayable, false);
+  assert.equal(records[0].mapIdResolveReason, "missing-pvp-map-conf");
+  assert.equal(records[0].dressPvpMapUsedId, 7001);
+  assert.equal(records[0].selfRoleContextSource, "refreshed-role_getroleinfo");
+
+  const stored = JSON.parse(globalThis.localStorage.getItem(
+    buildFightPvpReplayStorageKey({ userId: "user-a", tokenId: "token-a" }),
+  ));
+  assert.equal(stored[0].mapIdResolveReason, "missing-pvp-map-conf");
+  assert.equal(stored[0].dressPvpMapUsedId, 7001);
+  assert.equal(stored[0].selfRoleContextSource, "refreshed-role_getroleinfo");
 });

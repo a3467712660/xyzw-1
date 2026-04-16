@@ -1557,3 +1557,91 @@ test("fight pvp replay runtime bridge reports readable legacy-field failures wit
   delete globalThis.window;
   delete globalThis.HTMLElement;
 });
+
+test("fight pvp replay runtime bridge surfaces live mapId failure metadata from snapshot records", async () => {
+  class MockHTMLElement {
+    constructor() {
+      this.innerHTML = "";
+      this.clientWidth = 960;
+      this.clientHeight = 540;
+    }
+  }
+
+  globalThis.window = {
+    HTMLElement: MockHTMLElement,
+    clearTimeout,
+    requestAnimationFrame(callback) {
+      return setTimeout(callback, 0);
+    },
+    setTimeout,
+  };
+  globalThis.HTMLElement = MockHTMLElement;
+
+  const snapshotRecord = createSnapshotReplayRecord({
+    battleInputData: createReplayBattleInput({
+      mapId: null,
+    }),
+    mapId: null,
+    mapIdSource: null,
+    pvpMapIdSource: null,
+    mapIdResolveReason: "missing-pvp-map-conf",
+    dressPvpMapUsedId: 7001,
+    selfRoleContextSource: "refreshed-role_getroleinfo",
+  });
+
+  const session = await startFightPvpReplayRuntime({
+    replay: snapshotRecord,
+    hostElement: new MockHTMLElement(),
+    runtimeAdapter: {
+      createCanvasHost: () => ({
+        canvas: { id: "replay-canvas", width: 960, height: 540 },
+        viewport: {},
+      }),
+      createWxShim: () => ({
+        dispose() {},
+      }),
+      ensureBundleVersionContainers() {},
+      ensureReplayBootstrapScene: async () => ({
+        bootstrapSceneName: "Bootstrap",
+        cleanup() {},
+      }),
+      ensureRuntimeBooted: async () => {},
+      ensureRuntimeLoaded: async () => {},
+      createVm2Shim: () => ({
+        dispose() {},
+      }),
+      ensureAuxiliaryBundlesLoaded: async () => ({
+        dispose() {},
+      }),
+      installReplayBattleStartProbe: () => ({
+        dispose() {},
+        waitForSignal: async () => ({ ok: false }),
+      }),
+      locateReplayEntrypoint: () => ({
+        label: "mock-entrypoint",
+        invoke() {},
+      }),
+      inspectGameBundleModuleCoverage: async () => ({
+        missingModules: [],
+      }),
+      probeGameBundleAssets: async () => [],
+      probeGameSceneAssets: async () => [],
+      readRuntimeModules: () => ({
+        consts: {},
+      }),
+      waitForRuntimeReadyForReplay: async () => ({
+        ok: true,
+        sceneName: "Game",
+      }),
+    },
+  });
+
+  assert.equal(session.ok, false);
+  assert.equal(session.reason, "replay-start-failed");
+  assert.equal(session.diagnostics.mapIdResolveReason, "missing-pvp-map-conf");
+  assert.equal(session.diagnostics.dressPvpMapUsedId, 7001);
+  assert.equal(session.diagnostics.selfRoleContextSource, "refreshed-role_getroleinfo");
+
+  delete globalThis.window;
+  delete globalThis.HTMLElement;
+});

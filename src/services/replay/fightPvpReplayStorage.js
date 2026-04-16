@@ -173,6 +173,9 @@ const buildUnplayableLegacyRecord = (value, message) => {
     pvpMapId: toPositiveNumber(value?.pvpMapId, null),
     mapIdSource: toNonEmptyString(value?.mapIdSource) || null,
     pvpMapIdSource: toNonEmptyString(value?.pvpMapIdSource) || null,
+    mapIdResolveReason: toNonEmptyString(value?.mapIdResolveReason) || null,
+    dressPvpMapUsedId: toPositiveNumber(value?.dressPvpMapUsedId, null),
+    selfRoleContextSource: toNonEmptyString(value?.selfRoleContextSource) || null,
     selfRoleSnapshot: cloneJsonValue(value?.selfRoleSnapshot) || null,
     context: cloneJsonValue(value?.context) || null,
     backfilledAt: value?.backfilledAt || null,
@@ -201,9 +204,13 @@ const normalizeCurrentFightPvpReplayRecord = (
   const directBattleInput = value?.battleInputData
     ? buildFightPvpBattleInputData(value.battleInputData, { mutate: true })
     : null;
-  const battleInputSnapshot = value?.battleInputSnapshot
-    ? cloneJsonValue(value.battleInputSnapshot)
-    : (directBattleInput ? createFightPvpBattleInputSnapshot(directBattleInput) : null);
+  const battleInputSnapshot = directBattleInput
+    ? createFightPvpBattleInputSnapshot(directBattleInput)
+    : (
+        value?.battleInputSnapshot
+          ? cloneJsonValue(value.battleInputSnapshot)
+          : null
+      );
   const replayBattleInput = directBattleInput
     || (
       battleInputSnapshot
@@ -231,6 +238,9 @@ const normalizeCurrentFightPvpReplayRecord = (
     pvpMapId: value?.pvpMapId,
     mapIdSource: value?.mapIdSource,
     pvpMapIdSource: value?.pvpMapIdSource,
+    mapIdResolveReason: value?.mapIdResolveReason,
+    dressPvpMapUsedId: value?.dressPvpMapUsedId,
+    selfRoleContextSource: value?.selfRoleContextSource,
     selfRoleSnapshot: value?.selfRoleSnapshot,
     context: value?.context,
     meta: value?.meta,
@@ -311,6 +321,9 @@ const toStoredCurrentFightPvpReplayRecord = (record) => ({
   pvpMapId: record.pvpMapId,
   mapIdSource: record.mapIdSource,
   pvpMapIdSource: record.pvpMapIdSource,
+  mapIdResolveReason: record.mapIdResolveReason,
+  dressPvpMapUsedId: record.dressPvpMapUsedId,
+  selfRoleContextSource: record.selfRoleContextSource,
   selfRoleSnapshot: cloneJsonValue(record.selfRoleSnapshot),
   context: cloneJsonValue(record.context),
   backfilledAt: record.backfilledAt,

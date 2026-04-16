@@ -5,7 +5,11 @@ import {
 import {
   createFightPvpReplayRecordFromBattleInput,
 } from "@/services/replay/fightPvpReplayNormalizer.js";
-import { resolveFightPvpMapIdFromLiveContext } from "@/services/replay/fightPvpReplayMapIdResolver.js";
+import {
+  ensureFightPvpSelfRoleContext,
+  getFightPvpLiveMapIdReasonMessageKey,
+  resolveFightPvpMapIdFromLiveContext,
+} from "@/services/replay/fightPvpLiveMapIdResolver.js";
 
 export function useFightPvpActions({
   tokenStore,
@@ -52,6 +56,80 @@ export function useFightPvpActions({
     startTipStage: t("fightPvpCard.actions.startFight"),
   });
 
+  const buildLiveMapIdFailureMessage = (mapResolution) => {
+    const detailParts = [];
+    if (mapResolution?.selfRoleContextSource) {
+      detailParts.push(`selfRoleContextSource=${mapResolution.selfRoleContextSource}`);
+    }
+    if (mapResolution?.dressPvpMapUsedId) {
+      detailParts.push(`dressPvpMapUsedId=${mapResolution.dressPvpMapUsedId}`);
+    }
+
+    const lead = t(
+      getFightPvpLiveMapIdReasonMessageKey(mapResolution?.reason),
+    );
+    return detailParts.length > 0
+      ? `${lead} (${detailParts.join(", ")})`
+      : lead;
+  };
+
+  const resolveLiveMapIdForFightPvp = async ({
+    selfRoleRaw,
+  } = {}) => {
+    const selectedTokenRoleInfo = tokenStore.selectedTokenRoleInfo || null;
+    const tokenStoreRoleInfo = tokenStore.gameData?.roleInfo || null;
+    let mapResolution = resolveFightPvpMapIdFromLiveContext({
+      selfRoleRaw,
+      selectedTokenRoleInfo,
+      tokenStoreRoleInfo,
+    });
+
+    if (mapResolution.ok) {
+      return {
+        mapResolution,
+        resolvedSelfRoleRaw: selfRoleRaw,
+        resolvedRoleInfo: tokenStoreRoleInfo,
+      };
+    }
+
+    if (mapResolution.reason !== "missing-self-role") {
+      return {
+        mapResolution,
+        resolvedSelfRoleRaw: selfRoleRaw,
+        resolvedRoleInfo: tokenStoreRoleInfo,
+      };
+    }
+
+    const ensuredSelfRoleContext = await ensureFightPvpSelfRoleContext({
+      tokenStore,
+      selectedToken: tokenStore.selectedToken,
+    });
+    const refreshedRoleInfo = ensuredSelfRoleContext?.roleInfo || null;
+
+    if (refreshedRoleInfo) {
+      mapResolution = resolveFightPvpMapIdFromLiveContext({
+        selfRoleRaw: selfRoleRaw || refreshedRoleInfo,
+        selectedTokenRoleInfo: tokenStore.selectedTokenRoleInfo || refreshedRoleInfo,
+        tokenStoreRoleInfo: refreshedRoleInfo,
+      });
+    } else if (
+      ensuredSelfRoleContext?.reason === "missing-self-role-after-refresh"
+      && !mapResolution.ok
+    ) {
+      mapResolution = {
+        ...mapResolution,
+        reason: ensuredSelfRoleContext.reason,
+        selfRoleContextSource: ensuredSelfRoleContext.selfRoleContextSource,
+      };
+    }
+
+    return {
+      mapResolution,
+      resolvedSelfRoleRaw: selfRoleRaw || refreshedRoleInfo,
+      resolvedRoleInfo: refreshedRoleInfo || tokenStoreRoleInfo,
+    };
+  };
+
   const buildReplayOptions = (result) =>
     new Map([
       [
@@ -94,6 +172,7 @@ export function useFightPvpActions({
       const replays = [];
       let selfRoleRaw = null;
       let selfPresetTeamRaw = null;
+      let firstReplayFailureMessage = "";
 
       const [roleInfoResult, presetTeamResult] = await Promise.allSettled([
         tokenStore.sendGetRoleInfo(tokenId),
@@ -129,11 +208,20 @@ export function useFightPvpActions({
         }
 
         rawBattles.push(result.battleData);
-        const tokenStoreRoleInfo = tokenStore.gameData?.roleInfo || null;
-        const mapResolution = resolveFightPvpMapIdFromLiveContext({
+        const {
+          mapResolution,
+          resolvedSelfRoleRaw,
+          resolvedRoleInfo,
+        } = await resolveLiveMapIdForFightPvp({
           selfRoleRaw,
-          tokenStoreRoleInfo,
         });
+        if (!selfRoleRaw && resolvedSelfRoleRaw) {
+          selfRoleRaw = resolvedSelfRoleRaw;
+        }
+
+        const liveMapIdFailureMessage = !mapResolution.ok
+          ? buildLiveMapIdFailureMessage(mapResolution)
+          : "";
         const battleInputData = buildFightPvpBattleInputData({
           battleData: result.battleData,
           battleResult: result.battleResult,
@@ -149,20 +237,29 @@ export function useFightPvpActions({
           targetId: targetId.value,
           targetName: memberData.value?.name,
           leftContext:
-            selfRoleRaw?.role
-            || selfRoleRaw?.roleInfo
-            || tokenStore.gameData?.roleInfo?.role
-            || tokenStore.gameData?.roleInfo
+            resolvedSelfRoleRaw?.role
+            || resolvedSelfRoleRaw?.roleInfo
+            || tokenStore.selectedTokenRoleInfo?.role
+            || tokenStore.selectedTokenRoleInfo
+            || resolvedRoleInfo?.role
+            || resolvedRoleInfo
             || null,
           rightContext: memberData.value,
-          selfRoleRaw,
-          roleInfo: tokenStoreRoleInfo,
+          selfRoleRaw: resolvedSelfRoleRaw,
+          roleInfo: resolvedRoleInfo,
           mapId: mapResolution.mapId,
           pvpMapId: mapResolution.pvpMapId,
-          mapIdSource: mapResolution.mapIdSource,
-          pvpMapIdSource: mapResolution.pvpMapIdSource,
+          mapIdSource: mapResolution.source,
+          pvpMapIdSource: mapResolution.source,
+          disabledReason: liveMapIdFailureMessage,
+          mapIdResolveReason: mapResolution.reason,
+          dressPvpMapUsedId: mapResolution.dressPvpMapUsedId,
+          selfRoleContextSource: mapResolution.selfRoleContextSource,
           mapResolution,
         });
+        if (!replay.isPlayable && !firstReplayFailureMessage) {
+          firstReplayFailureMessage = replay.disabledReason || liveMapIdFailureMessage;
+        }
         replays.push(replay);
 
         const sponsorTeamInfo = Object.values(
@@ -232,6 +329,9 @@ export function useFightPvpActions({
         report,
       };
       fightResult.value = teamData;
+      if (firstReplayFailureMessage) {
+        message.warning(firstReplayFailureMessage);
+      }
       message.success(t("fightPvpCard.messages.fightDone"));
       return teamData;
     } catch (error) {

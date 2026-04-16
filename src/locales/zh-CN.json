@@ -3015,6 +3015,15 @@
       "missingFieldsDescription": "该历史回放缺少必要字段，当前无法播放。",
       "replaySignalMissingDescription": "回放运行时已准备，但这场记录没有真正进入回放启动链。",
       "runtimeNotReady": "运行时尚未准备好，暂时无法播放该回放。",
+      "mapIdReasons": {
+        "missingSelfRole": "当前缓存里没有可用的自身角色信息，无法确定本场切磋地图。",
+        "missingSelfRoleAfterRefresh": "当前缓存缺少自身角色信息，且刷新当前账号角色信息后仍无法确定本场切磋地图。",
+        "missingPvpMapId": "当前自身角色信息里没有可用的 PVP 地图配置。",
+        "missingDress": "当前自身角色信息里没有可用的 PVP 外观 dress，无法反推出切磋地图。",
+        "missingDressUsed": "当前自身角色的 PVP 外观缺少 used 值，无法反推出切磋地图。",
+        "missingPvpMapConf": "当前自身角色拿到了 PVP 外观 used 值，但运行时里没有可用的 PVPMapConf 配置。",
+        "missingPvpMapConfMapId": "当前自身角色拿到了 PVP 外观 used 值，但 PVPMapConf 无法解析出最终 mapId。"
+      },
       "diagnosticTitle": "桥接诊断",
       "lastErrorLabel": "上次错误：",
       "technicalDetailLabel": "诊断："

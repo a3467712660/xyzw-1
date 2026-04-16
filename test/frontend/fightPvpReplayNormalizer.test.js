@@ -13,7 +13,7 @@ import {
 } from "../../src/services/replay/fightPvpReplayNormalizer.js";
 import {
   resolveFightPvpMapIdFromLiveContext,
-} from "../../src/services/replay/fightPvpReplayMapIdResolver.js";
+} from "../../src/services/replay/fightPvpLiveMapIdResolver.js";
 
 test.afterEach(() => {
   delete globalThis.PVPMapConf;
@@ -203,12 +203,67 @@ test("fight pvp replay record creation keeps live map resolution and builds snap
   assert.equal(record.battleVersion, 99);
   assert.equal(record.mapId, 130001);
   assert.equal(record.pvpMapId, 130001);
-  assert.equal(record.mapIdSource, "selfRoleRaw.role.pvpMapId");
-  assert.equal(record.pvpMapIdSource, "selfRoleRaw.role.pvpMapId");
+  assert.equal(record.mapIdSource, "selfRole.role.pvpMapId");
+  assert.equal(record.pvpMapIdSource, "selfRole.role.pvpMapId");
+  assert.equal(record.mapIdResolveReason, null);
+  assert.equal(record.dressPvpMapUsedId, null);
+  assert.equal(record.selfRoleContextSource, "selfRoleRaw");
   assert.equal(record.isPlayable, true);
   assert.ok(record.battleInputSnapshot);
   assert.equal(record.battleInputSnapshot.mapId, 130001);
   assert.equal(record.battleInputSnapshot.battleData.mode, 7);
   assert.equal(record.battleInputSummary.sourceType, "battle-input-data");
   assert.deepEqual(record.missingRuntimeFields, []);
+});
+
+test("fight pvp replay record keeps live mapId failure metadata for unplayable live capture", () => {
+  const battleInputData = buildFightPvpBattleInputData({
+    battleData: {
+      id: "battle-4",
+      version: 100,
+      mode: 7,
+      leftTeam: {
+        roleId: "role-1",
+        name: "我方",
+        team: { 0: { heroId: 1001 } },
+      },
+      rightTeam: {
+        roleId: "role-2",
+        name: "对手",
+        team: { 0: { heroId: 2001 } },
+      },
+      result: {
+        isWin: false,
+      },
+    },
+    battleResult: {
+      isWin: false,
+    },
+    mapId: null,
+    stageNameStr: "切磋系统",
+    startTipTopName: "切磋系统",
+    startTipStage: "开始切磋",
+    options: new Map([
+      ["targetRole", { roleId: "role-2", name: "对手" }],
+    ]),
+  });
+
+  const record = createFightPvpReplayRecordFromBattleInput({
+    battleInputData,
+    tokenId: "token-1",
+    targetId: "role-2",
+    targetName: "对手",
+    mapIdResolveReason: "missing-pvp-map-conf",
+    dressPvpMapUsedId: 7001,
+    selfRoleContextSource: "refreshed-role_getroleinfo",
+    disabledReason: "当前自身角色拿到了 PVP 外观 used 值，但运行时里没有可用的 PVPMapConf 配置。",
+  });
+
+  assert.equal(record.isPlayable, false);
+  assert.equal(record.mapId, null);
+  assert.equal(record.battleInputSnapshot.mapId, null);
+  assert.equal(record.mapIdResolveReason, "missing-pvp-map-conf");
+  assert.equal(record.dressPvpMapUsedId, 7001);
+  assert.equal(record.selfRoleContextSource, "refreshed-role_getroleinfo");
+  assert.match(record.disabledReason, /PVPMapConf/);
 });

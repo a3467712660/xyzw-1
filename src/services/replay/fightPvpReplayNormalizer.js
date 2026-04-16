@@ -365,6 +365,10 @@ export const createFightPvpReplayRecordFromBattleInput = ({
   pvpMapId = null,
   mapIdSource = null,
   pvpMapIdSource = null,
+  mapIdResolveReason = null,
+  dressPvpMapUsedId = null,
+  selfRoleContextSource = null,
+  disabledReason = "",
   selfRoleRaw = null,
   roleInfo = null,
   selfRoleSnapshot = null,
@@ -415,13 +419,14 @@ export const createFightPvpReplayRecordFromBattleInput = ({
     toPositiveNumber(pvpMapId, normalizedMapId),
   );
   const normalizedMapIdSource = normalizedMapId
-    ? (toNonEmptyString(mapResolution?.mapIdSource, mapIdSource) || null)
+    ? (toNonEmptyString(mapResolution?.mapIdSource, mapResolution?.source, mapIdSource) || null)
     : null;
   const normalizedPvpMapIdSource = normalizedPvpMapId
     ? (
         toNonEmptyString(
           mapResolution?.pvpMapIdSource,
           mapResolution?.mapIdSource,
+          mapResolution?.source,
           pvpMapIdSource,
           mapIdSource,
         ) || null
@@ -441,7 +446,20 @@ export const createFightPvpReplayRecordFromBattleInput = ({
   });
   const battleInputSnapshot = createFightPvpBattleInputSnapshot(runtimeInput);
   const missingRuntimeFields = getFightPvpBattleInputMissingFields(runtimeInput);
-  const disabledReason = buildFightPvpBattleInputMissingMessage(missingRuntimeFields);
+  const normalizedMapIdResolveReason = toNonEmptyString(
+    mapIdResolveReason,
+    mapResolution?.reason,
+  ) || null;
+  const normalizedDressPvpMapUsedId = toPositiveNumber(
+    dressPvpMapUsedId,
+    mapResolution?.dressPvpMapUsedId,
+  );
+  const normalizedSelfRoleContextSource = toNonEmptyString(
+    selfRoleContextSource,
+    mapResolution?.selfRoleContextSource,
+  ) || null;
+  const normalizedDisabledReason = toNonEmptyString(disabledReason)
+    || buildFightPvpBattleInputMissingMessage(missingRuntimeFields);
 
   return {
     replayId,
@@ -459,6 +477,9 @@ export const createFightPvpReplayRecordFromBattleInput = ({
     pvpMapId: normalizedPvpMapId,
     mapIdSource: normalizedMapIdSource,
     pvpMapIdSource: normalizedPvpMapIdSource,
+    mapIdResolveReason: normalizedMapIdResolveReason,
+    dressPvpMapUsedId: normalizedDressPvpMapUsedId,
+    selfRoleContextSource: normalizedSelfRoleContextSource,
     selfRoleSnapshot: normalizedSelfRoleSnapshot,
     context: normalizedContext,
     backfilledAt: normalizeOptionalReplayTimestamp(backfilledAt),
@@ -472,7 +493,7 @@ export const createFightPvpReplayRecordFromBattleInput = ({
     battleInputData: runtimeInput,
     battleInputSnapshot,
     isPlayable: missingRuntimeFields.length === 0,
-    disabledReason,
+    disabledReason: normalizedDisabledReason,
     sourceType: buildFightPvpReplaySourceType({
       battleInputData: runtimeInput,
       battleInputSnapshot,

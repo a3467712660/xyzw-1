@@ -3039,6 +3039,15 @@
       "missingFieldsDescription": "This replay record is missing required fields, so it cannot be played.",
       "replaySignalMissingDescription": "The replay runtime is ready, but this record never entered the replay start chain.",
       "runtimeNotReady": "The runtime is not ready, so this replay cannot start yet.",
+      "mapIdReasons": {
+        "missingSelfRole": "No usable self-role data is available in the current cache, so the duel map cannot be resolved.",
+        "missingSelfRoleAfterRefresh": "Self-role data is missing from cache, and a refresh of the current account still could not resolve the duel map.",
+        "missingPvpMapId": "The current self-role data does not contain a usable PVP map configuration.",
+        "missingDress": "The current self-role data does not contain a usable PVP dress entry, so the duel map cannot be derived.",
+        "missingDressUsed": "The current self-role PVP dress is missing its used value, so the duel map cannot be derived.",
+        "missingPvpMapConf": "A PVP dress used value was found for the current self-role, but no usable PVPMapConf is available at runtime.",
+        "missingPvpMapConfMapId": "A PVP dress used value was found for the current self-role, but PVPMapConf could not resolve a final mapId."
+      },
       "diagnosticTitle": "Bridge Diagnostics",
       "lastErrorLabel": "Last error:",
       "technicalDetailLabel": "Diagnostics:"

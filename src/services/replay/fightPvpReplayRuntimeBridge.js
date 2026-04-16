@@ -1074,6 +1074,9 @@ const buildReplayMapResolutionFromRecord = (replay) => ({
   pvpMapId: replay?.pvpMapId ?? replay?.mapId ?? replay?.battleInputSnapshot?.mapId ?? null,
   mapIdSource: replay?.mapIdSource ?? null,
   pvpMapIdSource: replay?.pvpMapIdSource ?? replay?.mapIdSource ?? null,
+  mapIdResolveReason: replay?.mapIdResolveReason ?? null,
+  dressPvpMapUsedId: replay?.dressPvpMapUsedId ?? null,
+  selfRoleContextSource: replay?.selfRoleContextSource ?? null,
   fixtureMapFallbackUsed: Boolean(
     replay?.meta?.fixtureMapFallback
     || replay?.meta?.fixtureMapFallbackUsed,
@@ -2775,6 +2778,9 @@ export const startFightPvpReplayRuntime = async ({
     diagnostics.missingRuntimeFields = replayBattleInputResult.missingRuntimeFields;
     diagnostics.mapIdSource = replayBattleInputResult.mapIdResolution?.mapIdSource ?? null;
     diagnostics.pvpMapIdSource = replayBattleInputResult.mapIdResolution?.pvpMapIdSource ?? null;
+    diagnostics.mapIdResolveReason = replayBattleInputResult.mapIdResolution?.mapIdResolveReason ?? null;
+    diagnostics.dressPvpMapUsedId = replayBattleInputResult.mapIdResolution?.dressPvpMapUsedId ?? null;
+    diagnostics.selfRoleContextSource = replayBattleInputResult.mapIdResolution?.selfRoleContextSource ?? null;
     diagnostics.fixtureMapFallbackUsed = Boolean(
       replayBattleInputResult.mapIdResolution?.fixtureMapFallbackUsed,
     );
