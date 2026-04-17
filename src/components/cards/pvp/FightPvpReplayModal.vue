@@ -233,8 +233,28 @@ const diagnosticLines = computed(() => {
   if (diagnostics.replayGameWindowStatus) {
     lines.push(`replayGameWindowStatus: ${diagnostics.replayGameWindowStatus}`);
   }
-  if (diagnostics.runtimeLayer) {
-    lines.push(`runtimeLayer: ${diagnostics.runtimeLayer}`);
+  if (diagnostics.runtimeStage) {
+    lines.push(`runtimeStage: ${diagnostics.runtimeStage}`);
+  } else if (diagnostics.runtimeLayer) {
+    lines.push(`runtimeStage: ${diagnostics.runtimeLayer}`);
+  }
+  if (diagnostics.sceneName) {
+    lines.push(`sceneName: ${diagnostics.sceneName}`);
+  }
+  if (diagnostics.gameBundleRequested !== undefined) {
+    lines.push(`gameBundleRequested: ${diagnostics.gameBundleRequested}`);
+  }
+  if (diagnostics.gameBundleLoaded !== undefined) {
+    lines.push(`gameBundleLoaded: ${diagnostics.gameBundleLoaded}`);
+  }
+  if (diagnostics.gameSceneAssetLoaded !== undefined) {
+    lines.push(`gameSceneAssetLoaded: ${diagnostics.gameSceneAssetLoaded}`);
+  }
+  if (diagnostics.gameSceneRunning !== undefined) {
+    lines.push(`gameSceneRunning: ${diagnostics.gameSceneRunning}`);
+  }
+  if (diagnostics.battleModulesReady !== undefined) {
+    lines.push(`battleModulesReady: ${diagnostics.battleModulesReady}`);
   }
   if (diagnostics.gameScriptInDocument !== undefined) {
     lines.push(`gameScriptInDocument: ${diagnostics.gameScriptInDocument}`);
@@ -253,6 +273,15 @@ const diagnosticLines = computed(() => {
   }
   if (diagnostics.replayGameBundleReadySource) {
     lines.push(`replayGameBundleReadySource: ${diagnostics.replayGameBundleReadySource}`);
+  }
+  if (Array.isArray(diagnostics.loadBundleCalls) && diagnostics.loadBundleCalls.length > 0) {
+    lines.push(`loadBundleCalls: ${formatDiagnosticValue(diagnostics.loadBundleCalls)}`);
+  }
+  if (Array.isArray(diagnostics.tryLoadAssetCalls) && diagnostics.tryLoadAssetCalls.length > 0) {
+    lines.push(`tryLoadAssetCalls: ${formatDiagnosticValue(diagnostics.tryLoadAssetCalls)}`);
+  }
+  if (Array.isArray(diagnostics.runSceneCalls) && diagnostics.runSceneCalls.length > 0) {
+    lines.push(`runSceneCalls: ${formatDiagnosticValue(diagnostics.runSceneCalls)}`);
   }
   if (diagnostics.moduleChecks && Object.keys(diagnostics.moduleChecks).length > 0) {
     lines.push(`moduleChecks: ${formatDiagnosticValue(diagnostics.moduleChecks)}`);
@@ -377,6 +406,19 @@ const appendTechnicalMessage = (lead, detail) => {
   return `${prefix} ${props.t("fightPvpCard.replay.technicalDetailLabel")} ${suffix}`;
 };
 
+const getRuntimeStageMessage = (stage) => {
+  const stageMap = {
+    "launcher-ready": "fightPvpCard.replay.runtimeStageDescriptions.launcherReady",
+    "game-bundle-requested": "fightPvpCard.replay.runtimeStageDescriptions.gameBundleRequested",
+    "game-bundle-loaded": "fightPvpCard.replay.runtimeStageDescriptions.gameBundleLoaded",
+    "game-scene-asset-loaded": "fightPvpCard.replay.runtimeStageDescriptions.gameSceneAssetLoaded",
+    "game-scene-running": "fightPvpCard.replay.runtimeStageDescriptions.gameSceneRunning",
+    "battle-modules-ready": "fightPvpCard.replay.runtimeStageDescriptions.battleModulesReady",
+  };
+  const key = stageMap[stage];
+  return key ? props.t(key) : "";
+};
+
 const buildSpecificMapIdFailureMessage = (diagnostics) => {
   const messageKey = getFightPvpLiveMapIdReasonMessageKey(
     diagnostics?.mapIdResolveReason,
@@ -464,14 +506,25 @@ const buildReplayFailureMessage = ({
 
   if (
     failureState === "replay-start-failed"
-    && ["wrong-window", "no-require", "launcher-only", "game-bundle-loading"].includes(
-      diagnostics?.runtimeLayer || diagnostics?.replayGameWindowStatus,
+    && [
+      "wrong-window",
+      "no-require",
+      "launcher-ready",
+      "game-bundle-requested",
+      "game-bundle-loaded",
+      "game-scene-asset-loaded",
+      "game-scene-running",
+    ].includes(
+      diagnostics?.runtimeStage || diagnostics?.runtimeLayer || diagnostics?.replayGameWindowStatus,
     )
     && Array.isArray(diagnostics?.replayEntrypointCandidates)
     && diagnostics.replayEntrypointCandidates.length > 0
   ) {
+    const stageLead = getRuntimeStageMessage(
+      diagnostics?.runtimeStage || diagnostics?.runtimeLayer || diagnostics?.replayGameWindowStatus,
+    );
     return appendTechnicalMessage(
-      props.t("fightPvpCard.replay.engineEntrypointUnavailableDescription"),
+      stageLead || props.t("fightPvpCard.replay.engineEntrypointUnavailableDescription"),
       detail,
     );
   }

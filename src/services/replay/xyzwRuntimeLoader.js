@@ -165,7 +165,7 @@ export const ensureXyzwRuntimeLoaded = async ({
   const runtimeLayerInfo = variant === XYZW_RUNTIME_VARIANTS.REPLAY_BROWSER && hasRuntimeRequire
     ? detectXyzwRuntimeLayer(runtimeWindow, { windowLabel: "window" })
     : null;
-  const replayBrowserRuntimeReady = runtimeLayerInfo?.layer === "game-bundle-ready";
+  const replayBrowserRuntimeReady = runtimeLayerInfo?.layer === "battle-modules-ready";
 
   if (
     hasRuntimeRequire

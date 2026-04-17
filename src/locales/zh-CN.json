@@ -3017,6 +3017,14 @@
       "engineEntrypointResolveFailedDescription": "运行时已进入 Game，并已找到真实游戏 window。当前探针已真实执行 window.__require(moduleId)；若仍显示 wrong-export-path 或 not-callable，则说明模块已加载，但目标导出路径不存在或末端不可调用。",
       "replaySignalMissingDescription": "运行时已进入 Game，并已找到真实游戏 window。battle replay 入口已可调用；当前无报错但无画面，更可能是传入数据尚未归一化为 battleInputData，或手动入口走了 EnterOSSState.showBattleViewWithData 的通用链路而非 BattleUIManager.SHOW_BATTLE_REPLAY_UI 的 replay 路由。",
       "runtimeNotReady": "运行时尚未准备好，暂时无法播放该回放。",
+      "runtimeStageDescriptions": {
+        "launcherReady": "launcher 初始化完成，但尚未请求 game bundle。",
+        "gameBundleRequested": "已请求 game bundle，正在等待 bundle callback。",
+        "gameBundleLoaded": "game bundle 已回调成功，正在等待 Game scene asset。",
+        "gameSceneAssetLoaded": "Game scene asset 已拿到，正在等待 runScene。",
+        "gameSceneRunning": "Game scene 已切换，正在等待 battle modules 注册。",
+        "battleModulesReady": "battle modules 已注册，replay 入口可用。"
+      },
       "mapIdReasons": {
         "runtimeRoleUnavailable": "当前 live capture 无法直接读取运行时 self role，因而拿不到 ROLE.pvpMapId。",
         "runtimeRoleNoPvpMapId": "当前运行时 self role 可达，但 self role 上没有可用的 pvpMapId。",

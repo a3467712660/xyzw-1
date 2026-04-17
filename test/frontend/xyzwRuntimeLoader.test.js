@@ -125,6 +125,43 @@ test("xyzw runtime loader reuses replay-browser require only when the game bundl
       return [{ name: "http://localhost/assets/game/index.js" }];
     },
   };
+  runtimeWindow.cc = {
+    director: {
+      getScene() {
+        return { name: "Game" };
+      },
+    },
+  };
+  runtimeWindow.__xyzwReplayRuntimeLayerState = {
+    nextId: 0,
+    bundleEvents: [],
+    loadBundleCalls: [{
+      at: Date.now(),
+      bundleName: "game",
+      phase: "resolved",
+      resolved: true,
+      ok: true,
+      source: "test",
+      target: "game",
+    }],
+    pendingBundlePromises: new Map(),
+    pendingSceneAssetPromises: new Map(),
+    runSceneCalls: [{
+      at: Date.now(),
+      sceneName: "Game",
+      source: "test",
+    }],
+    scriptEvents: [],
+    tryLoadAssetCalls: [{
+      at: Date.now(),
+      bundleName: "game",
+      path: "scenes/Game",
+      phase: "resolved",
+      resolved: true,
+      ok: true,
+      source: "test",
+    }],
+  };
 
   const runtimeRequire = await ensureXyzwRuntimeLoaded({
     variant: XYZW_RUNTIME_VARIANTS.REPLAY_BROWSER,

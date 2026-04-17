@@ -8,8 +8,11 @@ import {
   inspectBundleState as inspectBundleStateShared,
   probeXyzwRuntimeModule,
   recordXyzwBundleEvent,
+  recordXyzwRunSceneCall,
   recordXyzwRuntimeScriptEvent,
   trackXyzwBundlePromise,
+  trackXyzwTryLoadAssetPromise,
+  waitForBattleModulesReady as waitForBattleModulesReadyShared,
 } from "./xyzwReplayRuntimeLayer.js";
 import {
   convertLegacyFightPvpReplayPayload,
@@ -211,13 +214,22 @@ const REPLAY_CANONICAL_MODULE_ID_SET = new Set(REPLAY_CANONICAL_MODULE_IDS);
 export const detectXyzwRuntimeLayer = detectXyzwRuntimeLayerShared;
 export const inspectBundleState = inspectBundleStateShared;
 export const ensureXyzwGameBundleReady = ensureXyzwGameBundleReadyShared;
+export const waitForBattleModulesReady = waitForBattleModulesReadyShared;
 
 const buildRuntimeLayerDetail = (runtimeLayerInfo) => {
   switch (runtimeLayerInfo?.layer) {
-    case "launcher-only":
-      return "current window.__require belongs to launcher/main only; game.js has not executed in this window yet.";
-    case "game-bundle-loading":
-      return "game.js has been observed for this window, but battle modules are still unavailable.";
+    case "launcher-ready":
+      return "launcher is initialized, but the game bundle has not been requested yet.";
+    case "game-bundle-requested":
+      return "the game bundle was requested and is waiting for the bundle callback.";
+    case "game-bundle-loaded":
+      return "the game bundle callback resolved, but the Game scene asset is still pending.";
+    case "game-scene-asset-loaded":
+      return "the Game scene asset is ready, but runScene(Game) has not happened yet.";
+    case "game-scene-running":
+      return "Game scene is already running, but battle modules are not registered yet.";
+    case "battle-modules-ready":
+      return "battle modules are registered and the replay entrypoint can be called.";
     case "no-require":
       return "gameWindow.__require is unavailable.";
     case "no-window":
@@ -1980,6 +1992,79 @@ export const installReplayResourceManagerGuard = ({
   };
 };
 
+export const installReplaySceneStageObserver = ({
+  modules,
+  runtimeWindow = getRuntimeWindow(),
+  diagnostics,
+} = {}) => {
+  const cleanupFns = [];
+  const tryLoadAssetTargets = [
+    {
+      holder: modules?.ResourceManager,
+      key: "TRY_LOAD_ASSET",
+      source: "ResourceManager.TRY_LOAD_ASSET",
+    },
+    {
+      holder: modules?.ResourceManager?.default,
+      key: "TRY_LOAD_ASSET",
+      source: "ResourceManager.default.TRY_LOAD_ASSET",
+    },
+  ];
+
+  for (const target of tryLoadAssetTargets) {
+    const previous = target.holder?.[target.key];
+    if (typeof previous !== "function") {
+      continue;
+    }
+    const wrapped = function wrappedTryLoadAsset(bundleName, path, assetType, ...args) {
+      diagnostics?.steps?.push?.(`observe-try-load-asset:${bundleName}:${path}`);
+      return trackXyzwTryLoadAssetPromise({
+        runtimeWindow,
+        bundleName,
+        path,
+        assetType,
+        source: target.source,
+        result: previous.call(this, bundleName, path, assetType, ...args),
+      });
+    };
+    target.holder[target.key] = wrapped;
+    cleanupFns.push(() => {
+      if (target.holder?.[target.key] === wrapped) {
+        target.holder[target.key] = previous;
+      }
+    });
+  }
+
+  const director = runtimeWindow.cc?.director;
+  const previousRunScene = director?.runScene;
+  if (typeof previousRunScene === "function") {
+    const wrappedRunScene = function wrappedRunScene(scene, ...args) {
+      const sceneName = scene?.name || null;
+      diagnostics?.steps?.push?.(`observe-run-scene:${sceneName || "unknown"}`);
+      recordXyzwRunSceneCall({
+        runtimeWindow,
+        sceneName,
+        source: "cc.director.runScene",
+      });
+      return previousRunScene.call(this, scene, ...args);
+    };
+    director.runScene = wrappedRunScene;
+    cleanupFns.push(() => {
+      if (director.runScene === wrappedRunScene) {
+        director.runScene = previousRunScene;
+      }
+    });
+  }
+
+  return {
+    dispose() {
+      while (cleanupFns.length > 0) {
+        cleanupFns.pop()?.();
+      }
+    },
+  };
+};
+
 const readRuntimeModules = () => {
   const runtimeWindow = getRuntimeWindow();
   const runtimeRequire = runtimeWindow.__require;
@@ -3156,10 +3241,20 @@ const buildReplayProbeReport = ({
   diagnostics.replayGameWindowSource = source;
   diagnostics.replayGameWindowStatus = resolvedGameWindowInfo.status || "no-require";
   diagnostics.runtimeLayer = runtimeLayerInfo.layer;
+  diagnostics.runtimeStage = runtimeLayerInfo.layer;
   diagnostics.bundleState = bundleState;
+  diagnostics.sceneName = runtimeLayerInfo.details?.sceneName ?? null;
+  diagnostics.gameBundleRequested = Boolean(runtimeLayerInfo.details?.gameBundleRequested);
+  diagnostics.gameBundleLoaded = Boolean(runtimeLayerInfo.details?.gameBundleLoaded);
+  diagnostics.gameSceneAssetLoaded = Boolean(runtimeLayerInfo.details?.gameSceneAssetLoaded);
+  diagnostics.gameSceneRunning = Boolean(runtimeLayerInfo.details?.gameSceneRunning);
+  diagnostics.battleModulesReady = Boolean(runtimeLayerInfo.details?.battleModulesReady);
+  diagnostics.loadBundleCalls = runtimeLayerInfo.details?.loadBundleCalls || [];
+  diagnostics.tryLoadAssetCalls = runtimeLayerInfo.details?.tryLoadAssetCalls || [];
+  diagnostics.runSceneCalls = runtimeLayerInfo.details?.runSceneCalls || [];
   diagnostics.gameScriptInDocument = Boolean(runtimeLayerInfo.details?.gameScriptInDocument);
   diagnostics.gameScriptInPerformance = Boolean(runtimeLayerInfo.details?.gameScriptInPerformance);
-  diagnostics.moduleChecks = runtimeLayerInfo.details?.moduleChecks || {};
+  diagnostics.moduleChecks = runtimeLayerInfo.details?.canonicalModuleChecks || runtimeLayerInfo.details?.moduleChecks || {};
   diagnostics.fallbackEntrypointUsed = false;
   diagnostics.fallbackEntrypointReason = null;
   diagnostics.enterOssAvailableButRejected = false;
@@ -3302,7 +3397,7 @@ const inspectReplayEntrypoints = async (gameWindow = null) => {
         }
       : discoveredGameWindowInfo;
   const resolvedGameWindow = resolvedGameWindowInfo.gameWindow || gameWindow || null;
-  const bundleReadyInfo = await ensureXyzwGameBundleReadyShared({
+  const bundleReadyInfo = await waitForBattleModulesReadyShared({
     gameWindow: resolvedGameWindow,
     runtimeWindow: resolvedGameWindow || runtimeWindow,
     windowLabel: formatReplayGameWindowSourceLabel(
@@ -3315,6 +3410,7 @@ const inspectReplayEntrypoints = async (gameWindow = null) => {
     replayGameBundleReadyError: bundleReadyInfo.error || null,
     replayGameBundleReadySource: bundleReadyInfo.gameBundleReadySource || null,
     runtimeLayer: bundleReadyInfo.layer || null,
+    runtimeStage: bundleReadyInfo.layer || null,
   };
   const { entrypoint } = buildReplayProbeReport({
     gameWindow: resolvedGameWindow,
@@ -3393,33 +3489,27 @@ const createReplayConsoleHelpers = (gameWindow, {
   limited = false,
 } = {}) => {
   const baseHelper = {
-    detectRuntimeLayer() {
-      const result = detectXyzwRuntimeLayerShared(gameWindow, { windowLabel: "window" });
-      console.log("[xyzw replay] detectRuntimeLayer", result);
-      baseHelper.result = result;
-      return result;
-    },
     inspectBundleState() {
       const result = inspectBundleStateShared(getRuntimeWindow());
       console.log("[xyzw replay] inspectBundleState", result);
       baseHelper.result = result;
       return result;
     },
-    async waitForGameBundleReady(options = {}) {
-      const result = await ensureXyzwGameBundleReadyShared({
+    async waitForBattleModulesReady(options = {}) {
+      const result = await waitForBattleModulesReadyShared({
         gameWindow,
         runtimeWindow: getRuntimeWindow(),
         windowLabel: "window",
         ...options,
       });
-      console.log("[xyzw replay] waitForGameBundleReady", result);
+      console.log("[xyzw replay] waitForBattleModulesReady", result);
       baseHelper.result = result;
       return result;
     },
     result: runtimeLayerInfo,
   };
 
-  if (limited || runtimeLayerInfo?.layer !== "game-bundle-ready") {
+  if (limited || runtimeLayerInfo?.layer !== "battle-modules-ready") {
     return baseHelper;
   }
 
@@ -3432,6 +3522,7 @@ const createReplayConsoleHelpers = (gameWindow, {
         ...inspectReplayRuntimeInputs(gameWindow),
         bundleState: inspectBundleStateShared(getRuntimeWindow()),
         runtimeLayer: detectXyzwRuntimeLayerShared(gameWindow, { windowLabel: "window" }).layer,
+        runtimeStage: detectXyzwRuntimeLayerShared(gameWindow, { windowLabel: "window" }).layer,
       };
       console.log("[xyzw replay] inspect", result);
       helper.result = result;
@@ -3473,7 +3564,7 @@ const createReplayConsoleHelpers = (gameWindow, {
   return helper;
 };
 
-const exposeReplayConsoleHelpers = (gameWindow, {
+export const exposeReplayConsoleHelpers = (gameWindow, {
   runtimeLayerInfo = detectXyzwRuntimeLayerShared(gameWindow, { windowLabel: "window" }),
 } = {}) => {
   if (!gameWindow || typeof gameWindow.__require !== "function") {
@@ -3487,7 +3578,7 @@ const exposeReplayConsoleHelpers = (gameWindow, {
   const runtimeWindow = getRuntimeWindow();
   const helper = createReplayConsoleHelpers(gameWindow, {
     runtimeLayerInfo,
-    limited: runtimeLayerInfo?.layer !== "game-bundle-ready",
+    limited: runtimeLayerInfo?.layer !== "battle-modules-ready",
   });
   const previousGameWindowHelper = gameWindow.__xyzwReplay;
   const previousWindowHelper = runtimeWindow.__xyzwReplay;
@@ -3591,6 +3682,7 @@ export const startFightPvpReplayRuntime = async ({
     installReplayPrivacyGuard,
     installReplayPromiseUtilShim,
     installReplayBattleStartProbe,
+    installReplaySceneStageObserver,
     installMissingModuleShims: installReplayMissingModuleShims,
     inspectGameBundleModuleCoverage: inspectReplayGameBundleModuleCoverage,
     inspectBundleState,
@@ -3598,13 +3690,13 @@ export const startFightPvpReplayRuntime = async ({
     ensureReplayBootstrapScene,
     detectXyzwRuntimeLayer,
     ensureXyzwGameBundleReady,
+    waitForBattleModulesReady,
     findReplayGameWindow,
     locateReplayEntrypoint,
     exposeReplayConsoleHelpers,
     probeGameBundleAssets,
     readRuntimeModules,
     startReplayEntrypoint,
-    waitForReplayGameBundleReady,
     waitForRuntimeReadyForReplay,
     ...runtimeAdapter,
   };
@@ -3715,6 +3807,13 @@ export const startFightPvpReplayRuntime = async ({
       diagnostics,
     });
     cleanups.push(() => resourceManagerGuard.dispose?.());
+
+    diagnostics.steps.push("install-scene-stage-observer");
+    const sceneStageObserver = adapter.installReplaySceneStageObserver({
+      modules,
+      diagnostics,
+    });
+    cleanups.push(() => sceneStageObserver.dispose?.());
 
     diagnostics.steps.push("ensure-bundle-version-containers-preboot");
     adapter.ensureBundleVersionContainers({
@@ -3873,9 +3972,19 @@ export const startFightPvpReplayRuntime = async ({
       },
     );
     diagnostics.runtimeLayer = initialRuntimeLayerInfo.layer;
+    diagnostics.runtimeStage = initialRuntimeLayerInfo.layer;
+    diagnostics.sceneName = initialRuntimeLayerInfo.details?.sceneName ?? null;
+    diagnostics.gameBundleRequested = Boolean(initialRuntimeLayerInfo.details?.gameBundleRequested);
+    diagnostics.gameBundleLoaded = Boolean(initialRuntimeLayerInfo.details?.gameBundleLoaded);
+    diagnostics.gameSceneAssetLoaded = Boolean(initialRuntimeLayerInfo.details?.gameSceneAssetLoaded);
+    diagnostics.gameSceneRunning = Boolean(initialRuntimeLayerInfo.details?.gameSceneRunning);
+    diagnostics.battleModulesReady = Boolean(initialRuntimeLayerInfo.details?.battleModulesReady);
+    diagnostics.loadBundleCalls = initialRuntimeLayerInfo.details?.loadBundleCalls || [];
+    diagnostics.tryLoadAssetCalls = initialRuntimeLayerInfo.details?.tryLoadAssetCalls || [];
+    diagnostics.runSceneCalls = initialRuntimeLayerInfo.details?.runSceneCalls || [];
     diagnostics.gameScriptInDocument = Boolean(initialRuntimeLayerInfo.details?.gameScriptInDocument);
     diagnostics.gameScriptInPerformance = Boolean(initialRuntimeLayerInfo.details?.gameScriptInPerformance);
-    diagnostics.moduleChecks = initialRuntimeLayerInfo.details?.moduleChecks || {};
+    diagnostics.moduleChecks = initialRuntimeLayerInfo.details?.canonicalModuleChecks || initialRuntimeLayerInfo.details?.moduleChecks || {};
 
     if (replayGameWindowInfo.gameWindow) {
       const replayConsoleHelpers = adapter.exposeReplayConsoleHelpers(
@@ -3889,8 +3998,8 @@ export const startFightPvpReplayRuntime = async ({
       cleanups.push(() => replayConsoleHelpers.dispose?.());
     }
 
-    diagnostics.steps.push("wait-for-replay-game-bundle-ready");
-    const replayGameBundleReady = await adapter.ensureXyzwGameBundleReady({
+    diagnostics.steps.push("wait-for-battle-modules-ready");
+    const replayGameBundleReady = await adapter.waitForBattleModulesReady({
       gameWindow: replayGameWindowInfo.gameWindow || null,
       runtimeWindow: getRuntimeWindow(),
       windowLabel: formatReplayGameWindowSourceLabel(replayGameWindowInfo.source || "window"),
@@ -3900,9 +4009,19 @@ export const startFightPvpReplayRuntime = async ({
     diagnostics.replayGameBundleReadyError = replayGameBundleReady.error || null;
     diagnostics.replayGameBundleReadySource = replayGameBundleReady.gameBundleReadySource || null;
     diagnostics.runtimeLayer = replayGameBundleReady.layer || diagnostics.runtimeLayer;
+    diagnostics.runtimeStage = replayGameBundleReady.layer || diagnostics.runtimeStage;
+    diagnostics.sceneName = replayGameBundleReady.details?.sceneName ?? diagnostics.sceneName;
+    diagnostics.gameBundleRequested = Boolean(replayGameBundleReady.details?.gameBundleRequested);
+    diagnostics.gameBundleLoaded = Boolean(replayGameBundleReady.details?.gameBundleLoaded);
+    diagnostics.gameSceneAssetLoaded = Boolean(replayGameBundleReady.details?.gameSceneAssetLoaded);
+    diagnostics.gameSceneRunning = Boolean(replayGameBundleReady.details?.gameSceneRunning);
+    diagnostics.battleModulesReady = Boolean(replayGameBundleReady.details?.battleModulesReady);
+    diagnostics.loadBundleCalls = replayGameBundleReady.details?.loadBundleCalls || diagnostics.loadBundleCalls;
+    diagnostics.tryLoadAssetCalls = replayGameBundleReady.details?.tryLoadAssetCalls || diagnostics.tryLoadAssetCalls;
+    diagnostics.runSceneCalls = replayGameBundleReady.details?.runSceneCalls || diagnostics.runSceneCalls;
     diagnostics.gameScriptInDocument = Boolean(replayGameBundleReady.details?.gameScriptInDocument);
     diagnostics.gameScriptInPerformance = Boolean(replayGameBundleReady.details?.gameScriptInPerformance);
-    diagnostics.moduleChecks = replayGameBundleReady.details?.moduleChecks || diagnostics.moduleChecks;
+    diagnostics.moduleChecks = replayGameBundleReady.details?.canonicalModuleChecks || replayGameBundleReady.details?.moduleChecks || diagnostics.moduleChecks;
     diagnostics.bundleState = adapter.inspectBundleState(getRuntimeWindow());
 
     diagnostics.steps.push("locate-replay-entrypoint");
@@ -3923,10 +4042,10 @@ export const startFightPvpReplayRuntime = async ({
             .map((entry) => `${entry.label}:${entry.status || "unknown"}`)
             .join(", ")
         : "none";
-      const detail = `已检查：gameWindow=${diagnostics.replayGameWindowStatus || "unknown"}@${diagnostics.replayGameWindowSource || "window"}；runtimeLayer=${diagnostics.runtimeLayer || "unknown"}；bundleReady=${diagnostics.replayGameBundleReady ? "yes" : "no"}(${diagnostics.replayGameBundleReadyAttempts ?? 0}, source=${diagnostics.replayGameBundleReadySource || "-"})；gameScript=document:${diagnostics.gameScriptInDocument ? "yes" : "no"}/performance:${diagnostics.gameScriptInPerformance ? "yes" : "no"}；entrypoints=${scannedSummary}；debug=${requireSummary}。`;
+      const detail = `已检查：gameWindow=${diagnostics.replayGameWindowStatus || "unknown"}@${diagnostics.replayGameWindowSource || "window"}；runtimeStage=${diagnostics.runtimeStage || "unknown"}；scene=${diagnostics.sceneName || "-"}；bundleReady=${diagnostics.replayGameBundleReady ? "yes" : "no"}(${diagnostics.replayGameBundleReadyAttempts ?? 0}, source=${diagnostics.replayGameBundleReadySource || "-"})；gameScript=document:${diagnostics.gameScriptInDocument ? "yes" : "no"}/performance:${diagnostics.gameScriptInPerformance ? "yes" : "no"}；entrypoints=${scannedSummary}；debug=${requireSummary}。`;
       const message = diagnostics.replayGameBundleReady === false
-        ? `运行时已进入 ${runtimeReady.sceneName || GAME_SCENE_NAME}，并已找到候选 window。当前 window 已安装 launcher/main bundle 的 __require，但 battle 模块所在的 game.js 尚未在该 window 中执行；因此 replay 入口暂不可用。has __require 只能说明 launcher 已初始化，不能说明 battle bundle 已 ready。${detail}`
-        : `运行时已进入 ${runtimeReady.sceneName || GAME_SCENE_NAME}，并已找到真实游戏 window。battle/game bundle 已 ready；若仍未能解析 replay 入口，则剩余问题在于目标导出路径不存在或末端不可调用，而不是 loader 层级判断错误。${detail}`;
+        ? `运行时已进入 ${runtimeReady.sceneName || GAME_SCENE_NAME}，并已找到候选 window。当前 replay diagnose 已切到真实阶段模型：launcher/main 的 __require 只代表 launcher-ready；只有 Game scene handoff 完成并注册 BattleUIManager 后，battle replay 入口才真正可用。${detail}`
+        : `运行时已进入 ${runtimeReady.sceneName || GAME_SCENE_NAME}，并已找到真实游戏 window。真实加载阶段已推进到 battle-modules-ready；若仍未能解析 replay 入口，则剩余问题在于目标导出路径不存在或末端不可调用。${detail}`;
       return {
         ok: false,
         reason: "replay-start-failed",
@@ -3941,7 +4060,7 @@ export const startFightPvpReplayRuntime = async ({
         replayEntrypoint.gameWindow,
         {
           runtimeLayerInfo: {
-            layer: "game-bundle-ready",
+            layer: "battle-modules-ready",
             details: replayGameBundleReady.details || initialRuntimeLayerInfo.details,
           },
         },

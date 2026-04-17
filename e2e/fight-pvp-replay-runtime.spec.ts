@@ -83,7 +83,6 @@ test("fight pvp replay runtime real fixture smoke enters game scene and starts r
     const inspectResult = await replayHelper?.inspect?.();
     const bundleState = replayHelper?.inspectBundleState?.();
     return {
-      hasDetectRuntimeLayer: typeof replayHelper?.detectRuntimeLayer === "function",
       hasInspect: typeof replayHelper?.inspect === "function",
       hasInspectBundleState: typeof replayHelper?.inspectBundleState === "function",
       hasShowReplay: typeof replayHelper?.showReplay === "function",
@@ -91,19 +90,19 @@ test("fight pvp replay runtime real fixture smoke enters game scene and starts r
       hasShowReplayViaEnterOSS:
         typeof replayHelper?.showReplayViaEnterOSS === "function",
       hasTryCrossSitePlayback: typeof replayHelper?.tryCrossSitePlayback === "function",
-      hasWaitForGameBundleReady: typeof replayHelper?.waitForGameBundleReady === "function",
+      hasWaitForBattleModulesReady:
+        typeof replayHelper?.waitForBattleModulesReady === "function",
       bundleState,
       inspectResult,
     };
   });
-  expect(helperReady.hasDetectRuntimeLayer).toBeTruthy();
   expect(helperReady.hasInspect).toBeTruthy();
   expect(helperReady.hasInspectBundleState).toBeTruthy();
   expect(helperReady.hasShowReplay).toBeTruthy();
   expect(helperReady.hasShowReplayDirect).toBeTruthy();
   expect(helperReady.hasShowReplayViaEnterOSS).toBeTruthy();
   expect(helperReady.hasTryCrossSitePlayback).toBeTruthy();
-  expect(helperReady.hasWaitForGameBundleReady).toBeTruthy();
+  expect(helperReady.hasWaitForBattleModulesReady).toBeTruthy();
   expect(helperReady.bundleState.currentWindowLabel).toBe("window");
   expect(helperReady.inspectResult.hasGameWindow).toBeTruthy();
   expect(helperReady.inspectResult.hasRequire).toBeTruthy();

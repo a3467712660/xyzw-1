@@ -1,6 +1,7 @@
 const XYZW_RUNTIME_LAYER_STATE_KEY = "__xyzwReplayRuntimeLayerState";
-const XYZW_RUNTIME_LAYER_EVENT_LIMIT = 40;
+const XYZW_RUNTIME_LAYER_EVENT_LIMIT = 60;
 const XYZW_GAME_BUNDLE_NAME = "game";
+const XYZW_GAME_SCENE_PATH = "scenes/Game";
 const XYZW_CANONICAL_REPLAY_MODULE_IDS = Object.freeze([
   "BattleUIManager",
   "enter-oss",
@@ -23,7 +24,8 @@ const toErrorMessage = (error, fallback) =>
 const isMissingModuleError = (message) =>
   /cannot find module|module not found|cannot find/i.test(String(message || ""));
 
-const isObjectLike = (value) => value && (typeof value === "object" || typeof value === "function");
+const isObjectLike = (value) =>
+  value && (typeof value === "object" || typeof value === "function");
 
 const matchesScriptPattern = (value, patterns) => {
   const normalized = String(value || "").trim();
@@ -35,17 +37,37 @@ const matchesScriptPattern = (value, patterns) => {
   );
 };
 
-const isGameScriptUrl = (value) => matchesScriptPattern(value, XYZW_GAME_SCRIPT_PATTERNS);
+const isGameScriptUrl = (value) =>
+  matchesScriptPattern(value, XYZW_GAME_SCRIPT_PATTERNS);
 
-const isMainScriptUrl = (value) => matchesScriptPattern(value, XYZW_MAIN_SCRIPT_PATTERNS);
+const isMainScriptUrl = (value) =>
+  matchesScriptPattern(value, XYZW_MAIN_SCRIPT_PATTERNS);
 
-const trimRuntimeLayerEvents = (entries = []) => {
+const trimEntries = (entries = []) => {
   if (entries.length <= XYZW_RUNTIME_LAYER_EVENT_LIMIT) {
     return entries;
   }
   entries.splice(0, entries.length - XYZW_RUNTIME_LAYER_EVENT_LIMIT);
   return entries;
 };
+
+const cloneEntry = (entry) => ({
+  at: entry?.at || null,
+  assetPath: entry?.assetPath || null,
+  assetType: entry?.assetType || null,
+  bundleName: entry?.bundleName || null,
+  detail: entry?.detail || null,
+  error: entry?.error || null,
+  ok: typeof entry?.ok === "boolean" ? entry.ok : null,
+  path: entry?.path || null,
+  phase: entry?.phase || null,
+  resolved: typeof entry?.resolved === "boolean" ? entry.resolved : null,
+  sceneName: entry?.sceneName || null,
+  source: entry?.source || null,
+  src: entry?.src || null,
+  status: entry?.status || null,
+  target: entry?.target || null,
+});
 
 export const getOrCreateXyzwRuntimeLayerState = (runtimeWindow) => {
   if (!isObjectLike(runtimeWindow)) {
@@ -60,9 +82,12 @@ export const getOrCreateXyzwRuntimeLayerState = (runtimeWindow) => {
   const state = {
     nextId: 0,
     bundleEvents: [],
+    loadBundleCalls: [],
     pendingBundlePromises: new Map(),
+    pendingSceneAssetPromises: new Map(),
+    runSceneCalls: [],
     scriptEvents: [],
-    pendingScriptPromises: new WeakMap(),
+    tryLoadAssetCalls: [],
   };
   Object.defineProperty(runtimeWindow, XYZW_RUNTIME_LAYER_STATE_KEY, {
     configurable: true,
@@ -73,16 +98,11 @@ export const getOrCreateXyzwRuntimeLayerState = (runtimeWindow) => {
   return state;
 };
 
-const snapshotLayerEvent = (entry) => ({
-  at: entry?.at || null,
-  bundleName: entry?.bundleName || null,
-  detail: entry?.detail || null,
-  error: entry?.error || null,
-  source: entry?.source || null,
-  src: entry?.src || null,
-  status: entry?.status || null,
-  target: entry?.target || null,
-});
+const appendStateEntry = (collection, entry) => {
+  collection.push(entry);
+  trimEntries(collection);
+  return entry;
+};
 
 export const recordXyzwRuntimeScriptEvent = ({
   runtimeWindow,
@@ -96,17 +116,14 @@ export const recordXyzwRuntimeScriptEvent = ({
   if (!state) {
     return null;
   }
-  const entry = {
+  return appendStateEntry(state.scriptEvents, {
     at: Date.now(),
     detail,
     error: error ? toErrorMessage(error) : null,
     source,
     src: String(src || ""),
     status: status || "observed",
-  };
-  state.scriptEvents.push(entry);
-  trimRuntimeLayerEvents(state.scriptEvents);
-  return entry;
+  });
 };
 
 export const recordXyzwBundleEvent = ({
@@ -122,7 +139,7 @@ export const recordXyzwBundleEvent = ({
   if (!state) {
     return null;
   }
-  const entry = {
+  return appendStateEntry(state.bundleEvents, {
     at: Date.now(),
     bundleName: String(bundleName || ""),
     detail,
@@ -130,10 +147,83 @@ export const recordXyzwBundleEvent = ({
     source,
     status: status || "observed",
     target: target == null ? null : String(target),
-  };
-  state.bundleEvents.push(entry);
-  trimRuntimeLayerEvents(state.bundleEvents);
-  return entry;
+  });
+};
+
+export const recordXyzwLoadBundleCall = ({
+  runtimeWindow,
+  bundleName,
+  source = "unknown",
+  target = null,
+  phase = "requested",
+  resolved = false,
+  ok = null,
+  error = null,
+  detail = null,
+} = {}) => {
+  const state = getOrCreateXyzwRuntimeLayerState(runtimeWindow);
+  if (!state) {
+    return null;
+  }
+  return appendStateEntry(state.loadBundleCalls, {
+    at: Date.now(),
+    bundleName: String(bundleName || ""),
+    detail,
+    error: error ? toErrorMessage(error) : null,
+    ok,
+    phase,
+    resolved,
+    source,
+    target: target == null ? null : String(target),
+  });
+};
+
+export const recordXyzwTryLoadAssetCall = ({
+  runtimeWindow,
+  bundleName,
+  path,
+  assetType = null,
+  source = "unknown",
+  phase = "requested",
+  resolved = false,
+  ok = null,
+  error = null,
+  detail = null,
+} = {}) => {
+  const state = getOrCreateXyzwRuntimeLayerState(runtimeWindow);
+  if (!state) {
+    return null;
+  }
+  return appendStateEntry(state.tryLoadAssetCalls, {
+    assetType: assetType?.name || assetType || null,
+    at: Date.now(),
+    bundleName: String(bundleName || ""),
+    detail,
+    error: error ? toErrorMessage(error) : null,
+    ok,
+    path: String(path || ""),
+    phase,
+    resolved,
+    source,
+  });
+};
+
+export const recordXyzwRunSceneCall = ({
+  runtimeWindow,
+  sceneName,
+  source = "cc.director.runScene",
+  detail = null,
+} = {}) => {
+  const state = getOrCreateXyzwRuntimeLayerState(runtimeWindow);
+  if (!state) {
+    return null;
+  }
+  return appendStateEntry(state.runSceneCalls, {
+    at: Date.now(),
+    detail,
+    sceneName: sceneName || null,
+    source,
+  });
 };
 
 export const trackXyzwBundlePromise = ({
@@ -160,6 +250,14 @@ export const trackXyzwBundlePromise = ({
     source,
     target,
   });
+  recordXyzwLoadBundleCall({
+    runtimeWindow,
+    bundleName,
+    source,
+    target,
+    phase: "requested",
+    resolved: false,
+  });
 
   const trackedPromise = Promise.resolve(result).then(
     (value) => {
@@ -171,6 +269,15 @@ export const trackXyzwBundlePromise = ({
         source,
         target,
       });
+      recordXyzwLoadBundleCall({
+        runtimeWindow,
+        bundleName,
+        source,
+        target,
+        phase: "resolved",
+        resolved: true,
+        ok: true,
+      });
       return value;
     },
     (error) => {
@@ -181,6 +288,16 @@ export const trackXyzwBundlePromise = ({
         status: "rejected",
         source,
         target,
+        error,
+      });
+      recordXyzwLoadBundleCall({
+        runtimeWindow,
+        bundleName,
+        source,
+        target,
+        phase: "rejected",
+        resolved: true,
+        ok: false,
         error,
       });
       throw error;
@@ -197,19 +314,96 @@ export const trackXyzwBundlePromise = ({
   return trackedPromise;
 };
 
-const getPendingGameBundlePromises = (runtimeWindow) => {
+export const trackXyzwTryLoadAssetPromise = ({
+  runtimeWindow,
+  bundleName,
+  path,
+  assetType = null,
+  source = "unknown",
+  result,
+} = {}) => {
+  if (!result || typeof result.then !== "function") {
+    return result;
+  }
+
+  const state = getOrCreateXyzwRuntimeLayerState(runtimeWindow);
+  if (!state) {
+    return result;
+  }
+
+  const entryId = `${String(bundleName || "")}:${String(path || "")}:${source}:${state.nextId++}`;
+  recordXyzwTryLoadAssetCall({
+    runtimeWindow,
+    bundleName,
+    path,
+    assetType,
+    source,
+    phase: "requested",
+    resolved: false,
+  });
+
+  const trackedPromise = Promise.resolve(result).then(
+    (value) => {
+      state.pendingSceneAssetPromises.delete(entryId);
+      recordXyzwTryLoadAssetCall({
+        runtimeWindow,
+        bundleName,
+        path,
+        assetType,
+        source,
+        phase: "resolved",
+        resolved: true,
+        ok: true,
+      });
+      return value;
+    },
+    (error) => {
+      state.pendingSceneAssetPromises.delete(entryId);
+      recordXyzwTryLoadAssetCall({
+        runtimeWindow,
+        bundleName,
+        path,
+        assetType,
+        source,
+        phase: "rejected",
+        resolved: true,
+        ok: false,
+        error,
+      });
+      throw error;
+    },
+  );
+
+  state.pendingSceneAssetPromises.set(entryId, {
+    bundleName: String(bundleName || ""),
+    path: String(path || ""),
+    promise: trackedPromise,
+    source,
+  });
+
+  return trackedPromise;
+};
+
+const getPendingPromisesByFilter = (runtimeWindow, selector) => {
   const state = getOrCreateXyzwRuntimeLayerState(runtimeWindow);
   if (!state) {
     return [];
   }
-  return [...state.pendingBundlePromises.values()]
-    .filter((entry) =>
-      entry.bundleName === XYZW_GAME_BUNDLE_NAME
-      || isGameScriptUrl(entry.target)
-      || entry.target === XYZW_GAME_BUNDLE_NAME,
-    )
-    .map((entry) => entry.promise);
+  return selector(state).map((entry) => entry.promise);
 };
+
+const getPendingGameBundlePromises = (runtimeWindow) =>
+  getPendingPromisesByFilter(runtimeWindow, (state) => [...state.pendingBundlePromises.values()].filter((entry) =>
+    entry.bundleName === XYZW_GAME_BUNDLE_NAME
+    || isGameScriptUrl(entry.target)
+    || entry.target === XYZW_GAME_BUNDLE_NAME,
+  ));
+
+const getPendingGameSceneAssetPromises = (runtimeWindow) =>
+  getPendingPromisesByFilter(runtimeWindow, (state) => [...state.pendingSceneAssetPromises.values()].filter((entry) =>
+    entry.bundleName === XYZW_GAME_BUNDLE_NAME
+    && entry.path === XYZW_GAME_SCENE_PATH,
+  ));
 
 const getWindowScriptUrls = (candidateWindow) => {
   try {
@@ -230,42 +424,6 @@ const getWindowPerformanceResourceUrls = (candidateWindow) => {
   } catch {
     return [];
   }
-};
-
-const getPendingGameScriptLoadPromises = (candidateWindow) => {
-  const state = getOrCreateXyzwRuntimeLayerState(candidateWindow);
-  if (!state) {
-    return [];
-  }
-
-  const pending = [];
-  for (const scriptElement of Array.from(candidateWindow?.document?.scripts || [])) {
-    if (!isGameScriptUrl(scriptElement?.src)) {
-      continue;
-    }
-    if (scriptElement.dataset?.loaded === "true" || scriptElement.readyState === "complete") {
-      continue;
-    }
-    if (!state.pendingScriptPromises.has(scriptElement)) {
-      const promise = new Promise((resolve) => {
-        const finalize = (status, error = null) => {
-          recordXyzwRuntimeScriptEvent({
-            runtimeWindow: candidateWindow,
-            src: scriptElement?.src || "",
-            status,
-            source: "document-script",
-            error,
-          });
-          resolve();
-        };
-        scriptElement.addEventListener("load", () => finalize("loaded"), { once: true });
-        scriptElement.addEventListener("error", (event) => finalize("error", event?.error || null), { once: true });
-      });
-      state.pendingScriptPromises.set(scriptElement, promise);
-    }
-    pending.push(state.pendingScriptPromises.get(scriptElement));
-  }
-  return pending;
 };
 
 export const probeXyzwRuntimeModule = (gameWindow, moduleId) => {
@@ -313,70 +471,114 @@ export const probeXyzwRuntimeModule = (gameWindow, moduleId) => {
   }
 };
 
+const toSerializableModuleCheck = (result) => ({
+  error: result.error,
+  missing: result.missing,
+  ok: result.ok,
+  status: result.status,
+});
+
+const deriveRuntimeStage = ({
+  hasRequire,
+  gameBundleRequested,
+  gameBundleLoaded,
+  gameSceneAssetLoaded,
+  gameSceneRunning,
+  battleModulesReady,
+} = {}) => {
+  if (!hasRequire) {
+    return "no-require";
+  }
+  if (battleModulesReady) {
+    return "battle-modules-ready";
+  }
+  if (gameSceneRunning) {
+    return "game-scene-running";
+  }
+  if (gameSceneAssetLoaded) {
+    return "game-scene-asset-loaded";
+  }
+  if (gameBundleLoaded) {
+    return "game-bundle-loaded";
+  }
+  if (gameBundleRequested) {
+    return "game-bundle-requested";
+  }
+  return "launcher-ready";
+};
+
 const inspectSingleWindowBundleState = (candidateWindow, windowLabel = "window") => {
   const state = getOrCreateXyzwRuntimeLayerState(candidateWindow);
   const scriptUrls = getWindowScriptUrls(candidateWindow);
   const performanceUrls = getWindowPerformanceResourceUrls(candidateWindow);
-  const moduleChecks = Object.fromEntries(
+  const canonicalModuleChecks = Object.fromEntries(
     XYZW_CANONICAL_REPLAY_MODULE_IDS.map((moduleId) => [
       moduleId,
-      (() => {
-        const result = probeXyzwRuntimeModule(candidateWindow, moduleId);
-        return {
-          error: result.error,
-          missing: result.missing,
-          ok: result.ok,
-          status: result.status,
-        };
-      })(),
+      toSerializableModuleCheck(probeXyzwRuntimeModule(candidateWindow, moduleId)),
     ]),
   );
   const hasRequire = typeof candidateWindow?.__require === "function";
-  const gameScriptInDocument = scriptUrls.some(isGameScriptUrl);
-  const gameScriptInPerformance = performanceUrls.some(isGameScriptUrl);
-  const mainScriptInDocument = scriptUrls.some(isMainScriptUrl);
-  const mainScriptInPerformance = performanceUrls.some(isMainScriptUrl);
-  const loadEvidence = {
-    bundleEvents: (state?.bundleEvents || []).map(snapshotLayerEvent),
-    scriptEvents: (state?.scriptEvents || []).map(snapshotLayerEvent),
-  };
-  const moduleStatuses = Object.values(moduleChecks).map((entry) => entry.status);
-  const anyModulePresent = moduleStatuses.includes("present");
-  const gameBundleObserved = Boolean(
-    gameScriptInDocument
-    || gameScriptInPerformance
-    || loadEvidence.bundleEvents.some((entry) =>
-      entry.bundleName === XYZW_GAME_BUNDLE_NAME
-      || isGameScriptUrl(entry.target),
-    )
-    || loadEvidence.scriptEvents.some((entry) => isGameScriptUrl(entry.src)),
+  const sceneName = candidateWindow?.cc?.director?.getScene?.()?.name
+    ?? (state?.runSceneCalls || []).filter((entry) => entry?.sceneName).at(-1)?.sceneName
+    ?? null;
+  const loadBundleCalls = (state?.loadBundleCalls || []).map(cloneEntry);
+  const tryLoadAssetCalls = (state?.tryLoadAssetCalls || []).map(cloneEntry);
+  const runSceneCalls = (state?.runSceneCalls || []).map(cloneEntry);
+  const gameBundleRequested = loadBundleCalls.some((entry) =>
+    entry.bundleName === XYZW_GAME_BUNDLE_NAME
+    && entry.phase === "requested",
+  ) || tryLoadAssetCalls.some((entry) =>
+    entry.bundleName === XYZW_GAME_BUNDLE_NAME
+    && entry.phase === "requested",
   );
-
-  let layer = "launcher-only";
-  if (!candidateWindow) {
-    layer = "no-window";
-  } else if (!hasRequire) {
-    layer = "no-require";
-  } else if (anyModulePresent) {
-    layer = "game-bundle-ready";
-  } else if (gameBundleObserved) {
-    layer = "game-bundle-loading";
-  } else {
-    layer = "launcher-only";
-  }
+  const gameBundleLoaded = loadBundleCalls.some((entry) =>
+    entry.bundleName === XYZW_GAME_BUNDLE_NAME
+    && entry.resolved
+    && entry.ok === true,
+  );
+  const gameSceneAssetLoaded = tryLoadAssetCalls.some((entry) =>
+    entry.bundleName === XYZW_GAME_BUNDLE_NAME
+    && entry.path === XYZW_GAME_SCENE_PATH
+    && entry.resolved
+    && entry.ok === true,
+  );
+  const gameSceneRunning = sceneName === "Game"
+    || runSceneCalls.some((entry) => entry.sceneName === "Game");
+  const battleModulesReady = gameSceneRunning
+    && canonicalModuleChecks.BattleUIManager?.status === "present";
 
   return {
     details: {
-      loadEvidence,
-      gameScriptInDocument,
-      gameScriptInPerformance,
+      battleModulesReady,
+      canonicalModuleChecks,
+      gameBundleLoaded,
+      gameBundleRequested,
+      gameSceneAssetLoaded,
+      gameSceneRunning,
+      gameScriptInDocument: scriptUrls.some(isGameScriptUrl),
+      gameScriptInPerformance: performanceUrls.some(isGameScriptUrl),
       hasRequire,
-      mainScriptInDocument,
-      mainScriptInPerformance,
-      moduleChecks,
+      loadBundleCalls,
+      loadEvidence: {
+        bundleEvents: (state?.bundleEvents || []).map(cloneEntry),
+        scriptEvents: (state?.scriptEvents || []).map(cloneEntry),
+      },
+      mainScriptInDocument: scriptUrls.some(isMainScriptUrl),
+      mainScriptInPerformance: performanceUrls.some(isMainScriptUrl),
+      moduleChecks: canonicalModuleChecks,
+      runSceneCalls,
+      sceneName,
+      tryLoadAssetCalls,
       windowLabel,
     },
-    layer,
+    layer: deriveRuntimeStage({
+      battleModulesReady,
+      gameBundleLoaded,
+      gameBundleRequested,
+      gameSceneAssetLoaded,
+      gameSceneRunning,
+      hasRequire,
+    }),
     windowLabel,
   };
 };
@@ -386,13 +588,30 @@ export const detectXyzwRuntimeLayer = (gameWindow, { windowLabel = "window" } = 
     return {
       layer: "no-window",
       details: {
+        battleModulesReady: false,
+        canonicalModuleChecks: Object.fromEntries(
+          XYZW_CANONICAL_REPLAY_MODULE_IDS.map((moduleId) => [
+            moduleId,
+            {
+              error: null,
+              missing: false,
+              ok: false,
+              status: "no-window",
+            },
+          ]),
+        ),
+        gameBundleLoaded: false,
+        gameBundleRequested: false,
+        gameSceneAssetLoaded: false,
+        gameSceneRunning: false,
+        gameScriptInDocument: false,
+        gameScriptInPerformance: false,
+        hasRequire: false,
+        loadBundleCalls: [],
         loadEvidence: {
           bundleEvents: [],
           scriptEvents: [],
         },
-        gameScriptInDocument: false,
-        gameScriptInPerformance: false,
-        hasRequire: false,
         mainScriptInDocument: false,
         mainScriptInPerformance: false,
         moduleChecks: Object.fromEntries(
@@ -406,6 +625,9 @@ export const detectXyzwRuntimeLayer = (gameWindow, { windowLabel = "window" } = 
             },
           ]),
         ),
+        runSceneCalls: [],
+        sceneName: null,
+        tryLoadAssetCalls: [],
         windowLabel,
       },
     };
@@ -429,75 +651,60 @@ export const inspectBundleState = (rootWindow = null) => {
     };
   }
 
-  windows.push({
-    ...inspectSingleWindowBundleState(rootWindow, "window"),
-  });
-
+  windows.push(inspectSingleWindowBundleState(rootWindow, "window"));
   const iframes = Array.from(rootWindow?.document?.querySelectorAll?.("iframe") || []);
   for (let index = 0; index < iframes.length; index += 1) {
     try {
-      const iframeWindow = iframes[index]?.contentWindow || null;
-      windows.push({
-        ...inspectSingleWindowBundleState(iframeWindow, `iframe[${index}]`),
-      });
+      windows.push(
+        inspectSingleWindowBundleState(iframes[index]?.contentWindow || null, `iframe[${index}]`),
+      );
     } catch {
-      windows.push({
-        details: {
-          loadEvidence: {
-            bundleEvents: [],
-            scriptEvents: [],
-          },
-          gameScriptInDocument: false,
-          gameScriptInPerformance: false,
-          hasRequire: false,
-          mainScriptInDocument: false,
-          mainScriptInPerformance: false,
-          moduleChecks: {},
-          windowLabel: `iframe[${index}]`,
-        },
-        layer: "no-window",
-        windowLabel: `iframe[${index}]`,
-      });
+      windows.push(
+        detectXyzwRuntimeLayer(null, { windowLabel: `iframe[${index}]` }),
+      );
     }
   }
 
   return {
+    battleModulesReady: windows[0]?.details?.battleModulesReady ?? false,
+    canonicalModuleChecks: windows[0]?.details?.canonicalModuleChecks || {},
     currentWindow: windows[0] || null,
     currentWindowLabel: windows[0]?.windowLabel || null,
+    gameBundleLoaded: windows[0]?.details?.gameBundleLoaded ?? false,
+    gameBundleRequested: windows[0]?.details?.gameBundleRequested ?? false,
+    gameSceneAssetLoaded: windows[0]?.details?.gameSceneAssetLoaded ?? false,
+    gameSceneRunning: windows[0]?.details?.gameSceneRunning ?? false,
+    hasRequire: windows[0]?.details?.hasRequire ?? false,
+    loadBundleCalls: windows[0]?.details?.loadBundleCalls || [],
+    moduleChecks: windows[0]?.details?.canonicalModuleChecks || {},
+    runSceneCalls: windows[0]?.details?.runSceneCalls || [],
+    sceneName: windows[0]?.details?.sceneName ?? null,
+    tryLoadAssetCalls: windows[0]?.details?.tryLoadAssetCalls || [],
     windows,
   };
 };
 
-const buildGameBundleReadySource = (details) => {
+const buildBattleModulesReadySource = (details) => {
   if (!details) {
     return null;
   }
-  let resolvedBundleEvent = null;
-  const bundleEvents = details.loadEvidence?.bundleEvents || [];
-  for (let index = bundleEvents.length - 1; index >= 0; index -= 1) {
-    const entry = bundleEvents[index];
-    if (
-      entry?.status === "resolved"
-      && (
-        entry.bundleName === XYZW_GAME_BUNDLE_NAME
-        || isGameScriptUrl(entry.target)
-      )
-    ) {
-      resolvedBundleEvent = entry;
-      break;
-    }
+  if (details.battleModulesReady) {
+    return "BattleUIManager";
   }
-  if (resolvedBundleEvent) {
-    return resolvedBundleEvent.source || "bundle-event";
+  if (details.gameSceneRunning) {
+    return "runScene(Game)";
   }
-  if (details.gameScriptInDocument) {
-    return "document.scripts";
+  if (details.gameSceneAssetLoaded) {
+    return "TRY_LOAD_ASSET(game, scenes/Game)";
   }
-  if (details.gameScriptInPerformance) {
-    return "performance.resource";
+  if (details.gameBundleLoaded) {
+    return "loadBundle(game)";
   }
-  if (Object.values(details.moduleChecks || {}).some((entry) => entry?.status === "present")) {
-    return "module-require";
+  if (details.gameBundleRequested) {
+    return "loadBundle(game):requested";
+  }
+  if (details.hasRequire) {
+    return "launcher-ready";
   }
   return null;
 };
@@ -506,26 +713,28 @@ const waitForSignal = async (runtimeWindow, intervalMs) => {
   await new Promise((resolve) => runtimeWindow.setTimeout(resolve, intervalMs));
 };
 
-export const ensureXyzwGameBundleReady = async ({
+export const waitForBattleModulesReady = async ({
   gameWindow,
   runtimeWindow = gameWindow,
-  timeoutMs = 3000,
+  timeoutMs = 15000,
   intervalMs = 50,
   windowLabel = "window",
 } = {}) => {
   const initial = detectXyzwRuntimeLayer(gameWindow, { windowLabel });
   if (
-    initial.layer === "game-bundle-ready"
+    initial.layer === "battle-modules-ready"
     || initial.layer === "no-window"
     || initial.layer === "no-require"
   ) {
     return {
       attempts: 0,
       details: initial.details,
-      error: initial.layer === "game-bundle-ready" ? null : initial.details?.moduleChecks?.BattleUIManager?.error || null,
-      gameBundleReadySource: buildGameBundleReadySource(initial.details),
+      error: initial.layer === "battle-modules-ready"
+        ? null
+        : initial.details?.canonicalModuleChecks?.BattleUIManager?.error || null,
+      gameBundleReadySource: buildBattleModulesReadySource(initial.details),
       layer: initial.layer,
-      ok: initial.layer === "game-bundle-ready",
+      ok: initial.layer === "battle-modules-ready",
       status: initial.layer,
     };
   }
@@ -538,7 +747,7 @@ export const ensureXyzwGameBundleReady = async ({
     attempts += 1;
     const pendingSignals = [
       ...getPendingGameBundlePromises(gameWindow),
-      ...getPendingGameScriptLoadPromises(gameWindow),
+      ...getPendingGameSceneAssetPromises(gameWindow),
     ];
     if (pendingSignals.length > 0) {
       await Promise.race([
@@ -550,12 +759,12 @@ export const ensureXyzwGameBundleReady = async ({
     }
 
     latest = detectXyzwRuntimeLayer(gameWindow, { windowLabel });
-    if (latest.layer === "game-bundle-ready") {
+    if (latest.layer === "battle-modules-ready") {
       return {
         attempts,
         details: latest.details,
         error: null,
-        gameBundleReadySource: buildGameBundleReadySource(latest.details),
+        gameBundleReadySource: buildBattleModulesReadySource(latest.details),
         layer: latest.layer,
         ok: true,
         status: latest.layer,
@@ -566,10 +775,13 @@ export const ensureXyzwGameBundleReady = async ({
   return {
     attempts,
     details: latest.details,
-    error: latest.details?.moduleChecks?.BattleUIManager?.error || null,
-    gameBundleReadySource: buildGameBundleReadySource(latest.details),
+    error: latest.details?.canonicalModuleChecks?.BattleUIManager?.error || null,
+    gameBundleReadySource: buildBattleModulesReadySource(latest.details),
     layer: latest.layer,
-    ok: latest.layer === "game-bundle-ready",
+    ok: false,
     status: latest.layer,
   };
 };
+
+export const ensureXyzwGameBundleReady = (options = {}) =>
+  waitForBattleModulesReady(options);

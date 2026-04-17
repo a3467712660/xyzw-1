@@ -5,9 +5,8 @@ function findGameWindow(root = window) {
   for (let index = 0; index < iframes.length; index += 1) {
     try {
       const w = iframes[index].contentWindow;
-      if (w && typeof w.__require === "function") {
+      if (w && typeof w.__require === "function")
         return { gameWindow: w, label: `iframe[${index}]` };
-      }
     } catch (_) {}
   }
   return { gameWindow: null, label: null };
@@ -103,70 +102,86 @@ function isMissingModuleError(message) {
   return /cannot find module|module not found|cannot find/i.test(String(message || ""));
 }
 
-function isGameScriptUrl(value) {
-  return ["/assets/game/index.js", "/xyzw/game.js", "/game.js"].some((pattern) =>
-    String(value || "").includes(pattern) || String(value || "").endsWith(pattern),
-  );
-}
-
 function probeModule(gameWindow, moduleId) {
   if (!gameWindow) {
-    return { status: "no-window", error: null, value: null };
+    return { error: null, missing: false, ok: false, status: "no-window" };
   }
   if (typeof gameWindow.__require !== "function") {
-    return { status: "no-require", error: null, value: null };
+    return { error: null, missing: false, ok: false, status: "no-require" };
   }
   try {
-    return { status: "present", error: null, value: gameWindow.__require(moduleId) };
+    gameWindow.__require(moduleId);
+    return { error: null, missing: false, ok: true, status: "present" };
   } catch (error) {
     const errorText = error?.message || String(error);
     return {
-      status: isMissingModuleError(errorText) ? "module-missing" : "require-threw",
       error: errorText,
-      value: null,
+      missing: isMissingModuleError(errorText),
+      ok: false,
+      status: isMissingModuleError(errorText) ? "module-missing" : "require-threw",
     };
   }
 }
 
 function inspectSingleWindow(candidateWindow, label) {
-  const scriptUrls = Array.from(candidateWindow?.document?.scripts || []).map((entry) => entry?.src).filter(Boolean);
-  const performanceUrls = Array.from(
-    candidateWindow?.performance?.getEntriesByType?.("resource") || [],
-  ).map((entry) => entry?.name).filter(Boolean);
-  const moduleChecks = {
+  const state = candidateWindow?.__xyzwReplayRuntimeLayerState || {};
+  const canonicalModuleChecks = {
     BattleUIManager: probeModule(candidateWindow, "BattleUIManager"),
     "enter-oss": probeModule(candidateWindow, "enter-oss"),
     BattleKitCrossSite: probeModule(candidateWindow, "BattleKitCrossSite"),
   };
-  const hasRequire = typeof candidateWindow?.__require === "function";
-  const gameScriptInDocument = scriptUrls.some(isGameScriptUrl);
-  const gameScriptInPerformance = performanceUrls.some(isGameScriptUrl);
-  let layer = "launcher-only";
+  const sceneName = candidateWindow?.cc?.director?.getScene?.()?.name
+    ?? state?.runSceneCalls?.at?.(-1)?.sceneName
+    ?? null;
+  const gameBundleRequested = !!state?.loadBundleCalls?.some((entry) =>
+    entry.bundleName === "game" && entry.phase === "requested",
+  );
+  const gameBundleLoaded = !!state?.loadBundleCalls?.some((entry) =>
+    entry.bundleName === "game" && entry.resolved && entry.ok === true,
+  );
+  const gameSceneAssetLoaded = !!state?.tryLoadAssetCalls?.some((entry) =>
+    entry.bundleName === "game" && entry.path === "scenes/Game" && entry.resolved && entry.ok === true,
+  );
+  const gameSceneRunning = sceneName === "Game"
+    || !!state?.runSceneCalls?.some((entry) => entry.sceneName === "Game");
+  const battleModulesReady = gameSceneRunning && canonicalModuleChecks.BattleUIManager.ok;
+  let runtimeStage = "launcher-ready";
   if (!candidateWindow) {
-    layer = "no-window";
-  } else if (!hasRequire) {
-    layer = "no-require";
-  } else if (Object.values(moduleChecks).some((entry) => entry.status === "present")) {
-    layer = "game-bundle-ready";
-  } else if (gameScriptInDocument || gameScriptInPerformance) {
-    layer = "game-bundle-loading";
+    runtimeStage = "no-window";
+  } else if (typeof candidateWindow.__require !== "function") {
+    runtimeStage = "no-require";
+  } else if (battleModulesReady) {
+    runtimeStage = "battle-modules-ready";
+  } else if (gameSceneRunning) {
+    runtimeStage = "game-scene-running";
+  } else if (gameSceneAssetLoaded) {
+    runtimeStage = "game-scene-asset-loaded";
+  } else if (gameBundleLoaded) {
+    runtimeStage = "game-bundle-loaded";
+  } else if (gameBundleRequested) {
+    runtimeStage = "game-bundle-requested";
   }
+
   return {
-    layer,
-    details: {
-      windowLabel: label,
-      hasRequire,
-      gameScriptInDocument,
-      gameScriptInPerformance,
-      moduleChecks,
-    },
-    windowLabel: label,
+    battleModulesReady,
+    canonicalModuleChecks,
+    currentWindowLabel: label,
+    gameBundleLoaded,
+    gameBundleRequested,
+    gameSceneAssetLoaded,
+    gameSceneRunning,
+    hasRequire: typeof candidateWindow?.__require === "function",
+    loadBundleCalls: state?.loadBundleCalls || [],
+    runSceneCalls: state?.runSceneCalls || [],
+    runtimeStage,
+    sceneName,
+    tryLoadAssetCalls: state?.tryLoadAssetCalls || [],
   };
 }
 
 function inspectBundleState(root = window) {
-  const windows = [];
-  windows.push(inspectSingleWindow(root, "window"));
+  const currentWindow = inspectSingleWindow(root, "window");
+  const windows = [currentWindow];
   const iframes = Array.from(root?.document?.querySelectorAll?.("iframe") || []);
   for (let index = 0; index < iframes.length; index += 1) {
     try {
@@ -176,43 +191,43 @@ function inspectBundleState(root = window) {
     }
   }
   return {
-    currentWindow: windows[0] || null,
-    currentWindowLabel: windows[0]?.windowLabel || null,
+    ...currentWindow,
+    currentWindow,
     windows,
   };
 }
 
-function detectRuntimeLayer(gameWindow, label = "window") {
-  return inspectSingleWindow(gameWindow, label);
-}
-
-async function waitForGameBundleReady(gameWindow, label = "window", {
-  timeoutMs = 3000,
+async function waitForBattleModulesReady(gameWindow, {
+  timeoutMs = 15000,
   intervalMs = 50,
 } = {}) {
   const startedAt = Date.now();
+  let snapshot = inspectSingleWindow(gameWindow, "window");
   let attempts = 0;
-  let current = detectRuntimeLayer(gameWindow, label);
   while (Date.now() - startedAt < timeoutMs) {
-    if (current.layer === "game-bundle-ready" || current.layer === "no-window" || current.layer === "no-require") {
+    if (
+      snapshot.runtimeStage === "battle-modules-ready"
+      || snapshot.runtimeStage === "no-window"
+      || snapshot.runtimeStage === "no-require"
+    ) {
       return {
-        ok: current.layer === "game-bundle-ready",
-        layer: current.layer,
-        status: current.layer,
         attempts,
-        details: current.details,
+        details: snapshot,
+        layer: snapshot.runtimeStage,
+        ok: snapshot.runtimeStage === "battle-modules-ready",
+        status: snapshot.runtimeStage,
       };
     }
     attempts += 1;
     await new Promise((resolve) => setTimeout(resolve, intervalMs));
-    current = detectRuntimeLayer(gameWindow, label);
+    snapshot = inspectSingleWindow(gameWindow, "window");
   }
   return {
-    ok: current.layer === "game-bundle-ready",
-    layer: current.layer,
-    status: current.layer,
     attempts,
-    details: current.details,
+    details: snapshot,
+    layer: snapshot.runtimeStage,
+    ok: false,
+    status: snapshot.runtimeStage,
   };
 }
 
@@ -224,32 +239,22 @@ async function waitForGameBundleReady(gameWindow, label = "window", {
   }
 
   const req = gameWindow.__require;
-  const runtimeLayerInfo = detectRuntimeLayer(gameWindow, label || "window");
+  const stageInfo = inspectSingleWindow(gameWindow, label || "window");
 
   function inspect() {
     const replayData = getReplaySource(gameWindow);
-    let battleUIManager;
-    let enterOSS;
-    let crossSite;
-    try { battleUIManager = req("BattleUIManager"); } catch (e) { battleUIManager = { __error: String(e) }; }
-    try { enterOSS = req("enter-oss"); } catch (e) { enterOSS = { __error: String(e) }; }
-    try { crossSite = req("BattleKitCrossSite"); } catch (e) { crossSite = { __error: String(e) }; }
-
     const info = {
       ...inspectBundleState(window),
-      runtimeLayer: detectRuntimeLayer(gameWindow, label || "window").layer,
-      hasGameWindow: !!gameWindow,
-      hasRequire: typeof req === "function",
-      BattleUIManagerKeys: Object.keys(battleUIManager || {}),
-      EnterOSSKeys: Object.keys(enterOSS || {}),
-      BattleKitCrossSiteKeys: Object.keys(crossSite || {}),
-      showReplayType: typeof battleUIManager?.SHOW_BATTLE_REPLAY_UI,
-      enterOSSCtorType: typeof enterOSS?.EnterOSSState,
-      enterOSSGetBattleDataByOSSType: typeof enterOSS?.EnterOSSState?.prototype?.getBattleDataByOSS,
-      enterOSSCreateBattleInputDataType: typeof enterOSS?.EnterOSSState?.prototype?.createBattleInputData,
-      crossSiteTryRaisePlaybackType: typeof crossSite?.BattleKitCrossSite?.instance?.tryRaisePlayback,
+      BattleUIManagerKeys: Object.keys((() => {
+        try { return req("BattleUIManager"); } catch { return {}; }
+      })()),
+      EnterOSSKeys: Object.keys((() => {
+        try { return req("enter-oss"); } catch { return {}; }
+      })()),
+      BattleKitCrossSiteKeys: Object.keys((() => {
+        try { return req("BattleKitCrossSite"); } catch { return {}; }
+      })()),
     };
-
     if (replayData) {
       info.replayData = {
         isWrapped: !!(replayData?.battleData || replayData?.lastBattleData),
@@ -261,66 +266,47 @@ async function waitForGameBundleReady(gameWindow, label = "window", {
         rightTeamForEachType: typeof replayData?.battleData?.rightTeam?.team?.forEach,
       };
     }
-
     console.log("[xyzw replay] inspect", info);
     return info;
   }
 
   function postCheck(prepared) {
     setTimeout(() => {
-      try {
-        console.log("[xyzw replay] post-check", {
-          scene: gameWindow.cc?.director?.getScene?.()?.name,
-          canvas: !!gameWindow.cc?.game?.canvas,
-          mapId: prepared?.mapId,
-          mode: prepared?.battleData?.mode,
-          leftTeamGetType: typeof prepared?.battleData?.leftTeam?.team?.get,
-          rightTeamGetType: typeof prepared?.battleData?.rightTeam?.team?.get,
-          leftTeamForEachType: typeof prepared?.battleData?.leftTeam?.team?.forEach,
-          rightTeamForEachType: typeof prepared?.battleData?.rightTeam?.team?.forEach,
-        });
-      } catch (e) {
-        console.warn("[xyzw replay] post-check failed", e);
-      }
+      console.log("[xyzw replay] post-check", {
+        scene: gameWindow.cc?.director?.getScene?.()?.name,
+        canvas: !!gameWindow.cc?.game?.canvas,
+        mapId: prepared?.mapId,
+        mode: prepared?.battleData?.mode,
+        leftTeamGetType: typeof prepared?.battleData?.leftTeam?.team?.get,
+        rightTeamGetType: typeof prepared?.battleData?.rightTeam?.team?.get,
+        leftTeamForEachType: typeof prepared?.battleData?.leftTeam?.team?.forEach,
+        rightTeamForEachType: typeof prepared?.battleData?.rightTeam?.team?.forEach,
+      });
     }, 1200);
   }
 
-  const baseHelper = {
-    detectRuntimeLayer() {
-      const result = detectRuntimeLayer(gameWindow, label || "window");
-      console.log("[xyzw replay] detectRuntimeLayer", result);
-      return result;
-    },
+  const earlyHelper = {
     inspectBundleState() {
       const result = inspectBundleState(window);
       console.log("[xyzw replay] inspectBundleState", result);
       return result;
     },
-    waitForGameBundleReady(options = {}) {
-      return waitForGameBundleReady(gameWindow, label || "window", options);
+    waitForBattleModulesReady(options = {}) {
+      return waitForBattleModulesReady(gameWindow, options);
     },
   };
 
   const fullHelper = {
-    ...baseHelper,
-    req,
+    ...earlyHelper,
     inspect,
     showReplay(inputDataOrRaw = getReplaySource(gameWindow), options = {}) {
       const prepared = ensureReplayInputData(inputDataOrRaw, gameWindow, options);
-      console.log("[xyzw replay] dispatch showReplay", {
-        mapId: prepared?.mapId,
-        mode: prepared?.battleData?.mode,
-      });
       const ret = req("BattleUIManager").SHOW_BATTLE_REPLAY_UI(prepared, options);
       postCheck(prepared);
       return ret;
     },
     showReplayDirect(rawOrWrappedBattleData = getReplaySource(gameWindow), options = {}) {
       const prepared = ensureReplayInputData(rawOrWrappedBattleData, gameWindow, options);
-      console.log("[xyzw replay] dispatch showReplayDirect", {
-        mapId: prepared?.mapId,
-        mode: prepared?.battleData?.mode,
-      });
       const ret = req("BattleUIManager").SHOW_BATTLE_REPLAY_UI(prepared, options);
       postCheck(prepared);
       return ret;
@@ -330,18 +316,18 @@ async function waitForGameBundleReady(gameWindow, label = "window", {
       return new EnterOSSState().showBattleViewWithData(rawOrWrappedBattleData);
     },
     tryCrossSitePlayback(force = true) {
-      const ret = req("BattleKitCrossSite").BattleKitCrossSite.instance.tryRaisePlayback(force);
-      console.log("[xyzw replay] tryCrossSitePlayback", { force, ret });
-      return ret;
+      return req("BattleKitCrossSite").BattleKitCrossSite.instance.tryRaisePlayback(force);
     },
   };
 
-  gameWindow.__xyzwReplay = runtimeLayerInfo.layer === "game-bundle-ready" ? fullHelper : baseHelper;
+  gameWindow.__xyzwReplay = stageInfo.runtimeStage === "battle-modules-ready"
+    ? fullHelper
+    : earlyHelper;
   window.__xyzwReplay = gameWindow.__xyzwReplay;
   if (window !== gameWindow)
     window.__xyzwReplayGameWindow = gameWindow;
 
   console.log("[xyzw replay] helpers attached at gameWindow.__xyzwReplay", {
-    runtimeLayer: runtimeLayerInfo.layer,
+    runtimeStage: stageInfo.runtimeStage,
   });
 })();

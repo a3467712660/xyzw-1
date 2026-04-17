@@ -7,23 +7,26 @@ import {
   createScopedReplayVm2Shim,
   ensureReplayBundleVersionContainers,
   ensureReplayAuxiliaryBundlesLoaded,
+  exposeReplayConsoleHelpers,
   installReplayAssetRequestObserver,
   installReplayBattleStartProbe,
   installReplayBundleResolverPatch,
+  installReplayPageExitGuard,
+  installReplayMissingModuleShims,
+  installReplayManifestShim,
   installReplayPrivacyGuard,
   installReplayPromiseUtilShim,
   installReplayResourceManagerGuard,
-  installReplayPageExitGuard,
-  installReplayMissingModuleShims,
-    installReplayManifestShim,
-    inspectBundleState,
-    detectXyzwRuntimeLayer,
-    findReplayGameWindow,
-    getReplaySource,
-    ensureReplayInputData,
-    ensureXyzwGameBundleReady,
-    locateReplayEntrypoint,
-    looksLikeBattleInput,
+  installReplaySceneStageObserver,
+  inspectBundleState,
+  detectXyzwRuntimeLayer,
+  findReplayGameWindow,
+  getReplaySource,
+  ensureReplayInputData,
+  ensureXyzwGameBundleReady,
+  waitForBattleModulesReady,
+  locateReplayEntrypoint,
+  looksLikeBattleInput,
   probeRequireExport,
   probeGameSceneAssets,
   requireModule,
@@ -32,8 +35,8 @@ import {
   safeRequireModule,
   startFightPvpReplayRuntime,
   toAbsoluteBundleRequestTarget,
-    waitForRuntimeReadyForReplay,
-  } from "../../src/services/replay/fightPvpReplayRuntimeBridge.js";
+  waitForRuntimeReadyForReplay,
+} from "../../src/services/replay/fightPvpReplayRuntimeBridge.js";
 import {
   buildFightPvpBattleInputData,
   createFightPvpBattleInputSnapshot,
@@ -174,7 +177,7 @@ test("fight pvp replay requireModule reports no-require when __require is unavai
   assert.equal(result.status, "no-require");
 });
 
-test("fight pvp replay requireModule reports launcher-only when canonical module id is still missing from launcher-only __require", () => {
+test("fight pvp replay requireModule reports launcher-ready when canonical module id is still missing from launcher-only __require", () => {
   const result = requireModule({
     __require() {
       throw new Error("Cannot find module 'BattleUIManager'");
@@ -190,10 +193,10 @@ test("fight pvp replay requireModule reports launcher-only when canonical module
   }, "BattleUIManager");
 
   assert.equal(result.ok, false);
-  assert.equal(result.status, "launcher-only");
+  assert.equal(result.status, "launcher-ready");
   assert.equal(
     result.detail,
-    "current window.__require belongs to launcher/main only; game.js has not executed in this window yet.",
+    "launcher is initialized, but the game bundle has not been requested yet.",
   );
 });
 
@@ -279,11 +282,11 @@ test("fight pvp replay probeRequireExport never reports wrong-export-path when w
   }, "BattleUIManager", ["SHOW_BATTLE_REPLAY_UI"]);
 
   assert.equal(result.ok, false);
-  assert.equal(result.status, "launcher-only");
+  assert.equal(result.status, "launcher-ready");
 });
 
-test("fight pvp replay detectXyzwRuntimeLayer distinguishes launcher-only from game-bundle-loading and ready", () => {
-  const launcherOnlyWindow = {
+test("fight pvp replay detectXyzwRuntimeLayer distinguishes staged replay runtime progress", () => {
+  const launcherReadyWindow = {
     __require() {
       throw new Error("Cannot find module 'BattleUIManager'");
     },
@@ -296,16 +299,51 @@ test("fight pvp replay detectXyzwRuntimeLayer distinguishes launcher-only from g
       },
     },
   };
-  const loadingWindow = {
+  const bundleRequestedWindow = {
     __require(name) {
       throw new Error(`Cannot find module '${name}'`);
     },
-    document: {
-      scripts: [{ src: "http://localhost/assets/game/index.js" }],
+    cc: {
+      director: {
+        getScene() {
+          return null;
+        },
+      },
     },
-    performance: {
-      getEntriesByType() {
-        return [{ name: "http://localhost/assets/game/index.js" }];
+  };
+  const bundleLoadedWindow = {
+    __require(name) {
+      throw new Error(`Cannot find module '${name}'`);
+    },
+    cc: {
+      director: {
+        getScene() {
+          return null;
+        },
+      },
+    },
+  };
+  const sceneAssetWindow = {
+    __require(name) {
+      throw new Error(`Cannot find module '${name}'`);
+    },
+    cc: {
+      director: {
+        getScene() {
+          return null;
+        },
+      },
+    },
+  };
+  const runningWindow = {
+    __require(name) {
+      throw new Error(`Cannot find module '${name}'`);
+    },
+    cc: {
+      director: {
+        getScene() {
+          return { name: "Game" };
+        },
       },
     },
   };
@@ -318,21 +356,90 @@ test("fight pvp replay detectXyzwRuntimeLayer distinguishes launcher-only from g
       }
       return {};
     },
-    document: {
-      scripts: [{ src: "http://localhost/assets/game/index.js" }],
-    },
-    performance: {
-      getEntriesByType() {
-        return [{ name: "http://localhost/assets/game/index.js" }];
+    cc: {
+      director: {
+        getScene() {
+          return { name: "Game" };
+        },
       },
     },
   };
 
+  launcherReadyWindow.__xyzwReplayRuntimeLayerState = {
+    nextId: 0,
+    bundleEvents: [],
+    loadBundleCalls: [],
+    pendingBundlePromises: new Map(),
+    pendingSceneAssetPromises: new Map(),
+    runSceneCalls: [],
+    scriptEvents: [],
+    tryLoadAssetCalls: [],
+  };
+  bundleRequestedWindow.__xyzwReplayRuntimeLayerState = {
+    ...launcherReadyWindow.__xyzwReplayRuntimeLayerState,
+    loadBundleCalls: [{
+      at: Date.now(),
+      bundleName: "game",
+      phase: "requested",
+      resolved: false,
+      ok: null,
+      source: "test",
+      target: "game",
+    }],
+  };
+  bundleLoadedWindow.__xyzwReplayRuntimeLayerState = {
+    ...launcherReadyWindow.__xyzwReplayRuntimeLayerState,
+    loadBundleCalls: [{
+      at: Date.now(),
+      bundleName: "game",
+      phase: "resolved",
+      resolved: true,
+      ok: true,
+      source: "test",
+      target: "game",
+    }],
+  };
+  sceneAssetWindow.__xyzwReplayRuntimeLayerState = {
+    ...launcherReadyWindow.__xyzwReplayRuntimeLayerState,
+    loadBundleCalls: [{
+      at: Date.now(),
+      bundleName: "game",
+      phase: "resolved",
+      resolved: true,
+      ok: true,
+      source: "test",
+      target: "game",
+    }],
+    tryLoadAssetCalls: [{
+      at: Date.now(),
+      bundleName: "game",
+      path: "scenes/Game",
+      phase: "resolved",
+      resolved: true,
+      ok: true,
+      source: "test",
+    }],
+  };
+  runningWindow.__xyzwReplayRuntimeLayerState = {
+    ...sceneAssetWindow.__xyzwReplayRuntimeLayerState,
+    runSceneCalls: [{
+      at: Date.now(),
+      sceneName: "Game",
+      source: "test",
+    }],
+  };
+  readyWindow.__xyzwReplayRuntimeLayerState = {
+    ...runningWindow.__xyzwReplayRuntimeLayerState,
+  };
+
   assert.equal(detectXyzwRuntimeLayer(null).layer, "no-window");
   assert.equal(detectXyzwRuntimeLayer({}).layer, "no-require");
-  assert.equal(detectXyzwRuntimeLayer(launcherOnlyWindow).layer, "launcher-only");
-  assert.equal(detectXyzwRuntimeLayer(loadingWindow).layer, "game-bundle-loading");
-  assert.equal(detectXyzwRuntimeLayer(readyWindow).layer, "game-bundle-ready");
+  assert.equal(detectXyzwRuntimeLayer(launcherReadyWindow).layer, "launcher-ready");
+  assert.equal(detectXyzwRuntimeLayer(bundleRequestedWindow).layer, "game-bundle-requested");
+  assert.equal(detectXyzwRuntimeLayer(bundleLoadedWindow).layer, "game-bundle-loaded");
+  assert.equal(detectXyzwRuntimeLayer(sceneAssetWindow).layer, "game-scene-asset-loaded");
+  assert.equal(detectXyzwRuntimeLayer(runningWindow).layer, "game-scene-running");
+  assert.equal(detectXyzwRuntimeLayer(readyWindow).layer, "battle-modules-ready");
 });
 
 test("fight pvp replay inspectBundleState inspects current window and same-origin iframes", () => {
@@ -370,12 +477,12 @@ test("fight pvp replay inspectBundleState inspects current window and same-origi
 
   assert.equal(result.currentWindowLabel, "window");
   assert.equal(result.windows.length, 2);
-  assert.equal(result.windows[0].layer, "launcher-only");
+  assert.equal(result.windows[0].layer, "launcher-ready");
   assert.equal(result.windows[1].windowLabel, "iframe[0]");
-  assert.equal(result.windows[1].layer, "game-bundle-ready");
+  assert.equal(result.windows[1].layer, "launcher-ready");
 });
 
-test("fight pvp replay ensureXyzwGameBundleReady retries until the game bundle is ready", async () => {
+test("fight pvp replay waitForBattleModulesReady retries until the battle modules are ready", async () => {
   let calls = 0;
   const runtimeWindow = {
     __require(name) {
@@ -387,18 +494,17 @@ test("fight pvp replay ensureXyzwGameBundleReady retries until the game bundle i
       }
       throw new Error(`Cannot find module '${name}'`);
     },
-    document: {
-      scripts: [{ src: "http://localhost/assets/game/index.js" }],
-    },
-    performance: {
-      getEntriesByType() {
-        return [{ name: "http://localhost/assets/game/index.js" }];
+    cc: {
+      director: {
+        getScene() {
+          return { name: "Game" };
+        },
       },
     },
     setTimeout,
   };
 
-  const result = await ensureXyzwGameBundleReady({
+  const result = await waitForBattleModulesReady({
     gameWindow: runtimeWindow,
     runtimeWindow,
     timeoutMs: 10,
@@ -406,11 +512,11 @@ test("fight pvp replay ensureXyzwGameBundleReady retries until the game bundle i
   });
 
   assert.equal(result.ok, true);
-  assert.equal(result.status, "game-bundle-ready");
+  assert.equal(result.status, "battle-modules-ready");
   assert.equal(result.attempts > 0, true);
 });
 
-test("fight pvp replay ensureXyzwGameBundleReady returns launcher-only when BattleUIManager never becomes available and no game bundle evidence exists", async () => {
+test("fight pvp replay waitForBattleModulesReady returns launcher-ready when BattleUIManager never becomes available and no game bundle was requested", async () => {
   const runtimeWindow = {
     __require() {
       throw new Error("Cannot find module 'BattleUIManager'");
@@ -426,7 +532,7 @@ test("fight pvp replay ensureXyzwGameBundleReady returns launcher-only when Batt
     setTimeout,
   };
 
-  const result = await ensureXyzwGameBundleReady({
+  const result = await waitForBattleModulesReady({
     gameWindow: runtimeWindow,
     runtimeWindow,
     timeoutMs: 2,
@@ -434,34 +540,99 @@ test("fight pvp replay ensureXyzwGameBundleReady returns launcher-only when Batt
   });
 
   assert.equal(result.ok, false);
-  assert.equal(result.status, "launcher-only");
+  assert.equal(result.status, "launcher-ready");
 });
 
-test("fight pvp replay ensureXyzwGameBundleReady returns game-bundle-loading when game script is observed but battle modules still miss", async () => {
+test("fight pvp replay waitForBattleModulesReady returns game-scene-running when Game scene is live but battle modules still miss", async () => {
   const runtimeWindow = {
     __require() {
       throw new Error("Cannot find module 'BattleUIManager'");
     },
+    cc: {
+      director: {
+        getScene() {
+          return { name: "Game" };
+        },
+      },
+    },
+    __xyzwReplayRuntimeLayerState: {
+      nextId: 0,
+      bundleEvents: [],
+      loadBundleCalls: [{
+        at: Date.now(),
+        bundleName: "game",
+        phase: "resolved",
+        resolved: true,
+        ok: true,
+        source: "test",
+        target: "game",
+      }],
+      pendingBundlePromises: new Map(),
+      pendingSceneAssetPromises: new Map(),
+      runSceneCalls: [{
+        at: Date.now(),
+        sceneName: "Game",
+        source: "test",
+      }],
+      scriptEvents: [],
+      tryLoadAssetCalls: [{
+        at: Date.now(),
+        bundleName: "game",
+        path: "scenes/Game",
+        phase: "resolved",
+        resolved: true,
+        ok: true,
+        source: "test",
+      }],
+    },
+    setTimeout,
+  };
+
+  const result = await waitForBattleModulesReady({
+    gameWindow: runtimeWindow,
+    runtimeWindow,
+    timeoutMs: 2,
+    intervalMs: 1,
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.status, "game-scene-running");
+});
+
+test("fight pvp replay exposes only inspectBundleState and waitForBattleModulesReady before battle modules are ready", () => {
+  globalThis.window = {
+    __require() {
+      throw new Error("Cannot find module 'BattleUIManager'");
+    },
     document: {
-      scripts: [{ src: "http://localhost/assets/game/index.js" }],
+      querySelectorAll() {
+        return [];
+      },
+      scripts: [],
     },
     performance: {
       getEntriesByType() {
-        return [{ name: "http://localhost/assets/game/index.js" }];
+        return [];
       },
     },
     setTimeout,
   };
 
-  const result = await ensureXyzwGameBundleReady({
-    gameWindow: runtimeWindow,
-    runtimeWindow,
-    timeoutMs: 2,
-    intervalMs: 1,
+  const runtimeLayerInfo = detectXyzwRuntimeLayer(globalThis.window, {
+    windowLabel: "window",
+  });
+  const { helper, dispose } = exposeReplayConsoleHelpers(globalThis.window, {
+    runtimeLayerInfo,
   });
 
-  assert.equal(result.ok, false);
-  assert.equal(result.status, "game-bundle-loading");
+  assert.equal(typeof helper?.inspectBundleState, "function");
+  assert.equal(typeof helper?.waitForBattleModulesReady, "function");
+  assert.equal(typeof helper?.inspect, "undefined");
+  assert.equal(typeof helper?.showReplay, "undefined");
+  assert.equal(typeof helper?.showReplayDirect, "undefined");
+  assert.equal(typeof helper?.tryCrossSitePlayback, "undefined");
+
+  dispose();
 });
 
 test("fight pvp replay looksLikeBattleInput detects normalized battle input data", () => {
@@ -1306,6 +1477,56 @@ test("fight pvp replay runtime bridge guards resource manager bundle maps before
   guard.dispose();
 });
 
+test("fight pvp replay runtime bridge observes TRY_LOAD_ASSET and runScene handoff stages", async () => {
+  const resourceManagerModule = {
+    TRY_LOAD_ASSET(bundleName, path) {
+      return Promise.resolve({ bundleName, path, name: "Game" });
+    },
+  };
+  const runtimeWindow = {
+    cc: {
+      director: {
+        currentScene: null,
+        getScene() {
+          return this.currentScene;
+        },
+        runScene(scene) {
+          this.currentScene = scene;
+          return scene;
+        },
+      },
+    },
+    __require(name) {
+      if (name === "BattleUIManager") {
+        return {
+          SHOW_BATTLE_REPLAY_UI() {},
+        };
+      }
+      return {};
+    },
+  };
+  const diagnostics = { steps: [] };
+  const observer = installReplaySceneStageObserver({
+    modules: {
+      ResourceManager: resourceManagerModule,
+    },
+    runtimeWindow,
+    diagnostics,
+  });
+
+  await resourceManagerModule.TRY_LOAD_ASSET("game", "scenes/Game", class SceneAsset {});
+  runtimeWindow.cc.director.runScene({ name: "Game" });
+
+  const snapshot = inspectBundleState(runtimeWindow).currentWindow.details;
+  assert.equal(snapshot.gameSceneAssetLoaded, true);
+  assert.equal(snapshot.gameSceneRunning, true);
+  assert.equal(snapshot.tryLoadAssetCalls.length, 2);
+  assert.equal(snapshot.tryLoadAssetCalls.at(-1).ok, true);
+  assert.equal(snapshot.runSceneCalls.at(-1).sceneName, "Game");
+
+  observer.dispose();
+});
+
 test("fight pvp replay runtime bridge patches assetManager loadBundle and bundle downloader to root absolute bundle urls", () => {
   const seenTargets = [];
   const runtimeWindow = {
@@ -1997,13 +2218,16 @@ test("fight pvp replay runtime bridge returns ok true when replay entrypoint sta
   assert.equal(session.diagnostics.engineReplayEntrypoint, "mock-entrypoint");
   const inspectResult = await globalThis.window.__xyzwReplay.inspect();
   assert.equal(typeof globalThis.window.__xyzwReplay?.inspect, "function");
+  assert.equal(typeof globalThis.window.__xyzwReplay?.inspectBundleState, "function");
   assert.equal(typeof globalThis.window.__xyzwReplay?.showReplay, "function");
   assert.equal(typeof globalThis.window.__xyzwReplay?.showReplayDirect, "function");
   assert.equal(typeof globalThis.window.__xyzwReplay?.showReplayViaEnterOSS, "function");
   assert.equal(typeof globalThis.window.__xyzwReplay?.tryCrossSitePlayback, "function");
+  assert.equal(typeof globalThis.window.__xyzwReplay?.waitForBattleModulesReady, "function");
   assert.equal(Array.isArray(inspectResult.replayEntrypointCandidates), true);
   assert.equal(inspectResult.hasGameWindow, true);
   assert.equal(inspectResult.hasRequire, true);
+  assert.equal(inspectResult.runtimeStage, "battle-modules-ready");
   assert.equal(inspectResult.replayData.isWrapped, true);
   assert.equal(inspectResult.replayData.isBattleInputLike, false);
   globalThis.window.__xyzwReplay.showReplay(battleInputData, { fromManual: true });
