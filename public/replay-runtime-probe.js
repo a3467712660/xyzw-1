@@ -25,12 +25,14 @@ const GENERIC_OWNER_RE = /(?:^|\.)(?:window|self|top|parent|frames|document)(?:\
 const GLOBAL_KEY_LIMIT = 240;
 const MATCH_LIMIT = 40;
 const MEMBER_LIMIT = 12;
+const NODE_TEXT_LIMIT = 12;
 const RANKED_TARGET_LIMIT = 10;
 const VISUAL_NODE_LIMIT = 30;
 const PRODUCTION_RUNTIME_WAIT_INTERVAL_MS = 100;
 const PRODUCTION_RUNTIME_WAIT_TIMEOUT_MS = 3000;
 const STABILIZED_RESCAN_DELAY_MS = 300;
 const PRODUCTION_TARGET_CONFIDENCE_THRESHOLD = 60;
+const INTERACTION_TRACE_WINDOW_MS = 800;
 const REPLAY_GETTER_PREFIXES = new Set([
   "get",
   "set",
@@ -77,6 +79,7 @@ const REPLAY_NEGATIVE_SIGNAL_WORDS = new Set([
   "mute",
 ]);
 const REPLAY_BLACKLISTED_METHODS = new Set([
+  "_canPlay",
   "getBattleVersion",
   "getVersion",
   "getFightVersion",
@@ -97,10 +100,12 @@ const REPLAY_SPECIFIC_REASONS = new Set([
   "source:button-click-event",
   "source:scene-context-handler",
   "context:replay-ui",
+  "uiText:replay-zh",
   "buttonText:replay",
   "customEventData:replay",
 ]);
-const REPLAY_UI_CONTEXT_RE = /replay|playback|battle|fight|pvp|回放|战报|录像|对战|战斗|记录|战绩|详情|查看|历史|播放|重播/i;
+const REPLAY_UI_CONTEXT_RE = /replay|playback|battle|fight|pvp|回放|回看|复盘|观战|战报|报告|录像|记录详情|历史记录|战斗记录|对战记录|查看详情|播放记录|对战|战斗|记录|战绩|详情|查看|历史|播放|重播/i;
+const REPLAY_UI_CONTEXT_ZH_RE = /回放|回看|复盘|观战|战报|报告|录像|记录详情|历史记录|战斗记录|对战记录|查看详情|播放记录|对战|战斗|记录|战绩|详情|查看|历史|播放|重播/;
 const CONTEXT_HANDLER_NAME_PREFIXES = Object.freeze([
   "open",
   "openpanel",
@@ -157,6 +162,9 @@ const sortDiscoverySources = (sources = []) =>
 const PROBE_RUNTIME_STATE = {
   attachedAt: null,
   interactionTrace: {
+    activeClickContext: null,
+    captureAllClicks: true,
+    captureWindowMs: INTERACTION_TRACE_WINDOW_MS,
     buttonTouchPatched: false,
     buttonTouchPatchSource: null,
     buttonTouchRestore: null,
@@ -167,7 +175,7 @@ const PROBE_RUNTIME_STATE = {
     emitEventsRestore: null,
     emitEventsSupported: false,
     installedAt: null,
-    lastButtonTouchContext: null,
+    lastClickContext: null,
   },
   lastInstantResolution: null,
   lastStabilizedResolution: null,
@@ -286,6 +294,39 @@ const matchesNegativePlaySignal = (value) =>
 
 const matchesReplayUiContextText = (value) =>
   REPLAY_UI_CONTEXT_RE.test(String(value || "").trim());
+
+const matchesChineseReplayUiContextText = (value) =>
+  REPLAY_UI_CONTEXT_ZH_RE.test(String(value || "").trim());
+
+const toNormalizedTextList = (values, limit = NODE_TEXT_LIMIT) => {
+  const textSet = new Set();
+  const queue = Array.isArray(values) ? [...values] : [values];
+
+  while (queue.length > 0 && textSet.size < limit) {
+    const current = queue.shift();
+    if (Array.isArray(current)) {
+      queue.unshift(...current);
+      continue;
+    }
+    const text = String(current || "").trim();
+    if (text) {
+      textSet.add(text);
+    }
+  }
+
+  return [...textSet];
+};
+
+const getReplayUiContextMatches = (values, limit = NODE_TEXT_LIMIT) =>
+  toNormalizedTextList(values, limit).filter(matchesReplayUiContextText);
+
+const pickPreferredReplayUiText = (values) => {
+  const texts = toNormalizedTextList(values, NODE_TEXT_LIMIT);
+  return texts.find(matchesChineseReplayUiContextText)
+    || texts.find(matchesReplayUiContextText)
+    || texts[0]
+    || null;
+};
 
 const matchesReplayKeyword = (value) =>
   hasPlaySignalText(value) || hasBattleContextText(value) || matchesReplayUiContextText(value);
@@ -875,29 +916,47 @@ const prepareProductionReplayPayload = (value, options = {}) => {
 
 const createTargetCandidate = ({
   buttonText = null,
+  buttonTexts = [],
   componentName = null,
+  clickedCustomEventData = null,
+  clickedNodeLabelTexts = [],
+  clickedNodeName = null,
+  clickedNodePath = null,
   customEventData = null,
   fn = null,
+  handlerComponentName = null,
+  handlerTargetNodePath = null,
   invoke,
   label,
   methodName = null,
   nodeName = null,
   nodePath = null,
   ownerKey = null,
+  replayContextTexts = [],
   source,
+  timestamp = null,
 } = {}) => ({
   arity: typeof fn === "function" ? fn.length : null,
   buttonText,
+  buttonTexts,
   componentName,
+  clickedCustomEventData,
+  clickedNodeLabelTexts,
+  clickedNodeName,
+  clickedNodePath,
   customEventData,
   functionSourceSnippet: toFunctionSourceSnippet(fn),
+  handlerComponentName,
+  handlerTargetNodePath,
   invoke,
   label,
   methodName,
   nodeName,
   nodePath,
   ownerKey,
+  replayContextTexts,
   source,
+  timestamp,
 });
 
 const collectReplayGlobalCandidates = (gameWindow) => {
@@ -1133,8 +1192,10 @@ const getNodePathFromIndex = (node, sceneIndex) => {
   return parentSegments.reverse().join("/");
 };
 
-const collectNodeTextCandidates = (node) => {
+const extractNodeLabelTexts = (node) => {
   const textSet = new Set();
+  const queue = [node];
+  const seenNodes = new Set();
 
   const addText = (value) => {
     const text = String(value || "").trim();
@@ -1143,22 +1204,37 @@ const collectNodeTextCandidates = (node) => {
     }
   };
 
-  addText(node?.labelString);
-  addText(node?.text);
-  addText(node?._string);
+  while (queue.length > 0 && textSet.size < NODE_TEXT_LIMIT) {
+    const current = queue.shift();
+    if (!current || seenNodes.has(current)) {
+      continue;
+    }
+    seenNodes.add(current);
 
-  for (const component of getSceneNodeComponents(node)) {
-    addText(component?.string);
-    addText(component?._string);
-    addText(component?.text);
-    addText(component?.title);
-    addText(component?.content);
-    addText(component?.buttonText);
-    addText(component?.label);
+    addText(current?.labelString);
+    addText(current?.text);
+    addText(current?._string);
+
+    for (const component of getSceneNodeComponents(current)) {
+      addText(component?.string);
+      addText(component?._string);
+      addText(component?.text);
+      addText(component?.title);
+      addText(component?.content);
+      addText(component?.buttonText);
+      addText(component?.label);
+      addText(component?.placeholder);
+      addText(component?.cacheLabel);
+    }
+
+    queue.push(...getSceneNodeChildren(current));
   }
 
-  return [...textSet].slice(0, 6);
+  return [...textSet].slice(0, NODE_TEXT_LIMIT);
 };
+
+const collectNodeTextCandidates = (node) =>
+  extractNodeLabelTexts(node);
 
 const findComponentByName = (node, componentName, handlerName = null) => {
   const components = getSceneNodeComponents(node);
@@ -1184,39 +1260,143 @@ const findComponentByName = (node, componentName, handlerName = null) => {
   return components[0] || null;
 };
 
+const buildClickContextSnapshot = (context) => {
+  if (!context) {
+    return null;
+  }
+
+  return {
+    buttonText: context.buttonText || null,
+    clickedCustomEventData: context.clickedCustomEventData || null,
+    clickedNodeLabelTexts: toNormalizedTextList(context.clickedNodeLabelTexts || []),
+    clickedNodeName: context.clickedNodeName || null,
+    clickedNodePath: context.clickedNodePath || null,
+    eventHandlers: Array.isArray(context.eventHandlers)
+      ? context.eventHandlers.map((entry) => ({
+        componentName: entry?.componentName || null,
+        customEventData: entry?.customEventData || null,
+        handlerName: entry?.handlerName || null,
+        targetNodeName: entry?.targetNodeName || null,
+        targetNodePath: entry?.targetNodePath || null,
+        timestamp: entry?.timestamp || null,
+      }))
+      : [],
+    replayContextTexts: toNormalizedTextList(context.replayContextTexts || []),
+    timestamp: context.timestamp || null,
+  };
+};
+
+const getActiveInteractionClickContext = () => {
+  const traceState = PROBE_RUNTIME_STATE.interactionTrace;
+  const activeContext = traceState.activeClickContext;
+  if (!activeContext) {
+    return null;
+  }
+
+  if (activeContext.expiresAt && activeContext.expiresAt < Date.now()) {
+    traceState.activeClickContext = null;
+    return null;
+  }
+
+  return activeContext;
+};
+
+const setInteractionClickContext = (context) => {
+  const traceState = PROBE_RUNTIME_STATE.interactionTrace;
+  traceState.activeClickContext = context;
+  traceState.lastClickContext = buildClickContextSnapshot(context);
+};
+
+const appendInteractionClickHandler = (context, handlerEntry) => {
+  if (!context || !handlerEntry) {
+    return;
+  }
+
+  if (!Array.isArray(context.eventHandlers)) {
+    context.eventHandlers = [];
+  }
+  context.eventHandlers.push(handlerEntry);
+  if (context.eventHandlers.length > BUTTON_HANDLER_LIMIT) {
+    context.eventHandlers.splice(0, context.eventHandlers.length - BUTTON_HANDLER_LIMIT);
+  }
+  PROBE_RUNTIME_STATE.interactionTrace.lastClickContext = buildClickContextSnapshot(context);
+};
+
 const summarizeReplayHandlerCandidate = (candidate, extra = {}) => ({
   buttonText: candidate?.buttonText || null,
+  buttonTexts: toNormalizedTextList(candidate?.buttonTexts || []),
+  clickedCustomEventData: candidate?.clickedCustomEventData || null,
+  clickedNodeLabelTexts: toNormalizedTextList(candidate?.clickedNodeLabelTexts || []),
+  clickedNodeName: candidate?.clickedNodeName || null,
+  clickedNodePath: candidate?.clickedNodePath || null,
   componentName: candidate?.componentName || null,
   customEventData: candidate?.customEventData || null,
+  handlerComponentName: candidate?.handlerComponentName || candidate?.componentName || null,
+  handlerTargetNodePath: candidate?.handlerTargetNodePath || candidate?.nodePath || null,
   label: candidate?.label || null,
   methodName: candidate?.methodName || null,
   nodePath: candidate?.nodePath || null,
+  replayContextTexts: toNormalizedTextList(candidate?.replayContextTexts || []),
   source: candidate?.source || null,
+  timestamp: candidate?.timestamp || null,
   ...extra,
 });
 
 const buildEventHandlerCandidate = ({
   buttonText = null,
+  buttonTexts = [],
+  clickedCustomEventData = null,
+  clickedNodeLabelTexts = [],
+  clickedNodeName = null,
+  clickedNodePath = null,
   customEventData = null,
   handlerName = null,
+  replayContextTexts = [],
   sceneIndex = null,
   source = "button-click-event",
+  targetComponentName = null,
   targetNode = null,
+  targetNodePath = null,
+  timestamp = Date.now(),
 } = {}) => {
-  const resolvedComponent = findComponentByName(targetNode, null, handlerName);
+  const resolvedComponent = findComponentByName(targetNode, targetComponentName, handlerName);
   if (!resolvedComponent || typeof resolvedComponent?.[handlerName] !== "function") {
     return null;
   }
 
   const resolvedComponentName = getObjectName(resolvedComponent) || "AnonymousComponent";
-  const nodePath = getNodePathFromIndex(targetNode, sceneIndex) || String(targetNode?.name || "(anonymous)");
+  const nodePath = targetNodePath
+    || getNodePathFromIndex(targetNode, sceneIndex)
+    || String(targetNode?.name || "(anonymous)");
   const method = resolvedComponent[handlerName];
+  const replayContext = toNormalizedTextList([
+    buttonText,
+    buttonTexts,
+    clickedCustomEventData,
+    clickedNodeLabelTexts,
+    clickedNodeName,
+    clickedNodePath,
+    customEventData,
+    replayContextTexts,
+    targetNode?.name,
+    nodePath,
+    targetComponentName,
+    resolvedComponentName,
+    handlerName,
+  ], BUTTON_HANDLER_LIMIT);
 
   return createTargetCandidate({
     buttonText,
+    buttonTexts,
     componentName: resolvedComponentName,
+    clickedCustomEventData,
+    clickedNodeLabelTexts,
+    clickedNodeName: clickedNodeName || null,
+    clickedNodePath: clickedNodePath || null,
     customEventData,
     fn: method,
+    handlerComponentName: resolvedComponentName,
+    handlerTargetNodePath: nodePath,
     invoke: (payload, playOptions = {}) =>
       resolvedComponent[handlerName].call(
         resolvedComponent,
@@ -1227,30 +1407,57 @@ const buildEventHandlerCandidate = ({
     methodName: handlerName,
     nodeName: String(targetNode?.name || ""),
     nodePath,
+    replayContextTexts: replayContext,
     source,
+    timestamp,
   });
 };
 
-const scanButtonClickEventCandidates = (gameWindow) => {
+const scanButtonClickEventCandidates = (
+  gameWindow,
+  { includeAllHandlersInReplayContext = true } = {},
+) => {
   const scene = gameWindow?.cc?.director?.getScene?.() || null;
   const sceneIndex = createSceneNodeIndex(scene);
   const buttonHandlerCandidates = [];
   const replayLikeButtonTexts = new Set();
   const replayLikeCustomEventData = new Set();
+  const replayLikeNodeContexts = new Set();
   const targetCandidates = [];
   const seenLabels = new Set();
 
   for (const record of sceneIndex.records) {
     const node = record.node;
+    const nodeName = record.nodeName;
     const nodePath = record.nodePath;
-    const nodeTexts = collectNodeTextCandidates(node);
-    const matchedButtonTexts = nodeTexts.filter(matchesReplayUiContextText);
+    const nodeTexts = extractNodeLabelTexts(node);
+    const matchedButtonTexts = getReplayUiContextMatches(nodeTexts, BUTTON_HANDLER_LIMIT);
+    const nodeReplayContextTexts = getReplayUiContextMatches([
+      nodeName,
+      nodePath,
+      nodeTexts,
+    ], BUTTON_HANDLER_LIMIT);
     matchedButtonTexts.forEach((entry) => replayLikeButtonTexts.add(entry));
+    if (nodeReplayContextTexts.length > 0) {
+      replayLikeNodeContexts.add(`${nodePath} :: ${nodeReplayContextTexts.slice(0, 3).join(" | ")}`);
+    }
 
     for (const component of getSceneNodeComponents(node)) {
       const clickEvents = Array.isArray(component?.clickEvents) ? component.clickEvents : null;
       if (!clickEvents || clickEvents.length === 0) {
         continue;
+      }
+
+      const buttonContextTexts = toNormalizedTextList([
+        nodeName,
+        nodePath,
+        nodeTexts,
+        clickEvents.map((clickEvent) => String(clickEvent?.customEventData || "").trim()),
+      ], BUTTON_HANDLER_LIMIT);
+      const buttonReplayContextTexts = getReplayUiContextMatches(buttonContextTexts, BUTTON_HANDLER_LIMIT);
+      const buttonLooksReplayLike = buttonReplayContextTexts.length > 0;
+      if (buttonLooksReplayLike) {
+        replayLikeNodeContexts.add(`${nodePath} :: ${buttonReplayContextTexts.slice(0, 3).join(" | ")}`);
       }
 
       for (const clickEvent of clickEvents) {
@@ -1265,26 +1472,50 @@ const scanButtonClickEventCandidates = (gameWindow) => {
         }
         const targetNode = clickEvent?.target || null;
         const targetNodePath = getNodePathFromIndex(targetNode, sceneIndex);
+        const targetNodeName = String(targetNode?.name || "");
         const componentName = String(clickEvent?.component || "");
-        const replayLike = [
+        const eventReplayContextTexts = getReplayUiContextMatches([
+          buttonContextTexts,
           nodePath,
+          nodeName,
           targetNodePath,
+          targetNodeName,
           componentName,
           handlerName,
           customEventData,
-          ...matchedButtonTexts,
-        ].some(matchesReplayUiContextText);
-        if (!replayLike) {
+          matchedButtonTexts,
+        ], BUTTON_HANDLER_LIMIT);
+        const shouldInclude = buttonLooksReplayLike
+          ? includeAllHandlersInReplayContext
+          : eventReplayContextTexts.length > 0;
+        if (!shouldInclude) {
           continue;
         }
 
+        const preferredButtonText = pickPreferredReplayUiText([
+          matchedButtonTexts,
+          nodeTexts,
+          customEventData,
+        ]);
+
         const candidate = buildEventHandlerCandidate({
-          buttonText: matchedButtonTexts[0] || nodeTexts[0] || null,
+          buttonText: preferredButtonText,
+          buttonTexts: nodeTexts,
+          clickedCustomEventData: customEventData || null,
+          clickedNodeLabelTexts: nodeTexts,
+          clickedNodeName: nodeName,
+          clickedNodePath: nodePath,
           customEventData,
           handlerName,
+          replayContextTexts: [
+            buttonReplayContextTexts,
+            eventReplayContextTexts,
+          ],
           sceneIndex,
           source: "button-click-event",
+          targetComponentName: componentName,
           targetNode,
+          targetNodePath,
         });
         if (candidate && !seenLabels.has(candidate.label)) {
           seenLabels.add(candidate.label);
@@ -1293,11 +1524,15 @@ const scanButtonClickEventCandidates = (gameWindow) => {
 
         if (buttonHandlerCandidates.length < BUTTON_HANDLER_LIMIT) {
           buttonHandlerCandidates.push({
-            buttonText: matchedButtonTexts[0] || nodeTexts[0] || null,
+            buttonText: preferredButtonText,
+            buttonTexts: nodeTexts,
             componentName: componentName || null,
             customEventData: customEventData || null,
             handlerName,
+            nodeName,
             nodePath,
+            replayContextTexts: eventReplayContextTexts,
+            targetNodeName: targetNodeName || null,
             targetNodePath,
           });
         }
@@ -1309,14 +1544,52 @@ const scanButtonClickEventCandidates = (gameWindow) => {
     buttonHandlerCandidates,
     replayLikeButtonTexts: [...replayLikeButtonTexts].slice(0, BUTTON_HANDLER_LIMIT),
     replayLikeCustomEventData: [...replayLikeCustomEventData].slice(0, BUTTON_HANDLER_LIMIT),
+    replayLikeNodeContexts: [...replayLikeNodeContexts].slice(0, BUTTON_HANDLER_LIMIT),
     targetCandidates,
+  };
+};
+
+const buildInteractionClickContext = ({
+  captureAllClicks = true,
+  captureWindowMs = INTERACTION_TRACE_WINDOW_MS,
+  clickedCustomEventData = null,
+  node = null,
+  sceneIndex = null,
+} = {}) => {
+  const clickedNodeLabelTexts = extractNodeLabelTexts(node);
+  const clickedNodeName = String(node?.name || "");
+  const clickedNodePath = getNodePathFromIndex(node, sceneIndex);
+  const replayContextTexts = toNormalizedTextList([
+    clickedNodeLabelTexts,
+    clickedNodeName,
+    clickedNodePath,
+    clickedCustomEventData,
+  ], BUTTON_HANDLER_LIMIT);
+  const timestamp = Date.now();
+
+  return {
+    buttonText: pickPreferredReplayUiText(replayContextTexts),
+    captureAllClicks,
+    clickedCustomEventData: clickedCustomEventData || null,
+    clickedNodeLabelTexts,
+    clickedNodeName: clickedNodeName || null,
+    clickedNodePath,
+    eventHandlers: [],
+    expiresAt: timestamp + captureWindowMs,
+    replayContextTexts,
+    timestamp,
   };
 };
 
 const pushInteractionTraceCandidate = (candidate) => {
   const traceState = PROBE_RUNTIME_STATE.interactionTrace;
-  if (!candidate || traceState.candidates.some((entry) => entry.label === candidate.label)) {
+  if (!candidate) {
     return;
+  }
+  const existingIndex = traceState.candidates.findIndex((entry) =>
+    entry.label === candidate.label && entry.source === candidate.source);
+  if (existingIndex !== -1) {
+    traceState.candidates.splice(existingIndex, 1);
   }
   traceState.candidates.push(candidate);
   if (traceState.candidates.length > INTERACTION_TRACE_LIMIT) {
@@ -1328,34 +1601,70 @@ const getInteractionTraceCandidates = () => {
   const replayLikeButtonTexts = new Set();
   const replayLikeCustomEventData = new Set();
   const candidates = PROBE_RUNTIME_STATE.interactionTrace.candidates.map((candidate) => {
-    if (matchesReplayUiContextText(candidate?.buttonText)) {
-      replayLikeButtonTexts.add(String(candidate.buttonText));
+    for (const buttonText of toNormalizedTextList([
+      candidate?.buttonText,
+      candidate?.buttonTexts,
+      candidate?.clickedNodeLabelTexts,
+    ], BUTTON_HANDLER_LIMIT)) {
+      if (matchesReplayUiContextText(buttonText)) {
+        replayLikeButtonTexts.add(String(buttonText));
+      }
     }
-    if (matchesReplayUiContextText(candidate?.customEventData)) {
-      replayLikeCustomEventData.add(String(candidate.customEventData));
+    for (const customEventData of toNormalizedTextList([
+      candidate?.customEventData,
+      candidate?.clickedCustomEventData,
+    ], BUTTON_HANDLER_LIMIT)) {
+      if (matchesReplayUiContextText(customEventData)) {
+        replayLikeCustomEventData.add(String(customEventData));
+      }
     }
     return summarizeReplayHandlerCandidate(candidate);
   });
+  const lastClickContext = buildClickContextSnapshot(
+    PROBE_RUNTIME_STATE.interactionTrace.lastClickContext,
+  );
+  for (const buttonText of toNormalizedTextList(lastClickContext?.clickedNodeLabelTexts || [])) {
+    if (matchesReplayUiContextText(buttonText)) {
+      replayLikeButtonTexts.add(buttonText);
+    }
+  }
+  if (matchesReplayUiContextText(lastClickContext?.clickedCustomEventData)) {
+    replayLikeCustomEventData.add(String(lastClickContext.clickedCustomEventData));
+  }
 
   return {
     interactionTraceCandidates: candidates,
-    replayLikeButtonTexts: [...replayLikeButtonTexts],
-    replayLikeCustomEventData: [...replayLikeCustomEventData],
+    lastClickContext,
+    replayLikeButtonTexts: [...replayLikeButtonTexts].slice(0, BUTTON_HANDLER_LIMIT),
+    replayLikeCustomEventData: [...replayLikeCustomEventData].slice(0, BUTTON_HANDLER_LIMIT),
     targetCandidates: PROBE_RUNTIME_STATE.interactionTrace.candidates.slice(0, INTERACTION_TRACE_LIMIT),
   };
 };
 
-const traceUiReplayHandlers = () => {
+const traceUiReplayHandlers = (options = {}) => {
   const { gameWindow } = findGameWindow(window);
   const traceState = PROBE_RUNTIME_STATE.interactionTrace;
+  const captureAllClicks = options?.captureAllClicks !== false;
+  const captureWindowMs = Number.isFinite(options?.captureWindowMs)
+    ? Math.max(1, Number(options.captureWindowMs))
+    : INTERACTION_TRACE_WINDOW_MS;
+
+  traceState.captureAllClicks = captureAllClicks;
+  traceState.captureWindowMs = captureWindowMs;
+
   if (traceState.installedAt) {
     const traced = getInteractionTraceCandidates();
     return {
+      buttonTouchPatchSource: traceState.buttonTouchPatchSource,
       candidateCount: traced.interactionTraceCandidates.length,
       candidates: traced.interactionTraceCandidates,
+      captureAllClicks: traceState.captureAllClicks,
+      captureWindowMs: traceState.captureWindowMs,
+      emitEventsPatchSource: traceState.emitEventsPatchSource,
       emitEventsPatched: traceState.emitEventsPatched,
       emitEventsSupported: traceState.emitEventsSupported,
       installedAt: traceState.installedAt,
+      lastClickContext: traced.lastClickContext,
       buttonTouchPatched: traceState.buttonTouchPatched,
       buttonTouchSupported: traceState.buttonTouchSupported,
     };
@@ -1372,32 +1681,78 @@ const traceUiReplayHandlers = () => {
       try {
         const scene = gameWindow?.cc?.director?.getScene?.() || null;
         const sceneIndex = createSceneNodeIndex(scene);
-        const buttonContext = traceState.lastButtonTouchContext;
+        const clickContext = getActiveInteractionClickContext();
         for (const eventHandler of Array.isArray(eventHandlers) ? eventHandlers : []) {
           const handlerName = String(eventHandler?.handler || "").trim();
+          if (!handlerName) {
+            continue;
+          }
           const targetNode = eventHandler?.target || null;
           const targetNodePath = getNodePathFromIndex(targetNode, sceneIndex);
+          const targetNodeName = String(targetNode?.name || "");
           const componentName = String(eventHandler?.component || "");
           const customEventData = String(eventHandler?.customEventData || "").trim();
-          const replayLike = [
-            buttonContext?.nodePath,
-            buttonContext?.buttonText,
+          const replayContextTexts = getReplayUiContextMatches([
+            clickContext?.replayContextTexts || [],
+            clickContext?.clickedNodeLabelTexts || [],
+            clickContext?.clickedNodePath,
+            clickContext?.clickedNodeName,
             targetNodePath,
+            targetNodeName,
             componentName,
             handlerName,
             customEventData,
-          ].some(matchesReplayUiContextText);
+          ], BUTTON_HANDLER_LIMIT);
+          const replayLike = clickContext?.captureAllClicks === true
+            ? replayContextTexts.length > 0
+              || Boolean(clickContext?.clickedNodePath)
+            : replayContextTexts.length > 0;
           if (!replayLike) {
             continue;
           }
+          if (clickContext) {
+            if (!clickContext.clickedCustomEventData && customEventData) {
+              clickContext.clickedCustomEventData = customEventData;
+            }
+            clickContext.replayContextTexts = toNormalizedTextList([
+              clickContext.replayContextTexts,
+              targetNodePath,
+              targetNodeName,
+              componentName,
+              handlerName,
+              customEventData,
+            ], BUTTON_HANDLER_LIMIT);
+            clickContext.buttonText = pickPreferredReplayUiText(clickContext.replayContextTexts);
+            clickContext.expiresAt = Date.now() + traceState.captureWindowMs;
+            appendInteractionClickHandler(clickContext, {
+              componentName: componentName || null,
+              customEventData: customEventData || null,
+              handlerName,
+              targetNodeName: targetNodeName || null,
+              targetNodePath,
+              timestamp: Date.now(),
+            });
+          }
 
           const candidate = buildEventHandlerCandidate({
-            buttonText: buttonContext?.buttonText || null,
+            buttonText: pickPreferredReplayUiText([
+              clickContext?.buttonText,
+              replayContextTexts,
+            ]),
+            buttonTexts: clickContext?.clickedNodeLabelTexts || [],
+            clickedCustomEventData: clickContext?.clickedCustomEventData || customEventData || null,
+            clickedNodeLabelTexts: clickContext?.clickedNodeLabelTexts || [],
+            clickedNodeName: clickContext?.clickedNodeName || null,
+            clickedNodePath: clickContext?.clickedNodePath || null,
             customEventData,
             handlerName,
+            replayContextTexts,
             sceneIndex,
             source: "interaction-trace",
+            targetComponentName: componentName,
             targetNode,
+            targetNodePath,
+            timestamp: Date.now(),
           });
           pushInteractionTraceCandidate(candidate);
         }
@@ -1413,38 +1768,54 @@ const traceUiReplayHandlers = () => {
   }
 
   const buttonPrototype = gameWindow?.cc?.Button?.prototype;
-  if (typeof buttonPrototype?._onTouchEnded === "function") {
-    const originalOnTouchEnded = buttonPrototype._onTouchEnded;
+  const buttonTouchMethodName = typeof buttonPrototype?._onTouchEnded === "function"
+    ? "_onTouchEnded"
+    : typeof buttonPrototype?.onTouchEnded === "function"
+      ? "onTouchEnded"
+      : null;
+  if (buttonTouchMethodName) {
+    const originalOnTouchEnded = buttonPrototype[buttonTouchMethodName];
     traceState.buttonTouchSupported = true;
-    traceState.buttonTouchPatchSource = "cc.Button.prototype._onTouchEnded";
-    buttonPrototype._onTouchEnded = function patchedButtonTouchEnded(...args) {
+    traceState.buttonTouchPatchSource = `cc.Button.prototype.${buttonTouchMethodName}`;
+    buttonPrototype[buttonTouchMethodName] = function patchedButtonTouchEnded(...args) {
       try {
         const scene = gameWindow?.cc?.director?.getScene?.() || null;
         const sceneIndex = createSceneNodeIndex(scene);
         const node = this?.node || null;
-        const buttonTexts = collectNodeTextCandidates(node);
-        traceState.lastButtonTouchContext = {
-          buttonText: buttonTexts.find(matchesReplayUiContextText) || buttonTexts[0] || null,
-          nodePath: getNodePathFromIndex(node, sceneIndex),
-        };
+        const clickContext = buildInteractionClickContext({
+          captureAllClicks: traceState.captureAllClicks,
+          captureWindowMs: traceState.captureWindowMs,
+          node,
+          sceneIndex,
+        });
+        if (traceState.captureAllClicks || clickContext.replayContextTexts.length > 0) {
+          setInteractionClickContext(clickContext);
+        } else {
+          traceState.activeClickContext = null;
+        }
       } catch {
-        traceState.lastButtonTouchContext = null;
+        traceState.activeClickContext = null;
       }
       return originalOnTouchEnded.apply(this, args);
     };
     traceState.buttonTouchPatched = true;
     traceState.buttonTouchRestore = () => {
-      buttonPrototype._onTouchEnded = originalOnTouchEnded;
+      buttonPrototype[buttonTouchMethodName] = originalOnTouchEnded;
     };
   }
 
   const traced = getInteractionTraceCandidates();
   return {
+    buttonTouchPatchSource: traceState.buttonTouchPatchSource,
     candidateCount: traced.interactionTraceCandidates.length,
     candidates: traced.interactionTraceCandidates,
+    captureAllClicks: traceState.captureAllClicks,
+    captureWindowMs: traceState.captureWindowMs,
+    emitEventsPatchSource: traceState.emitEventsPatchSource,
     emitEventsPatched: traceState.emitEventsPatched,
     emitEventsSupported: traceState.emitEventsSupported,
     installedAt: traceState.installedAt,
+    lastClickContext: traced.lastClickContext,
     buttonTouchPatched: traceState.buttonTouchPatched,
     buttonTouchSupported: traceState.buttonTouchSupported,
   };
@@ -1475,16 +1846,22 @@ const scanSceneForReplayCandidates = (gameWindow) => {
     const node = record.node;
     const nodeName = record.nodeName;
     const nodePath = record.nodePath;
-    const nodeContextMatched = matchesReplayUiContextText(nodeName)
-      || matchesReplayUiContextText(nodePath);
-    if (matchesReplayKeyword(nodeName) && sceneNodeMatches.length < MATCH_LIMIT) {
+    const nodeTexts = extractNodeLabelTexts(node);
+    const nodeReplayContextTexts = getReplayUiContextMatches([
+      nodeName,
+      nodePath,
+      nodeTexts,
+    ], BUTTON_HANDLER_LIMIT);
+    const nodeContextMatched = nodeReplayContextTexts.length > 0;
+    if ((matchesReplayKeyword(nodeName) || nodeReplayContextTexts.length > 0) && sceneNodeMatches.length < MATCH_LIMIT) {
       sceneNodeMatches.push({
         nodeName,
         nodePath,
+        nodeTexts: nodeReplayContextTexts,
       });
     }
     if (nodeContextMatched && replayLikeNodeContexts.length < MATCH_LIMIT) {
-      replayLikeNodeContexts.push(nodePath);
+      replayLikeNodeContexts.push(`${nodePath} :: ${nodeReplayContextTexts.slice(0, 3).join(" | ")}`);
     }
 
     for (const component of getSceneNodeComponents(node)) {
@@ -1564,6 +1941,7 @@ const scanSceneForReplayCandidates = (gameWindow) => {
           source,
         });
         targetCandidates.push(createTargetCandidate({
+          buttonTexts: nodeTexts,
           componentName,
           fn: method,
           buttonText: null,
@@ -1573,6 +1951,10 @@ const scanSceneForReplayCandidates = (gameWindow) => {
           methodName,
           nodeName,
           nodePath,
+          replayContextTexts: [
+            nodeReplayContextTexts,
+            componentName,
+          ],
           source,
         }));
       }
@@ -1592,6 +1974,44 @@ const scanSceneForReplayCandidates = (gameWindow) => {
 const isValidTargetCandidate = (candidate) =>
   Boolean(candidate && typeof candidate.invoke === "function");
 
+const getCandidateReplayContextTexts = (candidate) =>
+  toNormalizedTextList([
+    candidate?.buttonText,
+    candidate?.buttonTexts,
+    candidate?.clickedCustomEventData,
+    candidate?.clickedNodeLabelTexts,
+    candidate?.clickedNodeName,
+    candidate?.clickedNodePath,
+    candidate?.customEventData,
+    candidate?.nodeName,
+    candidate?.nodePath,
+    candidate?.handlerComponentName,
+    candidate?.handlerTargetNodePath,
+    candidate?.componentName,
+    candidate?.replayContextTexts,
+  ], BUTTON_HANDLER_LIMIT);
+
+const hasStrongSceneContextCandidate = (candidate, why = []) =>
+  candidate?.source === "scene-context-handler"
+  && (
+    why.includes("uiText:replay-zh")
+    || why.includes("context:replay-ui")
+    || why.includes("buttonText:replay")
+    || why.includes("customEventData:replay")
+    || why.includes("nodePath:replay/playback")
+    || why.includes("componentName:replay/playback")
+  );
+
+const hasQualifiedDiscoveryEntry = (entry) =>
+  Boolean(
+    entry
+    && (
+      entry.candidate?.source === "interaction-trace"
+      || entry.candidate?.source === "button-click-event"
+      || hasStrongSceneContextCandidate(entry.candidate, entry.why)
+    ),
+  );
+
 const scoreProductionReplayTarget = (candidate, payloadShape = null) => {
   let score = 0;
   const why = [];
@@ -1600,6 +2020,7 @@ const scoreProductionReplayTarget = (candidate, payloadShape = null) => {
   const methodName = String(candidate?.methodName || "");
   const componentName = String(candidate?.componentName || "");
   const customEventData = String(candidate?.customEventData || "");
+  const replayContextTexts = getCandidateReplayContextTexts(candidate);
   const nodeLabel = `${candidate?.nodeName || ""} ${candidate?.nodePath || ""}`;
   const functionSourceSnippet = String(candidate?.functionSourceSnippet || "");
   const ownerLabel = `${candidate?.ownerKey || ""} ${candidate?.label || ""}`;
@@ -1611,17 +2032,13 @@ const scoreProductionReplayTarget = (candidate, payloadShape = null) => {
   const functionHasReplaySignal = hasReplaySignalText(functionSourceSnippet);
   const componentHasReplaySignal = hasReplaySignalText(componentName);
   const nodeHasReplaySignal = hasReplaySignalText(nodeLabel);
+  const chineseReplayUiContextMatched = replayContextTexts.some(matchesChineseReplayUiContextText);
   const methodHasNegativeSignal = matchesNegativePlaySignal(methodName);
   const functionHasNegativeSignal = matchesNegativePlaySignal(functionSourceSnippet);
   const contextHasNegativeSignal = matchesNegativePlaySignal(
-    `${componentName} ${nodeLabel} ${ownerLabel} ${buttonText} ${customEventData}`,
+    `${componentName} ${nodeLabel} ${ownerLabel} ${buttonText} ${customEventData} ${replayContextTexts.join(" ")}`,
   );
-  const replayUiContextMatched = [
-    componentName,
-    nodeLabel,
-    buttonText,
-    customEventData,
-  ].some(matchesReplayUiContextText);
+  const replayUiContextMatched = replayContextTexts.some(matchesReplayUiContextText);
   const hasBattleContext = [
     hasBattleContextText(methodName),
     hasBattleContextText(componentName),
@@ -1633,7 +2050,11 @@ const scoreProductionReplayTarget = (candidate, payloadShape = null) => {
     functionHasReplaySignal,
     componentHasReplaySignal,
     nodeHasReplaySignal,
-    methodHasPlaySignal,
+    replayUiContextMatched,
+    chineseReplayUiContextMatched,
+    candidate?.source === "interaction-trace",
+    candidate?.source === "button-click-event",
+    candidate?.source === "scene-context-handler",
     payloadAffinity.looksReplayPayloadAffinity,
   ].some(Boolean);
   const hasWeakPlaySignal = methodHasPlaySignal
@@ -1666,9 +2087,7 @@ const scoreProductionReplayTarget = (candidate, payloadShape = null) => {
     why.push("methodName:replay/playback");
     positiveSignals.push("methodName");
   } else if (methodHasPlaySignal) {
-    score += 8;
-    why.push("methodName:play");
-    positiveSignals.push("methodName");
+    score += 2;
   } else if (hasBattleContextText(methodName)) {
     score += 2;
     why.push("methodName:battle/fight/pvp");
@@ -1692,6 +2111,12 @@ const scoreProductionReplayTarget = (candidate, payloadShape = null) => {
     positiveSignals.push("nodePath");
   }
 
+  if (chineseReplayUiContextMatched) {
+    score += 34;
+    why.push("uiText:replay-zh");
+    positiveSignals.push("uiText:replay-zh");
+  }
+
   if (replayUiContextMatched) {
     score += 18;
     why.push("context:replay-ui");
@@ -1699,13 +2124,13 @@ const scoreProductionReplayTarget = (candidate, payloadShape = null) => {
   }
 
   if (matchesReplayUiContextText(buttonText)) {
-    score += 30;
+    score += 24;
     why.push("buttonText:replay");
     positiveSignals.push("buttonText:replay");
   }
 
   if (matchesReplayUiContextText(customEventData)) {
-    score += 24;
+    score += 20;
     why.push("customEventData:replay");
     positiveSignals.push("customEventData:replay");
   }
@@ -1726,15 +2151,15 @@ const scoreProductionReplayTarget = (candidate, payloadShape = null) => {
   }
 
   if (candidate?.source === "interaction-trace") {
-    score += 90;
+    score += 96;
     why.push("source:interaction-trace");
     positiveSignals.push("source:interaction-trace");
   } else if (candidate?.source === "button-click-event") {
-    score += 72;
+    score += 78;
     why.push("source:button-click-event");
     positiveSignals.push("source:button-click-event");
   } else if (candidate?.source === "scene-context-handler") {
-    score += 36;
+    score += 42;
     why.push("source:scene-context-handler");
     positiveSignals.push("source:scene-context-handler");
   } else if (candidate?.source === "global-object") {
@@ -1898,7 +2323,9 @@ const buildProductionReplayResolution = (
 ) => {
   const globalCandidates = collectReplayGlobalCandidates(gameWindow);
   const sceneCandidates = scanSceneForReplayCandidates(gameWindow);
-  const buttonCandidates = scanButtonClickEventCandidates(gameWindow);
+  const buttonCandidates = scanButtonClickEventCandidates(gameWindow, {
+    includeAllHandlersInReplayContext: true,
+  });
   const interactionTrace = getInteractionTraceCandidates();
   const targetCandidates = [
     ...interactionTrace.targetCandidates,
@@ -1926,22 +2353,33 @@ const buildProductionReplayResolution = (
 
   const playableEntries = rankedEntries.filter((entry) => !entry.targetBlacklisted && !entry.rejectedReason);
   const playTargetEntry = rankedEntries[0] || null;
+  const hasQualifiedDiscoverySource = rankedEntries.some(hasQualifiedDiscoveryEntry);
   const candidateDiscoverySources = sortDiscoverySources(
     targetCandidates.map((candidate) => candidate.source),
   );
-  const replayLikeNodeContexts = [...new Set(sceneCandidates.replayLikeNodeContexts || [])];
+  const replayLikeNodeContexts = [...new Set([
+    ...(sceneCandidates.replayLikeNodeContexts || []),
+    ...(buttonCandidates.replayLikeNodeContexts || []),
+    interactionTrace.lastClickContext?.clickedNodePath
+      ? `${interactionTrace.lastClickContext.clickedNodePath} :: ${(interactionTrace.lastClickContext.clickedNodeLabelTexts || []).slice(0, 3).join(" | ")}`
+      : null,
+  ].filter(Boolean))];
   const replayLikeButtonTexts = [
     ...new Set([
       ...(buttonCandidates.replayLikeButtonTexts || []),
       ...(interactionTrace.replayLikeButtonTexts || []),
+      ...(interactionTrace.lastClickContext?.clickedNodeLabelTexts || []).filter(matchesReplayUiContextText),
     ]),
   ];
   const replayLikeCustomEventData = [
     ...new Set([
       ...(buttonCandidates.replayLikeCustomEventData || []),
       ...(interactionTrace.replayLikeCustomEventData || []),
+      matchesReplayUiContextText(interactionTrace.lastClickContext?.clickedCustomEventData)
+        ? interactionTrace.lastClickContext?.clickedCustomEventData
+        : null,
     ]),
-  ];
+  ].filter(Boolean);
   const serviceLikeCandidatesOnly = rankedEntries.length > 0
     && rankedEntries.every((entry) => {
       const candidateLabel = `${entry.candidate?.nodePath || ""} ${entry.candidate?.methodName || ""} ${entry.candidate?.componentName || ""}`;
@@ -1990,7 +2428,9 @@ const buildProductionReplayResolution = (
     candidateDiscoverySources,
     candidateSpaceTooNarrow,
     discoveryEmptyAfterBlacklist,
+    hasQualifiedDiscoverySource,
     interactionTraceCandidateCount: interactionTrace.interactionTraceCandidates.length,
+    lastClickContext: interactionTrace.lastClickContext,
     playableCandidateCount: playableEntries.length,
     rankedCandidateCount: rankedEntries.length,
     replayLikeButtonTextCount: replayLikeButtonTexts.length,
@@ -2007,7 +2447,9 @@ const buildProductionReplayResolution = (
     candidateSpaceTooNarrow,
     discoveryEmptyAfterBlacklist,
     globalCandidateCount,
+    hasQualifiedDiscoverySource,
     interactionTraceCandidates: interactionTrace.interactionTraceCandidates,
+    lastClickContext: interactionTrace.lastClickContext,
     minimumPlayableScore: PRODUCTION_TARGET_CONFIDENCE_THRESHOLD,
     mode,
     payloadShapeKey: getPayloadShapeKey(payloadShape),
@@ -2346,6 +2788,17 @@ const selectProductionReplayResolution = (instantResolution, stabilizedResolutio
   };
 };
 
+const shouldBlockPayloadForDiscoveryRisk = (resolution) =>
+  Boolean(
+    resolution?.scene != null
+    && resolution?.hasQualifiedDiscoverySource !== true
+    && (
+      (resolution?.rankedTargets?.length || 0) > 0
+      || resolution?.candidateSpaceTooNarrow
+      || resolution?.discoveryEmptyAfterBlacklist
+    ),
+  );
+
 const derivePrimaryRisk = ({
   payloadShapeAfter = null,
   resolution,
@@ -2413,6 +2866,7 @@ const inspect = () => {
   return {
     interactionTraceCandidates: resolution.interactionTraceCandidates,
     buttonHandlerCandidates: resolution.buttonHandlerCandidates,
+    lastClickContext: resolution.lastClickContext,
     replayLikeButtonTexts: resolution.replayLikeButtonTexts,
     replayLikeCustomEventData: resolution.replayLikeCustomEventData,
     candidateDiscoverySources: resolution.candidateDiscoverySources,
@@ -2497,6 +2951,61 @@ const play = async (
     const resolution = selection.selectedResolution;
     const before = snapshotVisualState(gameWindow);
 
+    if (shouldBlockPayloadForDiscoveryRisk(resolution)) {
+      return {
+        ok: false,
+        status: "target-discovery-empty-after-blacklist",
+        buttonHandlerCandidates: resolution.buttonHandlerCandidates,
+        candidateDiscoverySources: resolution.candidateDiscoverySources,
+        candidateSpaceTooNarrow: resolution.candidateSpaceTooNarrow,
+        loaderFamily: loaderInfo.loaderFamily,
+        detail: getProductionReplayTargetGateDetail({
+          ...resolution,
+          bridgeStatus: "target-discovery-empty-after-blacklist",
+        }),
+        interactionTraceCandidates: resolution.interactionTraceCandidates,
+        lastClickContext: resolution.lastClickContext,
+        optionsMerge: null,
+        payloadShapeAfter: null,
+        payloadShapeBefore,
+        playTargetLabel: resolution.playTargetLabel,
+        playTargetScore: resolution.playTargetScore,
+        playTargetSelectionPhase: selection.playTargetSelectionPhase,
+        playTargetSource: resolution.playTargetSource,
+        playTargetWhy: resolution.playTargetWhy,
+        targetBlacklisted: resolution.targetBlacklisted,
+        targetDiscoverySummary: {
+          ...resolution.targetDiscoverySummary,
+          status: "target-discovery-empty-after-blacklist",
+        },
+        targetLooksGetterLike: resolution.targetLooksGetterLike,
+        targetLooksMetadataLike: resolution.targetLooksMetadataLike,
+        targetRejectedReason: resolution.targetRejectedReason,
+        minimumPlayableScore: resolution.minimumPlayableScore,
+        primaryRisk: "candidate-discovery-risk",
+        rankedTargets: resolution.rankedTargets,
+        replayLikeButtonTexts: resolution.replayLikeButtonTexts,
+        replayLikeCustomEventData: resolution.replayLikeCustomEventData,
+        replayLikeNodeContexts: resolution.replayLikeNodeContexts,
+        rankedTargetsInstant: instantResolution.rankedTargets,
+        rankedTargetsStabilized: stabilizedResolution?.rankedTargets || [],
+        runtimeBootState: PROBE_RUNTIME_STATE.runtimeBootState,
+        runtimeBootWaitResult: PROBE_RUNTIME_STATE.runtimeBootWaitResult,
+        sceneCandidateCount: resolution.sceneCandidateCount,
+        sceneScanBlockedReason: resolution.sceneScanBlockedReason,
+        globalCandidateCount: resolution.globalCandidateCount,
+        visualPostCheck: buildVisualPostCheck({
+          before,
+          debugVisualProbe: options.debugVisualProbe === true,
+          extra: {
+            skipped: "no-playable-target-after-discovery",
+          },
+          visualChangeReasons: ["no-playable-target-after-discovery"],
+          visualChanged: false,
+        }),
+      };
+    }
+
     if (!resolution.selectedTarget) {
       return {
         ok: false,
@@ -2507,6 +3016,7 @@ const play = async (
         loaderFamily: loaderInfo.loaderFamily,
         detail: getProductionReplayTargetGateDetail(resolution),
         interactionTraceCandidates: resolution.interactionTraceCandidates,
+        lastClickContext: resolution.lastClickContext,
         optionsMerge: null,
         payloadShapeAfter: null,
         payloadShapeBefore,
@@ -2569,6 +3079,7 @@ const play = async (
         loaderFamily: loaderInfo.loaderFamily,
         detail: getProductionReplayTargetGateDetail(resolution),
         interactionTraceCandidates: resolution.interactionTraceCandidates,
+        lastClickContext: resolution.lastClickContext,
         optionsMerge: null,
         payloadShapeAfter: null,
         payloadShapeBefore,
@@ -2633,6 +3144,7 @@ const play = async (
         candidateDiscoverySources: resolution.candidateDiscoverySources,
         candidateSpaceTooNarrow: resolution.candidateSpaceTooNarrow,
         interactionTraceCandidates: resolution.interactionTraceCandidates,
+        lastClickContext: resolution.lastClickContext,
         loaderFamily: loaderInfo.loaderFamily,
         optionsMerge: preparedPayload.optionsMerge,
         payloadShapeAfter,
@@ -2683,6 +3195,7 @@ const play = async (
         candidateDiscoverySources: resolution.candidateDiscoverySources,
         candidateSpaceTooNarrow: resolution.candidateSpaceTooNarrow,
         interactionTraceCandidates: resolution.interactionTraceCandidates,
+        lastClickContext: resolution.lastClickContext,
         loaderFamily: loaderInfo.loaderFamily,
         errorMessage: error?.message || String(error),
         optionsMerge: preparedPayload.optionsMerge,
@@ -2813,7 +3326,7 @@ const ensureProbePanel = () => {
       <code>window.__xyzwReplayBridge.inspect()</code>
       <code>await window.__xyzwReplayBridge.play(window.__REPLAY_DATA__)</code>
       <code>await window.__xyzwReplayBridge.play(window.__REPLAY_DATA__, { debugVisualProbe: true })</code>
-      <code>window.__xyzwReplayBridge.traceUiReplayHandlers()</code>
+      <code>window.__xyzwReplayBridge.traceUiReplayHandlers({ captureAllClicks: true })</code>
     </div>
   `;
   host.appendChild(panel);
