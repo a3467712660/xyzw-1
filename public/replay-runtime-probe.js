@@ -21,9 +21,6 @@ const RUNTIME_SCRIPT_URLS = Object.freeze([
   "/xyzw/index.js",
 ]);
 
-const REPLAY_KEYWORD_RE = /replay|playback|battle|fight|pvp/i;
-const REPLAY_EXACT_METHOD_RE = /replay|playback/i;
-const REPLAY_BROAD_METHOD_RE = /battle|fight|pvp/i;
 const GENERIC_OWNER_RE = /(?:^|\.)(?:window|self|top|parent|frames|document)(?:\.|$)/i;
 const GLOBAL_KEY_LIMIT = 240;
 const MATCH_LIMIT = 40;
@@ -34,6 +31,42 @@ const PRODUCTION_RUNTIME_WAIT_INTERVAL_MS = 100;
 const PRODUCTION_RUNTIME_WAIT_TIMEOUT_MS = 3000;
 const STABILIZED_RESCAN_DELAY_MS = 300;
 const PRODUCTION_TARGET_CONFIDENCE_THRESHOLD = 60;
+const REPLAY_GETTER_PREFIXES = new Set([
+  "get",
+  "set",
+  "is",
+  "has",
+  "can",
+  "should",
+]);
+const REPLAY_POSITIVE_SIGNAL_WORDS = new Set([
+  "play",
+  "replay",
+  "playback",
+]);
+const REPLAY_REPLAY_SIGNAL_WORDS = new Set([
+  "replay",
+  "playback",
+]);
+const REPLAY_CONTEXT_WORDS = new Set([
+  "battle",
+  "fight",
+  "pvp",
+]);
+const REPLAY_METADATA_WORDS = new Set([
+  "version",
+  "config",
+  "state",
+  "status",
+  "meta",
+  "metadata",
+]);
+const REPLAY_BLACKLISTED_METHODS = new Set([
+  "getBattleVersion",
+  "getVersion",
+  "getFightVersion",
+  "getBattleResultVersion",
+]);
 
 const PROBE_RUNTIME_STATE = {
   attachedAt: null,
@@ -62,6 +95,13 @@ const toNormalizedSourceSnippet = (value) =>
 
 const toFunctionSourceSnippet = (value, maxLength = 220) =>
   toNormalizedSourceSnippet(toFunctionSource(value)).slice(0, maxLength);
+
+const toIdentifierWords = (value) =>
+  String(value || "")
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .split(/[^A-Za-z0-9]+/)
+    .map((entry) => entry.trim().toLowerCase())
+    .filter(Boolean);
 
 const getRequireFingerprint = (req) => {
   if (typeof req !== "function") {
@@ -127,8 +167,41 @@ const isPlainObject = (value) =>
   && typeof value === "object"
   && Object.getPrototypeOf(value) === Object.prototype;
 
+const hasIdentifierWord = (value, words) =>
+  toIdentifierWords(value).some((entry) => words.has(entry));
+
+const hasReplaySignalText = (value) =>
+  hasIdentifierWord(value, REPLAY_REPLAY_SIGNAL_WORDS);
+
+const hasPlaySignalText = (value) =>
+  hasIdentifierWord(value, REPLAY_POSITIVE_SIGNAL_WORDS);
+
+const hasBattleContextText = (value) =>
+  hasIdentifierWord(value, REPLAY_CONTEXT_WORDS);
+
 const matchesReplayKeyword = (value) =>
-  REPLAY_KEYWORD_RE.test(String(value || "").trim());
+  hasPlaySignalText(value) || hasBattleContextText(value);
+
+const isGetterLikeMethodName = (name) => {
+  const words = toIdentifierWords(name);
+  return words.length > 0 && REPLAY_GETTER_PREFIXES.has(words[0]);
+};
+
+const isMetadataLikeMethodName = (name) =>
+  hasIdentifierWord(name, REPLAY_METADATA_WORDS);
+
+const looksLikeMetadataSourceSnippet = (value) =>
+  /return\s+[^;{}]*(version|config|state|status|meta|metadata)/i.test(String(value || ""));
+
+const looksLikePureGetterSourceSnippet = (value) => {
+  const normalized = toNormalizedSourceSnippet(value);
+  if (!normalized) {
+    return false;
+  }
+  return /^function\b[^(]*\([^)]*\)\s*\{\s*return\b/i.test(normalized)
+    || /^\([^)]*\)\s*=>\s*[^={][^;]*$/i.test(normalized)
+    || /^\w+\([^)]*\)\s*\{\s*return\b/i.test(normalized);
+};
 
 const getObjectName = (value) => {
   if (!value) {
@@ -845,67 +918,129 @@ const isValidTargetCandidate = (candidate) =>
 const scoreProductionReplayTarget = (candidate) => {
   let score = 0;
   const why = [];
+  const positiveSignals = [];
   const methodName = String(candidate?.methodName || "");
   const componentName = String(candidate?.componentName || "");
   const nodeLabel = `${candidate?.nodeName || ""} ${candidate?.nodePath || ""}`;
   const functionSourceSnippet = String(candidate?.functionSourceSnippet || "");
+  const ownerLabel = `${candidate?.ownerKey || ""} ${candidate?.label || ""}`;
+  const targetLooksGetterLike = isGetterLikeMethodName(methodName);
+  const targetLooksMetadataLike = isMetadataLikeMethodName(methodName)
+    || looksLikeMetadataSourceSnippet(functionSourceSnippet);
+  const explicitlyBlacklisted = REPLAY_BLACKLISTED_METHODS.has(methodName);
+  const targetBlacklisted = explicitlyBlacklisted || targetLooksGetterLike;
+  const methodHasReplaySignal = hasReplaySignalText(methodName);
+  const methodHasPlaySignal = hasPlaySignalText(methodName);
+  const functionHasReplaySignal = hasReplaySignalText(functionSourceSnippet);
+  const componentHasReplaySignal = hasReplaySignalText(componentName);
+  const nodeHasReplaySignal = hasReplaySignalText(nodeLabel);
+  const hasPositivePlayEvidence = [
+    methodHasPlaySignal,
+    functionHasReplaySignal,
+    componentHasReplaySignal,
+    nodeHasReplaySignal,
+  ].some(Boolean);
 
-  if (REPLAY_EXACT_METHOD_RE.test(methodName)) {
+  if (methodHasReplaySignal) {
     score += 60;
     why.push("methodName:replay/playback");
-  } else if (REPLAY_BROAD_METHOD_RE.test(methodName)) {
-    score += 28;
-    why.push("methodName:battle/fight/pvp");
+    positiveSignals.push("methodName");
+  } else if (methodHasPlaySignal) {
+    score += 42;
+    why.push("methodName:play");
+    positiveSignals.push("methodName");
+  } else if (hasBattleContextText(methodName)) {
+    score -= 18;
+    why.push("methodName:battle/fight/pvp-without-play-signal");
   }
 
-  if (candidate?.source === "scene-component") {
+  if (functionHasReplaySignal) {
     score += 24;
-    why.push("source:scene-component");
-  } else if (candidate?.source === "global-object") {
-    score += 10;
-    why.push("source:global-object");
-  } else if (candidate?.source === "global-function") {
-    score += 4;
-    why.push("source:global-function");
+    why.push("functionSource:replay/playback");
+    positiveSignals.push("functionSource");
   }
 
-  if (REPLAY_EXACT_METHOD_RE.test(componentName)) {
-    score += 24;
+  if (componentHasReplaySignal) {
+    score += 6;
     why.push("componentName:replay/playback");
-  } else if (REPLAY_BROAD_METHOD_RE.test(componentName)) {
-    score += 12;
-    why.push("componentName:battle/fight/pvp");
+    positiveSignals.push("componentName");
   }
 
-  if (REPLAY_EXACT_METHOD_RE.test(nodeLabel)) {
-    score += 18;
+  if (nodeHasReplaySignal) {
+    score += 4;
     why.push("nodePath:replay/playback");
-  } else if (REPLAY_BROAD_METHOD_RE.test(nodeLabel)) {
-    score += 10;
-    why.push("nodePath:battle/fight/pvp");
-  }
-
-  if (REPLAY_KEYWORD_RE.test(functionSourceSnippet)) {
-    score += 12;
-    why.push("functionSource:replay/fight/pvp");
+    positiveSignals.push("nodePath");
   }
 
   if (candidate?.arity === 1 || candidate?.arity === 2) {
-    score += 8;
+    score += 12;
     why.push(`arity:${candidate.arity}`);
   } else if (candidate?.arity === 0 || candidate?.arity >= 3) {
-    score -= 6;
+    score -= 8;
     why.push(`arity:${candidate.arity ?? "unknown"}:less-like-payload-options`);
   }
 
-  const ownerLabel = `${candidate?.ownerKey || ""} ${candidate?.label || ""}`;
+  if (candidate?.source === "global-object") {
+    score += 18;
+    why.push("source:global-object");
+  } else if (candidate?.source === "global-function") {
+    score += 12;
+    why.push("source:global-function");
+  } else if (candidate?.source === "scene-component") {
+    score += 6;
+    why.push("source:scene-component");
+  }
+
+  if (explicitlyBlacklisted) {
+    score -= 120;
+    why.push("methodName:blacklisted");
+  }
+
+  if (targetLooksGetterLike) {
+    score -= 90;
+    why.push("methodName:getter-like");
+  }
+
+  if (targetLooksMetadataLike) {
+    score -= 50;
+    why.push("methodName:metadata-like");
+  }
+
+  if (looksLikeMetadataSourceSnippet(functionSourceSnippet)) {
+    score -= 40;
+    why.push("functionSource:return-version/config/state");
+  } else if (looksLikePureGetterSourceSnippet(functionSourceSnippet) && !hasPositivePlayEvidence) {
+    score -= 24;
+    why.push("functionSource:pure-getter");
+  }
+
   if (GENERIC_OWNER_RE.test(ownerLabel)) {
     score -= 20;
     why.push("generic-owner-penalty");
   }
 
+  let rejectedReason = null;
+  if (explicitlyBlacklisted) {
+    rejectedReason = "method-name-blacklisted";
+  } else if (targetLooksGetterLike) {
+    rejectedReason = "getter-like-method";
+  } else if (targetLooksMetadataLike && !hasPositivePlayEvidence) {
+    rejectedReason = "metadata-like-method";
+  } else if (!hasPositivePlayEvidence) {
+    rejectedReason = "missing-play-like-evidence";
+  } else if (why.length === 0) {
+    rejectedReason = "play-target-why-empty";
+  } else if (score < PRODUCTION_TARGET_CONFIDENCE_THRESHOLD) {
+    rejectedReason = "score-below-minimum-playable-score";
+  }
+
   return {
+    hasPositivePlayEvidence: positiveSignals.length > 0,
+    rejectedReason,
     score,
+    targetBlacklisted,
+    targetLooksGetterLike,
+    targetLooksMetadataLike,
     why,
   };
 };
@@ -916,9 +1051,9 @@ const sortRankedTargetEntries = (left, right) => {
   }
 
   const sourcePriority = {
-    "scene-component": 3,
-    "global-object": 2,
-    "global-function": 1,
+    "global-object": 3,
+    "global-function": 2,
+    "scene-component": 1,
   };
   const sourceDiff = (sourcePriority[right.candidate.source] || 0) - (sourcePriority[left.candidate.source] || 0);
   if (sourceDiff !== 0) {
@@ -937,6 +1072,39 @@ const deriveSceneScanBlockedReason = (gameWindow, scene) => {
     : "cc-director-missing";
 };
 
+const getProductionReplaySelectionStatus = (entry) => {
+  if (!entry) {
+    return "bridge-exposed-but-play-target-missing";
+  }
+  if (entry.targetBlacklisted) {
+    return "bridge-target-blacklisted";
+  }
+  if (entry.rejectedReason === "missing-play-like-evidence") {
+    return "bridge-target-selected-but-not-playlike";
+  }
+  if (entry.rejectedReason) {
+    return "bridge-target-low-confidence";
+  }
+  return "bridge-ready";
+};
+
+const getProductionReplayTargetGateDetail = (resolution = {}) => {
+  if (!resolution.selectedTarget) {
+    return "The production replay bridge is exposed, but no stable play target was resolved from globals or the Game scene.";
+  }
+
+  switch (resolution.bridgeStatus) {
+    case "bridge-target-blacklisted":
+      return `Selected target ${resolution.playTargetLabel || "(unknown)"} was rejected because it looks getter-like / metadata-like and should not be used as a replay play target.`;
+    case "bridge-target-selected-but-not-playlike":
+      return `Selected target ${resolution.playTargetLabel || "(unknown)"} was discovered from battle/fight/pvp context only, but it has no positive replay/playback/play evidence.`;
+    case "bridge-target-low-confidence":
+      return `Selected target ${resolution.playTargetLabel || "(unknown)"} did not meet the minimum playable score ${resolution.minimumPlayableScore}.`;
+    default:
+      return null;
+  }
+};
+
 const buildProductionReplayResolution = (gameWindow, { mode = "instant" } = {}) => {
   const globalCandidates = collectReplayGlobalCandidates(gameWindow);
   const sceneCandidates = scanSceneForReplayCandidates(gameWindow);
@@ -951,24 +1119,34 @@ const buildProductionReplayResolution = (gameWindow, { mode = "instant" } = {}) 
       const score = scoreProductionReplayTarget(candidate);
       return {
         candidate,
+        hasPositivePlayEvidence: score.hasPositivePlayEvidence,
+        rejectedReason: score.rejectedReason,
         score: score.score,
+        targetBlacklisted: score.targetBlacklisted,
+        targetLooksGetterLike: score.targetLooksGetterLike,
+        targetLooksMetadataLike: score.targetLooksMetadataLike,
         why: score.why,
       };
     })
     .sort(sortRankedTargetEntries);
 
   const playTargetEntry = rankedEntries[0] || null;
+  const bridgeStatus = getProductionReplaySelectionStatus(playTargetEntry);
   const rankedTargets = rankedEntries
     .slice(0, RANKED_TARGET_LIMIT)
-    .map(({ candidate, score, why }) => ({
+    .map(({ candidate, rejectedReason, score, targetBlacklisted, targetLooksGetterLike, targetLooksMetadataLike, why }) => ({
       arity: candidate.arity,
       componentName: candidate.componentName,
       functionSourceSnippet: candidate.functionSourceSnippet,
       label: candidate.label,
       methodName: candidate.methodName,
       nodePath: candidate.nodePath,
+      rejectedReason,
       score,
       source: candidate.source,
+      targetBlacklisted,
+      targetLooksGetterLike,
+      targetLooksMetadataLike,
       why,
     }));
 
@@ -977,14 +1155,15 @@ const buildProductionReplayResolution = (gameWindow, { mode = "instant" } = {}) 
 
   return {
     availableGlobals: globalCandidates.availableGlobals,
-    bridgeStatus: playTargetEntry ? "bridge-ready" : "bridge-exposed-but-play-target-missing",
+    bridgeStatus,
     globalCandidateCount,
+    minimumPlayableScore: PRODUCTION_TARGET_CONFIDENCE_THRESHOLD,
     mode,
     playMethodCandidates: [
       ...globalCandidates.playMethodCandidates,
       ...sceneCandidates.playMethodCandidates,
     ].slice(0, MATCH_LIMIT),
-    playTarget: playTargetEntry?.candidate || null,
+    playTarget: bridgeStatus === "bridge-ready" ? playTargetEntry?.candidate || null : null,
     playTargetLabel: playTargetEntry?.candidate?.label || null,
     playTargetScore: playTargetEntry?.score ?? null,
     playTargetSource: playTargetEntry?.candidate?.source || null,
@@ -995,6 +1174,11 @@ const buildProductionReplayResolution = (gameWindow, { mode = "instant" } = {}) 
     sceneScanBlockedReason: deriveSceneScanBlockedReason(gameWindow, sceneCandidates.scene),
     sceneComponentMatches: sceneCandidates.sceneComponentMatches,
     sceneNodeMatches: sceneCandidates.sceneNodeMatches,
+    selectedTarget: playTargetEntry?.candidate || null,
+    targetBlacklisted: playTargetEntry?.targetBlacklisted === true,
+    targetLooksGetterLike: playTargetEntry?.targetLooksGetterLike === true,
+    targetLooksMetadataLike: playTargetEntry?.targetLooksMetadataLike === true,
+    targetRejectedReason: playTargetEntry?.rejectedReason || null,
   };
 };
 
@@ -1303,13 +1487,13 @@ const derivePrimaryRisk = ({
   status = null,
   visualChanged = null,
 } = {}) => {
-  if (!resolution?.playTarget) {
+  if (!resolution?.selectedTarget) {
     return resolution?.scene == null
       ? "runtime-not-ready-for-scene-scan"
       : "target-discovery-empty";
   }
 
-  if ((resolution?.playTargetScore ?? 0) < PRODUCTION_TARGET_CONFIDENCE_THRESHOLD) {
+  if (!resolution?.playTarget) {
     return "target-selection-risk";
   }
 
@@ -1359,6 +1543,7 @@ const inspect = () => {
         : [],
     loaderFamily: loaderInfo.loaderFamily,
     loaderFamilyEvidence: loaderInfo.evidence,
+    minimumPlayableScore: resolution.minimumPlayableScore,
     payloadShapeDefault,
     playMethodCandidates: resolution.playMethodCandidates,
     playTargetLabel: resolution.playTargetLabel,
@@ -1366,6 +1551,10 @@ const inspect = () => {
     playTargetSelectionPhase: selection.playTargetSelectionPhase,
     playTargetSource: resolution.playTargetSource,
     playTargetWhy: resolution.playTargetWhy,
+    targetBlacklisted: resolution.targetBlacklisted,
+    targetLooksGetterLike: resolution.targetLooksGetterLike,
+    targetLooksMetadataLike: resolution.targetLooksMetadataLike,
+    targetRejectedReason: resolution.targetRejectedReason,
     primaryRisk: derivePrimaryRisk({
       payloadShapeAfter: payloadShapeDefault,
       resolution,
@@ -1417,27 +1606,29 @@ const play = async (
     );
     const resolution = selection.selectedResolution;
     const payloadShapeBefore = inspectPayloadShape(rawOrWrappedData);
-    const preparedPayload = prepareProductionReplayPayload(rawOrWrappedData, options);
-    const payloadShapeAfter = inspectPayloadShape(preparedPayload.payload);
     const before = snapshotVisualState(gameWindow);
 
-    if (!resolution.playTarget) {
+    if (!resolution.selectedTarget) {
       return {
         ok: false,
         status: "bridge-exposed-but-play-target-missing",
         loaderFamily: loaderInfo.loaderFamily,
-        detail:
-          "The production replay bridge is exposed, but no stable play target was resolved from globals or the Game scene.",
-        optionsMerge: preparedPayload.optionsMerge,
-        payloadShapeAfter,
+        detail: getProductionReplayTargetGateDetail(resolution),
+        optionsMerge: null,
+        payloadShapeAfter: null,
         payloadShapeBefore,
         playTargetLabel: null,
         playTargetScore: null,
         playTargetSelectionPhase: selection.playTargetSelectionPhase,
         playTargetSource: null,
         playTargetWhy: [],
+        targetBlacklisted: false,
+        targetLooksGetterLike: false,
+        targetLooksMetadataLike: false,
+        targetRejectedReason: null,
+        minimumPlayableScore: resolution.minimumPlayableScore,
         primaryRisk: derivePrimaryRisk({
-          payloadShapeAfter,
+          payloadShapeAfter: null,
           resolution,
         }),
         rankedTargets: resolution.rankedTargets,
@@ -1459,6 +1650,57 @@ const play = async (
         }),
       };
     }
+
+    if (!resolution.playTarget) {
+      const skipped = resolution.targetBlacklisted
+        ? "target-blacklisted"
+        : resolution.bridgeStatus === "bridge-target-selected-but-not-playlike"
+          ? "target-selected-but-not-playlike"
+          : "target-low-confidence";
+      return {
+        ok: false,
+        status: resolution.bridgeStatus,
+        loaderFamily: loaderInfo.loaderFamily,
+        detail: getProductionReplayTargetGateDetail(resolution),
+        optionsMerge: null,
+        payloadShapeAfter: null,
+        payloadShapeBefore,
+        playTargetLabel: resolution.playTargetLabel,
+        playTargetScore: resolution.playTargetScore,
+        playTargetSelectionPhase: selection.playTargetSelectionPhase,
+        playTargetSource: resolution.playTargetSource,
+        playTargetWhy: resolution.playTargetWhy,
+        targetBlacklisted: resolution.targetBlacklisted,
+        targetLooksGetterLike: resolution.targetLooksGetterLike,
+        targetLooksMetadataLike: resolution.targetLooksMetadataLike,
+        targetRejectedReason: resolution.targetRejectedReason,
+        minimumPlayableScore: resolution.minimumPlayableScore,
+        primaryRisk: derivePrimaryRisk({
+          payloadShapeAfter: null,
+          resolution,
+        }),
+        rankedTargets: resolution.rankedTargets,
+        rankedTargetsInstant: instantResolution.rankedTargets,
+        rankedTargetsStabilized: stabilizedResolution?.rankedTargets || [],
+        runtimeBootState: PROBE_RUNTIME_STATE.runtimeBootState,
+        runtimeBootWaitResult: PROBE_RUNTIME_STATE.runtimeBootWaitResult,
+        sceneCandidateCount: resolution.sceneCandidateCount,
+        sceneScanBlockedReason: resolution.sceneScanBlockedReason,
+        globalCandidateCount: resolution.globalCandidateCount,
+        visualPostCheck: buildVisualPostCheck({
+          before,
+          debugVisualProbe: options.debugVisualProbe === true,
+          extra: {
+            skipped,
+          },
+          visualChangeReasons: [skipped],
+          visualChanged: false,
+        }),
+      };
+    }
+
+    const preparedPayload = prepareProductionReplayPayload(rawOrWrappedData, options);
+    const payloadShapeAfter = inspectPayloadShape(preparedPayload.payload);
 
     try {
       const result = await Promise.resolve(
@@ -1485,6 +1727,11 @@ const play = async (
         playTargetSelectionPhase: selection.playTargetSelectionPhase,
         playTargetSource: resolution.playTargetSource,
         playTargetWhy: resolution.playTargetWhy,
+        targetBlacklisted: resolution.targetBlacklisted,
+        targetLooksGetterLike: resolution.targetLooksGetterLike,
+        targetLooksMetadataLike: resolution.targetLooksMetadataLike,
+        targetRejectedReason: resolution.targetRejectedReason,
+        minimumPlayableScore: resolution.minimumPlayableScore,
         rankedTargets: resolution.rankedTargets,
         rankedTargetsInstant: instantResolution.rankedTargets,
         rankedTargetsStabilized: stabilizedResolution?.rankedTargets || [],
@@ -1523,6 +1770,11 @@ const play = async (
         playTargetSelectionPhase: selection.playTargetSelectionPhase,
         playTargetSource: resolution.playTargetSource,
         playTargetWhy: resolution.playTargetWhy,
+        targetBlacklisted: resolution.targetBlacklisted,
+        targetLooksGetterLike: resolution.targetLooksGetterLike,
+        targetLooksMetadataLike: resolution.targetLooksMetadataLike,
+        targetRejectedReason: resolution.targetRejectedReason,
+        minimumPlayableScore: resolution.minimumPlayableScore,
         primaryRisk: derivePrimaryRisk({
           payloadShapeAfter,
           resolution,

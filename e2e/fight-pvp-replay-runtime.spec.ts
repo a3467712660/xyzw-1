@@ -32,12 +32,14 @@ test("fight pvp replay runtime probe identifies the production/public loader fam
   expect(result.inspect.currentAssetPath).toBe("/xyzw/index.js");
   expect(Array.isArray(result.inspect.rankedTargets)).toBeTruthy();
   expect(Array.isArray(result.inspect.rankedTargetsInstant)).toBeTruthy();
-  expect(Array.isArray(result.inspect.rankedTargetsStabilized)).toBeTruthy();
-  expect(result.inspect.payloadShapeDefault.kind).toBeTruthy();
-  expect(result.inspect.playTargetSelectionPhase).toBeTruthy();
-  expect(result.inspect.primaryRisk).toBe("runtime-not-ready-for-scene-scan");
-  expect(result.inspect.sceneScanBlockedReason).toBe("scene-null");
-  expect(result.inspect.runtimeBootState.loaderFamily).toBe("public-xyzw-loader");
+    expect(Array.isArray(result.inspect.rankedTargetsStabilized)).toBeTruthy();
+    expect(result.inspect.payloadShapeDefault.kind).toBeTruthy();
+    expect(result.inspect.playTargetSelectionPhase).toBeTruthy();
+    expect(result.inspect.minimumPlayableScore).toBe(60);
+    expect(result.inspect.targetRejectedReason ?? null).toBeNull();
+    expect(result.inspect.primaryRisk).toBe("runtime-not-ready-for-scene-scan");
+    expect(result.inspect.sceneScanBlockedReason).toBe("scene-null");
+    expect(result.inspect.runtimeBootState.loaderFamily).toBe("public-xyzw-loader");
   expect(result.inspect.runtimeBootWaitResult.status).toBeTruthy();
   expect(result.inspect.visualProbeCapabilities.showBattleLoading).toBe("not-found(optional)");
   expect(typeof result.inspect.visualProbeCapabilities.canvas).toBe("boolean");
@@ -46,14 +48,15 @@ test("fight pvp replay runtime probe identifies the production/public loader fam
   expect(result.inspect.incompatibleProbes).toContain("BattleUIManager");
   expect(result.inspect.incompatibleProbes).toContain("enter-oss");
   expect(result.inspect.incompatibleProbes).toContain("BattleKitCrossSite");
-  expect(result.play.ok).toBeFalsy();
-  expect(result.play.status).toBe("bridge-exposed-but-play-target-missing");
-  expect(result.play.primaryRisk).toBe("runtime-not-ready-for-scene-scan");
-  expect(result.play.playTargetSelectionPhase).toBe("stabilized");
-  expect(result.play.payloadShapeBefore.kind).toBeTruthy();
-  expect(result.play.payloadShapeAfter.kind).toBeTruthy();
-  expect(result.play.visualPostCheck.skipped).toBe("no-play-target");
-});
+    expect(result.play.ok).toBeFalsy();
+    expect(result.play.status).toBe("bridge-exposed-but-play-target-missing");
+    expect(result.play.minimumPlayableScore).toBe(60);
+    expect(result.play.primaryRisk).toBe("runtime-not-ready-for-scene-scan");
+    expect(result.play.playTargetSelectionPhase).toBe("stabilized");
+    expect(result.play.payloadShapeBefore.kind).toBeTruthy();
+    expect(result.play.payloadShapeAfter).toBeNull();
+    expect(result.play.visualPostCheck.skipped).toBe("no-play-target");
+  });
 
 test("fight pvp replay runtime probe does not treat source-era probes as production bridge signals", async ({
   page,

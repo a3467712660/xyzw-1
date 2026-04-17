@@ -1048,6 +1048,33 @@ test("fight pvp replay resolveProductionReplayPlayTarget prefers global candidat
   assert.equal(result.playTargetLabel, "gameWindow.BattleReplayController.showBattleReplay");
 });
 
+test("fight pvp replay resolveProductionReplayPlayTarget blacklists getter-like metadata methods", () => {
+  const runtimeWindow = createPublicLoaderWindow({
+    globals: {
+      BattleVersionController: {
+        getBattleVersion() {
+          return 321;
+        },
+      },
+    },
+  });
+  globalThis.window = runtimeWindow;
+
+  const result = resolveProductionReplayPlayTarget(runtimeWindow, {
+    runtimeWindow,
+  });
+
+  assert.equal(result.bridgeStatus, "bridge-target-blacklisted");
+  assert.equal(result.playTarget, null);
+  assert.equal(result.playTargetLabel, "gameWindow.BattleVersionController.getBattleVersion");
+  assert.equal(result.targetBlacklisted, true);
+  assert.equal(result.targetLooksGetterLike, true);
+  assert.equal(result.targetLooksMetadataLike, true);
+  assert.equal(result.targetRejectedReason, "method-name-blacklisted");
+  assert.equal(result.rankedTargets[0].targetBlacklisted, true);
+  assert.equal(result.rankedTargets[0].rejectedReason, "method-name-blacklisted");
+});
+
 test("fight pvp replay collectReplayGlobalCandidates finds public replay globals and callable methods", () => {
   const runtimeWindow = createPublicLoaderWindow({
     globals: {
@@ -1098,10 +1125,118 @@ test("fight pvp replay buildProductionReplayBridge inspect returns scanner outpu
   assert.equal(inspectResult.loaderFamily, "public-xyzw-loader");
   assert.equal(inspectResult.bridgeStatus, "bridge-ready");
   assert.equal(inspectResult.playTargetLabel, "gameWindow.BattleReplayController.showBattleReplay");
+  assert.equal(inspectResult.targetRejectedReason, null);
+  assert.equal(inspectResult.minimumPlayableScore, 60);
+  assert.equal(inspectResult.playTargetScore >= inspectResult.minimumPlayableScore, true);
   assert.equal(playResult.ok, true);
   assert.equal(playResult.status, "played-via-production-bridge");
   assert.equal(playCalls[0].mapId, 110001);
   assert.equal(playCalls[0].battleResult.isWin, true);
+});
+
+test("fight pvp replay buildProductionReplayBridge rejects getter-like production targets before payload handling", () => {
+  let invoked = false;
+  const runtimeWindow = createPublicLoaderWindow({
+    globals: {
+      BattleVersionController: {
+        getBattleVersion() {
+          invoked = true;
+          return 123;
+        },
+      },
+    },
+  });
+  globalThis.window = runtimeWindow;
+
+  const bridge = buildProductionReplayBridge(runtimeWindow, {
+    gameWindowSource: "window",
+    runtimeWindow,
+  });
+
+  const playResult = bridge.play({
+    battleInputData: {
+      battleData: { result: { isWin: true } },
+      mapId: 110001,
+    },
+  });
+
+  assert.equal(invoked, false);
+  assert.equal(playResult.ok, false);
+  assert.equal(playResult.status, "bridge-target-blacklisted");
+  assert.equal(playResult.primaryRisk, "target-selection-risk");
+  assert.equal(playResult.targetBlacklisted, true);
+  assert.equal(playResult.targetRejectedReason, "method-name-blacklisted");
+  assert.equal(playResult.visualPostCheck.skipped, "target-blacklisted");
+  assert.equal(playResult.payloadShapeAfter, null);
+});
+
+test("fight pvp replay buildProductionReplayBridge rejects battle-only targets without play evidence", () => {
+  let invoked = false;
+  const runtimeWindow = createPublicLoaderWindow({
+    globals: {
+      BattleInfoController: {
+        showBattleInfo(payload) {
+          invoked = true;
+          return payload;
+        },
+      },
+    },
+  });
+  globalThis.window = runtimeWindow;
+
+  const bridge = buildProductionReplayBridge(runtimeWindow, {
+    gameWindowSource: "window",
+    runtimeWindow,
+  });
+
+  const playResult = bridge.play({
+    battleInputData: {
+      battleData: { result: { isWin: true } },
+      mapId: 110001,
+    },
+  });
+
+  assert.equal(invoked, false);
+  assert.equal(playResult.ok, false);
+  assert.equal(playResult.status, "bridge-target-selected-but-not-playlike");
+  assert.equal(playResult.primaryRisk, "target-selection-risk");
+  assert.equal(playResult.targetRejectedReason, "missing-play-like-evidence");
+  assert.equal(playResult.visualPostCheck.skipped, "target-selected-but-not-playlike");
+});
+
+test("fight pvp replay buildProductionReplayBridge rejects low-confidence play-like targets below minimum score", () => {
+  let invoked = false;
+  const runtimeWindow = createPublicLoaderWindow({
+    globals: {
+      BattleBridge: {
+        playBattleBridge(payload, extraA, extraB) {
+          invoked = true;
+          return [payload, extraA, extraB];
+        },
+      },
+    },
+  });
+  globalThis.window = runtimeWindow;
+
+  const bridge = buildProductionReplayBridge(runtimeWindow, {
+    gameWindowSource: "window",
+    runtimeWindow,
+  });
+
+  const playResult = bridge.play({
+    battleInputData: {
+      battleData: { result: { isWin: true } },
+      mapId: 110001,
+    },
+  });
+
+  assert.equal(invoked, false);
+  assert.equal(playResult.ok, false);
+  assert.equal(playResult.status, "bridge-target-low-confidence");
+  assert.equal(playResult.primaryRisk, "target-selection-risk");
+  assert.equal(playResult.targetRejectedReason, "score-below-minimum-playable-score");
+  assert.equal(playResult.playTargetScore < playResult.minimumPlayableScore, true);
+  assert.equal(playResult.visualPostCheck.skipped, "target-low-confidence");
 });
 
 test("fight pvp replay buildProductionReplayBridge returns bridge-exposed-but-play-target-missing when no production target is available", () => {
