@@ -30,6 +30,19 @@ const MATCH_LIMIT = 40;
 const MEMBER_LIMIT = 12;
 const RANKED_TARGET_LIMIT = 10;
 const VISUAL_NODE_LIMIT = 30;
+const PRODUCTION_RUNTIME_WAIT_INTERVAL_MS = 100;
+const PRODUCTION_RUNTIME_WAIT_TIMEOUT_MS = 3000;
+const STABILIZED_RESCAN_DELAY_MS = 300;
+const PRODUCTION_TARGET_CONFIDENCE_THRESHOLD = 60;
+
+const PROBE_RUNTIME_STATE = {
+  attachedAt: null,
+  lastInstantResolution: null,
+  lastStabilizedResolution: null,
+  runtimeBootPromise: null,
+  runtimeBootState: null,
+  runtimeBootWaitResult: null,
+};
 
 const toFunctionSource = (value) => {
   if (typeof value !== "function") {
@@ -265,6 +278,54 @@ const detectLoaderFamily = (gameWindow) => {
     scriptUrls,
     performanceUrls,
   };
+};
+
+const getVisibleCanvasCount = () =>
+  Array.from(window?.document?.querySelectorAll?.("canvas") || [])
+    .filter((canvas) => {
+      if (!canvas || typeof canvas.getBoundingClientRect !== "function") {
+        return false;
+      }
+      const rect = canvas.getBoundingClientRect();
+      const style = window.getComputedStyle(canvas);
+      return rect.width > 0
+        && rect.height > 0
+        && style.display !== "none"
+        && style.visibility !== "hidden"
+        && Number(style.opacity || 1) > 0;
+    }).length;
+
+const buildRuntimeBootState = (gameWindow, { phase = "snapshot" } = {}) => {
+  const loaderInfo = detectLoaderFamily(gameWindow);
+  const now = Date.now();
+  return {
+    documentReadyState: window?.document?.readyState || null,
+    hasCc: Boolean(gameWindow?.cc),
+    hasDirector: Boolean(gameWindow?.cc?.director),
+    hasGame: Boolean(gameWindow?.cc?.game),
+    hasGameCanvas: Boolean(gameWindow?.cc?.game?.canvas),
+    hasRequire: typeof gameWindow?.__require === "function",
+    loaderFamily: loaderInfo.loaderFamily,
+    performanceUrls: loaderInfo.performanceUrls,
+    phase,
+    scene: gameWindow?.cc?.director?.getScene?.()?.name || null,
+    scriptUrls: loaderInfo.scriptUrls,
+    timestamps: {
+      attachedAt: PROBE_RUNTIME_STATE.attachedAt,
+      observedAt: now,
+      sinceAttachMs:
+        PROBE_RUNTIME_STATE.attachedAt == null
+          ? null
+          : now - PROBE_RUNTIME_STATE.attachedAt,
+    },
+    visibleCanvasCount: getVisibleCanvasCount(),
+  };
+};
+
+const updateRuntimeBootState = (gameWindow, options = {}) => {
+  const state = buildRuntimeBootState(gameWindow, options);
+  PROBE_RUNTIME_STATE.runtimeBootState = state;
+  return state;
 };
 
 const looksLikeBattleInput = (value) =>
@@ -867,7 +928,16 @@ const sortRankedTargetEntries = (left, right) => {
   return String(left.candidate.label || "").localeCompare(String(right.candidate.label || ""));
 };
 
-const resolveProductionReplayPlayTarget = (gameWindow) => {
+const deriveSceneScanBlockedReason = (gameWindow, scene) => {
+  if (scene) {
+    return null;
+  }
+  return typeof gameWindow?.cc?.director?.getScene === "function"
+    ? "scene-null"
+    : "cc-director-missing";
+};
+
+const buildProductionReplayResolution = (gameWindow, { mode = "instant" } = {}) => {
   const globalCandidates = collectReplayGlobalCandidates(gameWindow);
   const sceneCandidates = scanSceneForReplayCandidates(gameWindow);
   const targetCandidates = [
@@ -902,9 +972,14 @@ const resolveProductionReplayPlayTarget = (gameWindow) => {
       why,
     }));
 
+  const globalCandidateCount = globalCandidates.targetCandidates.filter(isValidTargetCandidate).length;
+  const sceneCandidateCount = sceneCandidates.targetCandidates.filter(isValidTargetCandidate).length;
+
   return {
     availableGlobals: globalCandidates.availableGlobals,
     bridgeStatus: playTargetEntry ? "bridge-ready" : "bridge-exposed-but-play-target-missing",
+    globalCandidateCount,
+    mode,
     playMethodCandidates: [
       ...globalCandidates.playMethodCandidates,
       ...sceneCandidates.playMethodCandidates,
@@ -915,14 +990,101 @@ const resolveProductionReplayPlayTarget = (gameWindow) => {
     playTargetSource: playTargetEntry?.candidate?.source || null,
     playTargetWhy: playTargetEntry?.why || [],
     rankedTargets,
+    sceneCandidateCount,
     scene: sceneCandidates.scene,
+    sceneScanBlockedReason: deriveSceneScanBlockedReason(gameWindow, sceneCandidates.scene),
     sceneComponentMatches: sceneCandidates.sceneComponentMatches,
     sceneNodeMatches: sceneCandidates.sceneNodeMatches,
   };
 };
 
+const resolveProductionReplayPlayTarget = (
+  gameWindow,
+  {
+    mode = "instant",
+  } = {},
+) => {
+  if (mode === "stabilized" && PROBE_RUNTIME_STATE.lastStabilizedResolution) {
+    return PROBE_RUNTIME_STATE.lastStabilizedResolution;
+  }
+
+  const resolution = buildProductionReplayResolution(gameWindow, { mode });
+  if (mode === "instant") {
+    PROBE_RUNTIME_STATE.lastInstantResolution = resolution;
+  }
+  return resolution;
+};
+
 const getDefaultReplayPayload = () =>
   window.__REPLAY_DATA__ ?? window.__xyzwReplayData ?? null;
+
+const waitForProductionRuntimeSignal = async (gameWindow) => {
+  const startedAt = Date.now();
+  let attempts = 0;
+  let status = "timeout-no-scene";
+
+  updateRuntimeBootState(findGameWindow(window).gameWindow || gameWindow, { phase: "wait-start" });
+
+  while (Date.now() - startedAt < PRODUCTION_RUNTIME_WAIT_TIMEOUT_MS) {
+    attempts += 1;
+    const observedGameWindow = findGameWindow(window).gameWindow || gameWindow;
+    const bootState = updateRuntimeBootState(observedGameWindow, { phase: "wait-loop" });
+    if (bootState.scene) {
+      status = "scene-ready";
+      break;
+    }
+    if (bootState.hasGameCanvas || bootState.visibleCanvasCount > 0) {
+      status = "canvas-ready-without-scene";
+      break;
+    }
+    await sleep(PRODUCTION_RUNTIME_WAIT_INTERVAL_MS);
+  }
+
+  const finalGameWindow = findGameWindow(window).gameWindow || gameWindow;
+  const finalBootState = updateRuntimeBootState(finalGameWindow, { phase: "wait-finished" });
+  PROBE_RUNTIME_STATE.runtimeBootWaitResult = {
+    attempts,
+    hasGameCanvas: finalBootState.hasGameCanvas,
+    scene: finalBootState.scene,
+    status,
+    visibleCanvasCount: finalBootState.visibleCanvasCount,
+    waitedMs: Date.now() - startedAt,
+  };
+  PROBE_RUNTIME_STATE.lastInstantResolution = buildProductionReplayResolution(finalGameWindow, {
+    mode: "instant",
+  });
+
+  await sleep(STABILIZED_RESCAN_DELAY_MS);
+  const stabilizedGameWindow = findGameWindow(window).gameWindow || finalGameWindow;
+  updateRuntimeBootState(stabilizedGameWindow, { phase: "stabilized-rescan" });
+  PROBE_RUNTIME_STATE.lastStabilizedResolution = buildProductionReplayResolution(stabilizedGameWindow, {
+    mode: "stabilized",
+  });
+
+  return PROBE_RUNTIME_STATE.runtimeBootWaitResult;
+};
+
+const ensureProductionRuntimeProbeReady = async (gameWindow) => {
+  if (!PROBE_RUNTIME_STATE.runtimeBootPromise) {
+    PROBE_RUNTIME_STATE.runtimeBootPromise = waitForProductionRuntimeSignal(gameWindow)
+      .catch((error) => {
+        const message = error?.message || String(error);
+        PROBE_RUNTIME_STATE.runtimeBootWaitResult = {
+          attempts: 0,
+          errorMessage: message,
+          hasGameCanvas: false,
+          scene: null,
+          status: "wait-error",
+          visibleCanvasCount: 0,
+          waitedMs: 0,
+        };
+        return PROBE_RUNTIME_STATE.runtimeBootWaitResult;
+      });
+  }
+
+  await PROBE_RUNTIME_STATE.runtimeBootPromise;
+  return PROBE_RUNTIME_STATE;
+};
 
 const getVisualProbeCapabilities = (gameWindow) => ({
   canvas: typeof window?.document?.querySelectorAll === "function",
@@ -1121,10 +1283,71 @@ const buildVisualPostCheck = ({
   };
 };
 
+const selectProductionReplayResolution = (instantResolution, stabilizedResolution) => {
+  if (stabilizedResolution) {
+    return {
+      playTargetSelectionPhase: "stabilized",
+      selectedResolution: stabilizedResolution,
+    };
+  }
+
+  return {
+    playTargetSelectionPhase: "instant",
+    selectedResolution: instantResolution,
+  };
+};
+
+const derivePrimaryRisk = ({
+  payloadShapeAfter = null,
+  resolution,
+  status = null,
+  visualChanged = null,
+} = {}) => {
+  if (!resolution?.playTarget) {
+    return resolution?.scene == null
+      ? "runtime-not-ready-for-scene-scan"
+      : "target-discovery-empty";
+  }
+
+  if ((resolution?.playTargetScore ?? 0) < PRODUCTION_TARGET_CONFIDENCE_THRESHOLD) {
+    return "target-selection-risk";
+  }
+
+  if (
+    payloadShapeAfter
+    && (
+      payloadShapeAfter.kind === "unknown"
+      || payloadShapeAfter.hasMapId !== true
+      || payloadShapeAfter.hasBattleResult !== true
+    )
+  ) {
+    return "payload-shape-risk";
+  }
+
+  if (
+    status === "played-via-production-bridge-but-no-visual-change"
+    || visualChanged === false
+  ) {
+    return "visual-side-effect-missing";
+  }
+
+  return null;
+};
+
 const inspect = () => {
   const { gameWindow, source } = findGameWindow(window);
   const loaderInfo = detectLoaderFamily(gameWindow);
-  const resolution = resolveProductionReplayPlayTarget(gameWindow);
+  updateRuntimeBootState(gameWindow, { phase: "inspect" });
+  const instantResolution = resolveProductionReplayPlayTarget(gameWindow, {
+    mode: "instant",
+  });
+  const stabilizedResolution = PROBE_RUNTIME_STATE.lastStabilizedResolution || null;
+  const selection = selectProductionReplayResolution(
+    instantResolution,
+    stabilizedResolution,
+  );
+  const resolution = selection.selectedResolution;
+  const payloadShapeDefault = inspectPayloadShape(getDefaultReplayPayload());
   return {
     availableGlobals: resolution.availableGlobals,
     bridgeStatus: resolution.bridgeStatus,
@@ -1136,17 +1359,28 @@ const inspect = () => {
         : [],
     loaderFamily: loaderInfo.loaderFamily,
     loaderFamilyEvidence: loaderInfo.evidence,
-    payloadShapeDefault: inspectPayloadShape(getDefaultReplayPayload()),
+    payloadShapeDefault,
     playMethodCandidates: resolution.playMethodCandidates,
     playTargetLabel: resolution.playTargetLabel,
     playTargetScore: resolution.playTargetScore,
+    playTargetSelectionPhase: selection.playTargetSelectionPhase,
     playTargetSource: resolution.playTargetSource,
     playTargetWhy: resolution.playTargetWhy,
+    primaryRisk: derivePrimaryRisk({
+      payloadShapeAfter: payloadShapeDefault,
+      resolution,
+    }),
     probeCompatibility: "compatible-probe",
     probeFamily: PROBE_FAMILIES.PRODUCTION,
     rankedTargets: resolution.rankedTargets,
+    rankedTargetsInstant: instantResolution.rankedTargets,
+    rankedTargetsStabilized: stabilizedResolution?.rankedTargets || [],
     requireFingerprint: loaderInfo.requireFingerprint,
+    runtimeBootState: PROBE_RUNTIME_STATE.runtimeBootState,
+    runtimeBootWaitResult: PROBE_RUNTIME_STATE.runtimeBootWaitResult,
     scene: resolution.scene,
+    sceneCandidateCount: resolution.sceneCandidateCount,
+    sceneScanBlockedReason: resolution.sceneScanBlockedReason,
     sceneComponentMatches: resolution.sceneComponentMatches,
     sceneNodeMatches: resolution.sceneNodeMatches,
     scriptUrls: loaderInfo.scriptUrls,
@@ -1156,6 +1390,7 @@ const inspect = () => {
         : {},
     suspectedBundlePath: loaderInfo.suspectedBundlePath,
     performanceUrls: loaderInfo.performanceUrls,
+    globalCandidateCount: resolution.globalCandidateCount,
     visualProbeCapabilities: getVisualProbeCapabilities(gameWindow),
   };
 };
@@ -1168,7 +1403,19 @@ const play = async (
   const loaderInfo = detectLoaderFamily(gameWindow);
 
   if (loaderInfo.loaderFamily === LOADER_FAMILIES.PUBLIC) {
-    const resolution = resolveProductionReplayPlayTarget(gameWindow);
+    await ensureProductionRuntimeProbeReady(gameWindow);
+    updateRuntimeBootState(gameWindow, { phase: "play" });
+    const instantResolution = resolveProductionReplayPlayTarget(gameWindow, {
+      mode: "instant",
+    });
+    const stabilizedResolution = resolveProductionReplayPlayTarget(gameWindow, {
+      mode: "stabilized",
+    });
+    const selection = selectProductionReplayResolution(
+      instantResolution,
+      stabilizedResolution,
+    );
+    const resolution = selection.selectedResolution;
     const payloadShapeBefore = inspectPayloadShape(rawOrWrappedData);
     const preparedPayload = prepareProductionReplayPayload(rawOrWrappedData, options);
     const payloadShapeAfter = inspectPayloadShape(preparedPayload.payload);
@@ -1186,9 +1433,21 @@ const play = async (
         payloadShapeBefore,
         playTargetLabel: null,
         playTargetScore: null,
+        playTargetSelectionPhase: selection.playTargetSelectionPhase,
         playTargetSource: null,
         playTargetWhy: [],
+        primaryRisk: derivePrimaryRisk({
+          payloadShapeAfter,
+          resolution,
+        }),
         rankedTargets: resolution.rankedTargets,
+        rankedTargetsInstant: instantResolution.rankedTargets,
+        rankedTargetsStabilized: stabilizedResolution?.rankedTargets || [],
+        runtimeBootState: PROBE_RUNTIME_STATE.runtimeBootState,
+        runtimeBootWaitResult: PROBE_RUNTIME_STATE.runtimeBootWaitResult,
+        sceneCandidateCount: resolution.sceneCandidateCount,
+        sceneScanBlockedReason: resolution.sceneScanBlockedReason,
+        globalCandidateCount: resolution.globalCandidateCount,
         visualPostCheck: buildVisualPostCheck({
           before,
           debugVisualProbe: options.debugVisualProbe === true,
@@ -1223,16 +1482,30 @@ const play = async (
         payloadShapeBefore,
         playTargetLabel: resolution.playTargetLabel,
         playTargetScore: resolution.playTargetScore,
+        playTargetSelectionPhase: selection.playTargetSelectionPhase,
         playTargetSource: resolution.playTargetSource,
         playTargetWhy: resolution.playTargetWhy,
         rankedTargets: resolution.rankedTargets,
+        rankedTargetsInstant: instantResolution.rankedTargets,
+        rankedTargetsStabilized: stabilizedResolution?.rankedTargets || [],
         result,
+        runtimeBootState: PROBE_RUNTIME_STATE.runtimeBootState,
+        runtimeBootWaitResult: PROBE_RUNTIME_STATE.runtimeBootWaitResult,
+        sceneCandidateCount: resolution.sceneCandidateCount,
+        sceneScanBlockedReason: resolution.sceneScanBlockedReason,
+        globalCandidateCount: resolution.globalCandidateCount,
         visualPostCheck: buildVisualPostCheck({
           after300,
           after1200,
           before,
           debugVisualProbe: options.debugVisualProbe === true,
           visualChangeReasons: visualChange.visualChangeReasons,
+          visualChanged: visualChange.visualChanged,
+        }),
+        primaryRisk: derivePrimaryRisk({
+          payloadShapeAfter,
+          resolution,
+          status,
           visualChanged: visualChange.visualChanged,
         }),
       };
@@ -1247,9 +1520,21 @@ const play = async (
         payloadShapeBefore,
         playTargetLabel: resolution.playTargetLabel,
         playTargetScore: resolution.playTargetScore,
+        playTargetSelectionPhase: selection.playTargetSelectionPhase,
         playTargetSource: resolution.playTargetSource,
         playTargetWhy: resolution.playTargetWhy,
+        primaryRisk: derivePrimaryRisk({
+          payloadShapeAfter,
+          resolution,
+        }),
         rankedTargets: resolution.rankedTargets,
+        rankedTargetsInstant: instantResolution.rankedTargets,
+        rankedTargetsStabilized: stabilizedResolution?.rankedTargets || [],
+        runtimeBootState: PROBE_RUNTIME_STATE.runtimeBootState,
+        runtimeBootWaitResult: PROBE_RUNTIME_STATE.runtimeBootWaitResult,
+        sceneCandidateCount: resolution.sceneCandidateCount,
+        sceneScanBlockedReason: resolution.sceneScanBlockedReason,
+        globalCandidateCount: resolution.globalCandidateCount,
         stackTop: String(error?.stack || "")
           .split("\n")
           .map((line) => line.trim())
@@ -1387,6 +1672,7 @@ const attachProbeUiHandlers = (bridge) => {
 
 const attachBridge = async () => {
   await ensureRuntimeLoaded();
+  PROBE_RUNTIME_STATE.attachedAt = Date.now();
   const bridge = {
     __xyzwReplayBridgeReady: true,
     inspect,
@@ -1394,6 +1680,21 @@ const attachBridge = async () => {
   };
   window.__xyzwReplayBridge = bridge;
   window.__xyzwReplay = bridge;
+  const initialGameWindow = findGameWindow(window).gameWindow || window;
+  updateRuntimeBootState(initialGameWindow, { phase: "attach" });
+  PROBE_RUNTIME_STATE.runtimeBootPromise = waitForProductionRuntimeSignal(initialGameWindow)
+    .catch((error) => {
+      PROBE_RUNTIME_STATE.runtimeBootWaitResult = {
+        attempts: 0,
+        errorMessage: error?.message || String(error),
+        hasGameCanvas: false,
+        scene: null,
+        status: "wait-error",
+        visibleCanvasCount: 0,
+        waitedMs: 0,
+      };
+      return PROBE_RUNTIME_STATE.runtimeBootWaitResult;
+    });
   attachProbeUiHandlers(bridge);
   const result = inspect();
   console.log("[xyzw replay] public replay bridge attached", result);
