@@ -1018,8 +1018,8 @@ test("fight pvp replay scanSceneForReplayCandidates collects replay-related scen
 });
 
 test("fight pvp replay resolveProductionReplayPlayTarget prefers global candidates before scene components", () => {
-  class ReplayScenePanel {
-    showBattleReplay() {}
+  class ScenePanel {
+    play() {}
   }
 
   const runtimeWindow = createPublicLoaderWindow({
@@ -1031,9 +1031,9 @@ test("fight pvp replay resolveProductionReplayPlayTarget prefers global candidat
     scene: {
       name: "Game",
       children: [{
-        name: "ReplaySceneRoot",
+        name: "GenericSceneRoot",
         children: [],
-        _components: [new ReplayScenePanel()],
+        _components: [new ScenePanel()],
       }],
       _components: [],
     },
@@ -1073,6 +1073,48 @@ test("fight pvp replay resolveProductionReplayPlayTarget blacklists getter-like 
   assert.equal(result.targetRejectedReason, "method-name-blacklisted");
   assert.equal(result.rankedTargets[0].targetBlacklisted, true);
   assert.equal(result.rankedTargets[0].rejectedReason, "method-name-blacklisted");
+});
+
+test("fight pvp replay resolveProductionReplayPlayTarget blacklists obvious error/audio/ad/effect play helpers", () => {
+  class NonReplayPlayServices {
+    _dealPlayErr() {}
+    playMusic() {}
+    playVideoAd() {}
+    playEffect() {}
+    playEffect2() {}
+  }
+
+  const runtimeWindow = createPublicLoaderWindow({
+    scene: {
+      name: "Game",
+      children: [{
+        name: "Global Entity",
+        children: [],
+        _components: [new NonReplayPlayServices()],
+      }],
+      _components: [],
+    },
+  });
+  globalThis.window = runtimeWindow;
+
+  const result = resolveProductionReplayPlayTarget(runtimeWindow, {
+    runtimeWindow,
+    payloadShape: {
+      kind: "raw",
+      hasBattleData: true,
+      hasBattleResult: true,
+      hasMapId: true,
+    },
+  });
+
+  assert.equal(result.playTarget, null);
+  assert.equal(result.bridgeStatus, "bridge-target-blacklisted");
+  assert.equal(result.playTargetLabel, "Game/Global Entity#NonReplayPlayServices._dealPlayErr");
+  for (const methodName of ["_dealPlayErr", "playMusic", "playVideoAd", "playEffect", "playEffect2"]) {
+    const entry = result.rankedTargets.find((candidate) => candidate.methodName === methodName);
+    assert.ok(entry, `${methodName} should be present in ranked targets`);
+    assert.equal(entry.targetBlacklisted, true);
+  }
 });
 
 test("fight pvp replay collectReplayGlobalCandidates finds public replay globals and callable methods", () => {
@@ -1200,20 +1242,26 @@ test("fight pvp replay buildProductionReplayBridge rejects battle-only targets w
   assert.equal(playResult.ok, false);
   assert.equal(playResult.status, "bridge-target-selected-but-not-playlike");
   assert.equal(playResult.primaryRisk, "target-selection-risk");
-  assert.equal(playResult.targetRejectedReason, "missing-play-like-evidence");
+  assert.equal(playResult.targetRejectedReason, "battle-context-without-payload-affinity");
   assert.equal(playResult.visualPostCheck.skipped, "target-selected-but-not-playlike");
 });
 
-test("fight pvp replay buildProductionReplayBridge rejects low-confidence play-like targets below minimum score", () => {
+test("fight pvp replay buildProductionReplayBridge rejects weak scene play targets below confidence gate", () => {
   let invoked = false;
   const runtimeWindow = createPublicLoaderWindow({
-    globals: {
-      BattleBridge: {
-        playBattleBridge(payload, extraA, extraB) {
-          invoked = true;
-          return [payload, extraA, extraB];
-        },
-      },
+    scene: {
+      name: "Game",
+      children: [{
+        name: "GenericRoot",
+        children: [],
+        _components: [{
+          play(payload) {
+            invoked = true;
+            return payload;
+          },
+        }],
+      }],
+      _components: [],
     },
   });
   globalThis.window = runtimeWindow;
@@ -1234,9 +1282,59 @@ test("fight pvp replay buildProductionReplayBridge rejects low-confidence play-l
   assert.equal(playResult.ok, false);
   assert.equal(playResult.status, "bridge-target-low-confidence");
   assert.equal(playResult.primaryRisk, "target-selection-risk");
-  assert.equal(playResult.targetRejectedReason, "score-below-minimum-playable-score");
-  assert.equal(playResult.playTargetScore < playResult.minimumPlayableScore, true);
+  assert.equal(playResult.targetRejectedReason, "missing-replay-specific-reason");
   assert.equal(playResult.visualPostCheck.skipped, "target-low-confidence");
+});
+
+test("fight pvp replay buildProductionReplayBridge allows battle-context plus payload-affinity targets", () => {
+  let invokedPayload = null;
+  class BattleStageController {
+    play(payload) {
+      invokedPayload = payload;
+      return payload.mapId ?? payload?.battleData?.result?.isWin ?? null;
+    }
+  }
+
+  const defaultReplayPayload = {
+    battleInputData: {
+      battleData: { result: { isWin: true } },
+      mapId: 110001,
+    },
+  };
+  const runtimeWindow = createPublicLoaderWindow({
+    extra: {
+      __REPLAY_DATA__: defaultReplayPayload,
+    },
+    scene: {
+      name: "Game",
+      children: [{
+        name: "BattleStage",
+        children: [],
+        _components: [new BattleStageController()],
+      }],
+      _components: [],
+    },
+  });
+  globalThis.window = runtimeWindow;
+
+  const bridge = buildProductionReplayBridge(runtimeWindow, {
+    gameWindowSource: "window",
+    runtimeWindow,
+  });
+
+  const inspectResult = bridge.inspect();
+  const playResult = bridge.play({
+    battleInputData: {
+      battleData: { result: { isWin: true } },
+      mapId: 110001,
+    },
+  });
+
+  assert.equal(inspectResult.bridgeStatus, "bridge-ready");
+  assert.equal(inspectResult.playTargetWhy.includes("battle-context+payload-affinity"), true);
+  assert.equal(playResult.ok, true);
+  assert.equal(playResult.status, "played-via-production-bridge");
+  assert.equal(invokedPayload.mapId, 110001);
 });
 
 test("fight pvp replay buildProductionReplayBridge returns bridge-exposed-but-play-target-missing when no production target is available", () => {
@@ -3280,6 +3378,113 @@ test("fight pvp replay runtime bridge fails fast when the production bridge repo
   assert.match(session.message, /production replay bridge 已暴露/);
   assert.equal(session.diagnostics.replayEntrypointInvokeStatus, "bridge-exposed-but-play-target-missing");
   assert.equal(replayProbeWaitCalled, false);
+
+  delete globalThis.window;
+  delete globalThis.HTMLElement;
+});
+
+test("fight pvp replay runtime bridge marks old production summary output as stale-probe-assets-or-summary", async () => {
+  class MockHTMLElement {
+    constructor() {
+      this.innerHTML = "";
+      this.clientWidth = 960;
+      this.clientHeight = 540;
+    }
+  }
+
+  const runtimeWindow = createPublicLoaderWindow({
+    bridge: {
+      inspect() {
+        return {
+          bridgeStatus: "played-via-production-bridge",
+        };
+      },
+      play() {
+        return {
+          ok: true,
+          status: "played-via-production-bridge",
+          visualPostCheck: {
+            skipped: "service-bridge-no-visual-probe",
+          },
+        };
+      },
+    },
+  });
+  runtimeWindow.HTMLElement = MockHTMLElement;
+  runtimeWindow.clearTimeout = clearTimeout;
+  runtimeWindow.requestAnimationFrame = (callback) => setTimeout(callback, 0);
+  runtimeWindow.setTimeout = setTimeout;
+  globalThis.window = runtimeWindow;
+  globalThis.HTMLElement = MockHTMLElement;
+
+  const session = await startFightPvpReplayRuntime({
+    replay: createSnapshotReplayRecord(),
+    hostElement: new MockHTMLElement(),
+    runtimeAdapter: {
+      createCanvasHost: () => ({
+        canvas: { id: "replay-canvas", width: 960, height: 540 },
+        viewport: {},
+      }),
+      createWxShim: () => ({
+        dispose() {},
+      }),
+      ensureBundleVersionContainers() {},
+      ensureReplayBootstrapScene: async () => ({
+        bootstrapSceneName: "Bootstrap",
+        cleanup() {},
+      }),
+      ensureRuntimeBooted: async () => {},
+      ensureRuntimeLoaded: async () => {},
+      createVm2Shim: () => ({
+        dispose() {},
+      }),
+      ensureAuxiliaryBundlesLoaded: async () => ({
+        dispose() {},
+      }),
+      installReplayBattleStartProbe: () => ({
+        dispose() {},
+        waitForSignal: async () => ({ ok: true }),
+      }),
+      inspectBundleState: () => ({
+        currentWindow: {
+          details: {
+            canonicalModuleChecks: {},
+            loaderFamily: "public-xyzw-loader",
+            loaderFamilyEvidence: { publicEvidence: ["document:/xyzw/index.js"], srcEvidence: [] },
+            suspectedBundlePath: "/xyzw/index.js",
+          },
+        },
+      }),
+      locateReplayEntrypoint: ({ diagnostics }) => {
+        diagnostics.loaderFamily = "public-xyzw-loader";
+        diagnostics.bridgeStatus = "played-via-production-bridge";
+        diagnostics.bridgeSource = "gameWindow.__xyzwReplayBridge";
+        diagnostics.replayEntrypointInvokeStatus = "played-via-production-bridge";
+        diagnostics.playTargetLabel = "Game/Global Entity#t._dealPlayErr";
+        diagnostics.playTargetScore = null;
+        diagnostics.playTargetWhy = [];
+        diagnostics.visualPostCheck = {
+          skipped: "service-bridge-no-visual-probe",
+        };
+        return null;
+      },
+      inspectGameBundleModuleCoverage: async () => ({
+        missingModules: [],
+      }),
+      probeGameBundleAssets: async () => [],
+      probeGameSceneAssets: async () => [],
+      readRuntimeModules: () => ({ consts: {} }),
+      waitForRuntimeReadyForReplay: async () => ({
+        ok: true,
+        sceneName: "Game",
+      }),
+    },
+  });
+
+  assert.equal(session.ok, false);
+  assert.equal(session.reason, "replay-start-failed");
+  assert.match(session.message, /stale-probe-assets-or-summary/);
+  assert.match(session.message, /public\/replay-runtime-probe\.js/);
 
   delete globalThis.window;
   delete globalThis.HTMLElement;

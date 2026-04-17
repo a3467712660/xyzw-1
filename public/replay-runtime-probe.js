@@ -61,11 +61,38 @@ const REPLAY_METADATA_WORDS = new Set([
   "meta",
   "metadata",
 ]);
+const REPLAY_NEGATIVE_SIGNAL_WORDS = new Set([
+  "err",
+  "error",
+  "music",
+  "audio",
+  "sound",
+  "bgm",
+  "video",
+  "ad",
+  "reward",
+  "effect",
+  "clip",
+  "voice",
+  "mute",
+]);
 const REPLAY_BLACKLISTED_METHODS = new Set([
   "getBattleVersion",
   "getVersion",
   "getFightVersion",
   "getBattleResultVersion",
+  "_dealPlayErr",
+  "playMusic",
+  "playVideoAd",
+  "playEffect",
+  "playEffect2",
+]);
+const REPLAY_SPECIFIC_REASONS = new Set([
+  "methodName:replay/playback",
+  "functionSource:replay/playback",
+  "componentName:replay/playback",
+  "nodePath:replay/playback",
+  "battle-context+payload-affinity",
 ]);
 
 const PROBE_RUNTIME_STATE = {
@@ -168,7 +195,10 @@ const isPlainObject = (value) =>
   && Object.getPrototypeOf(value) === Object.prototype;
 
 const hasIdentifierWord = (value, words) =>
-  toIdentifierWords(value).some((entry) => words.has(entry));
+  toIdentifierWords(value).some((entry) => {
+    const normalized = entry.replace(/\d+$/g, "");
+    return words.has(entry) || words.has(normalized);
+  });
 
 const hasReplaySignalText = (value) =>
   hasIdentifierWord(value, REPLAY_REPLAY_SIGNAL_WORDS);
@@ -178,6 +208,9 @@ const hasPlaySignalText = (value) =>
 
 const hasBattleContextText = (value) =>
   hasIdentifierWord(value, REPLAY_CONTEXT_WORDS);
+
+const matchesNegativePlaySignal = (value) =>
+  hasIdentifierWord(value, REPLAY_NEGATIVE_SIGNAL_WORDS);
 
 const matchesReplayKeyword = (value) =>
   hasPlaySignalText(value) || hasBattleContextText(value);
@@ -202,6 +235,97 @@ const looksLikePureGetterSourceSnippet = (value) => {
     || /^\([^)]*\)\s*=>\s*[^={][^;]*$/i.test(normalized)
     || /^\w+\([^)]*\)\s*\{\s*return\b/i.test(normalized);
 };
+
+const hasBattlePayloadShape = (payloadShape) =>
+  Boolean(
+    payloadShape
+    && (
+      payloadShape.kind === "battleInputLike"
+      || payloadShape.kind === "wrapped"
+      || payloadShape.kind === "raw"
+      || payloadShape.hasBattleData
+      || payloadShape.hasBattleInputData
+      || payloadShape.hasBattleInputSnapshot
+      || payloadShape.hasBattleResult
+      || payloadShape.hasMapId
+    ),
+  );
+
+const hasPayloadFieldSignal = (value) =>
+  /\b(?:battleData|battleResult|mapId|leftTeam|rightTeam|team|result|round)\b/i.test(
+    String(value || ""),
+  );
+
+const looksReplayPayloadAffinity = (candidate, payloadShape = null) => {
+  if (!hasBattlePayloadShape(payloadShape)) {
+    return false;
+  }
+
+  const functionSourceSnippet = String(candidate?.functionSourceSnippet || "");
+  const componentName = String(candidate?.componentName || "");
+  const nodePath = String(candidate?.nodePath || "");
+  const contextLabel = `${componentName} ${nodePath}`;
+  if (
+    matchesNegativePlaySignal(contextLabel)
+    || matchesNegativePlaySignal(functionSourceSnippet)
+  ) {
+    return false;
+  }
+
+  return hasPayloadFieldSignal(functionSourceSnippet)
+    || hasBattleContextText(componentName)
+    || hasBattleContextText(nodePath)
+    || hasReplaySignalText(componentName)
+    || hasReplaySignalText(nodePath);
+};
+
+const scoreReplayPayloadAffinity = (candidate, payloadShape = null) => {
+  if (!hasBattlePayloadShape(payloadShape)) {
+    return {
+      looksReplayPayloadAffinity: false,
+      score: 0,
+      why: [],
+    };
+  }
+
+  let score = 0;
+  const why = [];
+  const functionSourceSnippet = String(candidate?.functionSourceSnippet || "");
+  const componentName = String(candidate?.componentName || "");
+  const nodePath = String(candidate?.nodePath || "");
+
+  if (hasPayloadFieldSignal(functionSourceSnippet)) {
+    score += 24;
+    why.push("payloadAffinity:functionSource:battle-fields");
+  }
+  if (hasBattleContextText(componentName) || hasReplaySignalText(componentName)) {
+    score += 16;
+    why.push("payloadAffinity:component:battle/replay-context");
+  }
+  if (hasBattleContextText(nodePath) || hasReplaySignalText(nodePath)) {
+    score += 12;
+    why.push("payloadAffinity:nodePath:battle/replay-context");
+  }
+
+  return {
+    looksReplayPayloadAffinity: score > 0,
+    score,
+    why,
+  };
+};
+
+const hasReplaySpecificReason = (why = []) =>
+  why.some((entry) => REPLAY_SPECIFIC_REASONS.has(entry));
+
+const getPayloadShapeKey = (payloadShape = null) =>
+  JSON.stringify({
+    hasBattleData: Boolean(payloadShape?.hasBattleData),
+    hasBattleInputData: Boolean(payloadShape?.hasBattleInputData),
+    hasBattleInputSnapshot: Boolean(payloadShape?.hasBattleInputSnapshot),
+    hasBattleResult: Boolean(payloadShape?.hasBattleResult),
+    hasMapId: Boolean(payloadShape?.hasMapId),
+    kind: payloadShape?.kind || null,
+  });
 
 const getObjectName = (value) => {
   if (!value) {
@@ -915,7 +1039,7 @@ const scanSceneForReplayCandidates = (gameWindow) => {
 const isValidTargetCandidate = (candidate) =>
   Boolean(candidate && typeof candidate.invoke === "function");
 
-const scoreProductionReplayTarget = (candidate) => {
+const scoreProductionReplayTarget = (candidate, payloadShape = null) => {
   let score = 0;
   const why = [];
   const positiveSignals = [];
@@ -927,31 +1051,59 @@ const scoreProductionReplayTarget = (candidate) => {
   const targetLooksGetterLike = isGetterLikeMethodName(methodName);
   const targetLooksMetadataLike = isMetadataLikeMethodName(methodName)
     || looksLikeMetadataSourceSnippet(functionSourceSnippet);
-  const explicitlyBlacklisted = REPLAY_BLACKLISTED_METHODS.has(methodName);
-  const targetBlacklisted = explicitlyBlacklisted || targetLooksGetterLike;
   const methodHasReplaySignal = hasReplaySignalText(methodName);
   const methodHasPlaySignal = hasPlaySignalText(methodName);
   const functionHasReplaySignal = hasReplaySignalText(functionSourceSnippet);
   const componentHasReplaySignal = hasReplaySignalText(componentName);
   const nodeHasReplaySignal = hasReplaySignalText(nodeLabel);
+  const methodHasNegativeSignal = matchesNegativePlaySignal(methodName);
+  const functionHasNegativeSignal = matchesNegativePlaySignal(functionSourceSnippet);
+  const contextHasNegativeSignal = matchesNegativePlaySignal(
+    `${componentName} ${nodeLabel} ${ownerLabel}`,
+  );
+  const hasBattleContext = [
+    hasBattleContextText(methodName),
+    hasBattleContextText(componentName),
+    hasBattleContextText(nodeLabel),
+    hasPayloadFieldSignal(functionSourceSnippet),
+  ].some(Boolean);
+  const payloadAffinity = scoreReplayPayloadAffinity(candidate, payloadShape);
   const hasPositivePlayEvidence = [
-    methodHasPlaySignal,
     functionHasReplaySignal,
     componentHasReplaySignal,
     nodeHasReplaySignal,
+    methodHasPlaySignal,
+    payloadAffinity.looksReplayPayloadAffinity,
   ].some(Boolean);
+  const hasWeakPlaySignal = methodHasPlaySignal
+    || candidate?.arity === 1
+    || candidate?.arity === 2
+    || candidate?.source === "scene-component";
+  const negativeServiceTarget
+    = !methodHasReplaySignal
+      && !functionHasReplaySignal
+      && !componentHasReplaySignal
+      && !nodeHasReplaySignal
+      && (
+        methodHasNegativeSignal
+        || functionHasNegativeSignal
+        || contextHasNegativeSignal
+      );
+  const explicitlyBlacklisted = REPLAY_BLACKLISTED_METHODS.has(methodName)
+    || negativeServiceTarget;
+  const targetBlacklisted = explicitlyBlacklisted || targetLooksGetterLike;
 
   if (methodHasReplaySignal) {
     score += 60;
     why.push("methodName:replay/playback");
     positiveSignals.push("methodName");
   } else if (methodHasPlaySignal) {
-    score += 42;
+    score += 8;
     why.push("methodName:play");
     positiveSignals.push("methodName");
   } else if (hasBattleContextText(methodName)) {
-    score -= 18;
-    why.push("methodName:battle/fight/pvp-without-play-signal");
+    score += 2;
+    why.push("methodName:battle/fight/pvp");
   }
 
   if (functionHasReplaySignal) {
@@ -972,8 +1124,15 @@ const scoreProductionReplayTarget = (candidate) => {
     positiveSignals.push("nodePath");
   }
 
+  if (hasBattleContext && payloadAffinity.looksReplayPayloadAffinity) {
+    score += payloadAffinity.score;
+    why.push("battle-context+payload-affinity");
+    why.push(...payloadAffinity.why);
+    positiveSignals.push("battle-context+payload-affinity");
+  }
+
   if (candidate?.arity === 1 || candidate?.arity === 2) {
-    score += 12;
+    score += 8;
     why.push(`arity:${candidate.arity}`);
   } else if (candidate?.arity === 0 || candidate?.arity >= 3) {
     score -= 8;
@@ -981,19 +1140,23 @@ const scoreProductionReplayTarget = (candidate) => {
   }
 
   if (candidate?.source === "global-object") {
-    score += 18;
+    score += 12;
     why.push("source:global-object");
   } else if (candidate?.source === "global-function") {
-    score += 12;
+    score += 8;
     why.push("source:global-function");
   } else if (candidate?.source === "scene-component") {
-    score += 6;
+    score += 4;
     why.push("source:scene-component");
   }
 
   if (explicitlyBlacklisted) {
-    score -= 120;
-    why.push("methodName:blacklisted");
+    score -= 160;
+    why.push(
+      REPLAY_BLACKLISTED_METHODS.has(methodName)
+        ? "methodName:blacklisted"
+        : "negativeSignal:blacklisted-service-target",
+    );
   }
 
   if (targetLooksGetterLike) {
@@ -1004,6 +1167,21 @@ const scoreProductionReplayTarget = (candidate) => {
   if (targetLooksMetadataLike) {
     score -= 50;
     why.push("methodName:metadata-like");
+  }
+
+  if (methodHasNegativeSignal) {
+    score -= 120;
+    why.push("negativeSignal:methodName");
+  }
+
+  if (functionHasNegativeSignal) {
+    score -= 80;
+    why.push("negativeSignal:functionSource");
+  }
+
+  if (contextHasNegativeSignal) {
+    score -= 60;
+    why.push("negativeSignal:context");
   }
 
   if (looksLikeMetadataSourceSnippet(functionSourceSnippet)) {
@@ -1021,13 +1199,19 @@ const scoreProductionReplayTarget = (candidate) => {
 
   let rejectedReason = null;
   if (explicitlyBlacklisted) {
-    rejectedReason = "method-name-blacklisted";
+    rejectedReason = REPLAY_BLACKLISTED_METHODS.has(methodName)
+      ? "method-name-blacklisted"
+      : "negative-service-target";
   } else if (targetLooksGetterLike) {
     rejectedReason = "getter-like-method";
   } else if (targetLooksMetadataLike && !hasPositivePlayEvidence) {
     rejectedReason = "metadata-like-method";
-  } else if (!hasPositivePlayEvidence) {
-    rejectedReason = "missing-play-like-evidence";
+  } else if (hasBattleContext && !payloadAffinity.looksReplayPayloadAffinity && !hasReplaySpecificReason(why)) {
+    rejectedReason = "battle-context-without-payload-affinity";
+  } else if (!hasReplaySpecificReason(why)) {
+    rejectedReason = hasWeakPlaySignal
+      ? "missing-replay-specific-reason"
+      : "missing-play-like-evidence";
   } else if (why.length === 0) {
     rejectedReason = "play-target-why-empty";
   } else if (score < PRODUCTION_TARGET_CONFIDENCE_THRESHOLD) {
@@ -1079,7 +1263,7 @@ const getProductionReplaySelectionStatus = (entry) => {
   if (entry.targetBlacklisted) {
     return "bridge-target-blacklisted";
   }
-  if (entry.rejectedReason === "missing-play-like-evidence") {
+  if (entry.rejectedReason === "battle-context-without-payload-affinity") {
     return "bridge-target-selected-but-not-playlike";
   }
   if (entry.rejectedReason) {
@@ -1095,17 +1279,23 @@ const getProductionReplayTargetGateDetail = (resolution = {}) => {
 
   switch (resolution.bridgeStatus) {
     case "bridge-target-blacklisted":
-      return `Selected target ${resolution.playTargetLabel || "(unknown)"} was rejected because it looks getter-like / metadata-like and should not be used as a replay play target.`;
+      return `Selected target ${resolution.playTargetLabel || "(unknown)"} was rejected because it is getter-like or belongs to an error/audio/video/ad/effect service path, so it must not be used as a replay play target.`;
     case "bridge-target-selected-but-not-playlike":
-      return `Selected target ${resolution.playTargetLabel || "(unknown)"} was discovered from battle/fight/pvp context only, but it has no positive replay/playback/play evidence.`;
+      return `Selected target ${resolution.playTargetLabel || "(unknown)"} has battle/fight/pvp context, but it still lacks replay-specific evidence or payload affinity strong enough to be treated as a replay play target.`;
     case "bridge-target-low-confidence":
-      return `Selected target ${resolution.playTargetLabel || "(unknown)"} did not meet the minimum playable score ${resolution.minimumPlayableScore}.`;
+      return `Selected target ${resolution.playTargetLabel || "(unknown)"} only has weak play-like reasons and did not meet the minimum playable score ${resolution.minimumPlayableScore}.`;
     default:
       return null;
   }
 };
 
-const buildProductionReplayResolution = (gameWindow, { mode = "instant" } = {}) => {
+const buildProductionReplayResolution = (
+  gameWindow,
+  {
+    mode = "instant",
+    payloadShape = null,
+  } = {},
+) => {
   const globalCandidates = collectReplayGlobalCandidates(gameWindow);
   const sceneCandidates = scanSceneForReplayCandidates(gameWindow);
   const targetCandidates = [
@@ -1116,7 +1306,7 @@ const buildProductionReplayResolution = (gameWindow, { mode = "instant" } = {}) 
   const rankedEntries = targetCandidates
     .filter(isValidTargetCandidate)
     .map((candidate) => {
-      const score = scoreProductionReplayTarget(candidate);
+      const score = scoreProductionReplayTarget(candidate, payloadShape);
       return {
         candidate,
         hasPositivePlayEvidence: score.hasPositivePlayEvidence,
@@ -1159,6 +1349,7 @@ const buildProductionReplayResolution = (gameWindow, { mode = "instant" } = {}) 
     globalCandidateCount,
     minimumPlayableScore: PRODUCTION_TARGET_CONFIDENCE_THRESHOLD,
     mode,
+    payloadShapeKey: getPayloadShapeKey(payloadShape),
     playMethodCandidates: [
       ...globalCandidates.playMethodCandidates,
       ...sceneCandidates.playMethodCandidates,
@@ -1186,13 +1377,22 @@ const resolveProductionReplayPlayTarget = (
   gameWindow,
   {
     mode = "instant",
+    payloadShape = null,
   } = {},
 ) => {
-  if (mode === "stabilized" && PROBE_RUNTIME_STATE.lastStabilizedResolution) {
+  const payloadShapeKey = getPayloadShapeKey(payloadShape);
+  if (
+    mode === "stabilized"
+    && PROBE_RUNTIME_STATE.lastStabilizedResolution
+    && PROBE_RUNTIME_STATE.lastStabilizedResolution.payloadShapeKey === payloadShapeKey
+  ) {
     return PROBE_RUNTIME_STATE.lastStabilizedResolution;
   }
 
-  const resolution = buildProductionReplayResolution(gameWindow, { mode });
+  const resolution = buildProductionReplayResolution(gameWindow, {
+    mode,
+    payloadShape,
+  });
   if (mode === "instant") {
     PROBE_RUNTIME_STATE.lastInstantResolution = resolution;
   }
@@ -1522,16 +1722,20 @@ const inspect = () => {
   const { gameWindow, source } = findGameWindow(window);
   const loaderInfo = detectLoaderFamily(gameWindow);
   updateRuntimeBootState(gameWindow, { phase: "inspect" });
+  const payloadShapeDefault = inspectPayloadShape(getDefaultReplayPayload());
   const instantResolution = resolveProductionReplayPlayTarget(gameWindow, {
     mode: "instant",
+    payloadShape: payloadShapeDefault,
   });
-  const stabilizedResolution = PROBE_RUNTIME_STATE.lastStabilizedResolution || null;
+  const stabilizedResolution = resolveProductionReplayPlayTarget(gameWindow, {
+    mode: "stabilized",
+    payloadShape: payloadShapeDefault,
+  });
   const selection = selectProductionReplayResolution(
     instantResolution,
     stabilizedResolution,
   );
   const resolution = selection.selectedResolution;
-  const payloadShapeDefault = inspectPayloadShape(getDefaultReplayPayload());
   return {
     availableGlobals: resolution.availableGlobals,
     bridgeStatus: resolution.bridgeStatus,
@@ -1594,18 +1798,20 @@ const play = async (
   if (loaderInfo.loaderFamily === LOADER_FAMILIES.PUBLIC) {
     await ensureProductionRuntimeProbeReady(gameWindow);
     updateRuntimeBootState(gameWindow, { phase: "play" });
+    const payloadShapeBefore = inspectPayloadShape(rawOrWrappedData);
     const instantResolution = resolveProductionReplayPlayTarget(gameWindow, {
       mode: "instant",
+      payloadShape: payloadShapeBefore,
     });
     const stabilizedResolution = resolveProductionReplayPlayTarget(gameWindow, {
       mode: "stabilized",
+      payloadShape: payloadShapeBefore,
     });
     const selection = selectProductionReplayResolution(
       instantResolution,
       stabilizedResolution,
     );
     const resolution = selection.selectedResolution;
-    const payloadShapeBefore = inspectPayloadShape(rawOrWrappedData);
     const before = snapshotVisualState(gameWindow);
 
     if (!resolution.selectedTarget) {
