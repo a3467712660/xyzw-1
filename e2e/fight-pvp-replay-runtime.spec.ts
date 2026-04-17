@@ -19,10 +19,10 @@ test("fight pvp replay runtime probe identifies the production/public loader fam
 
   const result = await page.evaluate((replayPayload) => {
     const bridge = (window as any).__xyzwReplayBridge;
-    return {
+    return bridge.play(replayPayload).then((playResult: any) => ({
       inspect: bridge.inspect(),
-      play: bridge.play(replayPayload),
-    };
+      play: playResult,
+    }));
   }, createReplayPayload());
   const bridgeType = await page.evaluate(() => typeof (window as any).__xyzwReplayBridge);
 
@@ -30,12 +30,20 @@ test("fight pvp replay runtime probe identifies the production/public loader fam
   expect(result.inspect.probeFamily).toBe("production-id-probes");
   expect(result.inspect.probeCompatibility).toBe("compatible-probe");
   expect(result.inspect.currentAssetPath).toBe("/xyzw/index.js");
+  expect(Array.isArray(result.inspect.rankedTargets)).toBeTruthy();
+  expect(result.inspect.payloadShapeDefault.kind).toBeTruthy();
+  expect(result.inspect.visualProbeCapabilities.showBattleLoading).toBe("not-found(optional)");
+  expect(typeof result.inspect.visualProbeCapabilities.canvas).toBe("boolean");
+  expect(typeof result.inspect.visualProbeCapabilities.sceneScan).toBe("boolean");
   expect(bridgeType).toBe("object");
   expect(result.inspect.incompatibleProbes).toContain("BattleUIManager");
   expect(result.inspect.incompatibleProbes).toContain("enter-oss");
   expect(result.inspect.incompatibleProbes).toContain("BattleKitCrossSite");
   expect(result.play.ok).toBeFalsy();
   expect(result.play.status).toBe("bridge-exposed-but-play-target-missing");
+  expect(result.play.payloadShapeBefore.kind).toBeTruthy();
+  expect(result.play.payloadShapeAfter.kind).toBeTruthy();
+  expect(result.play.visualPostCheck.skipped).toBe("no-play-target");
 });
 
 test("fight pvp replay runtime probe does not treat source-era probes as production bridge signals", async ({
@@ -50,6 +58,7 @@ test("fight pvp replay runtime probe does not treat source-era probes as product
 
   expect(inspect.loaderFamilyEvidence.publicEvidence).toContain("document:/xyzw/index.js");
   expect(inspect.bridgeStatus).toBe("bridge-exposed-but-play-target-missing");
+  expect(Array.isArray(inspect.rankedTargets)).toBeTruthy();
   expect(inspect.sourceIdProbes.BattleUIManager.status).toBe("module-id-family-mismatch");
   expect(inspect.sourceIdProbes["enter-oss"].status).toBe("module-id-family-mismatch");
   expect(inspect.sourceIdProbes.BattleKitCrossSite.status).toBe("module-id-family-mismatch");

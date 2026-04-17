@@ -22,9 +22,14 @@ const RUNTIME_SCRIPT_URLS = Object.freeze([
 ]);
 
 const REPLAY_KEYWORD_RE = /replay|playback|battle|fight|pvp/i;
+const REPLAY_EXACT_METHOD_RE = /replay|playback/i;
+const REPLAY_BROAD_METHOD_RE = /battle|fight|pvp/i;
+const GENERIC_OWNER_RE = /(?:^|\.)(?:window|self|top|parent|frames|document)(?:\.|$)/i;
 const GLOBAL_KEY_LIMIT = 240;
 const MATCH_LIMIT = 40;
 const MEMBER_LIMIT = 12;
+const RANKED_TARGET_LIMIT = 10;
+const VISUAL_NODE_LIMIT = 30;
 
 const toFunctionSource = (value) => {
   if (typeof value !== "function") {
@@ -41,6 +46,9 @@ const toNormalizedSourceSnippet = (value) =>
   String(value || "")
     .replace(/\s+/g, " ")
     .trim();
+
+const toFunctionSourceSnippet = (value, maxLength = 220) =>
+  toNormalizedSourceSnippet(toFunctionSource(value)).slice(0, maxLength);
 
 const getRequireFingerprint = (req) => {
   if (typeof req !== "function") {
@@ -100,6 +108,11 @@ const getWindowPerformanceUrls = (targetWindow) => {
 
 const isObjectLike = (value) =>
   Boolean(value) && (typeof value === "object" || typeof value === "function");
+
+const isPlainObject = (value) =>
+  Boolean(value)
+  && typeof value === "object"
+  && Object.getPrototypeOf(value) === Object.prototype;
 
 const matchesReplayKeyword = (value) =>
   REPLAY_KEYWORD_RE.test(String(value || "").trim());
@@ -302,26 +315,185 @@ const buildSourceIdProbeMismatchMap = (loaderFamily) =>
     ]),
   );
 
-const unwrapProductionReplayPayload = (value) => {
-  if (!value || typeof value !== "object") {
-    return value;
+const getBattleDataLike = (value) =>
+  value?.battleData
+  || value?.battleInputData?.battleData
+  || value?.battleInputSnapshot?.battleData
+  || value?.lastBattleData
+  || value?.fightRoleBase?.lastBattleData
+  || null;
+
+const getCollectionType = (value) => {
+  if (value == null) {
+    return null;
   }
-  const unwrapped = value?.battleInputData || value?.battleInputSnapshot || value;
-  if (unwrapped?.battleResult == null && unwrapped?.battleData?.result != null) {
-    unwrapped.battleResult = unwrapped.battleData.result;
+  if (Array.isArray(value)) {
+    return "array";
   }
-  return unwrapped;
+  if (typeof value?.get === "function" && typeof value?.forEach === "function") {
+    return "map-like";
+  }
+  if (typeof value?.forEach === "function") {
+    return "iterable";
+  }
+  return typeof value;
 };
 
-const createTargetCandidate = (meta) => ({
-  componentName: meta.componentName || null,
-  invoke: meta.invoke,
-  label: meta.label,
-  methodName: meta.methodName || null,
-  nodeName: meta.nodeName || null,
-  nodePath: meta.nodePath || null,
-  ownerKey: meta.ownerKey || null,
-  source: meta.source,
+const inspectPayloadShape = (value) => {
+  const battleData = getBattleDataLike(value);
+  const leftTeam = battleData?.leftTeam?.team ?? battleData?.leftTeam ?? null;
+  const rightTeam = battleData?.rightTeam?.team ?? battleData?.rightTeam ?? null;
+
+  let kind = "unknown";
+  if (looksLikeBattleInput(value)) {
+    kind = "battleInputLike";
+  } else if (value?.battleInputData || value?.battleInputSnapshot) {
+    kind = "wrapped";
+  } else if (value?.battleData || value?.fightRoleBase || value?.lastBattleData) {
+    kind = "raw";
+  }
+
+  return {
+    kind,
+    hasBattleData: Boolean(value?.battleData),
+    hasBattleInputData: Boolean(value?.battleInputData),
+    hasBattleInputSnapshot: Boolean(value?.battleInputSnapshot),
+    hasFightRoleBase: Boolean(value?.fightRoleBase),
+    hasLastBattleData: Boolean(value?.lastBattleData),
+    hasMapId: value?.mapId != null,
+    hasBattleResult: value?.battleResult != null || battleData?.result != null,
+    leftTeamType: leftTeam == null ? null : typeof leftTeam,
+    rightTeamType: rightTeam == null ? null : typeof rightTeam,
+    leftTeamCollectionType: getCollectionType(leftTeam),
+    rightTeamCollectionType: getCollectionType(rightTeam),
+  };
+};
+
+const cloneOptionsValue = (value) => {
+  if (value instanceof Map) {
+    return new Map(value);
+  }
+  if (isPlainObject(value)) {
+    return { ...value };
+  }
+  return value;
+};
+
+const mergeOptionsValue = (innerValue, outerValue) => {
+  if (innerValue instanceof Map && outerValue instanceof Map) {
+    const merged = new Map(innerValue);
+    for (const [key, value] of outerValue.entries()) {
+      if (!merged.has(key)) {
+        merged.set(key, value);
+      }
+    }
+    return {
+      value: merged,
+      optionsMerge: "map-merged-missing-keys",
+    };
+  }
+
+  if (isPlainObject(innerValue) && isPlainObject(outerValue)) {
+    const merged = { ...innerValue };
+    for (const [key, value] of Object.entries(outerValue)) {
+      if (!(key in merged) || merged[key] == null) {
+        merged[key] = value;
+      }
+    }
+    return {
+      value: merged,
+      optionsMerge: "object-merged-missing-keys",
+    };
+  }
+
+  if (innerValue != null) {
+    return {
+      value: cloneOptionsValue(innerValue),
+      optionsMerge: outerValue != null ? "preserved-inner-type" : "inner-preserved",
+    };
+  }
+
+  if (outerValue != null) {
+    return {
+      value: cloneOptionsValue(outerValue),
+      optionsMerge: "outer-adopted",
+    };
+  }
+
+  return {
+    value: undefined,
+    optionsMerge: "none",
+  };
+};
+
+const prepareProductionReplayPayload = (value, options = {}) => {
+  const wrapper = isObjectLike(value) ? value : null;
+  const unwrapped = wrapper?.battleInputData ?? wrapper?.battleInputSnapshot ?? value;
+
+  if (!isObjectLike(unwrapped)) {
+    return {
+      optionsMerge: "non-object",
+      payload: unwrapped,
+    };
+  }
+
+  const payload = { ...unwrapped };
+  const outer = wrapper && wrapper !== unwrapped ? wrapper : null;
+
+  for (const field of [
+    "mapId",
+    "battleResult",
+    "stageNameStr",
+    "topName",
+    "showRightPower",
+  ]) {
+    if (payload[field] == null && outer?.[field] != null) {
+      payload[field] = outer[field];
+    }
+  }
+
+  const optionsMergeResult = mergeOptionsValue(payload.options, outer?.options);
+  if (optionsMergeResult.value !== undefined) {
+    payload.options = optionsMergeResult.value;
+  } else if ("options" in payload && payload.options == null) {
+    delete payload.options;
+  }
+
+  if (payload.battleResult == null && payload?.battleData?.result != null) {
+    payload.battleResult = payload.battleData.result;
+  }
+
+  if (payload.mapId == null && options?.mapId != null) {
+    payload.mapId = options.mapId;
+  }
+
+  return {
+    optionsMerge: optionsMergeResult.optionsMerge,
+    payload,
+  };
+};
+
+const createTargetCandidate = ({
+  componentName = null,
+  fn = null,
+  invoke,
+  label,
+  methodName = null,
+  nodeName = null,
+  nodePath = null,
+  ownerKey = null,
+  source,
+} = {}) => ({
+  arity: typeof fn === "function" ? fn.length : null,
+  componentName,
+  functionSourceSnippet: toFunctionSourceSnippet(fn),
+  invoke,
+  label,
+  methodName,
+  nodeName,
+  nodePath,
+  ownerKey,
+  source,
 });
 
 const collectReplayGlobalCandidates = (gameWindow) => {
@@ -354,7 +526,11 @@ const collectReplayGlobalCandidates = (gameWindow) => {
     }
 
     for (const key of keys) {
-      if (key === "__xyzwReplayBridge" || key === "__xyzwReplay") {
+      if (
+        key === "__xyzwReplayBridge"
+        || key === "__xyzwReplay"
+        || key === "__xyzwReplayBridgeReadyPromise"
+      ) {
         continue;
       }
 
@@ -394,17 +570,20 @@ const collectReplayGlobalCandidates = (gameWindow) => {
         if (!seenTargets.has(label)) {
           seenTargets.add(label);
           playMethodCandidates.push({
+            arity: value.length,
+            functionSourceSnippet: toFunctionSourceSnippet(value),
             label,
             methodName: key,
             ownerKey: key,
             source: "global-function",
           });
           targetCandidates.push(createTargetCandidate({
+            fn: value,
+            invoke: (payload, playOptions = {}) => value.call(root.holder, payload, playOptions),
             label,
-            source: "global-function",
-            ownerKey: key,
             methodName: key,
-            invoke: (payload, options = {}) => value.call(root.holder, payload, options),
+            ownerKey: key,
+            source: "global-function",
           }));
         }
       }
@@ -430,17 +609,20 @@ const collectReplayGlobalCandidates = (gameWindow) => {
 
         seenTargets.add(label);
         playMethodCandidates.push({
+          arity: method.length,
+          functionSourceSnippet: toFunctionSourceSnippet(method),
           label,
           methodName,
           ownerKey: key,
           source: "global-object",
         });
         targetCandidates.push(createTargetCandidate({
+          fn: method,
+          invoke: (payload, playOptions = {}) => value[methodName].call(value, payload, playOptions),
           label,
-          source: "global-object",
-          ownerKey: key,
           methodName,
-          invoke: (payload, options = {}) => value[methodName].call(value, payload, options),
+          ownerKey: key,
+          source: "global-object",
         }));
       }
     }
@@ -556,7 +738,9 @@ const scanSceneForReplayCandidates = (gameWindow) => {
 
         seenTargets.add(label);
         playMethodCandidates.push({
+          arity: method.length,
           componentName,
+          functionSourceSnippet: toFunctionSourceSnippet(method),
           label,
           methodName,
           nodeName,
@@ -565,12 +749,13 @@ const scanSceneForReplayCandidates = (gameWindow) => {
         });
         targetCandidates.push(createTargetCandidate({
           componentName,
+          fn: method,
+          invoke: (payload, playOptions = {}) => component[methodName].call(component, payload, playOptions),
           label,
           methodName,
           nodeName,
           nodePath,
           source: "scene-component",
-          invoke: (payload, options = {}) => component[methodName].call(component, payload, options),
         }));
       }
     }
@@ -596,6 +781,92 @@ const scanSceneForReplayCandidates = (gameWindow) => {
 const isValidTargetCandidate = (candidate) =>
   Boolean(candidate && typeof candidate.invoke === "function");
 
+const scoreProductionReplayTarget = (candidate) => {
+  let score = 0;
+  const why = [];
+  const methodName = String(candidate?.methodName || "");
+  const componentName = String(candidate?.componentName || "");
+  const nodeLabel = `${candidate?.nodeName || ""} ${candidate?.nodePath || ""}`;
+  const functionSourceSnippet = String(candidate?.functionSourceSnippet || "");
+
+  if (REPLAY_EXACT_METHOD_RE.test(methodName)) {
+    score += 60;
+    why.push("methodName:replay/playback");
+  } else if (REPLAY_BROAD_METHOD_RE.test(methodName)) {
+    score += 28;
+    why.push("methodName:battle/fight/pvp");
+  }
+
+  if (candidate?.source === "scene-component") {
+    score += 24;
+    why.push("source:scene-component");
+  } else if (candidate?.source === "global-object") {
+    score += 10;
+    why.push("source:global-object");
+  } else if (candidate?.source === "global-function") {
+    score += 4;
+    why.push("source:global-function");
+  }
+
+  if (REPLAY_EXACT_METHOD_RE.test(componentName)) {
+    score += 24;
+    why.push("componentName:replay/playback");
+  } else if (REPLAY_BROAD_METHOD_RE.test(componentName)) {
+    score += 12;
+    why.push("componentName:battle/fight/pvp");
+  }
+
+  if (REPLAY_EXACT_METHOD_RE.test(nodeLabel)) {
+    score += 18;
+    why.push("nodePath:replay/playback");
+  } else if (REPLAY_BROAD_METHOD_RE.test(nodeLabel)) {
+    score += 10;
+    why.push("nodePath:battle/fight/pvp");
+  }
+
+  if (REPLAY_KEYWORD_RE.test(functionSourceSnippet)) {
+    score += 12;
+    why.push("functionSource:replay/fight/pvp");
+  }
+
+  if (candidate?.arity === 1 || candidate?.arity === 2) {
+    score += 8;
+    why.push(`arity:${candidate.arity}`);
+  } else if (candidate?.arity === 0 || candidate?.arity >= 3) {
+    score -= 6;
+    why.push(`arity:${candidate.arity ?? "unknown"}:less-like-payload-options`);
+  }
+
+  const ownerLabel = `${candidate?.ownerKey || ""} ${candidate?.label || ""}`;
+  if (GENERIC_OWNER_RE.test(ownerLabel)) {
+    score -= 20;
+    why.push("generic-owner-penalty");
+  }
+
+  return {
+    score,
+    why,
+  };
+};
+
+const sortRankedTargetEntries = (left, right) => {
+  if (right.score !== left.score) {
+    return right.score - left.score;
+  }
+
+  const sourcePriority = {
+    "scene-component": 3,
+    "global-object": 2,
+    "global-function": 1,
+  };
+  const sourceDiff = (sourcePriority[right.candidate.source] || 0) - (sourcePriority[left.candidate.source] || 0);
+  if (sourceDiff !== 0) {
+    return sourceDiff;
+  }
+
+  return String(left.candidate.label || "").localeCompare(String(right.candidate.label || ""));
+};
+
 const resolveProductionReplayPlayTarget = (gameWindow) => {
   const globalCandidates = collectReplayGlobalCandidates(gameWindow);
   const sceneCandidates = scanSceneForReplayCandidates(gameWindow);
@@ -603,21 +874,250 @@ const resolveProductionReplayPlayTarget = (gameWindow) => {
     ...globalCandidates.targetCandidates,
     ...sceneCandidates.targetCandidates,
   ];
-  const playTarget = targetCandidates.find(isValidTargetCandidate) || null;
+
+  const rankedEntries = targetCandidates
+    .filter(isValidTargetCandidate)
+    .map((candidate) => {
+      const score = scoreProductionReplayTarget(candidate);
+      return {
+        candidate,
+        score: score.score,
+        why: score.why,
+      };
+    })
+    .sort(sortRankedTargetEntries);
+
+  const playTargetEntry = rankedEntries[0] || null;
+  const rankedTargets = rankedEntries
+    .slice(0, RANKED_TARGET_LIMIT)
+    .map(({ candidate, score, why }) => ({
+      arity: candidate.arity,
+      componentName: candidate.componentName,
+      functionSourceSnippet: candidate.functionSourceSnippet,
+      label: candidate.label,
+      methodName: candidate.methodName,
+      nodePath: candidate.nodePath,
+      score,
+      source: candidate.source,
+      why,
+    }));
 
   return {
     availableGlobals: globalCandidates.availableGlobals,
-    bridgeStatus: playTarget ? "bridge-ready" : "bridge-exposed-but-play-target-missing",
+    bridgeStatus: playTargetEntry ? "bridge-ready" : "bridge-exposed-but-play-target-missing",
     playMethodCandidates: [
       ...globalCandidates.playMethodCandidates,
       ...sceneCandidates.playMethodCandidates,
     ].slice(0, MATCH_LIMIT),
-    playTarget,
-    playTargetLabel: playTarget?.label || null,
-    playTargetSource: playTarget?.source || null,
+    playTarget: playTargetEntry?.candidate || null,
+    playTargetLabel: playTargetEntry?.candidate?.label || null,
+    playTargetScore: playTargetEntry?.score ?? null,
+    playTargetSource: playTargetEntry?.candidate?.source || null,
+    playTargetWhy: playTargetEntry?.why || [],
+    rankedTargets,
     scene: sceneCandidates.scene,
     sceneComponentMatches: sceneCandidates.sceneComponentMatches,
     sceneNodeMatches: sceneCandidates.sceneNodeMatches,
+  };
+};
+
+const getDefaultReplayPayload = () =>
+  window.__REPLAY_DATA__ ?? window.__xyzwReplayData ?? null;
+
+const getVisualProbeCapabilities = (gameWindow) => ({
+  canvas: typeof window?.document?.querySelectorAll === "function",
+  sceneScan: typeof gameWindow?.cc?.director?.getScene === "function",
+  showBattleLoading: "not-found(optional)",
+});
+
+const getSceneNodeSummary = (scene) => {
+  const summary = [];
+  const keywordNodeMatches = [];
+
+  if (!scene) {
+    return {
+      keywordNodeMatches,
+      sceneNodeSummary: summary,
+    };
+  }
+
+  const queue = [{
+    node: scene,
+    path: scene?.name || "Game",
+  }];
+  const seenNodes = new Set();
+
+  while (queue.length > 0 && summary.length < VISUAL_NODE_LIMIT) {
+    const current = queue.shift();
+    const node = current?.node || null;
+    if (!node || seenNodes.has(node)) {
+      continue;
+    }
+    seenNodes.add(node);
+
+    const nodeName = String(node?.name || "(anonymous)");
+    const nodePath = current?.path || nodeName;
+    const componentNames = getSceneNodeComponents(node)
+      .map((component) => getObjectName(component))
+      .filter(Boolean)
+      .slice(0, 6);
+    const signature = componentNames.length > 0
+      ? `${nodePath}#${componentNames.join(",")}`
+      : nodePath;
+
+    summary.push(signature);
+
+    if (
+      matchesReplayKeyword(nodeName)
+      || componentNames.some((entry) => matchesReplayKeyword(entry))
+    ) {
+      keywordNodeMatches.push(signature);
+    }
+
+    for (const child of getSceneNodeChildren(node)) {
+      const childName = String(child?.name || "(anonymous)");
+      queue.push({
+        node: child,
+        path: `${nodePath}/${childName}`,
+      });
+    }
+  }
+
+  return {
+    keywordNodeMatches: keywordNodeMatches.slice(0, VISUAL_NODE_LIMIT),
+    sceneNodeSummary: summary,
+  };
+};
+
+const isCanvasVisible = (canvas) => {
+  if (!canvas || typeof canvas.getBoundingClientRect !== "function") {
+    return false;
+  }
+
+  const rect = canvas.getBoundingClientRect();
+  const style = window.getComputedStyle(canvas);
+  return rect.width > 0
+    && rect.height > 0
+    && style.display !== "none"
+    && style.visibility !== "hidden"
+    && Number(style.opacity || 1) > 0;
+};
+
+const summarizeCanvas = (canvas, index) => ({
+  className: String(canvas?.className || ""),
+  height: canvas?.height ?? null,
+  id: canvas?.id || null,
+  index,
+  visible: isCanvasVisible(canvas),
+  width: canvas?.width ?? null,
+});
+
+const snapshotVisualState = (gameWindow) => {
+  const scene = gameWindow?.cc?.director?.getScene?.() || null;
+  const canvases = Array.from(window?.document?.querySelectorAll?.("canvas") || []);
+  const visibleCanvases = canvases
+    .map(summarizeCanvas)
+    .filter((entry) => entry.visible)
+    .slice(0, 10);
+  const sceneSummary = getSceneNodeSummary(scene);
+
+  return {
+    canvasCount: canvases.length,
+    hasGameCanvas: Boolean(gameWindow?.cc?.game?.canvas),
+    keywordNodeMatches: sceneSummary.keywordNodeMatches,
+    scene: scene?.name || null,
+    sceneNodeSummary: sceneSummary.sceneNodeSummary,
+    visibleCanvases,
+  };
+};
+
+const sleep = (ms) =>
+  new Promise((resolve) => window.setTimeout(resolve, ms));
+
+const toStableListKey = (value) =>
+  JSON.stringify(value || []);
+
+const deriveVisualChange = (before, after300, after1200) => {
+  const reasons = [];
+  const beforeKeywordSet = new Set(before?.keywordNodeMatches || []);
+
+  const compareSnapshot = (label, snapshot) => {
+    if (!snapshot) {
+      return;
+    }
+
+    if (snapshot.scene !== before?.scene) {
+      reasons.push(`${label}:scene:${before?.scene || "null"}->${snapshot.scene || "null"}`);
+    }
+
+    if (Boolean(snapshot.hasGameCanvas) !== Boolean(before?.hasGameCanvas)) {
+      reasons.push(`${label}:hasGameCanvas:${Boolean(before?.hasGameCanvas)}->${Boolean(snapshot.hasGameCanvas)}`);
+    }
+
+    if (snapshot.canvasCount !== before?.canvasCount) {
+      reasons.push(`${label}:canvasCount:${before?.canvasCount || 0}->${snapshot.canvasCount}`);
+    }
+
+    if (toStableListKey(snapshot.visibleCanvases) !== toStableListKey(before?.visibleCanvases)) {
+      reasons.push(`${label}:visibleCanvases:changed`);
+    }
+
+    if (toStableListKey(snapshot.sceneNodeSummary) !== toStableListKey(before?.sceneNodeSummary)) {
+      reasons.push(`${label}:sceneNodeSummary:changed`);
+    }
+
+    const newKeywordMatches = (snapshot.keywordNodeMatches || [])
+      .filter((entry) => !beforeKeywordSet.has(entry));
+    if (newKeywordMatches.length > 0) {
+      reasons.push(`${label}:newKeywordMatches:${newKeywordMatches.slice(0, 5).join(", ")}`);
+    }
+  };
+
+  compareSnapshot("after300", after300);
+  compareSnapshot("after1200", after1200);
+
+  return {
+    visualChanged: reasons.length > 0,
+    visualChangeReasons: reasons,
+  };
+};
+
+const compressVisualSnapshot = (snapshot) => ({
+  canvasCount: snapshot?.canvasCount ?? 0,
+  hasGameCanvas: Boolean(snapshot?.hasGameCanvas),
+  keywordNodeMatchCount: snapshot?.keywordNodeMatches?.length || 0,
+  scene: snapshot?.scene || null,
+  sceneNodeCount: snapshot?.sceneNodeSummary?.length || 0,
+  visibleCanvasCount: snapshot?.visibleCanvases?.length || 0,
+});
+
+const buildVisualPostCheck = ({
+  after300 = null,
+  after1200 = null,
+  before = null,
+  debugVisualProbe = false,
+  extra = {},
+  visualChangeReasons = [],
+  visualChanged = false,
+} = {}) => {
+  if (debugVisualProbe) {
+    return {
+      after300,
+      after1200,
+      before,
+      ...extra,
+      visualChangeReasons,
+      visualChanged,
+    };
+  }
+
+  return {
+    after300: after300 ? compressVisualSnapshot(after300) : null,
+    after1200: after1200 ? compressVisualSnapshot(after1200) : null,
+    before: before ? compressVisualSnapshot(before) : null,
+    ...extra,
+    visualChangeReasons,
+    visualChanged,
   };
 };
 
@@ -636,11 +1136,15 @@ const inspect = () => {
         : [],
     loaderFamily: loaderInfo.loaderFamily,
     loaderFamilyEvidence: loaderInfo.evidence,
+    payloadShapeDefault: inspectPayloadShape(getDefaultReplayPayload()),
     playMethodCandidates: resolution.playMethodCandidates,
     playTargetLabel: resolution.playTargetLabel,
+    playTargetScore: resolution.playTargetScore,
     playTargetSource: resolution.playTargetSource,
+    playTargetWhy: resolution.playTargetWhy,
     probeCompatibility: "compatible-probe",
     probeFamily: PROBE_FAMILIES.PRODUCTION,
+    rankedTargets: resolution.rankedTargets,
     requireFingerprint: loaderInfo.requireFingerprint,
     scene: resolution.scene,
     sceneComponentMatches: resolution.sceneComponentMatches,
@@ -652,17 +1156,24 @@ const inspect = () => {
         : {},
     suspectedBundlePath: loaderInfo.suspectedBundlePath,
     performanceUrls: loaderInfo.performanceUrls,
+    visualProbeCapabilities: getVisualProbeCapabilities(gameWindow),
   };
 };
 
-const play = (
-  rawOrWrappedData = window.__xyzwReplayData || window.__REPLAY_DATA__ || null,
+const play = async (
+  rawOrWrappedData = getDefaultReplayPayload(),
   options = {},
 ) => {
   const { gameWindow } = findGameWindow(window);
   const loaderInfo = detectLoaderFamily(gameWindow);
+
   if (loaderInfo.loaderFamily === LOADER_FAMILIES.PUBLIC) {
     const resolution = resolveProductionReplayPlayTarget(gameWindow);
+    const payloadShapeBefore = inspectPayloadShape(rawOrWrappedData);
+    const preparedPayload = prepareProductionReplayPayload(rawOrWrappedData, options);
+    const payloadShapeAfter = inspectPayloadShape(preparedPayload.payload);
+    const before = snapshotVisualState(gameWindow);
+
     if (!resolution.playTarget) {
       return {
         ok: false,
@@ -670,24 +1181,60 @@ const play = (
         loaderFamily: loaderInfo.loaderFamily,
         detail:
           "The production replay bridge is exposed, but no stable play target was resolved from globals or the Game scene.",
-        playMethodCandidates: resolution.playMethodCandidates,
+        optionsMerge: preparedPayload.optionsMerge,
+        payloadShapeAfter,
+        payloadShapeBefore,
         playTargetLabel: null,
+        playTargetScore: null,
         playTargetSource: null,
+        playTargetWhy: [],
+        rankedTargets: resolution.rankedTargets,
+        visualPostCheck: buildVisualPostCheck({
+          before,
+          debugVisualProbe: options.debugVisualProbe === true,
+          extra: {
+            skipped: "no-play-target",
+          },
+          visualChangeReasons: ["no-play-target"],
+          visualChanged: false,
+        }),
       };
     }
 
     try {
-      const result = resolution.playTarget.invoke(
-        unwrapProductionReplayPayload(rawOrWrappedData),
-        options,
+      const result = await Promise.resolve(
+        resolution.playTarget.invoke(preparedPayload.payload, options),
       );
+      await sleep(300);
+      const after300 = snapshotVisualState(gameWindow);
+      await sleep(900);
+      const after1200 = snapshotVisualState(gameWindow);
+      const visualChange = deriveVisualChange(before, after300, after1200);
+      const status = visualChange.visualChanged
+        ? "played-via-production-bridge-and-visual-changed"
+        : "played-via-production-bridge-but-no-visual-change";
+
       return {
         ok: true,
-        status: "played-via-production-bridge",
+        status,
         loaderFamily: loaderInfo.loaderFamily,
+        optionsMerge: preparedPayload.optionsMerge,
+        payloadShapeAfter,
+        payloadShapeBefore,
         playTargetLabel: resolution.playTargetLabel,
+        playTargetScore: resolution.playTargetScore,
         playTargetSource: resolution.playTargetSource,
+        playTargetWhy: resolution.playTargetWhy,
+        rankedTargets: resolution.rankedTargets,
         result,
+        visualPostCheck: buildVisualPostCheck({
+          after300,
+          after1200,
+          before,
+          debugVisualProbe: options.debugVisualProbe === true,
+          visualChangeReasons: visualChange.visualChangeReasons,
+          visualChanged: visualChange.visualChanged,
+        }),
       };
     } catch (error) {
       return {
@@ -695,12 +1242,27 @@ const play = (
         status: "bridge-play-target-threw",
         loaderFamily: loaderInfo.loaderFamily,
         errorMessage: error?.message || String(error),
+        optionsMerge: preparedPayload.optionsMerge,
+        payloadShapeAfter,
+        payloadShapeBefore,
         playTargetLabel: resolution.playTargetLabel,
+        playTargetScore: resolution.playTargetScore,
         playTargetSource: resolution.playTargetSource,
+        playTargetWhy: resolution.playTargetWhy,
+        rankedTargets: resolution.rankedTargets,
         stackTop: String(error?.stack || "")
           .split("\n")
           .map((line) => line.trim())
           .filter(Boolean)[1] || null,
+        visualPostCheck: buildVisualPostCheck({
+          before,
+          debugVisualProbe: options.debugVisualProbe === true,
+          extra: {
+            skipped: "invoke-threw-before-post-check",
+          },
+          visualChangeReasons: ["invoke-threw-before-post-check"],
+          visualChanged: false,
+        }),
       };
     }
   }
@@ -785,7 +1347,8 @@ const ensureProbePanel = () => {
     <pre class="runtime-probe-output" data-output="main">Waiting for bridge...</pre>
     <div class="runtime-probe-console">
       <code>window.__xyzwReplayBridge.inspect()</code>
-      <code>window.__xyzwReplayBridge.play(window.__REPLAY_DATA__)</code>
+      <code>await window.__xyzwReplayBridge.play(window.__REPLAY_DATA__)</code>
+      <code>await window.__xyzwReplayBridge.play(window.__REPLAY_DATA__, { debugVisualProbe: true })</code>
     </div>
   `;
   host.appendChild(panel);
@@ -813,10 +1376,12 @@ const attachProbeUiHandlers = (bridge) => {
     renderProbeOutput(result, "inspect()");
   });
 
-  playButton?.addEventListener("click", () => {
-    const result = bridge.play(window.__REPLAY_DATA__);
+  playButton?.addEventListener("click", async () => {
+    const result = await bridge.play(window.__REPLAY_DATA__, {
+      debugVisualProbe: true,
+    });
     console.log("[xyzw replay] play(window.__REPLAY_DATA__)", result);
-    renderProbeOutput(result, "play(window.__REPLAY_DATA__)");
+    renderProbeOutput(result, "await play(window.__REPLAY_DATA__)");
   });
 };
 
