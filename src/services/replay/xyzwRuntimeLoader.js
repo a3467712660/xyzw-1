@@ -2,6 +2,10 @@ import {
   isHostAllowed,
   LOOPBACK_HOST_ALLOWLIST,
 } from "../../utils/hostAllowlist.js";
+import {
+  detectXyzwRuntimeLayer,
+  recordXyzwRuntimeScriptEvent,
+} from "./xyzwReplayRuntimeLayer.js";
 
 export const XYZW_RUNTIME_VARIANTS = Object.freeze({
   DEFAULT: "default",
@@ -79,6 +83,7 @@ export const getRuntimeExpectedPlatform = (
 export const loadRuntimeScript = (
   src,
   targetDocument = getBrowserWindow().document,
+  runtimeWindow = getBrowserWindow(),
   { variant = XYZW_RUNTIME_VARIANTS.DEFAULT } = {},
 ) =>
   new Promise((resolve, reject) => {
@@ -87,6 +92,12 @@ export const loadRuntimeScript = (
     );
     if (existing) {
       if (existing.dataset.loaded === "true") {
+        recordXyzwRuntimeScriptEvent({
+          runtimeWindow,
+          src,
+          status: "loaded",
+          source: "xyzw-runtime-loader",
+        });
         resolve();
         return;
       }
@@ -105,17 +116,38 @@ export const loadRuntimeScript = (
     script.src = src;
     script.setAttribute(XYZW_RUNTIME_SCRIPT_ATTR, src);
     script.setAttribute(XYZW_RUNTIME_VARIANT_ATTR, variant);
+    recordXyzwRuntimeScriptEvent({
+      runtimeWindow,
+      src,
+      status: "requested",
+      source: "xyzw-runtime-loader",
+    });
     script.addEventListener(
       "load",
       () => {
         script.dataset.loaded = "true";
+        recordXyzwRuntimeScriptEvent({
+          runtimeWindow,
+          src,
+          status: "loaded",
+          source: "xyzw-runtime-loader",
+        });
         resolve();
       },
       { once: true },
     );
     script.addEventListener(
       "error",
-      () => reject(new Error(`Failed to load runtime script: ${src}`)),
+      (event) => {
+        recordXyzwRuntimeScriptEvent({
+          runtimeWindow,
+          src,
+          status: "error",
+          source: "xyzw-runtime-loader",
+          error: event?.error || new Error(`Failed to load runtime script: ${src}`),
+        });
+        reject(new Error(`Failed to load runtime script: ${src}`));
+      },
       { once: true },
     );
     targetDocument.head.appendChild(script);
@@ -130,8 +162,19 @@ export const ensureXyzwRuntimeLoaded = async ({
   const expectedPlatform = getRuntimeExpectedPlatform(variant);
   const currentPlatform = String(runtimeWindow.PLATFORM || "").trim();
   const hasRuntimeRequire = typeof runtimeWindow.__require === "function";
+  const runtimeLayerInfo = variant === XYZW_RUNTIME_VARIANTS.REPLAY_BROWSER && hasRuntimeRequire
+    ? detectXyzwRuntimeLayer(runtimeWindow, { windowLabel: "window" })
+    : null;
+  const replayBrowserRuntimeReady = runtimeLayerInfo?.layer === "game-bundle-ready";
 
-  if (hasRuntimeRequire && (!expectedPlatform || currentPlatform === expectedPlatform)) {
+  if (
+    hasRuntimeRequire
+    && (!expectedPlatform || currentPlatform === expectedPlatform)
+    && (
+      variant !== XYZW_RUNTIME_VARIANTS.REPLAY_BROWSER
+      || replayBrowserRuntimeReady
+    )
+  ) {
     return runtimeWindow.__require;
   }
 
@@ -139,12 +182,15 @@ export const ensureXyzwRuntimeLoaded = async ({
     xyzwRuntimeLoadPromises.set(
       variant,
       (async () => {
-        const urlsToLoad = hasRuntimeRequire
+        const urlsToLoad = (
+          hasRuntimeRequire
+          && variant !== XYZW_RUNTIME_VARIANTS.REPLAY_BROWSER
+        )
           ? [getRuntimeVariantDefinesUrl(variant)]
           : getRuntimeVariantScriptUrls(variant);
 
         for (const scriptUrl of urlsToLoad) {
-          await loadRuntimeScript(scriptUrl, targetDocument, { variant });
+          await loadRuntimeScript(scriptUrl, targetDocument, runtimeWindow, { variant });
         }
 
         if (typeof runtimeWindow.__require !== "function") {

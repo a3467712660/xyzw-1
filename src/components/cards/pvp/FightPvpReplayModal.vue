@@ -233,6 +233,15 @@ const diagnosticLines = computed(() => {
   if (diagnostics.replayGameWindowStatus) {
     lines.push(`replayGameWindowStatus: ${diagnostics.replayGameWindowStatus}`);
   }
+  if (diagnostics.runtimeLayer) {
+    lines.push(`runtimeLayer: ${diagnostics.runtimeLayer}`);
+  }
+  if (diagnostics.gameScriptInDocument !== undefined) {
+    lines.push(`gameScriptInDocument: ${diagnostics.gameScriptInDocument}`);
+  }
+  if (diagnostics.gameScriptInPerformance !== undefined) {
+    lines.push(`gameScriptInPerformance: ${diagnostics.gameScriptInPerformance}`);
+  }
   if (typeof diagnostics.replayGameBundleReady === "boolean") {
     lines.push(`replayGameBundleReady: ${diagnostics.replayGameBundleReady}`);
   }
@@ -241,6 +250,15 @@ const diagnosticLines = computed(() => {
   }
   if (diagnostics.replayGameBundleReadyError) {
     lines.push(`replayGameBundleReadyError: ${diagnostics.replayGameBundleReadyError}`);
+  }
+  if (diagnostics.replayGameBundleReadySource) {
+    lines.push(`replayGameBundleReadySource: ${diagnostics.replayGameBundleReadySource}`);
+  }
+  if (diagnostics.moduleChecks && Object.keys(diagnostics.moduleChecks).length > 0) {
+    lines.push(`moduleChecks: ${formatDiagnosticValue(diagnostics.moduleChecks)}`);
+  }
+  if (diagnostics.bundleState) {
+    lines.push(`bundleState: ${formatDiagnosticValue(diagnostics.bundleState)}`);
   }
   if (Array.isArray(diagnostics.replayEntrypointCandidates) && diagnostics.replayEntrypointCandidates.length > 0) {
     lines.push(
@@ -446,7 +464,9 @@ const buildReplayFailureMessage = ({
 
   if (
     failureState === "replay-start-failed"
-    && ["wrong-window", "wrong-loader"].includes(diagnostics?.replayGameWindowStatus)
+    && ["wrong-window", "no-require", "launcher-only", "game-bundle-loading"].includes(
+      diagnostics?.runtimeLayer || diagnostics?.replayGameWindowStatus,
+    )
     && Array.isArray(diagnostics?.replayEntrypointCandidates)
     && diagnostics.replayEntrypointCandidates.length > 0
   ) {

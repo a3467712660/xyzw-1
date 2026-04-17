@@ -15,12 +15,15 @@ import {
   installReplayResourceManagerGuard,
   installReplayPageExitGuard,
   installReplayMissingModuleShims,
-  installReplayManifestShim,
-  findReplayGameWindow,
-  getReplaySource,
-  ensureReplayInputData,
-  locateReplayEntrypoint,
-  looksLikeBattleInput,
+    installReplayManifestShim,
+    inspectBundleState,
+    detectXyzwRuntimeLayer,
+    findReplayGameWindow,
+    getReplaySource,
+    ensureReplayInputData,
+    ensureXyzwGameBundleReady,
+    locateReplayEntrypoint,
+    looksLikeBattleInput,
   probeRequireExport,
   probeGameSceneAssets,
   requireModule,
@@ -29,9 +32,8 @@ import {
   safeRequireModule,
   startFightPvpReplayRuntime,
   toAbsoluteBundleRequestTarget,
-  waitForReplayGameBundleReady,
-  waitForRuntimeReadyForReplay,
-} from "../../src/services/replay/fightPvpReplayRuntimeBridge.js";
+    waitForRuntimeReadyForReplay,
+  } from "../../src/services/replay/fightPvpReplayRuntimeBridge.js";
 import {
   buildFightPvpBattleInputData,
   createFightPvpBattleInputSnapshot,
@@ -142,7 +144,7 @@ test("fight pvp replay locator falls back to iframe game window when current win
   assert.equal(result.status, "wrong-window");
 });
 
-test("fight pvp replay locator reports wrong-loader when neither window nor iframe exposes __require", () => {
+test("fight pvp replay locator reports no-require when neither window nor iframe exposes __require", () => {
   const runtimeWindow = {
     document: {
       querySelectorAll() {
@@ -155,35 +157,43 @@ test("fight pvp replay locator reports wrong-loader when neither window nor ifra
 
   assert.equal(result.gameWindow, null);
   assert.equal(result.source, null);
-  assert.equal(result.status, "wrong-loader");
+  assert.equal(result.status, "no-require");
 });
 
 test("fight pvp replay requireModule reports wrong-window when game window is missing", () => {
   const result = requireModule(null, "BattleUIManager");
 
   assert.equal(result.ok, false);
-  assert.equal(result.status, "wrong-window");
+  assert.equal(result.status, "no-window");
 });
 
-test("fight pvp replay requireModule reports wrong-loader when __require is unavailable", () => {
+test("fight pvp replay requireModule reports no-require when __require is unavailable", () => {
   const result = requireModule({}, "BattleUIManager");
 
   assert.equal(result.ok, false);
-  assert.equal(result.status, "wrong-loader");
+  assert.equal(result.status, "no-require");
 });
 
-test("fight pvp replay requireModule reports wrong-loader when canonical module id is still missing from __require", () => {
+test("fight pvp replay requireModule reports launcher-only when canonical module id is still missing from launcher-only __require", () => {
   const result = requireModule({
     __require() {
       throw new Error("Cannot find module 'BattleUIManager'");
     },
+    document: {
+      scripts: [],
+    },
+    performance: {
+      getEntriesByType() {
+        return [];
+      },
+    },
   }, "BattleUIManager");
 
   assert.equal(result.ok, false);
-  assert.equal(result.status, "wrong-loader");
+  assert.equal(result.status, "launcher-only");
   assert.equal(
     result.detail,
-    "current window.__require is still launcher/main bundle or game.js is not ready yet",
+    "current window.__require belongs to launcher/main only; game.js has not executed in this window yet.",
   );
 });
 
@@ -258,13 +268,114 @@ test("fight pvp replay probeRequireExport never reports wrong-export-path when w
     __require() {
       throw new Error("Cannot find module 'BattleUIManager'");
     },
+    document: {
+      scripts: [],
+    },
+    performance: {
+      getEntriesByType() {
+        return [];
+      },
+    },
   }, "BattleUIManager", ["SHOW_BATTLE_REPLAY_UI"]);
 
   assert.equal(result.ok, false);
-  assert.equal(result.status, "wrong-loader");
+  assert.equal(result.status, "launcher-only");
 });
 
-test("fight pvp replay waitForReplayGameBundleReady retries BattleUIManager until the game bundle is ready", async () => {
+test("fight pvp replay detectXyzwRuntimeLayer distinguishes launcher-only from game-bundle-loading and ready", () => {
+  const launcherOnlyWindow = {
+    __require() {
+      throw new Error("Cannot find module 'BattleUIManager'");
+    },
+    document: {
+      scripts: [],
+    },
+    performance: {
+      getEntriesByType() {
+        return [];
+      },
+    },
+  };
+  const loadingWindow = {
+    __require(name) {
+      throw new Error(`Cannot find module '${name}'`);
+    },
+    document: {
+      scripts: [{ src: "http://localhost/assets/game/index.js" }],
+    },
+    performance: {
+      getEntriesByType() {
+        return [{ name: "http://localhost/assets/game/index.js" }];
+      },
+    },
+  };
+  const readyWindow = {
+    __require(name) {
+      if (name === "BattleUIManager") {
+        return {
+          SHOW_BATTLE_REPLAY_UI() {},
+        };
+      }
+      return {};
+    },
+    document: {
+      scripts: [{ src: "http://localhost/assets/game/index.js" }],
+    },
+    performance: {
+      getEntriesByType() {
+        return [{ name: "http://localhost/assets/game/index.js" }];
+      },
+    },
+  };
+
+  assert.equal(detectXyzwRuntimeLayer(null).layer, "no-window");
+  assert.equal(detectXyzwRuntimeLayer({}).layer, "no-require");
+  assert.equal(detectXyzwRuntimeLayer(launcherOnlyWindow).layer, "launcher-only");
+  assert.equal(detectXyzwRuntimeLayer(loadingWindow).layer, "game-bundle-loading");
+  assert.equal(detectXyzwRuntimeLayer(readyWindow).layer, "game-bundle-ready");
+});
+
+test("fight pvp replay inspectBundleState inspects current window and same-origin iframes", () => {
+  const iframeWindow = {
+    __require() {
+      return {};
+    },
+    document: {
+      scripts: [{ src: "http://localhost/assets/game/index.js" }],
+    },
+    performance: {
+      getEntriesByType() {
+        return [{ name: "http://localhost/assets/game/index.js" }];
+      },
+    },
+  };
+  const runtimeWindow = {
+    __require() {
+      throw new Error("Cannot find module 'BattleUIManager'");
+    },
+    document: {
+      querySelectorAll() {
+        return [{ contentWindow: iframeWindow }];
+      },
+      scripts: [],
+    },
+    performance: {
+      getEntriesByType() {
+        return [];
+      },
+    },
+  };
+
+  const result = inspectBundleState(runtimeWindow);
+
+  assert.equal(result.currentWindowLabel, "window");
+  assert.equal(result.windows.length, 2);
+  assert.equal(result.windows[0].layer, "launcher-only");
+  assert.equal(result.windows[1].windowLabel, "iframe[0]");
+  assert.equal(result.windows[1].layer, "game-bundle-ready");
+});
+
+test("fight pvp replay ensureXyzwGameBundleReady retries until the game bundle is ready", async () => {
   let calls = 0;
   const runtimeWindow = {
     __require(name) {
@@ -276,39 +387,81 @@ test("fight pvp replay waitForReplayGameBundleReady retries BattleUIManager unti
       }
       throw new Error(`Cannot find module '${name}'`);
     },
-    setTimeout,
-  };
-
-  const result = await waitForReplayGameBundleReady({
-    gameWindow: runtimeWindow,
-    runtimeWindow,
-    attempts: 5,
-    intervalMs: 1,
-  });
-
-  assert.equal(result.ok, true);
-  assert.equal(result.status, "present");
-  assert.equal(result.attempts, 3);
-});
-
-test("fight pvp replay waitForReplayGameBundleReady returns wrong-loader when BattleUIManager never becomes available", async () => {
-  const runtimeWindow = {
-    __require() {
-      throw new Error("Cannot find module 'BattleUIManager'");
+    document: {
+      scripts: [{ src: "http://localhost/assets/game/index.js" }],
+    },
+    performance: {
+      getEntriesByType() {
+        return [{ name: "http://localhost/assets/game/index.js" }];
+      },
     },
     setTimeout,
   };
 
-  const result = await waitForReplayGameBundleReady({
+  const result = await ensureXyzwGameBundleReady({
     gameWindow: runtimeWindow,
     runtimeWindow,
-    attempts: 2,
+    timeoutMs: 10,
+    intervalMs: 1,
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.status, "game-bundle-ready");
+  assert.equal(result.attempts > 0, true);
+});
+
+test("fight pvp replay ensureXyzwGameBundleReady returns launcher-only when BattleUIManager never becomes available and no game bundle evidence exists", async () => {
+  const runtimeWindow = {
+    __require() {
+      throw new Error("Cannot find module 'BattleUIManager'");
+    },
+    document: {
+      scripts: [],
+    },
+    performance: {
+      getEntriesByType() {
+        return [];
+      },
+    },
+    setTimeout,
+  };
+
+  const result = await ensureXyzwGameBundleReady({
+    gameWindow: runtimeWindow,
+    runtimeWindow,
+    timeoutMs: 2,
     intervalMs: 1,
   });
 
   assert.equal(result.ok, false);
-  assert.equal(result.status, "wrong-loader");
-  assert.equal(result.attempts, 2);
+  assert.equal(result.status, "launcher-only");
+});
+
+test("fight pvp replay ensureXyzwGameBundleReady returns game-bundle-loading when game script is observed but battle modules still miss", async () => {
+  const runtimeWindow = {
+    __require() {
+      throw new Error("Cannot find module 'BattleUIManager'");
+    },
+    document: {
+      scripts: [{ src: "http://localhost/assets/game/index.js" }],
+    },
+    performance: {
+      getEntriesByType() {
+        return [{ name: "http://localhost/assets/game/index.js" }];
+      },
+    },
+    setTimeout,
+  };
+
+  const result = await ensureXyzwGameBundleReady({
+    gameWindow: runtimeWindow,
+    runtimeWindow,
+    timeoutMs: 2,
+    intervalMs: 1,
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.status, "game-bundle-loading");
 });
 
 test("fight pvp replay looksLikeBattleInput detects normalized battle input data", () => {
@@ -507,7 +660,7 @@ test("fight pvp replay locator uses iframe loader and marks wrong-window when on
   assert.equal(diagnostics.replayGameWindowSource, "iframe[0]");
 });
 
-test("fight pvp replay locator reports wrong-loader on all formal candidates when no game loader exists", () => {
+test("fight pvp replay locator reports no-require on all formal candidates when no game loader exists", () => {
   globalThis.window = {
     document: {
       querySelectorAll() {
@@ -520,9 +673,9 @@ test("fight pvp replay locator reports wrong-loader on all formal candidates whe
   const entrypoint = locateReplayEntrypoint({ diagnostics });
 
   assert.equal(entrypoint, null);
-  assert.equal(diagnostics.replayGameWindowStatus, "wrong-loader");
+  assert.equal(diagnostics.replayGameWindowStatus, "no-require");
   assert.ok(
-    diagnostics.replayEntrypointCandidates.every((entry) => entry.status === "wrong-loader"),
+    diagnostics.replayEntrypointCandidates.every((entry) => entry.status === "no-require"),
   );
 });
 

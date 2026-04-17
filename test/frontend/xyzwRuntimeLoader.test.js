@@ -83,6 +83,59 @@ test("xyzw runtime loader loads replay browser defines without affecting default
   ]);
 });
 
+test("xyzw runtime loader does not treat launcher-only __require as replay-browser ready", async () => {
+  const { appended, runtimeWindow } = createStubRuntimeWindow();
+  runtimeWindow.__require = () => {
+    throw new Error("Cannot find module 'BattleUIManager'");
+  };
+  runtimeWindow.document.scripts = [];
+  runtimeWindow.performance = {
+    getEntriesByType() {
+      return [];
+    },
+  };
+
+  await ensureXyzwRuntimeLoaded({
+    variant: XYZW_RUNTIME_VARIANTS.REPLAY_BROWSER,
+    runtimeWindow,
+    targetDocument: runtimeWindow.document,
+  });
+
+  assert.deepEqual(appended, [
+    "/xyzw/cocos2d-js-min.js",
+    "/xyzw/game-defines.browser.js",
+    "/xyzw/index.js",
+  ]);
+});
+
+test("xyzw runtime loader reuses replay-browser require only when the game bundle is already ready", async () => {
+  const { appended, runtimeWindow } = createStubRuntimeWindow();
+  runtimeWindow.PLATFORM = "web";
+  runtimeWindow.__require = (name) => {
+    if (name === "BattleUIManager") {
+      return {
+        SHOW_BATTLE_REPLAY_UI() {},
+      };
+    }
+    return {};
+  };
+  runtimeWindow.document.scripts = [{ src: "http://localhost/assets/game/index.js" }];
+  runtimeWindow.performance = {
+    getEntriesByType() {
+      return [{ name: "http://localhost/assets/game/index.js" }];
+    },
+  };
+
+  const runtimeRequire = await ensureXyzwRuntimeLoaded({
+    variant: XYZW_RUNTIME_VARIANTS.REPLAY_BROWSER,
+    runtimeWindow,
+    targetDocument: runtimeWindow.document,
+  });
+
+  assert.equal(runtimeRequire, runtimeWindow.__require);
+  assert.deepEqual(appended, []);
+});
+
 test("xyzw runtime loader allows the repo deployment host without requiring ignored local env files", () => {
   assert.equal(
     ensureRuntimeHostAllowed("xyzw.xq5007.fun", ""),

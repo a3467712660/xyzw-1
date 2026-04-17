@@ -3,6 +3,15 @@ import {
   XYZW_RUNTIME_VARIANTS,
 } from "./xyzwRuntimeLoader.js";
 import {
+  detectXyzwRuntimeLayer as detectXyzwRuntimeLayerShared,
+  ensureXyzwGameBundleReady as ensureXyzwGameBundleReadyShared,
+  inspectBundleState as inspectBundleStateShared,
+  probeXyzwRuntimeModule,
+  recordXyzwBundleEvent,
+  recordXyzwRuntimeScriptEvent,
+  trackXyzwBundlePromise,
+} from "./xyzwReplayRuntimeLayer.js";
+import {
   convertLegacyFightPvpReplayPayload,
   isLegacyFightPvpReplayPayload,
 } from "./fightPvpBattleInputAdapter.js";
@@ -198,6 +207,25 @@ const REPLAY_CANONICAL_MODULE_IDS = Object.freeze([
   "BattleKitCrossSite",
 ]);
 const REPLAY_CANONICAL_MODULE_ID_SET = new Set(REPLAY_CANONICAL_MODULE_IDS);
+
+export const detectXyzwRuntimeLayer = detectXyzwRuntimeLayerShared;
+export const inspectBundleState = inspectBundleStateShared;
+export const ensureXyzwGameBundleReady = ensureXyzwGameBundleReadyShared;
+
+const buildRuntimeLayerDetail = (runtimeLayerInfo) => {
+  switch (runtimeLayerInfo?.layer) {
+    case "launcher-only":
+      return "current window.__require belongs to launcher/main only; game.js has not executed in this window yet.";
+    case "game-bundle-loading":
+      return "game.js has been observed for this window, but battle modules are still unavailable.";
+    case "no-require":
+      return "gameWindow.__require is unavailable.";
+    case "no-window":
+      return "game window is unavailable.";
+    default:
+      return REPLAY_LOADER_NOT_READY_DETAIL;
+  }
+};
 const REPLAY_ENTRYPOINT_PROBE_CONFIGS = Object.freeze([
   {
     kind: "require-export",
@@ -289,7 +317,7 @@ export const findGameWindow = (rootWindow = null) => {
   return {
     gameWindow: null,
     source: null,
-    status: "wrong-loader",
+    status: "no-require",
     error: "No game window with window.__require(...) was found.",
     checkedIframes,
   };
@@ -634,6 +662,31 @@ export const toAbsoluteBundleRequestTarget = (
   return new URL(`/assets/${bundleName}`, runtimeWindow.location.origin).toString();
 };
 
+const normalizeTrackedBundleName = (
+  target,
+  runtimeWindow = getRuntimeWindow(),
+) => {
+  const normalized = String(target || "").trim();
+  if (!normalized) {
+    return "";
+  }
+  try {
+    const absoluteUrl = new URL(normalized, runtimeWindow.location.origin);
+    const assetMatch = absoluteUrl.pathname.match(/\/assets\/([^/]+)/);
+    if (assetMatch?.[1]) {
+      return assetMatch[1];
+    }
+    const parts = absoluteUrl.pathname.split("/").filter(Boolean);
+    return parts.at(-1) || normalized;
+  } catch {
+    const assetMatch = normalized.match(/\/assets\/([^/]+)/);
+    if (assetMatch?.[1]) {
+      return assetMatch[1];
+    }
+    return normalized.split("/").filter(Boolean).at(-1) || normalized;
+  }
+};
+
 const buildReplayProbeRequestInit = (init = {}) => {
   const headers = new Headers(init?.headers || {});
   headers.set(REPLAY_PROBE_REQUEST_HEADER, "1");
@@ -749,6 +802,7 @@ const findFirstProbeFailure = (probeEntries = []) =>
 const loadReplayAuxiliaryScript = (
   src,
   targetDocument = getRuntimeWindow().document,
+  runtimeWindow = getRuntimeWindow(),
 ) =>
   new Promise((resolve, reject) => {
     const existing = targetDocument.querySelector(
@@ -756,6 +810,12 @@ const loadReplayAuxiliaryScript = (
     );
     if (existing) {
       if (existing.dataset.loaded === "true") {
+        recordXyzwRuntimeScriptEvent({
+          runtimeWindow,
+          src,
+          status: "loaded",
+          source: "replay-auxiliary-loader",
+        });
         resolve(existing);
         return;
       }
@@ -774,17 +834,38 @@ const loadReplayAuxiliaryScript = (
     script.src = src;
     script.crossOrigin = "anonymous";
     script.setAttribute(REPLAY_AUXILIARY_SCRIPT_ATTR, src);
+    recordXyzwRuntimeScriptEvent({
+      runtimeWindow,
+      src,
+      status: "requested",
+      source: "replay-auxiliary-loader",
+    });
     script.addEventListener(
       "load",
       () => {
         script.dataset.loaded = "true";
+        recordXyzwRuntimeScriptEvent({
+          runtimeWindow,
+          src,
+          status: "loaded",
+          source: "replay-auxiliary-loader",
+        });
         resolve(script);
       },
       { once: true },
     );
     script.addEventListener(
       "error",
-      () => reject(new Error(`Failed to load replay auxiliary script: ${src}`)),
+      (event) => {
+        recordXyzwRuntimeScriptEvent({
+          runtimeWindow,
+          src,
+          status: "error",
+          source: "replay-auxiliary-loader",
+          error: event?.error || new Error(`Failed to load replay auxiliary script: ${src}`),
+        });
+        reject(new Error(`Failed to load replay auxiliary script: ${src}`));
+      },
       { once: true },
     );
     targetDocument.head.appendChild(script);
@@ -849,7 +930,11 @@ export const ensureReplayAuxiliaryBundlesLoaded = async ({
   try {
     for (const scriptUrl of scriptUrls) {
       diagnostics?.steps?.push?.(`load-auxiliary-script:${scriptUrl}`);
-      const scriptElement = await loadReplayAuxiliaryScript(scriptUrl, targetDocument);
+      const scriptElement = await loadReplayAuxiliaryScript(
+        scriptUrl,
+        targetDocument,
+        runtimeWindow,
+      );
       loadedScripts.push(scriptElement);
     }
 
@@ -1861,6 +1946,8 @@ export const installReplayResourceManagerGuard = ({
     || (() => Object.create(null));
 
   const guardedLoadBundle = function guardedLoadBundle(...args) {
+    const trackedTarget = args[0];
+    const trackedBundleName = normalizeTrackedBundleName(trackedTarget, runtimeWindow);
     if (!this._bundlePromises || typeof this._bundlePromises !== "object") {
       this._bundlePromises = createMap();
       diagnostics?.steps?.push?.("init-resource-bundle-promises");
@@ -1873,7 +1960,13 @@ export const installReplayResourceManagerGuard = ({
       this.bundleVersions = {};
       diagnostics?.steps?.push?.("init-resource-bundle-versions");
     }
-    return previousLoadBundle.apply(this, args);
+    return trackXyzwBundlePromise({
+      runtimeWindow,
+      bundleName: trackedBundleName,
+      source: "ResourceManager.loadBundle",
+      target: trackedTarget,
+      result: previousLoadBundle.apply(this, args),
+    });
   };
 
   resourceManagerPrototype.loadBundle = guardedLoadBundle;
@@ -2160,7 +2253,31 @@ export const installReplayBundleResolverPatch = ({
     callback,
   ) {
     const nextTarget = normalizeBundleTarget(target);
-    return originalBundleDownloader.call(this, nextTarget, options, callback);
+    const trackedBundleName = normalizeTrackedBundleName(nextTarget, runtimeWindow);
+    recordXyzwBundleEvent({
+      runtimeWindow,
+      bundleName: trackedBundleName,
+      status: "requested",
+      source: "assetManager.downloader.bundle",
+      target: nextTarget,
+    });
+    return originalBundleDownloader.call(
+      this,
+      nextTarget,
+      options,
+      (...callbackArgs) => {
+        const callbackError = callbackArgs[0];
+        recordXyzwBundleEvent({
+          runtimeWindow,
+          bundleName: trackedBundleName,
+          status: callbackError ? "rejected" : "resolved",
+          source: "assetManager.downloader.bundle",
+          target: nextTarget,
+          error: callbackError || null,
+        });
+        return callback?.(...callbackArgs);
+      },
+    );
   };
 
   if (bundleDownloaders && typeof originalBundleDownloader === "function") {
@@ -2168,7 +2285,15 @@ export const installReplayBundleResolverPatch = ({
   }
 
   const patchedLoadBundle = function patchedLoadBundle(target, ...args) {
-    return originalLoadBundle.call(this, normalizeBundleTarget(target), ...args);
+    const nextTarget = normalizeBundleTarget(target);
+    const trackedBundleName = normalizeTrackedBundleName(nextTarget, runtimeWindow);
+    return trackXyzwBundlePromise({
+      runtimeWindow,
+      bundleName: trackedBundleName,
+      source: "assetManager.loadBundle",
+      target: nextTarget,
+      result: originalLoadBundle.call(this, nextTarget, ...args),
+    });
   };
 
   if (assetManager && typeof originalLoadBundle === "function") {
@@ -2807,10 +2932,22 @@ const buildReplayEntrypointLabel = (source, moduleId, exportPathArr) =>
   formatReplayEntrypointLabel(source || "window", moduleId, toReplayExportPathLabel(exportPathArr));
 
 export const requireModule = (gameWindow, moduleId) => {
-  if (!gameWindow) {
+  const moduleProbe = probeXyzwRuntimeModule(gameWindow, moduleId);
+  if (moduleProbe.ok) {
+    return {
+      ok: true,
+      status: "present",
+      moduleId,
+      value: moduleProbe.value,
+      error: null,
+      detail: null,
+    };
+  }
+
+  if (moduleProbe.status === "no-window") {
     return {
       ok: false,
-      status: "wrong-window",
+      status: "no-window",
       moduleId,
       value: null,
       error: null,
@@ -2818,10 +2955,10 @@ export const requireModule = (gameWindow, moduleId) => {
     };
   }
 
-  if (typeof gameWindow.__require !== "function") {
+  if (moduleProbe.status === "no-require") {
     return {
       ok: false,
-      status: "wrong-loader",
+      status: "no-require",
       moduleId,
       value: null,
       error: null,
@@ -2829,56 +2966,28 @@ export const requireModule = (gameWindow, moduleId) => {
     };
   }
 
-  try {
-    const value = gameWindow.__require(moduleId);
+  if (!REPLAY_CANONICAL_MODULE_ID_SET.has(moduleId)) {
     return {
-      ok: true,
-      status: "present",
+      ok: false,
+      status: "wrong-module-id",
       moduleId,
-      value,
-      error: null,
-      detail: null,
+      value: null,
+      error: moduleProbe.error,
+      detail: `${moduleId} is not a valid replay probe module id.`,
     };
-  } catch (error) {
-    const errorText = toErrorMessage(error, `Failed to require module "${moduleId}".`);
-    if (isMissingModuleError(errorText)) {
-      return REPLAY_CANONICAL_MODULE_ID_SET.has(moduleId)
-        ? {
-            ok: false,
-            status: "wrong-loader",
-            moduleId,
-            value: null,
-            error: errorText,
-            detail: REPLAY_LOADER_NOT_READY_DETAIL,
-          }
-        : {
-            ok: false,
-            status: "wrong-module-id",
-            moduleId,
-            value: null,
-            error: errorText,
-            detail: `${moduleId} is not a valid replay probe module id.`,
-          };
-    }
-
-    return REPLAY_CANONICAL_MODULE_ID_SET.has(moduleId)
-      ? {
-          ok: false,
-          status: "wrong-loader",
-          moduleId,
-          value: null,
-          error: errorText,
-          detail: REPLAY_LOADER_NOT_READY_DETAIL,
-        }
-      : {
-          ok: false,
-          status: "wrong-module-id",
-          moduleId,
-          value: null,
-          error: errorText,
-          detail: `${moduleId} is not a valid replay probe module id.`,
-        };
   }
+
+  const runtimeLayerInfo = detectXyzwRuntimeLayerShared(gameWindow, {
+    windowLabel: "window",
+  });
+  return {
+    ok: false,
+    status: runtimeLayerInfo.layer,
+    moduleId,
+    value: null,
+    error: moduleProbe.error,
+    detail: buildRuntimeLayerDetail(runtimeLayerInfo),
+  };
 };
 
 export const resolveExport = (obj, exportPathArr) => {
@@ -2958,35 +3067,14 @@ export const waitForReplayGameBundleReady = async ({
   runtimeWindow = gameWindow || getRuntimeWindow(),
   attempts = REPLAY_GAME_BUNDLE_READY_ATTEMPTS,
   intervalMs = REPLAY_GAME_BUNDLE_READY_INTERVAL_MS,
-  moduleId = REPLAY_GAME_BUNDLE_READY_MODULE_ID,
-} = {}) => {
-  let lastResult = null;
-  if (!gameWindow || typeof gameWindow?.__require !== "function") {
-    lastResult = requireModule(gameWindow, moduleId);
-    return {
-      ...lastResult,
-      attempts: 0,
-    };
-  }
-
-  for (let attempt = 1; attempt <= attempts; attempt += 1) {
-    lastResult = requireModule(gameWindow, moduleId);
-    if (lastResult.ok || lastResult.status !== "wrong-loader") {
-      return {
-        ...lastResult,
-        attempts: attempt,
-      };
-    }
-    if (attempt < attempts) {
-      await wait(runtimeWindow, intervalMs);
-    }
-  }
-
-  return {
-    ...lastResult,
-    attempts,
-  };
-};
+} = {}) =>
+  ensureXyzwGameBundleReadyShared({
+    gameWindow,
+    runtimeWindow,
+    timeoutMs: attempts * intervalMs,
+    intervalMs,
+    windowLabel: "window",
+  });
 
 const createBattleKitCrossSiteReplayInvoker = (moduleValue) => {
   const instance = moduleValue?.BattleKitCrossSite?.instance || null;
@@ -3055,6 +3143,10 @@ const buildReplayProbeReport = ({
   const resolvedGameWindow = gameWindow || resolvedGameWindowInfo.gameWindow || null;
   const source = resolvedGameWindowInfo.source || null;
   const loaderLabel = formatReplayGameWindowSourceLabel(source || "window");
+  const runtimeLayerInfo = detectXyzwRuntimeLayerShared(resolvedGameWindow, {
+    windowLabel: loaderLabel,
+  });
+  const bundleState = inspectBundleStateShared(runtimeWindow);
   const candidates = [];
   const requireDebug = [];
   const seenModuleIds = new Set();
@@ -3062,7 +3154,12 @@ const buildReplayProbeReport = ({
   diagnostics.replayEntrypointCandidates = candidates;
   diagnostics.replayEntrypointRequireDebug = requireDebug;
   diagnostics.replayGameWindowSource = source;
-  diagnostics.replayGameWindowStatus = resolvedGameWindowInfo.status || "wrong-loader";
+  diagnostics.replayGameWindowStatus = resolvedGameWindowInfo.status || "no-require";
+  diagnostics.runtimeLayer = runtimeLayerInfo.layer;
+  diagnostics.bundleState = bundleState;
+  diagnostics.gameScriptInDocument = Boolean(runtimeLayerInfo.details?.gameScriptInDocument);
+  diagnostics.gameScriptInPerformance = Boolean(runtimeLayerInfo.details?.gameScriptInPerformance);
+  diagnostics.moduleChecks = runtimeLayerInfo.details?.moduleChecks || {};
   diagnostics.fallbackEntrypointUsed = false;
   diagnostics.fallbackEntrypointReason = null;
   diagnostics.enterOssAvailableButRejected = false;
@@ -3072,7 +3169,7 @@ const buildReplayProbeReport = ({
     ? "present"
     : diagnostics.replayGameWindowStatus === "wrong-window"
       ? "wrong-window"
-      : "wrong-loader";
+      : "no-require";
   requireDebug.push({
     label: "window.__require",
     moduleId: null,
@@ -3081,7 +3178,7 @@ const buildReplayProbeReport = ({
     detail:
       currentWindowLoaderStatus === "wrong-window"
         ? `当前页面没有 window.__require，已切换到 ${loaderLabel}.__require。`
-        : currentWindowLoaderStatus === "wrong-loader"
+        : currentWindowLoaderStatus === "no-require"
           ? "当前页面和可见 iframe 中都没有可用的 window.__require。"
           : null,
     error: null,
@@ -3117,8 +3214,8 @@ const buildReplayProbeReport = ({
         moduleId: probeConfig.moduleId,
         source,
         status:
-          diagnostics.replayGameWindowStatus === "wrong-loader"
-            ? "wrong-loader"
+          diagnostics.replayGameWindowStatus === "no-require"
+            ? "no-require"
             : moduleResult?.status || probeResult.status,
         detail: moduleResult?.detail || probeResult.detail || null,
         error: moduleResult?.error || probeResult.error || null,
@@ -3131,8 +3228,8 @@ const buildReplayProbeReport = ({
       battleUiManagerModuleFound = Boolean(moduleResult?.ok);
     }
 
-    const status = diagnostics.replayGameWindowStatus === "wrong-loader"
-      ? "wrong-loader"
+    const status = diagnostics.replayGameWindowStatus === "no-require"
+      ? "no-require"
       : probeResult.status;
     const candidate = {
       kind: probeConfig.kind,
@@ -3205,14 +3302,19 @@ const inspectReplayEntrypoints = async (gameWindow = null) => {
         }
       : discoveredGameWindowInfo;
   const resolvedGameWindow = resolvedGameWindowInfo.gameWindow || gameWindow || null;
-  const bundleReadyInfo = await waitForReplayGameBundleReady({
+  const bundleReadyInfo = await ensureXyzwGameBundleReadyShared({
     gameWindow: resolvedGameWindow,
     runtimeWindow: resolvedGameWindow || runtimeWindow,
+    windowLabel: formatReplayGameWindowSourceLabel(
+      resolvedGameWindowInfo.source || (runtimeWindow === resolvedGameWindow ? "window" : "bound-window"),
+    ),
   });
   const diagnostics = {
     replayGameBundleReady: bundleReadyInfo.ok,
     replayGameBundleReadyAttempts: bundleReadyInfo.attempts ?? 0,
     replayGameBundleReadyError: bundleReadyInfo.error || null,
+    replayGameBundleReadySource: bundleReadyInfo.gameBundleReadySource || null,
+    runtimeLayer: bundleReadyInfo.layer || null,
   };
   const { entrypoint } = buildReplayProbeReport({
     gameWindow: resolvedGameWindow,
@@ -3286,14 +3388,50 @@ const scheduleReplayPostCheck = (gameWindow, prepared, logger = console.log) => 
   }, 1200);
 };
 
-const createReplayConsoleHelpers = (gameWindow) => {
+const createReplayConsoleHelpers = (gameWindow, {
+  runtimeLayerInfo = detectXyzwRuntimeLayerShared(gameWindow, { windowLabel: "window" }),
+  limited = false,
+} = {}) => {
+  const baseHelper = {
+    detectRuntimeLayer() {
+      const result = detectXyzwRuntimeLayerShared(gameWindow, { windowLabel: "window" });
+      console.log("[xyzw replay] detectRuntimeLayer", result);
+      baseHelper.result = result;
+      return result;
+    },
+    inspectBundleState() {
+      const result = inspectBundleStateShared(getRuntimeWindow());
+      console.log("[xyzw replay] inspectBundleState", result);
+      baseHelper.result = result;
+      return result;
+    },
+    async waitForGameBundleReady(options = {}) {
+      const result = await ensureXyzwGameBundleReadyShared({
+        gameWindow,
+        runtimeWindow: getRuntimeWindow(),
+        windowLabel: "window",
+        ...options,
+      });
+      console.log("[xyzw replay] waitForGameBundleReady", result);
+      baseHelper.result = result;
+      return result;
+    },
+    result: runtimeLayerInfo,
+  };
+
+  if (limited || runtimeLayerInfo?.layer !== "game-bundle-ready") {
+    return baseHelper;
+  }
+
   const helper = {
+    ...baseHelper,
     req: typeof gameWindow?.__require === "function" ? gameWindow.__require : null,
-    result: null,
     async inspect() {
       const result = {
         ...(await inspectReplayEntrypoints(gameWindow)),
         ...inspectReplayRuntimeInputs(gameWindow),
+        bundleState: inspectBundleStateShared(getRuntimeWindow()),
+        runtimeLayer: detectXyzwRuntimeLayerShared(gameWindow, { windowLabel: "window" }).layer,
       };
       console.log("[xyzw replay] inspect", result);
       helper.result = result;
@@ -3335,7 +3473,9 @@ const createReplayConsoleHelpers = (gameWindow) => {
   return helper;
 };
 
-const exposeReplayConsoleHelpers = (gameWindow) => {
+const exposeReplayConsoleHelpers = (gameWindow, {
+  runtimeLayerInfo = detectXyzwRuntimeLayerShared(gameWindow, { windowLabel: "window" }),
+} = {}) => {
   if (!gameWindow || typeof gameWindow.__require !== "function") {
     return {
       helper: null,
@@ -3345,7 +3485,10 @@ const exposeReplayConsoleHelpers = (gameWindow) => {
   }
 
   const runtimeWindow = getRuntimeWindow();
-  const helper = createReplayConsoleHelpers(gameWindow);
+  const helper = createReplayConsoleHelpers(gameWindow, {
+    runtimeLayerInfo,
+    limited: runtimeLayerInfo?.layer !== "game-bundle-ready",
+  });
   const previousGameWindowHelper = gameWindow.__xyzwReplay;
   const previousWindowHelper = runtimeWindow.__xyzwReplay;
   const previousWindowGameWindow = runtimeWindow.__xyzwReplayGameWindow;
@@ -3450,8 +3593,11 @@ export const startFightPvpReplayRuntime = async ({
     installReplayBattleStartProbe,
     installMissingModuleShims: installReplayMissingModuleShims,
     inspectGameBundleModuleCoverage: inspectReplayGameBundleModuleCoverage,
+    inspectBundleState,
     probeGameSceneAssets,
     ensureReplayBootstrapScene,
+    detectXyzwRuntimeLayer,
+    ensureXyzwGameBundleReady,
     findReplayGameWindow,
     locateReplayEntrypoint,
     exposeReplayConsoleHelpers,
@@ -3714,15 +3860,50 @@ export const startFightPvpReplayRuntime = async ({
     diagnostics.steps.push("find-replay-game-window");
     const replayGameWindowInfo = adapter.findReplayGameWindow();
     diagnostics.replayGameWindowSource = replayGameWindowInfo.source || null;
-    diagnostics.replayGameWindowStatus = replayGameWindowInfo.status || "wrong-loader";
+    diagnostics.replayGameWindowStatus = replayGameWindowInfo.status || "no-require";
+
+    diagnostics.steps.push("inspect-replay-bundle-state");
+    diagnostics.bundleState = adapter.inspectBundleState(getRuntimeWindow());
+
+    diagnostics.steps.push("detect-runtime-layer");
+    const initialRuntimeLayerInfo = adapter.detectXyzwRuntimeLayer(
+      replayGameWindowInfo.gameWindow || null,
+      {
+        windowLabel: formatReplayGameWindowSourceLabel(replayGameWindowInfo.source || "window"),
+      },
+    );
+    diagnostics.runtimeLayer = initialRuntimeLayerInfo.layer;
+    diagnostics.gameScriptInDocument = Boolean(initialRuntimeLayerInfo.details?.gameScriptInDocument);
+    diagnostics.gameScriptInPerformance = Boolean(initialRuntimeLayerInfo.details?.gameScriptInPerformance);
+    diagnostics.moduleChecks = initialRuntimeLayerInfo.details?.moduleChecks || {};
+
+    if (replayGameWindowInfo.gameWindow) {
+      const replayConsoleHelpers = adapter.exposeReplayConsoleHelpers(
+        replayGameWindowInfo.gameWindow,
+        {
+          runtimeLayerInfo: initialRuntimeLayerInfo,
+        },
+      );
+      diagnostics.replayConsoleHelperExposed = Boolean(replayConsoleHelpers.helper);
+      diagnostics.replayConsoleHelperResult = replayConsoleHelpers.result;
+      cleanups.push(() => replayConsoleHelpers.dispose?.());
+    }
 
     diagnostics.steps.push("wait-for-replay-game-bundle-ready");
-    const replayGameBundleReady = await adapter.waitForReplayGameBundleReady({
+    const replayGameBundleReady = await adapter.ensureXyzwGameBundleReady({
       gameWindow: replayGameWindowInfo.gameWindow || null,
+      runtimeWindow: getRuntimeWindow(),
+      windowLabel: formatReplayGameWindowSourceLabel(replayGameWindowInfo.source || "window"),
     });
     diagnostics.replayGameBundleReady = replayGameBundleReady.ok;
     diagnostics.replayGameBundleReadyAttempts = replayGameBundleReady.attempts ?? 0;
     diagnostics.replayGameBundleReadyError = replayGameBundleReady.error || null;
+    diagnostics.replayGameBundleReadySource = replayGameBundleReady.gameBundleReadySource || null;
+    diagnostics.runtimeLayer = replayGameBundleReady.layer || diagnostics.runtimeLayer;
+    diagnostics.gameScriptInDocument = Boolean(replayGameBundleReady.details?.gameScriptInDocument);
+    diagnostics.gameScriptInPerformance = Boolean(replayGameBundleReady.details?.gameScriptInPerformance);
+    diagnostics.moduleChecks = replayGameBundleReady.details?.moduleChecks || diagnostics.moduleChecks;
+    diagnostics.bundleState = adapter.inspectBundleState(getRuntimeWindow());
 
     diagnostics.steps.push("locate-replay-entrypoint");
     const replayEntrypoint = adapter.locateReplayEntrypoint({
@@ -3742,10 +3923,10 @@ export const startFightPvpReplayRuntime = async ({
             .map((entry) => `${entry.label}:${entry.status || "unknown"}`)
             .join(", ")
         : "none";
-      const detail = `已检查：gameWindow=${diagnostics.replayGameWindowStatus || "unknown"}@${diagnostics.replayGameWindowSource || "window"}；bundleReady=${diagnostics.replayGameBundleReady ? "yes" : "no"}(${diagnostics.replayGameBundleReadyAttempts ?? 0})；entrypoints=${scannedSummary}；debug=${requireSummary}。`;
+      const detail = `已检查：gameWindow=${diagnostics.replayGameWindowStatus || "unknown"}@${diagnostics.replayGameWindowSource || "window"}；runtimeLayer=${diagnostics.runtimeLayer || "unknown"}；bundleReady=${diagnostics.replayGameBundleReady ? "yes" : "no"}(${diagnostics.replayGameBundleReadyAttempts ?? 0}, source=${diagnostics.replayGameBundleReadySource || "-"})；gameScript=document:${diagnostics.gameScriptInDocument ? "yes" : "no"}/performance:${diagnostics.gameScriptInPerformance ? "yes" : "no"}；entrypoints=${scannedSummary}；debug=${requireSummary}。`;
       const message = diagnostics.replayGameBundleReady === false
-        ? `运行时已进入 ${runtimeReady.sceneName || GAME_SCENE_NAME}，并已找到真实游戏 window。当前探针已改为真实执行 window.__require(moduleId)，但当前 window.__require 仍可能停留在 launcher/main bundle，或 game.js 尚未 ready，因此 battle replay 入口暂未成功解析。原先的 wrong-export-path 误报来自对调用表达式的字符串化解析，而不是导出路径本身不存在。${detail}`
-        : `运行时已进入 ${runtimeReady.sceneName || GAME_SCENE_NAME}，并已找到真实游戏 window。当前探针已真实执行 window.__require(moduleId)；若仍未能解析 battle replay 入口，则剩余问题在于目标导出路径不存在或末端不可调用，而不是调用表达式本身没有执行。${detail}`;
+        ? `运行时已进入 ${runtimeReady.sceneName || GAME_SCENE_NAME}，并已找到候选 window。当前 window 已安装 launcher/main bundle 的 __require，但 battle 模块所在的 game.js 尚未在该 window 中执行；因此 replay 入口暂不可用。has __require 只能说明 launcher 已初始化，不能说明 battle bundle 已 ready。${detail}`
+        : `运行时已进入 ${runtimeReady.sceneName || GAME_SCENE_NAME}，并已找到真实游戏 window。battle/game bundle 已 ready；若仍未能解析 replay 入口，则剩余问题在于目标导出路径不存在或末端不可调用，而不是 loader 层级判断错误。${detail}`;
       return {
         ok: false,
         reason: "replay-start-failed",
@@ -3758,6 +3939,12 @@ export const startFightPvpReplayRuntime = async ({
     if (replayEntrypoint.gameWindow) {
       const replayConsoleHelpers = adapter.exposeReplayConsoleHelpers(
         replayEntrypoint.gameWindow,
+        {
+          runtimeLayerInfo: {
+            layer: "game-bundle-ready",
+            details: replayGameBundleReady.details || initialRuntimeLayerInfo.details,
+          },
+        },
       );
       diagnostics.replayConsoleHelperExposed = Boolean(replayConsoleHelpers.helper);
       diagnostics.replayConsoleHelperResult = replayConsoleHelpers.result;
