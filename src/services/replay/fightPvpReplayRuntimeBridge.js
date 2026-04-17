@@ -353,7 +353,46 @@ const REPLAY_PRODUCTION_REPLAY_SPECIFIC_REASONS = new Set([
   "componentName:replay/playback",
   "nodePath:replay/playback",
   "battle-context+payload-affinity",
+  "source:interaction-trace",
+  "source:button-click-event",
+  "source:scene-context-handler",
+  "context:replay-ui",
+  "buttonText:replay",
+  "customEventData:replay",
 ]);
+const REPLAY_PRODUCTION_UI_CONTEXT_RE = /replay|playback|battle|fight|pvp|回放|战报|录像|对战|战斗/i;
+const REPLAY_PRODUCTION_CONTEXT_HANDLER_NAME_PREFIXES = Object.freeze([
+  "open",
+  "show",
+  "init",
+  "enter",
+  "start",
+  "onclick",
+  "onbtn",
+  "onpress",
+  "click",
+  "handle",
+  "setdata",
+  "setinfo",
+  "refresh",
+  "load",
+  "preview",
+]);
+const REPLAY_PRODUCTION_DISCOVERY_SOURCE_PRIORITY = Object.freeze({
+  "interaction-trace": 6,
+  "button-click-event": 5,
+  "scene-context-handler": 4,
+  "global-object": 3,
+  "global-function": 2,
+  "scene-component": 1,
+});
+const REPLAY_PRODUCTION_DISCOVERY_RICH_SOURCES = new Set([
+  "scene-context-handler",
+  "button-click-event",
+  "interaction-trace",
+]);
+const REPLAY_PRODUCTION_INTERACTION_TRACE_LIMIT = 20;
+const REPLAY_PRODUCTION_BUTTON_HANDLER_LIMIT = 20;
 
 const isReplayObjectLike = (value) =>
   Boolean(value) && (typeof value === "object" || typeof value === "function");
@@ -376,8 +415,19 @@ const hasBattleContextText = (value) =>
 const matchesNegativePlaySignal = (value) =>
   hasIdentifierWord(value, REPLAY_PRODUCTION_NEGATIVE_SIGNAL_WORDS);
 
+const matchesProductionReplayUiContextText = (value) =>
+  REPLAY_PRODUCTION_UI_CONTEXT_RE.test(String(value || "").trim());
+
 const matchesProductionReplayKeyword = (value) =>
-  hasPlaySignalText(value) || hasBattleContextText(value);
+  hasPlaySignalText(value) || hasBattleContextText(value) || matchesProductionReplayUiContextText(value);
+
+const matchesProductionContextHandlerName = (name) => {
+  const normalized = String(name || "")
+    .replace(/[^A-Za-z0-9]/g, "")
+    .toLowerCase();
+  return REPLAY_PRODUCTION_CONTEXT_HANDLER_NAME_PREFIXES.some((prefix) =>
+    normalized === prefix || normalized.startsWith(prefix));
+};
 
 const isGetterLikeMethodName = (name) => {
   const words = toIdentifierWords(name);
@@ -511,6 +561,19 @@ const getProductionReplayBridgeState = (
     return existing;
   }
   const state = {
+    interactionTrace: {
+      buttonTouchPatched: false,
+      buttonTouchPatchSource: null,
+      buttonTouchRestore: null,
+      buttonTouchSupported: false,
+      candidates: [],
+      emitEventsPatched: false,
+      emitEventsPatchSource: null,
+      emitEventsRestore: null,
+      emitEventsSupported: false,
+      installedAt: null,
+      lastButtonTouchContext: null,
+    },
     lastInspect: null,
     playTarget: null,
   };
@@ -597,9 +660,70 @@ const collectReplayMemberMatches = (value) => {
   };
 };
 
+const visitProductionContextHandlerHolder = (holder, names, methodSet) => {
+  if (!holder || !Array.isArray(names)) {
+    return;
+  }
+
+  for (const name of names) {
+    if (name === "constructor" || !matchesProductionContextHandlerName(name)) {
+      continue;
+    }
+
+    let descriptor = null;
+    try {
+      descriptor = Object.getOwnPropertyDescriptor(holder, name) || null;
+    } catch {
+      descriptor = null;
+    }
+    if (!descriptor || typeof descriptor.value !== "function") {
+      continue;
+    }
+    methodSet.add(name);
+  }
+};
+
+const collectProductionContextHandlerMatches = (value) => {
+  if (!isReplayObjectLike(value)) {
+    return [];
+  }
+
+  const methodSet = new Set();
+  try {
+    visitProductionContextHandlerHolder(
+      value,
+      Object.keys(value).slice(0, REPLAY_PRODUCTION_GLOBAL_KEY_LIMIT),
+      methodSet,
+    );
+  } catch {
+    // Ignore host objects that throw during key enumeration.
+  }
+
+  const prototype = Object.getPrototypeOf(value);
+  if (
+    prototype
+    && prototype !== Object.prototype
+    && prototype !== Function.prototype
+  ) {
+    try {
+      visitProductionContextHandlerHolder(
+        prototype,
+        Object.getOwnPropertyNames(prototype).slice(0, REPLAY_PRODUCTION_GLOBAL_KEY_LIMIT),
+        methodSet,
+      );
+    } catch {
+      // Ignore inaccessible prototypes.
+    }
+  }
+
+  return [...methodSet].slice(0, REPLAY_PRODUCTION_MEMBER_LIMIT);
+};
+
 const createProductionReplayTargetCandidate = ({
+  buttonText = null,
   label,
   source,
+  customEventData = null,
   fn = null,
   invoke,
   methodName = null,
@@ -609,7 +733,9 @@ const createProductionReplayTargetCandidate = ({
   ownerKey = null,
 } = {}) => ({
   arity: typeof fn === "function" ? fn.length : null,
+  buttonText,
   componentName,
+  customEventData,
   functionSourceSnippet: toFunctionSourceSnippet(fn),
   invoke,
   label,
@@ -638,6 +764,391 @@ const getSceneNodeComponents = (node) => {
     return node.components.filter(Boolean);
   }
   return [];
+};
+
+const createProductionSceneNodeIndex = (scene) => {
+  const pathMap = new WeakMap();
+  const records = [];
+
+  if (!scene) {
+    return {
+      pathMap,
+      records,
+      scene: null,
+    };
+  }
+
+  const queue = [{
+    node: scene,
+    path: scene?.name || GAME_SCENE_NAME,
+  }];
+  const seenNodes = new Set();
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    const node = current?.node || null;
+    if (!node || seenNodes.has(node)) {
+      continue;
+    }
+    seenNodes.add(node);
+
+    const nodeName = String(node?.name || "");
+    const nodePath = current?.path || nodeName || GAME_SCENE_NAME;
+    pathMap.set(node, nodePath);
+    records.push({
+      node,
+      nodeName,
+      nodePath,
+    });
+
+    for (const child of getSceneNodeChildren(node)) {
+      const childName = String(child?.name || "(anonymous)");
+      queue.push({
+        node: child,
+        path: `${nodePath}/${childName}`,
+      });
+    }
+  }
+
+  return {
+    pathMap,
+    records,
+    scene,
+  };
+};
+
+const getProductionNodePathFromIndex = (node, sceneIndex) => {
+  if (!node) {
+    return null;
+  }
+  if (sceneIndex?.pathMap?.has(node)) {
+    return sceneIndex.pathMap.get(node) || null;
+  }
+
+  const parentSegments = [];
+  let current = node;
+  let guard = 0;
+  while (current && guard < 50) {
+    parentSegments.push(String(current?.name || "(anonymous)"));
+    current = current?.parent || null;
+    guard += 1;
+  }
+  return parentSegments.length > 0 ? parentSegments.reverse().join("/") : null;
+};
+
+const collectProductionNodeTextCandidates = (node) => {
+  const textSet = new Set();
+
+  const addText = (value) => {
+    const text = String(value || "").trim();
+    if (text) {
+      textSet.add(text);
+    }
+  };
+
+  addText(node?.labelString);
+  addText(node?.text);
+  addText(node?._string);
+
+  for (const component of getSceneNodeComponents(node)) {
+    addText(component?.string);
+    addText(component?._string);
+    addText(component?.text);
+    addText(component?.title);
+    addText(component?.content);
+    addText(component?.buttonText);
+    addText(component?.label);
+  }
+
+  return [...textSet].slice(0, 6);
+};
+
+const findProductionComponentByName = (node, componentName, handlerName = null) => {
+  const components = getSceneNodeComponents(node);
+  const normalizeName = (value) =>
+    String(value || "")
+      .replace(/[^A-Za-z0-9]/g, "")
+      .toLowerCase();
+  const normalizedExpected = normalizeName(componentName);
+
+  if (normalizedExpected) {
+    const exactMatch = components.find((component) =>
+      normalizeName(getReplayObjectName(component)) === normalizedExpected
+      || normalizeName(component?.__classname__) === normalizedExpected);
+    if (exactMatch && (!handlerName || typeof exactMatch?.[handlerName] === "function")) {
+      return exactMatch;
+    }
+  }
+
+  if (handlerName) {
+    return components.find((component) => typeof component?.[handlerName] === "function") || null;
+  }
+
+  return components[0] || null;
+};
+
+const summarizeProductionReplayHandlerCandidate = (candidate, extra = {}) => ({
+  buttonText: candidate?.buttonText || null,
+  componentName: candidate?.componentName || null,
+  customEventData: candidate?.customEventData || null,
+  label: candidate?.label || null,
+  methodName: candidate?.methodName || null,
+  nodePath: candidate?.nodePath || null,
+  source: candidate?.source || null,
+  ...extra,
+});
+
+const buildProductionEventHandlerCandidate = ({
+  buttonText = null,
+  customEventData = null,
+  handlerName = null,
+  sceneIndex = null,
+  source = "button-click-event",
+  targetNode = null,
+} = {}) => {
+  const resolvedComponent = findProductionComponentByName(targetNode, null, handlerName);
+  if (!resolvedComponent || typeof resolvedComponent?.[handlerName] !== "function") {
+    return null;
+  }
+
+  const resolvedComponentName = getReplayObjectName(resolvedComponent) || "AnonymousComponent";
+  const nodePath = getProductionNodePathFromIndex(targetNode, sceneIndex) || String(targetNode?.name || "(anonymous)");
+  const method = resolvedComponent[handlerName];
+
+  return createProductionReplayTargetCandidate({
+    buttonText,
+    componentName: resolvedComponentName,
+    customEventData,
+    fn: method,
+    invoke: (payload, options = {}) =>
+      resolvedComponent[handlerName].call(
+        resolvedComponent,
+        payload,
+        options?.customEventData ?? customEventData ?? null,
+      ),
+    label: `${nodePath}#${resolvedComponentName}.${handlerName}`,
+    methodName: handlerName,
+    nodeName: String(targetNode?.name || ""),
+    nodePath,
+    source,
+  });
+};
+
+const scanButtonClickEventCandidates = (gameWindow) => {
+  const scene = gameWindow?.cc?.director?.getScene?.() || null;
+  const sceneIndex = createProductionSceneNodeIndex(scene);
+  const buttonHandlerCandidates = [];
+  const replayLikeButtonTexts = new Set();
+  const replayLikeCustomEventData = new Set();
+  const targetCandidates = [];
+  const seenLabels = new Set();
+
+  for (const record of sceneIndex.records) {
+    const node = record.node;
+    const nodePath = record.nodePath;
+    const nodeTexts = collectProductionNodeTextCandidates(node);
+    const matchedButtonTexts = nodeTexts.filter(matchesProductionReplayUiContextText);
+    matchedButtonTexts.forEach((entry) => replayLikeButtonTexts.add(entry));
+
+    for (const component of getSceneNodeComponents(node)) {
+      const clickEvents = Array.isArray(component?.clickEvents) ? component.clickEvents : null;
+      if (!clickEvents || clickEvents.length === 0) {
+        continue;
+      }
+
+      for (const clickEvent of clickEvents) {
+        const handlerName = String(clickEvent?.handler || "").trim();
+        if (!handlerName) {
+          continue;
+        }
+
+        const customEventData = String(clickEvent?.customEventData || "").trim();
+        if (matchesProductionReplayUiContextText(customEventData)) {
+          replayLikeCustomEventData.add(customEventData);
+        }
+        const targetNode = clickEvent?.target || null;
+        const targetNodePath = getProductionNodePathFromIndex(targetNode, sceneIndex);
+        const componentName = String(clickEvent?.component || "");
+        const replayLike = [
+          nodePath,
+          targetNodePath,
+          componentName,
+          handlerName,
+          customEventData,
+          ...matchedButtonTexts,
+        ].some(matchesProductionReplayUiContextText);
+        if (!replayLike) {
+          continue;
+        }
+
+        const candidate = buildProductionEventHandlerCandidate({
+          buttonText: matchedButtonTexts[0] || nodeTexts[0] || null,
+          customEventData,
+          handlerName,
+          sceneIndex,
+          source: "button-click-event",
+          targetNode,
+        });
+        if (candidate && !seenLabels.has(candidate.label)) {
+          seenLabels.add(candidate.label);
+          targetCandidates.push(candidate);
+        }
+
+        if (buttonHandlerCandidates.length < REPLAY_PRODUCTION_BUTTON_HANDLER_LIMIT) {
+          buttonHandlerCandidates.push({
+            buttonText: matchedButtonTexts[0] || nodeTexts[0] || null,
+            componentName: componentName || null,
+            customEventData: customEventData || null,
+            handlerName,
+            nodePath,
+            targetNodePath,
+          });
+        }
+      }
+    }
+  }
+
+  return {
+    buttonHandlerCandidates,
+    replayLikeButtonTexts: [...replayLikeButtonTexts].slice(0, REPLAY_PRODUCTION_BUTTON_HANDLER_LIMIT),
+    replayLikeCustomEventData: [...replayLikeCustomEventData].slice(0, REPLAY_PRODUCTION_BUTTON_HANDLER_LIMIT),
+    targetCandidates,
+  };
+};
+
+const pushProductionInteractionTraceCandidate = (state, candidate) => {
+  if (!candidate || state.candidates.some((entry) => entry.label === candidate.label)) {
+    return;
+  }
+  state.candidates.push(candidate);
+  if (state.candidates.length > REPLAY_PRODUCTION_INTERACTION_TRACE_LIMIT) {
+    state.candidates.splice(0, state.candidates.length - REPLAY_PRODUCTION_INTERACTION_TRACE_LIMIT);
+  }
+};
+
+const getProductionInteractionTraceCandidates = (state) => {
+  const replayLikeButtonTexts = new Set();
+  const replayLikeCustomEventData = new Set();
+  const interactionTraceCandidates = state.candidates.map((candidate) => {
+    if (matchesProductionReplayUiContextText(candidate?.buttonText)) {
+      replayLikeButtonTexts.add(String(candidate.buttonText));
+    }
+    if (matchesProductionReplayUiContextText(candidate?.customEventData)) {
+      replayLikeCustomEventData.add(String(candidate.customEventData));
+    }
+    return summarizeProductionReplayHandlerCandidate(candidate);
+  });
+
+  return {
+    interactionTraceCandidates,
+    replayLikeButtonTexts: [...replayLikeButtonTexts],
+    replayLikeCustomEventData: [...replayLikeCustomEventData],
+    targetCandidates: state.candidates.slice(0, REPLAY_PRODUCTION_INTERACTION_TRACE_LIMIT),
+  };
+};
+
+const installProductionReplayInteractionTrace = (gameWindow, runtimeWindow = getRuntimeWindow()) => {
+  const state = getProductionReplayBridgeState(gameWindow, runtimeWindow).interactionTrace;
+  if (state.installedAt) {
+    const traced = getProductionInteractionTraceCandidates(state);
+    return {
+      candidateCount: traced.interactionTraceCandidates.length,
+      candidates: traced.interactionTraceCandidates,
+      emitEventsPatched: state.emitEventsPatched,
+      emitEventsSupported: state.emitEventsSupported,
+      installedAt: state.installedAt,
+      buttonTouchPatched: state.buttonTouchPatched,
+      buttonTouchSupported: state.buttonTouchSupported,
+    };
+  }
+
+  state.installedAt = Date.now();
+
+  const eventHandlerApi = gameWindow?.cc?.Component?.EventHandler;
+  if (typeof eventHandlerApi?.emitEvents === "function") {
+    const originalEmitEvents = eventHandlerApi.emitEvents;
+    state.emitEventsSupported = true;
+    state.emitEventsPatchSource = "cc.Component.EventHandler.emitEvents";
+    eventHandlerApi.emitEvents = function patchedEmitEvents(eventHandlers, ...args) {
+      try {
+        const scene = gameWindow?.cc?.director?.getScene?.() || null;
+        const sceneIndex = createProductionSceneNodeIndex(scene);
+        const buttonContext = state.lastButtonTouchContext;
+        for (const eventHandler of Array.isArray(eventHandlers) ? eventHandlers : []) {
+          const handlerName = String(eventHandler?.handler || "").trim();
+          const targetNode = eventHandler?.target || null;
+          const targetNodePath = getProductionNodePathFromIndex(targetNode, sceneIndex);
+          const componentName = String(eventHandler?.component || "");
+          const customEventData = String(eventHandler?.customEventData || "").trim();
+          const replayLike = [
+            buttonContext?.nodePath,
+            buttonContext?.buttonText,
+            targetNodePath,
+            componentName,
+            handlerName,
+            customEventData,
+          ].some(matchesProductionReplayUiContextText);
+          if (!replayLike) {
+            continue;
+          }
+
+          const candidate = buildProductionEventHandlerCandidate({
+            buttonText: buttonContext?.buttonText || null,
+            customEventData,
+            handlerName,
+            sceneIndex,
+            source: "interaction-trace",
+            targetNode,
+          });
+          pushProductionInteractionTraceCandidate(state, candidate);
+        }
+      } catch {
+        // Ignore trace instrumentation failures.
+      }
+      return originalEmitEvents.call(this, eventHandlers, ...args);
+    };
+    state.emitEventsPatched = true;
+    state.emitEventsRestore = () => {
+      eventHandlerApi.emitEvents = originalEmitEvents;
+    };
+  }
+
+  const buttonPrototype = gameWindow?.cc?.Button?.prototype;
+  if (typeof buttonPrototype?._onTouchEnded === "function") {
+    const originalOnTouchEnded = buttonPrototype._onTouchEnded;
+    state.buttonTouchSupported = true;
+    state.buttonTouchPatchSource = "cc.Button.prototype._onTouchEnded";
+    buttonPrototype._onTouchEnded = function patchedButtonTouchEnded(...args) {
+      try {
+        const scene = gameWindow?.cc?.director?.getScene?.() || null;
+        const sceneIndex = createProductionSceneNodeIndex(scene);
+        const node = this?.node || null;
+        const buttonTexts = collectProductionNodeTextCandidates(node);
+        state.lastButtonTouchContext = {
+          buttonText: buttonTexts.find(matchesProductionReplayUiContextText) || buttonTexts[0] || null,
+          nodePath: getProductionNodePathFromIndex(node, sceneIndex),
+        };
+      } catch {
+        state.lastButtonTouchContext = null;
+      }
+      return originalOnTouchEnded.apply(this, args);
+    };
+    state.buttonTouchPatched = true;
+    state.buttonTouchRestore = () => {
+      buttonPrototype._onTouchEnded = originalOnTouchEnded;
+    };
+  }
+
+  const traced = getProductionInteractionTraceCandidates(state);
+  return {
+    candidateCount: traced.interactionTraceCandidates.length,
+    candidates: traced.interactionTraceCandidates,
+    emitEventsPatched: state.emitEventsPatched,
+    emitEventsSupported: state.emitEventsSupported,
+    installedAt: state.installedAt,
+    buttonTouchPatched: state.buttonTouchPatched,
+    buttonTouchSupported: state.buttonTouchSupported,
+  };
 };
 
 const createSourceIdProbeMismatchMap = (loaderFamily) =>
@@ -733,6 +1244,15 @@ const getProductionReplayPrimaryRisk = ({
     return resolution.scene == null
       ? "runtime-not-ready-for-scene-scan"
       : "target-discovery-empty";
+  }
+
+  if (
+    resolution?.bridgeStatus === "target-discovery-empty-after-blacklist"
+    || resolution?.bridgeStatus === "candidate-space-too-narrow"
+    || resolution?.candidateSpaceTooNarrow
+    || resolution?.discoveryEmptyAfterBlacklist
+  ) {
+    return "candidate-discovery-risk";
   }
 
   if (!resolution.playTarget) {
@@ -907,13 +1427,15 @@ export const scanSceneForReplayCandidates = (gameWindow) => {
   const sceneNodeMatches = [];
   const sceneComponentMatches = [];
   const playMethodCandidates = [];
+  const replayLikeNodeContexts = [];
   const targetCandidates = [];
-  const seenNodes = new Set();
   const seenTargets = new Set();
+  const sceneIndex = createProductionSceneNodeIndex(scene);
 
   if (!scene) {
     return {
       playMethodCandidates,
+      replayLikeNodeContexts,
       scene: null,
       sceneComponentMatches,
       sceneNodeMatches,
@@ -921,21 +1443,12 @@ export const scanSceneForReplayCandidates = (gameWindow) => {
     };
   }
 
-  const queue = [{
-    node: scene,
-    path: scene?.name || GAME_SCENE_NAME,
-  }];
-
-  while (queue.length > 0) {
-    const current = queue.shift();
-    const node = current?.node || null;
-    if (!node || seenNodes.has(node)) {
-      continue;
-    }
-    seenNodes.add(node);
-
-    const nodeName = String(node?.name || "");
-    const nodePath = current?.path || nodeName || GAME_SCENE_NAME;
+  for (const record of sceneIndex.records) {
+    const node = record.node;
+    const nodeName = record.nodeName;
+    const nodePath = record.nodePath;
+    const nodeContextMatched = matchesProductionReplayUiContextText(nodeName)
+      || matchesProductionReplayUiContextText(nodePath);
 
     if (
       matchesProductionReplayKeyword(nodeName)
@@ -946,6 +1459,9 @@ export const scanSceneForReplayCandidates = (gameWindow) => {
         nodePath,
       });
     }
+    if (nodeContextMatched && replayLikeNodeContexts.length < REPLAY_PRODUCTION_MATCH_LIMIT) {
+      replayLikeNodeContexts.push(nodePath);
+    }
 
     for (const component of getSceneNodeComponents(node)) {
       if (!component) {
@@ -954,9 +1470,21 @@ export const scanSceneForReplayCandidates = (gameWindow) => {
 
       const componentName = getReplayObjectName(component) || "AnonymousComponent";
       const componentNameMatched = matchesProductionReplayKeyword(componentName);
+      const componentContextMatched = matchesProductionReplayUiContextText(componentName);
       const { methodMatches, propertyMatches } = collectReplayMemberMatches(component);
+      const contextHandlerMatches = (
+        nodeContextMatched || componentContextMatched
+      )
+        ? collectProductionContextHandlerMatches(component)
+        : [];
 
-      if (!componentNameMatched && methodMatches.length === 0 && propertyMatches.length === 0) {
+      if (
+        !componentNameMatched
+        && !componentContextMatched
+        && methodMatches.length === 0
+        && contextHandlerMatches.length === 0
+        && propertyMatches.length === 0
+      ) {
         continue;
       }
 
@@ -970,8 +1498,19 @@ export const scanSceneForReplayCandidates = (gameWindow) => {
           propertyMatches,
         });
       }
+      if (
+        (nodeContextMatched || componentContextMatched)
+        && replayLikeNodeContexts.length < REPLAY_PRODUCTION_MATCH_LIMIT
+      ) {
+        replayLikeNodeContexts.push(`${nodePath}#${componentName}`);
+      }
 
-      for (const methodName of methodMatches) {
+      const discoveredMethodNames = [...new Set([
+        ...methodMatches,
+        ...contextHandlerMatches,
+      ])];
+
+      for (const methodName of discoveredMethodNames) {
         if (targetCandidates.length >= REPLAY_PRODUCTION_MATCH_LIMIT) {
           break;
         }
@@ -987,6 +1526,9 @@ export const scanSceneForReplayCandidates = (gameWindow) => {
         }
 
         seenTargets.add(label);
+        const source = methodMatches.includes(methodName)
+          ? "scene-component"
+          : "scene-context-handler";
         playMethodCandidates.push({
           arity: method.length,
           componentName,
@@ -995,32 +1537,27 @@ export const scanSceneForReplayCandidates = (gameWindow) => {
           methodName,
           nodeName,
           nodePath,
-          source: "scene-component",
+          source,
         });
         targetCandidates.push(createProductionReplayTargetCandidate({
           componentName,
+          buttonText: null,
+          customEventData: null,
           fn: method,
           label,
           methodName,
           nodeName,
           nodePath,
-          source: "scene-component",
+          source,
           invoke: (payload, options = {}) => component[methodName].call(component, payload, options),
         }));
       }
-    }
-
-    for (const child of getSceneNodeChildren(node)) {
-      const childName = String(child?.name || "(anonymous)");
-      queue.push({
-        node: child,
-        path: `${nodePath}/${childName}`,
-      });
     }
   }
 
   return {
     playMethodCandidates,
+    replayLikeNodeContexts: [...new Set(replayLikeNodeContexts)].slice(0, REPLAY_PRODUCTION_MATCH_LIMIT),
     scene: scene?.name || null,
     sceneComponentMatches,
     sceneNodeMatches,
@@ -1035,8 +1572,10 @@ const scoreProductionReplayTarget = (candidate, payloadShape = null) => {
   let score = 0;
   const why = [];
   const positiveSignals = [];
+  const buttonText = String(candidate?.buttonText || "");
   const methodName = String(candidate?.methodName || "");
   const componentName = String(candidate?.componentName || "");
+  const customEventData = String(candidate?.customEventData || "");
   const nodeLabel = `${candidate?.nodeName || ""} ${candidate?.nodePath || ""}`;
   const functionSourceSnippet = String(candidate?.functionSourceSnippet || "");
   const ownerLabel = `${candidate?.ownerKey || ""} ${candidate?.label || ""}`;
@@ -1051,8 +1590,14 @@ const scoreProductionReplayTarget = (candidate, payloadShape = null) => {
   const methodHasNegativeSignal = matchesNegativePlaySignal(methodName);
   const functionHasNegativeSignal = matchesNegativePlaySignal(functionSourceSnippet);
   const contextHasNegativeSignal = matchesNegativePlaySignal(
-    `${componentName} ${nodeLabel} ${ownerLabel}`,
+    `${componentName} ${nodeLabel} ${ownerLabel} ${buttonText} ${customEventData}`,
   );
+  const replayUiContextMatched = [
+    componentName,
+    nodeLabel,
+    buttonText,
+    customEventData,
+  ].some(matchesProductionReplayUiContextText);
   const hasBattleContext = [
     hasBattleContextText(methodName),
     hasBattleContextText(componentName),
@@ -1081,8 +1626,15 @@ const scoreProductionReplayTarget = (candidate, payloadShape = null) => {
         || functionHasNegativeSignal
         || contextHasNegativeSignal
       );
+  const globalEntityServiceTarget = /(?:^|\/)Global Entity(?:\/|$)/i.test(nodeLabel)
+    && (
+      methodHasNegativeSignal
+      || functionHasNegativeSignal
+      || contextHasNegativeSignal
+    );
   const explicitlyBlacklisted = REPLAY_PRODUCTION_BLACKLISTED_METHODS.has(methodName)
-    || negativeServiceTarget;
+    || negativeServiceTarget
+    || globalEntityServiceTarget;
   const targetBlacklisted = explicitlyBlacklisted || targetLooksGetterLike;
 
   if (methodHasReplaySignal) {
@@ -1116,6 +1668,24 @@ const scoreProductionReplayTarget = (candidate, payloadShape = null) => {
     positiveSignals.push("nodePath");
   }
 
+  if (replayUiContextMatched) {
+    score += 18;
+    why.push("context:replay-ui");
+    positiveSignals.push("context:replay-ui");
+  }
+
+  if (matchesProductionReplayUiContextText(buttonText)) {
+    score += 30;
+    why.push("buttonText:replay");
+    positiveSignals.push("buttonText:replay");
+  }
+
+  if (matchesProductionReplayUiContextText(customEventData)) {
+    score += 24;
+    why.push("customEventData:replay");
+    positiveSignals.push("customEventData:replay");
+  }
+
   if (hasBattleContext && payloadAffinity.looksReplayPayloadAffinity) {
     score += payloadAffinity.score;
     why.push("battle-context+payload-affinity");
@@ -1131,7 +1701,19 @@ const scoreProductionReplayTarget = (candidate, payloadShape = null) => {
     why.push(`arity:${candidate?.arity ?? "unknown"}:less-like-payload-options`);
   }
 
-  if (candidate?.source === "global-object") {
+  if (candidate?.source === "interaction-trace") {
+    score += 90;
+    why.push("source:interaction-trace");
+    positiveSignals.push("source:interaction-trace");
+  } else if (candidate?.source === "button-click-event") {
+    score += 72;
+    why.push("source:button-click-event");
+    positiveSignals.push("source:button-click-event");
+  } else if (candidate?.source === "scene-context-handler") {
+    score += 36;
+    why.push("source:scene-context-handler");
+    positiveSignals.push("source:scene-context-handler");
+  } else if (candidate?.source === "global-object") {
     score += 12;
     why.push("source:global-object");
   } else if (candidate?.source === "global-function") {
@@ -1147,6 +1729,8 @@ const scoreProductionReplayTarget = (candidate, payloadShape = null) => {
     why.push(
       REPLAY_PRODUCTION_BLACKLISTED_METHODS.has(methodName)
         ? "methodName:blacklisted"
+        : globalEntityServiceTarget
+          ? "globalEntity:service-target"
         : "negativeSignal:blacklisted-service-target",
     );
   }
@@ -1226,12 +1810,8 @@ const sortProductionReplayEntries = (left, right) => {
     return right.score - left.score;
   }
 
-  const sourcePriority = {
-    "global-object": 3,
-    "global-function": 2,
-    "scene-component": 1,
-  };
-  const sourceDiff = (sourcePriority[right.candidate.source] || 0) - (sourcePriority[left.candidate.source] || 0);
+  const sourceDiff = (REPLAY_PRODUCTION_DISCOVERY_SOURCE_PRIORITY[right.candidate.source] || 0)
+    - (REPLAY_PRODUCTION_DISCOVERY_SOURCE_PRIORITY[left.candidate.source] || 0);
   if (sourceDiff !== 0) {
     return sourceDiff;
   }
@@ -1261,6 +1841,10 @@ const getProductionReplayTargetGateDetail = (resolution = {}) => {
   }
 
   switch (resolution.bridgeStatus) {
+    case "target-discovery-empty-after-blacklist":
+      return "Replay candidate discovery only found rejected or blacklisted service handlers, so the production bridge still has no playable target after discovery.";
+    case "candidate-space-too-narrow":
+      return "Replay candidate discovery is still too narrow: the current scan only found static service handlers and did not reach replay-like UI handlers, button click events, or interaction traces.";
     case "bridge-target-blacklisted":
       return `Selected target ${resolution.playTargetLabel || "(unknown)"} was rejected because it is getter-like or belongs to an error/audio/video/ad/effect service path, so it must not be used as a replay play target.`;
     case "bridge-target-selected-but-not-playlike":
@@ -1282,9 +1866,13 @@ export const resolveProductionReplayPlayTarget = (
   const state = getProductionReplayBridgeState(gameWindow, runtimeWindow);
   const globalCandidates = collectReplayGlobalCandidates(gameWindow, { runtimeWindow });
   const sceneCandidates = scanSceneForReplayCandidates(gameWindow);
+  const buttonCandidates = scanButtonClickEventCandidates(gameWindow);
+  const interactionTrace = getProductionInteractionTraceCandidates(state.interactionTrace);
   const candidateTargets = [
     ...globalCandidates.targetCandidates,
     ...sceneCandidates.targetCandidates,
+    ...buttonCandidates.targetCandidates,
+    ...interactionTrace.targetCandidates,
   ];
   const rankedEntries = candidateTargets
     .filter(isValidProductionReplayTarget)
@@ -1293,8 +1881,45 @@ export const resolveProductionReplayPlayTarget = (
       ...scoreProductionReplayTarget(candidate, payloadShape),
     }))
     .sort(sortProductionReplayEntries);
+  const playableEntries = rankedEntries.filter((entry) => !entry.targetBlacklisted && !entry.rejectedReason);
   const selectedTargetEntry = rankedEntries[0] || null;
-  const bridgeStatus = getProductionReplaySelectionStatus(selectedTargetEntry);
+  const candidateDiscoverySources = [
+    ...new Set(candidateTargets.map((candidate) => candidate.source).filter(Boolean)),
+  ];
+  const replayLikeNodeContexts = [...new Set(sceneCandidates.replayLikeNodeContexts || [])];
+  const replayLikeButtonTexts = [
+    ...new Set([
+      ...(buttonCandidates.replayLikeButtonTexts || []),
+      ...(interactionTrace.replayLikeButtonTexts || []),
+    ]),
+  ];
+  const replayLikeCustomEventData = [
+    ...new Set([
+      ...(buttonCandidates.replayLikeCustomEventData || []),
+      ...(interactionTrace.replayLikeCustomEventData || []),
+    ]),
+  ];
+  const serviceLikeCandidatesOnly = rankedEntries.length > 0
+    && rankedEntries.every((entry) => {
+      const candidateLabel = `${entry.candidate?.nodePath || ""} ${entry.candidate?.methodName || ""} ${entry.candidate?.componentName || ""}`;
+      return /(?:^|\/)Global Entity(?:\/|$)/i.test(String(entry.candidate?.nodePath || ""))
+        || matchesNegativePlaySignal(candidateLabel);
+    });
+  const candidateSpaceTooNarrow = playableEntries.length === 0
+    && rankedEntries.length > 0
+    && !candidateDiscoverySources.some((source) => REPLAY_PRODUCTION_DISCOVERY_RICH_SOURCES.has(source))
+    && replayLikeNodeContexts.length === 0
+    && replayLikeButtonTexts.length === 0
+    && replayLikeCustomEventData.length === 0
+    && serviceLikeCandidatesOnly;
+  const discoveryEmptyAfterBlacklist = playableEntries.length === 0
+    && rankedEntries.length > 0
+    && rankedEntries.every((entry) => entry.targetBlacklisted || entry.rejectedReason);
+  const bridgeStatus = candidateSpaceTooNarrow
+    ? "candidate-space-too-narrow"
+    : discoveryEmptyAfterBlacklist
+      ? "target-discovery-empty-after-blacklist"
+      : getProductionReplaySelectionStatus(selectedTargetEntry);
   const playTarget = bridgeStatus === "bridge-ready"
     ? selectedTargetEntry?.candidate || null
     : null;
@@ -1302,7 +1927,9 @@ export const resolveProductionReplayPlayTarget = (
     .slice(0, REPLAY_PRODUCTION_SUMMARY_TARGET_LIMIT)
     .map((entry) => ({
       arity: entry.candidate.arity ?? null,
+      buttonText: entry.candidate.buttonText || null,
       componentName: entry.candidate.componentName || null,
+      customEventData: entry.candidate.customEventData || null,
       functionSourceSnippet: entry.candidate.functionSourceSnippet || "",
       label: entry.candidate.label,
       methodName: entry.candidate.methodName || null,
@@ -1316,11 +1943,30 @@ export const resolveProductionReplayPlayTarget = (
       why: entry.why,
     }));
 
+  const targetDiscoverySummary = {
+    buttonHandlerCandidateCount: buttonCandidates.buttonHandlerCandidates.length,
+    candidateDiscoverySources,
+    candidateSpaceTooNarrow,
+    discoveryEmptyAfterBlacklist,
+    interactionTraceCandidateCount: interactionTrace.interactionTraceCandidates.length,
+    playableCandidateCount: playableEntries.length,
+    rankedCandidateCount: rankedEntries.length,
+    replayLikeButtonTextCount: replayLikeButtonTexts.length,
+    replayLikeCustomEventDataCount: replayLikeCustomEventData.length,
+    replayLikeNodeContextCount: replayLikeNodeContexts.length,
+    status: bridgeStatus,
+  };
+
   state.playTarget = playTarget;
 
   return {
     availableGlobals: globalCandidates.availableGlobals,
+    buttonHandlerCandidates: buttonCandidates.buttonHandlerCandidates,
     bridgeStatus,
+    candidateDiscoverySources,
+    candidateSpaceTooNarrow,
+    discoveryEmptyAfterBlacklist,
+    interactionTraceCandidates: interactionTrace.interactionTraceCandidates,
     minimumPlayableScore: REPLAY_PRODUCTION_MINIMUM_PLAYABLE_SCORE,
     playMethodCandidates: [
       ...globalCandidates.playMethodCandidates,
@@ -1332,11 +1978,15 @@ export const resolveProductionReplayPlayTarget = (
     playTargetSource: selectedTargetEntry?.candidate?.source || null,
     playTargetWhy: selectedTargetEntry?.why || [],
     rankedTargets,
+    replayLikeButtonTexts,
+    replayLikeCustomEventData,
+    replayLikeNodeContexts,
     scene: sceneCandidates.scene,
     sceneComponentMatches: sceneCandidates.sceneComponentMatches,
     sceneNodeMatches: sceneCandidates.sceneNodeMatches,
     selectedTarget: selectedTargetEntry?.candidate || null,
     targetBlacklisted: selectedTargetEntry?.targetBlacklisted === true,
+    targetDiscoverySummary,
     targetLooksGetterLike: selectedTargetEntry?.targetLooksGetterLike === true,
     targetLooksMetadataLike: selectedTargetEntry?.targetLooksMetadataLike === true,
     targetRejectedReason: selectedTargetEntry?.rejectedReason || null,
@@ -1361,13 +2011,17 @@ export const buildProductionReplayBridge = (
     });
     const result = {
       availableGlobals: resolution.availableGlobals,
+      buttonHandlerCandidates: resolution.buttonHandlerCandidates,
       bridgeStatus: resolution.bridgeStatus,
+      candidateDiscoverySources: resolution.candidateDiscoverySources,
+      candidateSpaceTooNarrow: resolution.candidateSpaceTooNarrow,
       currentAssetPath: loaderFamilyInfo.suspectedBundlePath,
       gameWindowSource,
       incompatibleProbes:
         loaderFamilyInfo.loaderFamily === REPLAY_LOADER_FAMILIES.PUBLIC
           ? [...REPLAY_CANONICAL_MODULE_IDS]
           : [],
+      interactionTraceCandidates: resolution.interactionTraceCandidates,
       loaderFamily: loaderFamilyInfo.loaderFamily,
       loaderFamilyEvidence: loaderFamilyInfo.evidence,
       minimumPlayableScore: resolution.minimumPlayableScore,
@@ -1384,6 +2038,9 @@ export const buildProductionReplayBridge = (
       probeCompatibility: "compatible-probe",
       probeFamily: REPLAY_PROBE_FAMILIES.PRODUCTION,
       rankedTargets: buildProductionReplayRankedTargets(resolution),
+      replayLikeButtonTexts: resolution.replayLikeButtonTexts,
+      replayLikeCustomEventData: resolution.replayLikeCustomEventData,
+      replayLikeNodeContexts: resolution.replayLikeNodeContexts,
       requireFingerprint: loaderFamilyInfo.requireFingerprint,
       scene: resolution.scene,
       sceneComponentMatches: resolution.sceneComponentMatches,
@@ -1392,6 +2049,7 @@ export const buildProductionReplayBridge = (
       sourceIdProbes: createSourceIdProbeMismatchMap(loaderFamilyInfo.loaderFamily),
       suspectedBundlePath: loaderFamilyInfo.suspectedBundlePath,
       targetBlacklisted: resolution.targetBlacklisted,
+      targetDiscoverySummary: resolution.targetDiscoverySummary,
       targetLooksGetterLike: resolution.targetLooksGetterLike,
       targetLooksMetadataLike: resolution.targetLooksMetadataLike,
       targetRejectedReason: resolution.targetRejectedReason,
@@ -1409,6 +2067,10 @@ export const buildProductionReplayBridge = (
       runtimeWindow,
     });
     const baseFields = {
+      buttonHandlerCandidates: resolution.buttonHandlerCandidates,
+      candidateDiscoverySources: resolution.candidateDiscoverySources,
+      candidateSpaceTooNarrow: resolution.candidateSpaceTooNarrow,
+      interactionTraceCandidates: resolution.interactionTraceCandidates,
       minimumPlayableScore: resolution.minimumPlayableScore,
       payloadShapeAfter: null,
       payloadShapeBefore,
@@ -1419,7 +2081,11 @@ export const buildProductionReplayBridge = (
         resolution,
       }),
       rankedTargets: buildProductionReplayRankedTargets(resolution),
+      replayLikeButtonTexts: resolution.replayLikeButtonTexts,
+      replayLikeCustomEventData: resolution.replayLikeCustomEventData,
+      replayLikeNodeContexts: resolution.replayLikeNodeContexts,
       targetBlacklisted: resolution.targetBlacklisted,
+      targetDiscoverySummary: resolution.targetDiscoverySummary,
       targetLooksGetterLike: resolution.targetLooksGetterLike,
       targetLooksMetadataLike: resolution.targetLooksMetadataLike,
       targetRejectedReason: resolution.targetRejectedReason,
@@ -1443,11 +2109,17 @@ export const buildProductionReplayBridge = (
     }
 
     if (!resolution.playTarget) {
-      const skipped = resolution.targetBlacklisted
-        ? "target-blacklisted"
-        : resolution.bridgeStatus === "bridge-target-selected-but-not-playlike"
-          ? "target-selected-but-not-playlike"
-          : "target-low-confidence";
+      const discoverySkipped = (
+        resolution.bridgeStatus === "target-discovery-empty-after-blacklist"
+        || resolution.bridgeStatus === "candidate-space-too-narrow"
+      );
+      const skipped = discoverySkipped
+        ? "no-playable-target-after-discovery"
+        : resolution.targetBlacklisted
+          ? "target-blacklisted"
+          : resolution.bridgeStatus === "bridge-target-selected-but-not-playlike"
+            ? "target-selected-but-not-playlike"
+            : "target-low-confidence";
       return {
         ok: false,
         status: resolution.bridgeStatus,
@@ -1505,6 +2177,9 @@ export const buildProductionReplayBridge = (
     __xyzwReplayBridgeReady: true,
     inspect,
     play,
+    traceUiReplayHandlers() {
+      return installProductionReplayInteractionTrace(gameWindow, runtimeWindow);
+    },
   };
 };
 const REPLAY_ENTRYPOINT_PROBE_CONFIGS = Object.freeze([
@@ -4385,6 +5060,8 @@ const getPublicReplaySummaryStatus = (diagnostics) => {
     [
       "bridge-play-target-threw",
       "bridge-exposed-but-play-target-missing",
+      "target-discovery-empty-after-blacklist",
+      "candidate-space-too-narrow",
       "bridge-target-blacklisted",
       "bridge-target-low-confidence",
       "bridge-target-selected-but-not-playlike",
@@ -4428,6 +5105,11 @@ const buildPublicReplaySummaryDetail = (diagnostics) => {
     `targetLooksGetterLike=${formatReplaySummaryFieldValue(diagnostics?.targetLooksGetterLike)}`,
     `targetLooksMetadataLike=${formatReplaySummaryFieldValue(diagnostics?.targetLooksMetadataLike)}`,
     `minimumPlayableScore=${formatReplaySummaryFieldValue(diagnostics?.minimumPlayableScore)}`,
+    `candidateDiscoverySources=${formatReplaySummaryFieldValue(diagnostics?.candidateDiscoverySources ?? [])}`,
+    `candidateSpaceTooNarrow=${formatReplaySummaryFieldValue(diagnostics?.candidateSpaceTooNarrow)}`,
+    `buttonHandlerCandidates=${formatReplaySummaryFieldValue(diagnostics?.buttonHandlerCandidates ?? [])}`,
+    `interactionTraceCandidates=${formatReplaySummaryFieldValue(diagnostics?.interactionTraceCandidates ?? [])}`,
+    `targetDiscoverySummary=${formatReplaySummaryFieldValue(diagnostics?.targetDiscoverySummary ?? null)}`,
     `rankedTargets=${formatReplaySummaryFieldValue(rankedTargets)}`,
     `payloadShapeBefore=${formatReplaySummaryFieldValue(diagnostics?.payloadShapeBefore ?? diagnostics?.payloadShapeDefault ?? null)}`,
     `payloadShapeAfter=${formatReplaySummaryFieldValue(diagnostics?.payloadShapeAfter ?? null)}`,
@@ -4447,6 +5129,7 @@ const buildPublicReplayBridgeFailureLead = (diagnostics) => {
 
   const status = getPublicReplaySummaryStatus(diagnostics);
   const riskLeadMap = {
+    "candidate-discovery-risk": "当前主风险是 candidate-discovery-risk，应优先扩展 replay UI 相关的候选发现空间，而不是继续围绕 payload 或 showBattleLoading 下结论。",
     "target-selection-risk": "当前主风险是 target-selection-risk，应优先复核 playTargetScore/Why 与 rankedTargets，判断是否选错了 production target。",
     "payload-shape-risk": "当前主风险是 payload-shape-risk，应优先比对 payloadShapeBefore/After，确认 production bridge 下游收到的输入形状是否正确。",
     "visual-side-effect-missing": "当前主风险是 visual-side-effect-missing，应优先检查 visualPostCheck，判断目标调用后是否完全没有画面级 side effect。",
@@ -4456,6 +5139,8 @@ const buildPublicReplayBridgeFailureLead = (diagnostics) => {
   const statusLeadMap = {
     "bridge-play-target-threw": "运行时已进入 Game，并已加载 production replay bridge。当前 bridge 已解析到播放目标，但目标调用本身抛出了运行时异常。",
     "bridge-exposed-but-play-target-missing": "运行时已进入 Game，并已加载 production replay bridge，但当前还没有解析到稳定的 production 播放目标。",
+    "target-discovery-empty-after-blacklist": "运行时已进入 Game，并已加载 production replay bridge。当前候选空间只发现了被 blacklist 或拒绝的 handler，discovery 后仍然没有可播放 target。",
+    "candidate-space-too-narrow": "运行时已进入 Game，并已加载 production replay bridge。当前候选发现空间过窄，只发现了静态 service handlers，尚未触达 replay-like UI handlers、按钮 clickEvents 或真实交互链。",
     "bridge-target-blacklisted": "运行时已进入 Game，并已解析到一个候选 target，但它明显属于 getter 或 error/audio/video/ad/effect 服务路径，当前不会被当作可播放 target 调用。",
     "bridge-target-low-confidence": "运行时已进入 Game，并已解析到一个候选 target，但它只有弱 play 信号，没有足够的 replay-specific 理由，当前不会触发 invoke。",
     "bridge-target-selected-but-not-playlike": "运行时已进入 Game，并已解析到一个候选 target，但它虽然带 battle/fight/pvp 上下文，仍缺少 payload affinity 或 replay-specific 证据，当前不会触发 invoke。",
@@ -5438,6 +6123,18 @@ const buildReplayEntrypointFailureMessage = (entrypoint, result) => {
       : "production replay bridge 已暴露，但当前还没有解析到稳定的播放目标。";
   }
 
+  if (result?.status === "target-discovery-empty-after-blacklist") {
+    return detail
+      ? `production replay bridge 的 discovery 只找到了被 blacklist 或拒绝的 handler，因此当前仍没有可播放 target（target-discovery-empty-after-blacklist）。${detail}`
+      : "production replay bridge 的 discovery 只找到了被 blacklist 或拒绝的 handler，因此当前仍没有可播放 target（target-discovery-empty-after-blacklist）。";
+  }
+
+  if (result?.status === "candidate-space-too-narrow") {
+    return detail
+      ? `production replay bridge 当前候选发现空间过窄，只发现了 service handlers，还没有发现 replay-like UI handlers 或真实交互链（candidate-space-too-narrow）。${detail}`
+      : "production replay bridge 当前候选发现空间过窄，只发现了 service handlers，还没有发现 replay-like UI handlers 或真实交互链（candidate-space-too-narrow）。";
+  }
+
   if (result?.status === "bridge-target-blacklisted") {
     return detail
       ? `production replay bridge 当前命中了黑名单 target，因此不会调用。${detail}`
@@ -5498,6 +6195,30 @@ const normalizePublicReplayBridgeResult = (diagnostics, result) => {
   }
   if (Array.isArray(result.rankedTargets)) {
     diagnostics.rankedTargets = result.rankedTargets;
+  }
+  if (Array.isArray(result.buttonHandlerCandidates)) {
+    diagnostics.buttonHandlerCandidates = result.buttonHandlerCandidates;
+  }
+  if (Array.isArray(result.interactionTraceCandidates)) {
+    diagnostics.interactionTraceCandidates = result.interactionTraceCandidates;
+  }
+  if (Array.isArray(result.replayLikeButtonTexts)) {
+    diagnostics.replayLikeButtonTexts = result.replayLikeButtonTexts;
+  }
+  if (Array.isArray(result.replayLikeCustomEventData)) {
+    diagnostics.replayLikeCustomEventData = result.replayLikeCustomEventData;
+  }
+  if (Array.isArray(result.replayLikeNodeContexts)) {
+    diagnostics.replayLikeNodeContexts = result.replayLikeNodeContexts;
+  }
+  if (Array.isArray(result.candidateDiscoverySources)) {
+    diagnostics.candidateDiscoverySources = result.candidateDiscoverySources;
+  }
+  if ("candidateSpaceTooNarrow" in result) {
+    diagnostics.candidateSpaceTooNarrow = result.candidateSpaceTooNarrow === true;
+  }
+  if (result.targetDiscoverySummary && typeof result.targetDiscoverySummary === "object") {
+    diagnostics.targetDiscoverySummary = result.targetDiscoverySummary;
   }
   if (typeof result.minimumPlayableScore === "number") {
     diagnostics.minimumPlayableScore = result.minimumPlayableScore;

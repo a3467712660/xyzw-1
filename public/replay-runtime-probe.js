@@ -93,10 +93,62 @@ const REPLAY_SPECIFIC_REASONS = new Set([
   "componentName:replay/playback",
   "nodePath:replay/playback",
   "battle-context+payload-affinity",
+  "source:interaction-trace",
+  "source:button-click-event",
+  "source:scene-context-handler",
+  "context:replay-ui",
+  "buttonText:replay",
+  "customEventData:replay",
 ]);
+const REPLAY_UI_CONTEXT_RE = /replay|playback|battle|fight|pvp|回放|战报|录像|对战|战斗/i;
+const CONTEXT_HANDLER_NAME_PREFIXES = Object.freeze([
+  "open",
+  "show",
+  "init",
+  "enter",
+  "start",
+  "onclick",
+  "onbtn",
+  "onpress",
+  "click",
+  "handle",
+  "setdata",
+  "setinfo",
+  "refresh",
+  "load",
+  "preview",
+]);
+const DISCOVERY_SOURCE_PRIORITY = Object.freeze({
+  "interaction-trace": 6,
+  "button-click-event": 5,
+  "scene-context-handler": 4,
+  "global-object": 3,
+  "global-function": 2,
+  "scene-component": 1,
+});
+const DISCOVERY_RICH_SOURCES = new Set([
+  "scene-context-handler",
+  "button-click-event",
+  "interaction-trace",
+]);
+const INTERACTION_TRACE_LIMIT = 20;
+const BUTTON_HANDLER_LIMIT = 20;
 
 const PROBE_RUNTIME_STATE = {
   attachedAt: null,
+  interactionTrace: {
+    buttonTouchPatched: false,
+    buttonTouchPatchSource: null,
+    buttonTouchRestore: null,
+    buttonTouchSupported: false,
+    candidates: [],
+    emitEventsPatched: false,
+    emitEventsPatchSource: null,
+    emitEventsRestore: null,
+    emitEventsSupported: false,
+    installedAt: null,
+    lastButtonTouchContext: null,
+  },
   lastInstantResolution: null,
   lastStabilizedResolution: null,
   runtimeBootPromise: null,
@@ -212,8 +264,19 @@ const hasBattleContextText = (value) =>
 const matchesNegativePlaySignal = (value) =>
   hasIdentifierWord(value, REPLAY_NEGATIVE_SIGNAL_WORDS);
 
+const matchesReplayUiContextText = (value) =>
+  REPLAY_UI_CONTEXT_RE.test(String(value || "").trim());
+
 const matchesReplayKeyword = (value) =>
-  hasPlaySignalText(value) || hasBattleContextText(value);
+  hasPlaySignalText(value) || hasBattleContextText(value) || matchesReplayUiContextText(value);
+
+const matchesContextHandlerName = (name) => {
+  const normalized = String(name || "")
+    .replace(/[^A-Za-z0-9]/g, "")
+    .toLowerCase();
+  return CONTEXT_HANDLER_NAME_PREFIXES.some((prefix) =>
+    normalized === prefix || normalized.startsWith(prefix));
+};
 
 const isGetterLikeMethodName = (name) => {
   const words = toIdentifierWords(name);
@@ -413,6 +476,65 @@ const collectReplayMemberMatches = (value) => {
     methodMatches: [...methodSet].slice(0, MEMBER_LIMIT),
     propertyMatches: [...propertySet].slice(0, MEMBER_LIMIT),
   };
+};
+
+const visitContextHandlerHolder = (holder, names, methodSet) => {
+  if (!holder || !Array.isArray(names)) {
+    return;
+  }
+
+  for (const name of names) {
+    if (name === "constructor" || !matchesContextHandlerName(name)) {
+      continue;
+    }
+
+    let descriptor = null;
+    try {
+      descriptor = Object.getOwnPropertyDescriptor(holder, name) || null;
+    } catch {
+      descriptor = null;
+    }
+    if (!descriptor || typeof descriptor.value !== "function") {
+      continue;
+    }
+    methodSet.add(name);
+  }
+};
+
+const collectContextHandlerMatches = (value) => {
+  if (!isObjectLike(value)) {
+    return [];
+  }
+
+  const methodSet = new Set();
+  try {
+    visitContextHandlerHolder(
+      value,
+      Object.keys(value).slice(0, GLOBAL_KEY_LIMIT),
+      methodSet,
+    );
+  } catch {
+    // Ignore host objects that throw during key enumeration.
+  }
+
+  const prototype = Object.getPrototypeOf(value);
+  if (
+    prototype
+    && prototype !== Object.prototype
+    && prototype !== Function.prototype
+  ) {
+    try {
+      visitContextHandlerHolder(
+        prototype,
+        Object.getOwnPropertyNames(prototype).slice(0, GLOBAL_KEY_LIMIT),
+        methodSet,
+      );
+    } catch {
+      // Ignore inaccessible prototypes.
+    }
+  }
+
+  return [...methodSet].slice(0, MEMBER_LIMIT);
 };
 
 const findGameWindow = (root = window) => {
@@ -732,7 +854,9 @@ const prepareProductionReplayPayload = (value, options = {}) => {
 };
 
 const createTargetCandidate = ({
+  buttonText = null,
   componentName = null,
+  customEventData = null,
   fn = null,
   invoke,
   label,
@@ -743,7 +867,9 @@ const createTargetCandidate = ({
   source,
 } = {}) => ({
   arity: typeof fn === "function" ? fn.length : null,
+  buttonText,
   componentName,
+  customEventData,
   functionSourceSnippet: toFunctionSourceSnippet(fn),
   invoke,
   label,
@@ -913,22 +1039,15 @@ const getSceneNodeComponents = (node) => {
   return [];
 };
 
-const scanSceneForReplayCandidates = (gameWindow) => {
-  const scene = gameWindow?.cc?.director?.getScene?.() || null;
-  const sceneNodeMatches = [];
-  const sceneComponentMatches = [];
-  const playMethodCandidates = [];
-  const targetCandidates = [];
-  const seenNodes = new Set();
-  const seenTargets = new Set();
+const createSceneNodeIndex = (scene) => {
+  const pathMap = new WeakMap();
+  const records = [];
 
   if (!scene) {
     return {
-      playMethodCandidates,
+      pathMap,
+      records,
       scene: null,
-      sceneComponentMatches,
-      sceneNodeMatches,
-      targetCandidates,
     };
   }
 
@@ -936,6 +1055,7 @@ const scanSceneForReplayCandidates = (gameWindow) => {
     node: scene,
     path: scene?.name || "Game",
   }];
+  const seenNodes = new Set();
 
   while (queue.length > 0) {
     const current = queue.shift();
@@ -947,12 +1067,404 @@ const scanSceneForReplayCandidates = (gameWindow) => {
 
     const nodeName = String(node?.name || "");
     const nodePath = current?.path || nodeName || "Game";
+    pathMap.set(node, nodePath);
+    records.push({
+      node,
+      nodeName,
+      nodePath,
+    });
 
+    for (const child of getSceneNodeChildren(node)) {
+      const childName = String(child?.name || "(anonymous)");
+      queue.push({
+        node: child,
+        path: `${nodePath}/${childName}`,
+      });
+    }
+  }
+
+  return {
+    pathMap,
+    records,
+    scene,
+  };
+};
+
+const getNodePathFromIndex = (node, sceneIndex) => {
+  if (!node) {
+    return null;
+  }
+  if (sceneIndex?.pathMap?.has(node)) {
+    return sceneIndex.pathMap.get(node) || null;
+  }
+
+  const parentSegments = [];
+  let current = node;
+  let guard = 0;
+  while (current && guard < 50) {
+    parentSegments.push(String(current?.name || "(anonymous)"));
+    current = current?.parent || null;
+    guard += 1;
+  }
+
+  if (parentSegments.length === 0) {
+    return null;
+  }
+  return parentSegments.reverse().join("/");
+};
+
+const collectNodeTextCandidates = (node) => {
+  const textSet = new Set();
+
+  const addText = (value) => {
+    const text = String(value || "").trim();
+    if (text) {
+      textSet.add(text);
+    }
+  };
+
+  addText(node?.labelString);
+  addText(node?.text);
+  addText(node?._string);
+
+  for (const component of getSceneNodeComponents(node)) {
+    addText(component?.string);
+    addText(component?._string);
+    addText(component?.text);
+    addText(component?.title);
+    addText(component?.content);
+    addText(component?.buttonText);
+    addText(component?.label);
+  }
+
+  return [...textSet].slice(0, 6);
+};
+
+const findComponentByName = (node, componentName, handlerName = null) => {
+  const components = getSceneNodeComponents(node);
+  const normalizeName = (value) =>
+    String(value || "")
+      .replace(/[^A-Za-z0-9]/g, "")
+      .toLowerCase();
+  const normalizedExpected = normalizeName(componentName);
+
+  if (normalizedExpected) {
+    const exactMatch = components.find((component) =>
+      normalizeName(getObjectName(component)) === normalizedExpected
+      || normalizeName(component?.__classname__) === normalizedExpected);
+    if (exactMatch && (!handlerName || typeof exactMatch?.[handlerName] === "function")) {
+      return exactMatch;
+    }
+  }
+
+  if (handlerName) {
+    return components.find((component) => typeof component?.[handlerName] === "function") || null;
+  }
+
+  return components[0] || null;
+};
+
+const summarizeReplayHandlerCandidate = (candidate, extra = {}) => ({
+  buttonText: candidate?.buttonText || null,
+  componentName: candidate?.componentName || null,
+  customEventData: candidate?.customEventData || null,
+  label: candidate?.label || null,
+  methodName: candidate?.methodName || null,
+  nodePath: candidate?.nodePath || null,
+  source: candidate?.source || null,
+  ...extra,
+});
+
+const buildEventHandlerCandidate = ({
+  buttonText = null,
+  customEventData = null,
+  handlerName = null,
+  sceneIndex = null,
+  source = "button-click-event",
+  targetNode = null,
+} = {}) => {
+  const resolvedComponent = findComponentByName(targetNode, null, handlerName);
+  if (!resolvedComponent || typeof resolvedComponent?.[handlerName] !== "function") {
+    return null;
+  }
+
+  const resolvedComponentName = getObjectName(resolvedComponent) || "AnonymousComponent";
+  const nodePath = getNodePathFromIndex(targetNode, sceneIndex) || String(targetNode?.name || "(anonymous)");
+  const method = resolvedComponent[handlerName];
+
+  return createTargetCandidate({
+    buttonText,
+    componentName: resolvedComponentName,
+    customEventData,
+    fn: method,
+    invoke: (payload, playOptions = {}) =>
+      resolvedComponent[handlerName].call(
+        resolvedComponent,
+        payload,
+        playOptions?.customEventData ?? customEventData ?? null,
+      ),
+    label: `${nodePath}#${resolvedComponentName}.${handlerName}`,
+    methodName: handlerName,
+    nodeName: String(targetNode?.name || ""),
+    nodePath,
+    source,
+  });
+};
+
+const scanButtonClickEventCandidates = (gameWindow) => {
+  const scene = gameWindow?.cc?.director?.getScene?.() || null;
+  const sceneIndex = createSceneNodeIndex(scene);
+  const buttonHandlerCandidates = [];
+  const replayLikeButtonTexts = new Set();
+  const replayLikeCustomEventData = new Set();
+  const targetCandidates = [];
+  const seenLabels = new Set();
+
+  for (const record of sceneIndex.records) {
+    const node = record.node;
+    const nodePath = record.nodePath;
+    const nodeTexts = collectNodeTextCandidates(node);
+    const matchedButtonTexts = nodeTexts.filter(matchesReplayUiContextText);
+    matchedButtonTexts.forEach((entry) => replayLikeButtonTexts.add(entry));
+
+    for (const component of getSceneNodeComponents(node)) {
+      const clickEvents = Array.isArray(component?.clickEvents) ? component.clickEvents : null;
+      if (!clickEvents || clickEvents.length === 0) {
+        continue;
+      }
+
+      for (const clickEvent of clickEvents) {
+        const handlerName = String(clickEvent?.handler || "").trim();
+        if (!handlerName) {
+          continue;
+        }
+
+        const customEventData = String(clickEvent?.customEventData || "").trim();
+        if (matchesReplayUiContextText(customEventData)) {
+          replayLikeCustomEventData.add(customEventData);
+        }
+        const targetNode = clickEvent?.target || null;
+        const targetNodePath = getNodePathFromIndex(targetNode, sceneIndex);
+        const componentName = String(clickEvent?.component || "");
+        const replayLike = [
+          nodePath,
+          targetNodePath,
+          componentName,
+          handlerName,
+          customEventData,
+          ...matchedButtonTexts,
+        ].some(matchesReplayUiContextText);
+        if (!replayLike) {
+          continue;
+        }
+
+        const candidate = buildEventHandlerCandidate({
+          buttonText: matchedButtonTexts[0] || nodeTexts[0] || null,
+          customEventData,
+          handlerName,
+          sceneIndex,
+          source: "button-click-event",
+          targetNode,
+        });
+        if (candidate && !seenLabels.has(candidate.label)) {
+          seenLabels.add(candidate.label);
+          targetCandidates.push(candidate);
+        }
+
+        if (buttonHandlerCandidates.length < BUTTON_HANDLER_LIMIT) {
+          buttonHandlerCandidates.push({
+            buttonText: matchedButtonTexts[0] || nodeTexts[0] || null,
+            componentName: componentName || null,
+            customEventData: customEventData || null,
+            handlerName,
+            nodePath,
+            targetNodePath,
+          });
+        }
+      }
+    }
+  }
+
+  return {
+    buttonHandlerCandidates,
+    replayLikeButtonTexts: [...replayLikeButtonTexts].slice(0, BUTTON_HANDLER_LIMIT),
+    replayLikeCustomEventData: [...replayLikeCustomEventData].slice(0, BUTTON_HANDLER_LIMIT),
+    targetCandidates,
+  };
+};
+
+const pushInteractionTraceCandidate = (candidate) => {
+  const traceState = PROBE_RUNTIME_STATE.interactionTrace;
+  if (!candidate || traceState.candidates.some((entry) => entry.label === candidate.label)) {
+    return;
+  }
+  traceState.candidates.push(candidate);
+  if (traceState.candidates.length > INTERACTION_TRACE_LIMIT) {
+    traceState.candidates.splice(0, traceState.candidates.length - INTERACTION_TRACE_LIMIT);
+  }
+};
+
+const getInteractionTraceCandidates = () => {
+  const replayLikeButtonTexts = new Set();
+  const replayLikeCustomEventData = new Set();
+  const candidates = PROBE_RUNTIME_STATE.interactionTrace.candidates.map((candidate) => {
+    if (matchesReplayUiContextText(candidate?.buttonText)) {
+      replayLikeButtonTexts.add(String(candidate.buttonText));
+    }
+    if (matchesReplayUiContextText(candidate?.customEventData)) {
+      replayLikeCustomEventData.add(String(candidate.customEventData));
+    }
+    return summarizeReplayHandlerCandidate(candidate);
+  });
+
+  return {
+    interactionTraceCandidates: candidates,
+    replayLikeButtonTexts: [...replayLikeButtonTexts],
+    replayLikeCustomEventData: [...replayLikeCustomEventData],
+    targetCandidates: PROBE_RUNTIME_STATE.interactionTrace.candidates.slice(0, INTERACTION_TRACE_LIMIT),
+  };
+};
+
+const traceUiReplayHandlers = () => {
+  const { gameWindow } = findGameWindow(window);
+  const traceState = PROBE_RUNTIME_STATE.interactionTrace;
+  if (traceState.installedAt) {
+    const traced = getInteractionTraceCandidates();
+    return {
+      candidateCount: traced.interactionTraceCandidates.length,
+      candidates: traced.interactionTraceCandidates,
+      emitEventsPatched: traceState.emitEventsPatched,
+      emitEventsSupported: traceState.emitEventsSupported,
+      installedAt: traceState.installedAt,
+      buttonTouchPatched: traceState.buttonTouchPatched,
+      buttonTouchSupported: traceState.buttonTouchSupported,
+    };
+  }
+
+  traceState.installedAt = Date.now();
+
+  const eventHandlerApi = gameWindow?.cc?.Component?.EventHandler;
+  if (typeof eventHandlerApi?.emitEvents === "function") {
+    const originalEmitEvents = eventHandlerApi.emitEvents;
+    traceState.emitEventsSupported = true;
+    traceState.emitEventsPatchSource = "cc.Component.EventHandler.emitEvents";
+    eventHandlerApi.emitEvents = function patchedEmitEvents(eventHandlers, ...args) {
+      try {
+        const scene = gameWindow?.cc?.director?.getScene?.() || null;
+        const sceneIndex = createSceneNodeIndex(scene);
+        const buttonContext = traceState.lastButtonTouchContext;
+        for (const eventHandler of Array.isArray(eventHandlers) ? eventHandlers : []) {
+          const handlerName = String(eventHandler?.handler || "").trim();
+          const targetNode = eventHandler?.target || null;
+          const targetNodePath = getNodePathFromIndex(targetNode, sceneIndex);
+          const componentName = String(eventHandler?.component || "");
+          const customEventData = String(eventHandler?.customEventData || "").trim();
+          const replayLike = [
+            buttonContext?.nodePath,
+            buttonContext?.buttonText,
+            targetNodePath,
+            componentName,
+            handlerName,
+            customEventData,
+          ].some(matchesReplayUiContextText);
+          if (!replayLike) {
+            continue;
+          }
+
+          const candidate = buildEventHandlerCandidate({
+            buttonText: buttonContext?.buttonText || null,
+            customEventData,
+            handlerName,
+            sceneIndex,
+            source: "interaction-trace",
+            targetNode,
+          });
+          pushInteractionTraceCandidate(candidate);
+        }
+      } catch {
+        // Ignore trace instrumentation failures.
+      }
+      return originalEmitEvents.call(this, eventHandlers, ...args);
+    };
+    traceState.emitEventsPatched = true;
+    traceState.emitEventsRestore = () => {
+      eventHandlerApi.emitEvents = originalEmitEvents;
+    };
+  }
+
+  const buttonPrototype = gameWindow?.cc?.Button?.prototype;
+  if (typeof buttonPrototype?._onTouchEnded === "function") {
+    const originalOnTouchEnded = buttonPrototype._onTouchEnded;
+    traceState.buttonTouchSupported = true;
+    traceState.buttonTouchPatchSource = "cc.Button.prototype._onTouchEnded";
+    buttonPrototype._onTouchEnded = function patchedButtonTouchEnded(...args) {
+      try {
+        const scene = gameWindow?.cc?.director?.getScene?.() || null;
+        const sceneIndex = createSceneNodeIndex(scene);
+        const node = this?.node || null;
+        const buttonTexts = collectNodeTextCandidates(node);
+        traceState.lastButtonTouchContext = {
+          buttonText: buttonTexts.find(matchesReplayUiContextText) || buttonTexts[0] || null,
+          nodePath: getNodePathFromIndex(node, sceneIndex),
+        };
+      } catch {
+        traceState.lastButtonTouchContext = null;
+      }
+      return originalOnTouchEnded.apply(this, args);
+    };
+    traceState.buttonTouchPatched = true;
+    traceState.buttonTouchRestore = () => {
+      buttonPrototype._onTouchEnded = originalOnTouchEnded;
+    };
+  }
+
+  const traced = getInteractionTraceCandidates();
+  return {
+    candidateCount: traced.interactionTraceCandidates.length,
+    candidates: traced.interactionTraceCandidates,
+    emitEventsPatched: traceState.emitEventsPatched,
+    emitEventsSupported: traceState.emitEventsSupported,
+    installedAt: traceState.installedAt,
+    buttonTouchPatched: traceState.buttonTouchPatched,
+    buttonTouchSupported: traceState.buttonTouchSupported,
+  };
+};
+
+const scanSceneForReplayCandidates = (gameWindow) => {
+  const scene = gameWindow?.cc?.director?.getScene?.() || null;
+  const sceneNodeMatches = [];
+  const sceneComponentMatches = [];
+  const playMethodCandidates = [];
+  const replayLikeNodeContexts = [];
+  const targetCandidates = [];
+  const seenTargets = new Set();
+  const sceneIndex = createSceneNodeIndex(scene);
+
+  if (!scene) {
+    return {
+      playMethodCandidates,
+      replayLikeNodeContexts,
+      scene: null,
+      sceneComponentMatches,
+      sceneNodeMatches,
+      targetCandidates,
+    };
+  }
+
+  for (const record of sceneIndex.records) {
+    const node = record.node;
+    const nodeName = record.nodeName;
+    const nodePath = record.nodePath;
+    const nodeContextMatched = matchesReplayUiContextText(nodeName)
+      || matchesReplayUiContextText(nodePath);
     if (matchesReplayKeyword(nodeName) && sceneNodeMatches.length < MATCH_LIMIT) {
       sceneNodeMatches.push({
         nodeName,
         nodePath,
       });
+    }
+    if (nodeContextMatched && replayLikeNodeContexts.length < MATCH_LIMIT) {
+      replayLikeNodeContexts.push(nodePath);
     }
 
     for (const component of getSceneNodeComponents(node)) {
@@ -962,9 +1474,21 @@ const scanSceneForReplayCandidates = (gameWindow) => {
 
       const componentName = getObjectName(component) || "AnonymousComponent";
       const componentNameMatched = matchesReplayKeyword(componentName);
+      const componentContextMatched = matchesReplayUiContextText(componentName);
       const { methodMatches, propertyMatches } = collectReplayMemberMatches(component);
+      const contextHandlerMatches = (
+        nodeContextMatched || componentContextMatched
+      )
+        ? collectContextHandlerMatches(component)
+        : [];
 
-      if (!componentNameMatched && methodMatches.length === 0 && propertyMatches.length === 0) {
+      if (
+        !componentNameMatched
+        && !componentContextMatched
+        && methodMatches.length === 0
+        && contextHandlerMatches.length === 0
+        && propertyMatches.length === 0
+      ) {
         continue;
       }
 
@@ -978,8 +1502,19 @@ const scanSceneForReplayCandidates = (gameWindow) => {
           propertyMatches,
         });
       }
+      if (
+        (nodeContextMatched || componentContextMatched)
+        && replayLikeNodeContexts.length < MATCH_LIMIT
+      ) {
+        replayLikeNodeContexts.push(`${nodePath}#${componentName}`);
+      }
 
-      for (const methodName of methodMatches) {
+      const discoveredMethodNames = [...new Set([
+        ...methodMatches,
+        ...contextHandlerMatches,
+      ])];
+
+      for (const methodName of discoveredMethodNames) {
         if (targetCandidates.length >= MATCH_LIMIT) {
           break;
         }
@@ -995,6 +1530,9 @@ const scanSceneForReplayCandidates = (gameWindow) => {
         }
 
         seenTargets.add(label);
+        const source = methodMatches.includes(methodName)
+          ? "scene-component"
+          : "scene-context-handler";
         playMethodCandidates.push({
           arity: method.length,
           componentName,
@@ -1003,32 +1541,27 @@ const scanSceneForReplayCandidates = (gameWindow) => {
           methodName,
           nodeName,
           nodePath,
-          source: "scene-component",
+          source,
         });
         targetCandidates.push(createTargetCandidate({
           componentName,
           fn: method,
+          buttonText: null,
+          customEventData: null,
           invoke: (payload, playOptions = {}) => component[methodName].call(component, payload, playOptions),
           label,
           methodName,
           nodeName,
           nodePath,
-          source: "scene-component",
+          source,
         }));
       }
-    }
-
-    for (const child of getSceneNodeChildren(node)) {
-      const childName = String(child?.name || "(anonymous)");
-      queue.push({
-        node: child,
-        path: `${nodePath}/${childName}`,
-      });
     }
   }
 
   return {
     playMethodCandidates,
+    replayLikeNodeContexts: [...new Set(replayLikeNodeContexts)].slice(0, MATCH_LIMIT),
     scene: scene?.name || null,
     sceneComponentMatches,
     sceneNodeMatches,
@@ -1043,8 +1576,10 @@ const scoreProductionReplayTarget = (candidate, payloadShape = null) => {
   let score = 0;
   const why = [];
   const positiveSignals = [];
+  const buttonText = String(candidate?.buttonText || "");
   const methodName = String(candidate?.methodName || "");
   const componentName = String(candidate?.componentName || "");
+  const customEventData = String(candidate?.customEventData || "");
   const nodeLabel = `${candidate?.nodeName || ""} ${candidate?.nodePath || ""}`;
   const functionSourceSnippet = String(candidate?.functionSourceSnippet || "");
   const ownerLabel = `${candidate?.ownerKey || ""} ${candidate?.label || ""}`;
@@ -1059,8 +1594,14 @@ const scoreProductionReplayTarget = (candidate, payloadShape = null) => {
   const methodHasNegativeSignal = matchesNegativePlaySignal(methodName);
   const functionHasNegativeSignal = matchesNegativePlaySignal(functionSourceSnippet);
   const contextHasNegativeSignal = matchesNegativePlaySignal(
-    `${componentName} ${nodeLabel} ${ownerLabel}`,
+    `${componentName} ${nodeLabel} ${ownerLabel} ${buttonText} ${customEventData}`,
   );
+  const replayUiContextMatched = [
+    componentName,
+    nodeLabel,
+    buttonText,
+    customEventData,
+  ].some(matchesReplayUiContextText);
   const hasBattleContext = [
     hasBattleContextText(methodName),
     hasBattleContextText(componentName),
@@ -1089,8 +1630,15 @@ const scoreProductionReplayTarget = (candidate, payloadShape = null) => {
         || functionHasNegativeSignal
         || contextHasNegativeSignal
       );
+  const globalEntityServiceTarget = /(?:^|\/)Global Entity(?:\/|$)/i.test(nodeLabel)
+    && (
+      methodHasNegativeSignal
+      || functionHasNegativeSignal
+      || contextHasNegativeSignal
+    );
   const explicitlyBlacklisted = REPLAY_BLACKLISTED_METHODS.has(methodName)
-    || negativeServiceTarget;
+    || negativeServiceTarget
+    || globalEntityServiceTarget;
   const targetBlacklisted = explicitlyBlacklisted || targetLooksGetterLike;
 
   if (methodHasReplaySignal) {
@@ -1124,6 +1672,24 @@ const scoreProductionReplayTarget = (candidate, payloadShape = null) => {
     positiveSignals.push("nodePath");
   }
 
+  if (replayUiContextMatched) {
+    score += 18;
+    why.push("context:replay-ui");
+    positiveSignals.push("context:replay-ui");
+  }
+
+  if (matchesReplayUiContextText(buttonText)) {
+    score += 30;
+    why.push("buttonText:replay");
+    positiveSignals.push("buttonText:replay");
+  }
+
+  if (matchesReplayUiContextText(customEventData)) {
+    score += 24;
+    why.push("customEventData:replay");
+    positiveSignals.push("customEventData:replay");
+  }
+
   if (hasBattleContext && payloadAffinity.looksReplayPayloadAffinity) {
     score += payloadAffinity.score;
     why.push("battle-context+payload-affinity");
@@ -1139,7 +1705,19 @@ const scoreProductionReplayTarget = (candidate, payloadShape = null) => {
     why.push(`arity:${candidate.arity ?? "unknown"}:less-like-payload-options`);
   }
 
-  if (candidate?.source === "global-object") {
+  if (candidate?.source === "interaction-trace") {
+    score += 90;
+    why.push("source:interaction-trace");
+    positiveSignals.push("source:interaction-trace");
+  } else if (candidate?.source === "button-click-event") {
+    score += 72;
+    why.push("source:button-click-event");
+    positiveSignals.push("source:button-click-event");
+  } else if (candidate?.source === "scene-context-handler") {
+    score += 36;
+    why.push("source:scene-context-handler");
+    positiveSignals.push("source:scene-context-handler");
+  } else if (candidate?.source === "global-object") {
     score += 12;
     why.push("source:global-object");
   } else if (candidate?.source === "global-function") {
@@ -1155,6 +1733,8 @@ const scoreProductionReplayTarget = (candidate, payloadShape = null) => {
     why.push(
       REPLAY_BLACKLISTED_METHODS.has(methodName)
         ? "methodName:blacklisted"
+        : globalEntityServiceTarget
+          ? "globalEntity:service-target"
         : "negativeSignal:blacklisted-service-target",
     );
   }
@@ -1234,12 +1814,8 @@ const sortRankedTargetEntries = (left, right) => {
     return right.score - left.score;
   }
 
-  const sourcePriority = {
-    "global-object": 3,
-    "global-function": 2,
-    "scene-component": 1,
-  };
-  const sourceDiff = (sourcePriority[right.candidate.source] || 0) - (sourcePriority[left.candidate.source] || 0);
+  const sourceDiff = (DISCOVERY_SOURCE_PRIORITY[right.candidate.source] || 0)
+    - (DISCOVERY_SOURCE_PRIORITY[left.candidate.source] || 0);
   if (sourceDiff !== 0) {
     return sourceDiff;
   }
@@ -1278,6 +1854,10 @@ const getProductionReplayTargetGateDetail = (resolution = {}) => {
   }
 
   switch (resolution.bridgeStatus) {
+    case "target-discovery-empty-after-blacklist":
+      return "Replay candidate discovery only found rejected or blacklisted service handlers, so the production bridge still has no playable target after discovery.";
+    case "candidate-space-too-narrow":
+      return "Replay candidate discovery is still too narrow: the current scan only found static service handlers and did not reach replay-like UI handlers, button click events, or interaction traces.";
     case "bridge-target-blacklisted":
       return `Selected target ${resolution.playTargetLabel || "(unknown)"} was rejected because it is getter-like or belongs to an error/audio/video/ad/effect service path, so it must not be used as a replay play target.`;
     case "bridge-target-selected-but-not-playlike":
@@ -1298,9 +1878,13 @@ const buildProductionReplayResolution = (
 ) => {
   const globalCandidates = collectReplayGlobalCandidates(gameWindow);
   const sceneCandidates = scanSceneForReplayCandidates(gameWindow);
+  const buttonCandidates = scanButtonClickEventCandidates(gameWindow);
+  const interactionTrace = getInteractionTraceCandidates();
   const targetCandidates = [
     ...globalCandidates.targetCandidates,
     ...sceneCandidates.targetCandidates,
+    ...buttonCandidates.targetCandidates,
+    ...interactionTrace.targetCandidates,
   ];
 
   const rankedEntries = targetCandidates
@@ -1320,13 +1904,52 @@ const buildProductionReplayResolution = (
     })
     .sort(sortRankedTargetEntries);
 
+  const playableEntries = rankedEntries.filter((entry) => !entry.targetBlacklisted && !entry.rejectedReason);
   const playTargetEntry = rankedEntries[0] || null;
-  const bridgeStatus = getProductionReplaySelectionStatus(playTargetEntry);
+  const candidateDiscoverySources = [
+    ...new Set(targetCandidates.map((candidate) => candidate.source).filter(Boolean)),
+  ];
+  const replayLikeNodeContexts = [...new Set(sceneCandidates.replayLikeNodeContexts || [])];
+  const replayLikeButtonTexts = [
+    ...new Set([
+      ...(buttonCandidates.replayLikeButtonTexts || []),
+      ...(interactionTrace.replayLikeButtonTexts || []),
+    ]),
+  ];
+  const replayLikeCustomEventData = [
+    ...new Set([
+      ...(buttonCandidates.replayLikeCustomEventData || []),
+      ...(interactionTrace.replayLikeCustomEventData || []),
+    ]),
+  ];
+  const serviceLikeCandidatesOnly = rankedEntries.length > 0
+    && rankedEntries.every((entry) => {
+      const candidateLabel = `${entry.candidate?.nodePath || ""} ${entry.candidate?.methodName || ""} ${entry.candidate?.componentName || ""}`;
+      return /(?:^|\/)Global Entity(?:\/|$)/i.test(String(entry.candidate?.nodePath || ""))
+        || matchesNegativePlaySignal(candidateLabel);
+    });
+  const candidateSpaceTooNarrow = playableEntries.length === 0
+    && rankedEntries.length > 0
+    && !candidateDiscoverySources.some((source) => DISCOVERY_RICH_SOURCES.has(source))
+    && replayLikeNodeContexts.length === 0
+    && replayLikeButtonTexts.length === 0
+    && replayLikeCustomEventData.length === 0
+    && serviceLikeCandidatesOnly;
+  const discoveryEmptyAfterBlacklist = playableEntries.length === 0
+    && rankedEntries.length > 0
+    && rankedEntries.every((entry) => entry.targetBlacklisted || entry.rejectedReason);
+  const bridgeStatus = candidateSpaceTooNarrow
+    ? "candidate-space-too-narrow"
+    : discoveryEmptyAfterBlacklist
+      ? "target-discovery-empty-after-blacklist"
+      : getProductionReplaySelectionStatus(playTargetEntry);
   const rankedTargets = rankedEntries
     .slice(0, RANKED_TARGET_LIMIT)
     .map(({ candidate, rejectedReason, score, targetBlacklisted, targetLooksGetterLike, targetLooksMetadataLike, why }) => ({
       arity: candidate.arity,
+      buttonText: candidate.buttonText || null,
       componentName: candidate.componentName,
+      customEventData: candidate.customEventData || null,
       functionSourceSnippet: candidate.functionSourceSnippet,
       label: candidate.label,
       methodName: candidate.methodName,
@@ -1342,11 +1965,29 @@ const buildProductionReplayResolution = (
 
   const globalCandidateCount = globalCandidates.targetCandidates.filter(isValidTargetCandidate).length;
   const sceneCandidateCount = sceneCandidates.targetCandidates.filter(isValidTargetCandidate).length;
+  const targetDiscoverySummary = {
+    buttonHandlerCandidateCount: buttonCandidates.buttonHandlerCandidates.length,
+    candidateDiscoverySources,
+    candidateSpaceTooNarrow,
+    discoveryEmptyAfterBlacklist,
+    interactionTraceCandidateCount: interactionTrace.interactionTraceCandidates.length,
+    playableCandidateCount: playableEntries.length,
+    rankedCandidateCount: rankedEntries.length,
+    replayLikeButtonTextCount: replayLikeButtonTexts.length,
+    replayLikeCustomEventDataCount: replayLikeCustomEventData.length,
+    replayLikeNodeContextCount: replayLikeNodeContexts.length,
+    status: bridgeStatus,
+  };
 
   return {
     availableGlobals: globalCandidates.availableGlobals,
+    buttonHandlerCandidates: buttonCandidates.buttonHandlerCandidates,
     bridgeStatus,
+    candidateDiscoverySources,
+    candidateSpaceTooNarrow,
+    discoveryEmptyAfterBlacklist,
     globalCandidateCount,
+    interactionTraceCandidates: interactionTrace.interactionTraceCandidates,
     minimumPlayableScore: PRODUCTION_TARGET_CONFIDENCE_THRESHOLD,
     mode,
     payloadShapeKey: getPayloadShapeKey(payloadShape),
@@ -1360,6 +2001,9 @@ const buildProductionReplayResolution = (
     playTargetSource: playTargetEntry?.candidate?.source || null,
     playTargetWhy: playTargetEntry?.why || [],
     rankedTargets,
+    replayLikeButtonTexts,
+    replayLikeCustomEventData,
+    replayLikeNodeContexts,
     sceneCandidateCount,
     scene: sceneCandidates.scene,
     sceneScanBlockedReason: deriveSceneScanBlockedReason(gameWindow, sceneCandidates.scene),
@@ -1367,6 +2011,7 @@ const buildProductionReplayResolution = (
     sceneNodeMatches: sceneCandidates.sceneNodeMatches,
     selectedTarget: playTargetEntry?.candidate || null,
     targetBlacklisted: playTargetEntry?.targetBlacklisted === true,
+    targetDiscoverySummary,
     targetLooksGetterLike: playTargetEntry?.targetLooksGetterLike === true,
     targetLooksMetadataLike: playTargetEntry?.targetLooksMetadataLike === true,
     targetRejectedReason: playTargetEntry?.rejectedReason || null,
@@ -1693,6 +2338,15 @@ const derivePrimaryRisk = ({
       : "target-discovery-empty";
   }
 
+  if (
+    resolution?.bridgeStatus === "target-discovery-empty-after-blacklist"
+    || resolution?.bridgeStatus === "candidate-space-too-narrow"
+    || resolution?.candidateSpaceTooNarrow
+    || resolution?.discoveryEmptyAfterBlacklist
+  ) {
+    return "candidate-discovery-risk";
+  }
+
   if (!resolution?.playTarget) {
     return "target-selection-risk";
   }
@@ -1738,13 +2392,17 @@ const inspect = () => {
   const resolution = selection.selectedResolution;
   return {
     availableGlobals: resolution.availableGlobals,
+    buttonHandlerCandidates: resolution.buttonHandlerCandidates,
     bridgeStatus: resolution.bridgeStatus,
+    candidateDiscoverySources: resolution.candidateDiscoverySources,
+    candidateSpaceTooNarrow: resolution.candidateSpaceTooNarrow,
     currentAssetPath: loaderInfo.suspectedBundlePath,
     gameWindowSource: source,
     incompatibleProbes:
       loaderInfo.loaderFamily === LOADER_FAMILIES.PUBLIC
         ? [...SOURCE_MODULE_IDS]
         : [],
+    interactionTraceCandidates: resolution.interactionTraceCandidates,
     loaderFamily: loaderInfo.loaderFamily,
     loaderFamilyEvidence: loaderInfo.evidence,
     minimumPlayableScore: resolution.minimumPlayableScore,
@@ -1756,6 +2414,7 @@ const inspect = () => {
     playTargetSource: resolution.playTargetSource,
     playTargetWhy: resolution.playTargetWhy,
     targetBlacklisted: resolution.targetBlacklisted,
+    targetDiscoverySummary: resolution.targetDiscoverySummary,
     targetLooksGetterLike: resolution.targetLooksGetterLike,
     targetLooksMetadataLike: resolution.targetLooksMetadataLike,
     targetRejectedReason: resolution.targetRejectedReason,
@@ -1766,6 +2425,9 @@ const inspect = () => {
     probeCompatibility: "compatible-probe",
     probeFamily: PROBE_FAMILIES.PRODUCTION,
     rankedTargets: resolution.rankedTargets,
+    replayLikeButtonTexts: resolution.replayLikeButtonTexts,
+    replayLikeCustomEventData: resolution.replayLikeCustomEventData,
+    replayLikeNodeContexts: resolution.replayLikeNodeContexts,
     rankedTargetsInstant: instantResolution.rankedTargets,
     rankedTargetsStabilized: stabilizedResolution?.rankedTargets || [],
     requireFingerprint: loaderInfo.requireFingerprint,
@@ -1818,8 +2480,12 @@ const play = async (
       return {
         ok: false,
         status: "bridge-exposed-but-play-target-missing",
+        buttonHandlerCandidates: resolution.buttonHandlerCandidates,
+        candidateDiscoverySources: resolution.candidateDiscoverySources,
+        candidateSpaceTooNarrow: resolution.candidateSpaceTooNarrow,
         loaderFamily: loaderInfo.loaderFamily,
         detail: getProductionReplayTargetGateDetail(resolution),
+        interactionTraceCandidates: resolution.interactionTraceCandidates,
         optionsMerge: null,
         payloadShapeAfter: null,
         payloadShapeBefore,
@@ -1829,6 +2495,7 @@ const play = async (
         playTargetSource: null,
         playTargetWhy: [],
         targetBlacklisted: false,
+        targetDiscoverySummary: resolution.targetDiscoverySummary,
         targetLooksGetterLike: false,
         targetLooksMetadataLike: false,
         targetRejectedReason: null,
@@ -1838,6 +2505,9 @@ const play = async (
           resolution,
         }),
         rankedTargets: resolution.rankedTargets,
+        replayLikeButtonTexts: resolution.replayLikeButtonTexts,
+        replayLikeCustomEventData: resolution.replayLikeCustomEventData,
+        replayLikeNodeContexts: resolution.replayLikeNodeContexts,
         rankedTargetsInstant: instantResolution.rankedTargets,
         rankedTargetsStabilized: stabilizedResolution?.rankedTargets || [],
         runtimeBootState: PROBE_RUNTIME_STATE.runtimeBootState,
@@ -1858,16 +2528,26 @@ const play = async (
     }
 
     if (!resolution.playTarget) {
-      const skipped = resolution.targetBlacklisted
-        ? "target-blacklisted"
-        : resolution.bridgeStatus === "bridge-target-selected-but-not-playlike"
-          ? "target-selected-but-not-playlike"
-          : "target-low-confidence";
+      const discoverySkipped = (
+        resolution.bridgeStatus === "target-discovery-empty-after-blacklist"
+        || resolution.bridgeStatus === "candidate-space-too-narrow"
+      );
+      const skipped = discoverySkipped
+        ? "no-playable-target-after-discovery"
+        : resolution.targetBlacklisted
+          ? "target-blacklisted"
+          : resolution.bridgeStatus === "bridge-target-selected-but-not-playlike"
+            ? "target-selected-but-not-playlike"
+            : "target-low-confidence";
       return {
         ok: false,
         status: resolution.bridgeStatus,
+        buttonHandlerCandidates: resolution.buttonHandlerCandidates,
+        candidateDiscoverySources: resolution.candidateDiscoverySources,
+        candidateSpaceTooNarrow: resolution.candidateSpaceTooNarrow,
         loaderFamily: loaderInfo.loaderFamily,
         detail: getProductionReplayTargetGateDetail(resolution),
+        interactionTraceCandidates: resolution.interactionTraceCandidates,
         optionsMerge: null,
         payloadShapeAfter: null,
         payloadShapeBefore,
@@ -1877,6 +2557,7 @@ const play = async (
         playTargetSource: resolution.playTargetSource,
         playTargetWhy: resolution.playTargetWhy,
         targetBlacklisted: resolution.targetBlacklisted,
+        targetDiscoverySummary: resolution.targetDiscoverySummary,
         targetLooksGetterLike: resolution.targetLooksGetterLike,
         targetLooksMetadataLike: resolution.targetLooksMetadataLike,
         targetRejectedReason: resolution.targetRejectedReason,
@@ -1886,6 +2567,9 @@ const play = async (
           resolution,
         }),
         rankedTargets: resolution.rankedTargets,
+        replayLikeButtonTexts: resolution.replayLikeButtonTexts,
+        replayLikeCustomEventData: resolution.replayLikeCustomEventData,
+        replayLikeNodeContexts: resolution.replayLikeNodeContexts,
         rankedTargetsInstant: instantResolution.rankedTargets,
         rankedTargetsStabilized: stabilizedResolution?.rankedTargets || [],
         runtimeBootState: PROBE_RUNTIME_STATE.runtimeBootState,
@@ -1924,6 +2608,10 @@ const play = async (
       return {
         ok: true,
         status,
+        buttonHandlerCandidates: resolution.buttonHandlerCandidates,
+        candidateDiscoverySources: resolution.candidateDiscoverySources,
+        candidateSpaceTooNarrow: resolution.candidateSpaceTooNarrow,
+        interactionTraceCandidates: resolution.interactionTraceCandidates,
         loaderFamily: loaderInfo.loaderFamily,
         optionsMerge: preparedPayload.optionsMerge,
         payloadShapeAfter,
@@ -1934,11 +2622,15 @@ const play = async (
         playTargetSource: resolution.playTargetSource,
         playTargetWhy: resolution.playTargetWhy,
         targetBlacklisted: resolution.targetBlacklisted,
+        targetDiscoverySummary: resolution.targetDiscoverySummary,
         targetLooksGetterLike: resolution.targetLooksGetterLike,
         targetLooksMetadataLike: resolution.targetLooksMetadataLike,
         targetRejectedReason: resolution.targetRejectedReason,
         minimumPlayableScore: resolution.minimumPlayableScore,
         rankedTargets: resolution.rankedTargets,
+        replayLikeButtonTexts: resolution.replayLikeButtonTexts,
+        replayLikeCustomEventData: resolution.replayLikeCustomEventData,
+        replayLikeNodeContexts: resolution.replayLikeNodeContexts,
         rankedTargetsInstant: instantResolution.rankedTargets,
         rankedTargetsStabilized: stabilizedResolution?.rankedTargets || [],
         result,
@@ -1966,6 +2658,10 @@ const play = async (
       return {
         ok: false,
         status: "bridge-play-target-threw",
+        buttonHandlerCandidates: resolution.buttonHandlerCandidates,
+        candidateDiscoverySources: resolution.candidateDiscoverySources,
+        candidateSpaceTooNarrow: resolution.candidateSpaceTooNarrow,
+        interactionTraceCandidates: resolution.interactionTraceCandidates,
         loaderFamily: loaderInfo.loaderFamily,
         errorMessage: error?.message || String(error),
         optionsMerge: preparedPayload.optionsMerge,
@@ -1977,6 +2673,7 @@ const play = async (
         playTargetSource: resolution.playTargetSource,
         playTargetWhy: resolution.playTargetWhy,
         targetBlacklisted: resolution.targetBlacklisted,
+        targetDiscoverySummary: resolution.targetDiscoverySummary,
         targetLooksGetterLike: resolution.targetLooksGetterLike,
         targetLooksMetadataLike: resolution.targetLooksMetadataLike,
         targetRejectedReason: resolution.targetRejectedReason,
@@ -1986,6 +2683,9 @@ const play = async (
           resolution,
         }),
         rankedTargets: resolution.rankedTargets,
+        replayLikeButtonTexts: resolution.replayLikeButtonTexts,
+        replayLikeCustomEventData: resolution.replayLikeCustomEventData,
+        replayLikeNodeContexts: resolution.replayLikeNodeContexts,
         rankedTargetsInstant: instantResolution.rankedTargets,
         rankedTargetsStabilized: stabilizedResolution?.rankedTargets || [],
         runtimeBootState: PROBE_RUNTIME_STATE.runtimeBootState,
@@ -2092,6 +2792,7 @@ const ensureProbePanel = () => {
       <code>window.__xyzwReplayBridge.inspect()</code>
       <code>await window.__xyzwReplayBridge.play(window.__REPLAY_DATA__)</code>
       <code>await window.__xyzwReplayBridge.play(window.__REPLAY_DATA__, { debugVisualProbe: true })</code>
+      <code>window.__xyzwReplayBridge.traceUiReplayHandlers()</code>
     </div>
   `;
   host.appendChild(panel);
@@ -2135,6 +2836,7 @@ const attachBridge = async () => {
     __xyzwReplayBridgeReady: true,
     inspect,
     play,
+    traceUiReplayHandlers,
   };
   window.__xyzwReplayBridge = bridge;
   window.__xyzwReplay = bridge;

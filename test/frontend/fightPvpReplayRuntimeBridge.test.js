@@ -1017,6 +1017,38 @@ test("fight pvp replay scanSceneForReplayCandidates collects replay-related scen
   assert.equal(result.playMethodCandidates[0].methodName, "showBattleReplay");
 });
 
+test("fight pvp replay scanSceneForReplayCandidates widens discovery to scene-context handlers", () => {
+  class ReplayBattlePanel {
+    openPanel() {}
+    refreshPreview() {}
+  }
+
+  const scene = {
+    name: "Game",
+    children: [{
+      name: "战报中心",
+      children: [],
+      _components: [new ReplayBattlePanel()],
+    }],
+    _components: [],
+  };
+
+  const result = scanSceneForReplayCandidates({
+    cc: {
+      director: {
+        getScene() {
+          return scene;
+        },
+      },
+    },
+  });
+
+  const openPanelCandidate = result.playMethodCandidates.find((candidate) => candidate.methodName === "openPanel");
+  assert.ok(openPanelCandidate);
+  assert.equal(openPanelCandidate.source, "scene-context-handler");
+  assert.equal(result.replayLikeNodeContexts.includes("Game/战报中心"), true);
+});
+
 test("fight pvp replay resolveProductionReplayPlayTarget prefers global candidates before scene components", () => {
   class ScenePanel {
     play() {}
@@ -1064,7 +1096,7 @@ test("fight pvp replay resolveProductionReplayPlayTarget blacklists getter-like 
     runtimeWindow,
   });
 
-  assert.equal(result.bridgeStatus, "bridge-target-blacklisted");
+  assert.equal(result.bridgeStatus, "target-discovery-empty-after-blacklist");
   assert.equal(result.playTarget, null);
   assert.equal(result.playTargetLabel, "gameWindow.BattleVersionController.getBattleVersion");
   assert.equal(result.targetBlacklisted, true);
@@ -1076,7 +1108,7 @@ test("fight pvp replay resolveProductionReplayPlayTarget blacklists getter-like 
 });
 
 test("fight pvp replay resolveProductionReplayPlayTarget blacklists obvious error/audio/ad/effect play helpers", () => {
-  class NonReplayPlayServices {
+  class GlobalAudioServices {
     _dealPlayErr() {}
     playMusic() {}
     playVideoAd() {}
@@ -1090,7 +1122,7 @@ test("fight pvp replay resolveProductionReplayPlayTarget blacklists obvious erro
       children: [{
         name: "Global Entity",
         children: [],
-        _components: [new NonReplayPlayServices()],
+        _components: [new GlobalAudioServices()],
       }],
       _components: [],
     },
@@ -1108,8 +1140,9 @@ test("fight pvp replay resolveProductionReplayPlayTarget blacklists obvious erro
   });
 
   assert.equal(result.playTarget, null);
-  assert.equal(result.bridgeStatus, "bridge-target-blacklisted");
-  assert.equal(result.playTargetLabel, "Game/Global Entity#NonReplayPlayServices._dealPlayErr");
+  assert.equal(result.bridgeStatus, "candidate-space-too-narrow");
+  assert.equal(result.playTargetLabel, "Game/Global Entity#GlobalAudioServices._dealPlayErr");
+  assert.equal(result.candidateSpaceTooNarrow, true);
   for (const methodName of ["_dealPlayErr", "playMusic", "playVideoAd", "playEffect", "playEffect2"]) {
     const entry = result.rankedTargets.find((candidate) => candidate.methodName === methodName);
     assert.ok(entry, `${methodName} should be present in ranked targets`);
@@ -1135,6 +1168,153 @@ test("fight pvp replay collectReplayGlobalCandidates finds public replay globals
   assert.equal(result.availableGlobals[0].key, "BattleReplayController");
   assert.equal(result.availableGlobals[0].methodMatches.includes("showBattleReplay"), true);
   assert.equal(result.playMethodCandidates[0].label, "gameWindow.BattleReplayController.showBattleReplay");
+});
+
+test("fight pvp replay buildProductionReplayBridge discovers replay button click handlers", () => {
+  const playCalls = [];
+  class ReplayPanel {
+    openPanel(payload, customEventData) {
+      playCalls.push({ customEventData, payload });
+      return customEventData;
+    }
+  }
+
+  const replayNode = {
+    name: "ReplayRoot",
+    children: [],
+    _components: [new ReplayPanel()],
+  };
+  const buttonNode = {
+    name: "ButtonRoot",
+    children: [],
+    _components: [
+      {
+        clickEvents: [{
+          component: "ReplayPanel",
+          customEventData: "battle-replay",
+          handler: "openPanel",
+          target: replayNode,
+        }],
+      },
+      {
+        string: "回放",
+      },
+    ],
+  };
+  const runtimeWindow = createPublicLoaderWindow({
+    scene: {
+      name: "Game",
+      children: [buttonNode, replayNode],
+      _components: [],
+    },
+  });
+  globalThis.window = runtimeWindow;
+
+  const bridge = buildProductionReplayBridge(runtimeWindow, {
+    gameWindowSource: "window",
+    runtimeWindow,
+  });
+
+  const inspectResult = bridge.inspect();
+  const playResult = bridge.play({
+    battleInputData: {
+      battleData: { result: { isWin: true } },
+      mapId: 110001,
+    },
+  });
+
+  assert.equal(inspectResult.candidateDiscoverySources.includes("button-click-event"), true);
+  assert.equal(inspectResult.buttonHandlerCandidates[0].handlerName, "openPanel");
+  assert.equal(inspectResult.replayLikeButtonTexts.includes("回放"), true);
+  assert.equal(playResult.ok, true);
+  assert.equal(playResult.playTargetSource, "button-click-event");
+  assert.equal(playCalls[0].customEventData, "battle-replay");
+});
+
+test("fight pvp replay buildProductionReplayBridge prioritizes interaction trace handlers over service methods", () => {
+  class MockButton {
+    _onTouchEnded() {}
+  }
+
+  const playCalls = [];
+  class ReplayPanel {
+    openPanel(payload, customEventData) {
+      playCalls.push({ customEventData, payload });
+      return customEventData;
+    }
+  }
+  class GlobalEntityServices {
+    _dealPlayErr() {}
+    playMusic() {}
+  }
+
+  const replayNode = {
+    name: "ReplayRoot",
+    children: [],
+    _components: [new ReplayPanel()],
+  };
+  const buttonNode = {
+    name: "回放按钮",
+    children: [],
+    _components: [],
+  };
+  const buttonComponent = new MockButton();
+  buttonComponent.node = buttonNode;
+  buttonComponent.clickEvents = [{
+    component: "ReplayPanel",
+    customEventData: "回放",
+    handler: "openPanel",
+    target: replayNode,
+  }];
+  buttonNode._components = [buttonComponent, { string: "回放" }];
+  const scene = {
+    name: "Game",
+    children: [
+      buttonNode,
+      replayNode,
+      {
+        name: "Global Entity",
+        children: [],
+        _components: [new GlobalEntityServices()],
+      },
+    ],
+    _components: [],
+  };
+  const runtimeWindow = createPublicLoaderWindow({
+    extra: {
+      cc: {
+        Button: MockButton,
+        Component: {
+          EventHandler: {
+            emitEvents() {
+              return true;
+            },
+          },
+        },
+        director: {
+          getScene() {
+            return scene;
+          },
+        },
+      },
+    },
+  });
+  globalThis.window = runtimeWindow;
+
+  const bridge = buildProductionReplayBridge(runtimeWindow, {
+    gameWindowSource: "window",
+    runtimeWindow,
+  });
+  const traceState = bridge.traceUiReplayHandlers();
+  runtimeWindow.cc.Button.prototype._onTouchEnded.call(buttonComponent);
+  runtimeWindow.cc.Component.EventHandler.emitEvents(buttonComponent.clickEvents);
+
+  const inspectResult = bridge.inspect();
+
+  assert.equal(traceState.emitEventsPatched, true);
+  assert.equal(inspectResult.candidateDiscoverySources.includes("interaction-trace"), true);
+  assert.equal(inspectResult.interactionTraceCandidates.length > 0, true);
+  assert.equal(inspectResult.playTargetSource, "interaction-trace");
 });
 
 test("fight pvp replay buildProductionReplayBridge inspect returns scanner output and play uses the resolved production target", () => {
@@ -1204,11 +1384,11 @@ test("fight pvp replay buildProductionReplayBridge rejects getter-like productio
 
   assert.equal(invoked, false);
   assert.equal(playResult.ok, false);
-  assert.equal(playResult.status, "bridge-target-blacklisted");
-  assert.equal(playResult.primaryRisk, "target-selection-risk");
+  assert.equal(playResult.status, "target-discovery-empty-after-blacklist");
+  assert.equal(playResult.primaryRisk, "candidate-discovery-risk");
   assert.equal(playResult.targetBlacklisted, true);
   assert.equal(playResult.targetRejectedReason, "method-name-blacklisted");
-  assert.equal(playResult.visualPostCheck.skipped, "target-blacklisted");
+  assert.equal(playResult.visualPostCheck.skipped, "no-playable-target-after-discovery");
   assert.equal(playResult.payloadShapeAfter, null);
 });
 
@@ -1240,10 +1420,10 @@ test("fight pvp replay buildProductionReplayBridge rejects battle-only targets w
 
   assert.equal(invoked, false);
   assert.equal(playResult.ok, false);
-  assert.equal(playResult.status, "bridge-target-selected-but-not-playlike");
-  assert.equal(playResult.primaryRisk, "target-selection-risk");
+  assert.equal(playResult.status, "target-discovery-empty-after-blacklist");
+  assert.equal(playResult.primaryRisk, "candidate-discovery-risk");
   assert.equal(playResult.targetRejectedReason, "battle-context-without-payload-affinity");
-  assert.equal(playResult.visualPostCheck.skipped, "target-selected-but-not-playlike");
+  assert.equal(playResult.visualPostCheck.skipped, "no-playable-target-after-discovery");
 });
 
 test("fight pvp replay buildProductionReplayBridge rejects weak scene play targets below confidence gate", () => {
@@ -1280,10 +1460,10 @@ test("fight pvp replay buildProductionReplayBridge rejects weak scene play targe
 
   assert.equal(invoked, false);
   assert.equal(playResult.ok, false);
-  assert.equal(playResult.status, "bridge-target-low-confidence");
-  assert.equal(playResult.primaryRisk, "target-selection-risk");
+  assert.equal(playResult.status, "target-discovery-empty-after-blacklist");
+  assert.equal(playResult.primaryRisk, "candidate-discovery-risk");
   assert.equal(playResult.targetRejectedReason, "missing-replay-specific-reason");
-  assert.equal(playResult.visualPostCheck.skipped, "target-low-confidence");
+  assert.equal(playResult.visualPostCheck.skipped, "no-playable-target-after-discovery");
 });
 
 test("fight pvp replay buildProductionReplayBridge allows battle-context plus payload-affinity targets", () => {
@@ -3378,6 +3558,96 @@ test("fight pvp replay runtime bridge fails fast when the production bridge repo
   assert.match(session.message, /production replay bridge 已暴露/);
   assert.equal(session.diagnostics.replayEntrypointInvokeStatus, "bridge-exposed-but-play-target-missing");
   assert.equal(replayProbeWaitCalled, false);
+
+  delete globalThis.window;
+  delete globalThis.HTMLElement;
+});
+
+test("fight pvp replay runtime bridge surfaces candidate-space-too-narrow without regressing to payload risk", async () => {
+  class MockHTMLElement {
+    constructor() {
+      this.innerHTML = "";
+      this.clientWidth = 960;
+      this.clientHeight = 540;
+    }
+  }
+
+  globalThis.window = {
+    HTMLElement: MockHTMLElement,
+    clearTimeout,
+    requestAnimationFrame(callback) {
+      return setTimeout(callback, 0);
+    },
+    setTimeout,
+  };
+  globalThis.HTMLElement = MockHTMLElement;
+
+  const session = await startFightPvpReplayRuntime({
+    replay: createSnapshotReplayRecord(),
+    hostElement: new MockHTMLElement(),
+    runtimeAdapter: {
+      createCanvasHost: () => ({
+        canvas: { id: "replay-canvas", width: 960, height: 540 },
+        viewport: {},
+      }),
+      createWxShim: () => ({
+        dispose() {},
+      }),
+      ensureBundleVersionContainers() {},
+      ensureReplayBootstrapScene: async () => ({
+        bootstrapSceneName: "Bootstrap",
+        cleanup() {},
+      }),
+      ensureRuntimeBooted: async () => {},
+      ensureRuntimeLoaded: async () => {},
+      createVm2Shim: () => ({
+        dispose() {},
+      }),
+      ensureAuxiliaryBundlesLoaded: async () => ({
+        dispose() {},
+      }),
+      installReplayBattleStartProbe: () => ({
+        dispose() {},
+        waitForSignal: async () => ({ ok: true }),
+      }),
+      locateReplayEntrypoint: () => ({
+        label: "window.__xyzwReplayBridge.play",
+        invoke() {
+          return {
+            buttonHandlerCandidates: [],
+            candidateDiscoverySources: ["scene-component"],
+            candidateSpaceTooNarrow: true,
+            interactionTraceCandidates: [],
+            ok: false,
+            payloadShapeAfter: null,
+            primaryRisk: "candidate-discovery-risk",
+            status: "candidate-space-too-narrow",
+            targetDiscoverySummary: {
+              status: "candidate-space-too-narrow",
+            },
+            visualPostCheck: {
+              skipped: "no-playable-target-after-discovery",
+            },
+          };
+        },
+      }),
+      inspectGameBundleModuleCoverage: async () => ({
+        missingModules: [],
+      }),
+      probeGameBundleAssets: async () => [],
+      probeGameSceneAssets: async () => [],
+      readRuntimeModules: () => ({ consts: {} }),
+      waitForRuntimeReadyForReplay: async () => ({
+        ok: true,
+        sceneName: "Game",
+      }),
+    },
+  });
+
+  assert.equal(session.ok, false);
+  assert.equal(session.reason, "replay-start-failed");
+  assert.match(session.message, /candidate-space-too-narrow|候选发现空间过窄/);
+  assert.doesNotMatch(session.message, /payload-shape-risk/);
 
   delete globalThis.window;
   delete globalThis.HTMLElement;
