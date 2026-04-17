@@ -21,11 +21,38 @@ const XYZW_MAIN_SCRIPT_PATTERNS = Object.freeze([
 const toErrorMessage = (error, fallback) =>
   error?.message || String(error || fallback || "Unknown error");
 
+const toErrorName = (error) =>
+  typeof error?.name === "string" && error.name
+    ? error.name
+    : null;
+
+const toStackTop = (error) => {
+  const lines = String(error?.stack || "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (lines.length <= 1) {
+    return lines[0] || null;
+  }
+  return lines[1];
+};
+
 const isMissingModuleError = (message) =>
   /cannot find module|module not found|cannot find/i.test(String(message || ""));
 
 const isObjectLike = (value) =>
   value && (typeof value === "object" || typeof value === "function");
+
+const toFunctionSource = (fn) => {
+  if (typeof fn !== "function") {
+    return null;
+  }
+  try {
+    return Function.prototype.toString.call(fn);
+  } catch {
+    return null;
+  }
+};
 
 const matchesScriptPattern = (value, patterns) => {
   const normalized = String(value || "").trim();
@@ -119,6 +146,19 @@ export const rememberLauncherRequireRef = (gameWindow) => {
     }
   }
   return state.launcherRequireRef || null;
+};
+
+export const getRequireFingerprint = (req) => {
+  if (typeof req !== "function") {
+    return null;
+  }
+  const src = toFunctionSource(req) || "";
+  return {
+    name: req.name || null,
+    length: src.length,
+    head: src.slice(0, 120),
+    tail: src.slice(-120),
+  };
 };
 
 const appendStateEntry = (collection, entry) => {
@@ -457,6 +497,9 @@ export const probeXyzwRuntimeModule = (gameWindow, moduleId) => {
       moduleId,
       value: null,
       error: null,
+      errorName: null,
+      errorMessage: null,
+      stackTop: null,
       missing: false,
     };
   }
@@ -471,6 +514,9 @@ export const probeXyzwRuntimeModule = (gameWindow, moduleId) => {
       moduleId,
       value: null,
       error: null,
+      errorName: null,
+      errorMessage: null,
+      stackTop: null,
       missing: false,
     };
   }
@@ -482,36 +528,46 @@ export const probeXyzwRuntimeModule = (gameWindow, moduleId) => {
       moduleId,
       value: req(moduleId),
       error: null,
+      errorName: null,
+      errorMessage: null,
+      stackTop: null,
       missing: false,
     };
   } catch (error) {
-    const errorText = toErrorMessage(error, `Failed to require module "${moduleId}".`);
+    const errorMessage = toErrorMessage(error, `Failed to require module "${moduleId}".`);
+    const errorName = toErrorName(error);
+    const stackTop = toStackTop(error);
+    const missing = isMissingModuleError(errorMessage);
     return {
       ok: false,
-      status: isMissingModuleError(errorText) ? "module-missing" : "require-threw",
+      status: missing ? "module-missing" : "require-threw",
       moduleId,
       value: null,
-      error: errorText,
-      missing: isMissingModuleError(errorText),
+      error: errorMessage,
+      errorName,
+      errorMessage,
+      stackTop,
+      missing,
     };
   }
 };
 
 const toSerializableModuleCheck = (result) => ({
   error: result.error,
+  errorMessage: result.errorMessage || result.error,
+  errorName: result.errorName || null,
   missing: result.missing,
   ok: result.ok,
+  stackTop: result.stackTop || null,
   status: result.status,
 });
 
 const deriveRuntimeStage = ({
   hasRequire,
-  hasRequireSwap,
-  gameBundleRequested,
-  gameBundleLoaded,
-  gameSceneAssetLoaded,
   gameSceneRunning,
   battleModulesReady,
+  wrongRequireInstance,
+  requireExecError,
 } = {}) => {
   if (!hasRequire) {
     return "no-require";
@@ -519,20 +575,14 @@ const deriveRuntimeStage = ({
   if (battleModulesReady) {
     return "battle-modules-ready";
   }
+  if (requireExecError) {
+    return "require-exec-error";
+  }
+  if (wrongRequireInstance) {
+    return "wrong-require-instance";
+  }
   if (gameSceneRunning) {
     return "game-scene-running";
-  }
-  if (gameSceneAssetLoaded) {
-    return "game-scene-asset-loaded";
-  }
-  if (gameBundleLoaded) {
-    return "game-bundle-loaded";
-  }
-  if (gameBundleRequested) {
-    return "game-bundle-requested";
-  }
-  if (hasRequireSwap) {
-    return "require-swapped";
   }
   return "launcher-ready";
 };
@@ -543,6 +593,8 @@ const inspectSingleWindowBundleState = (candidateWindow, windowLabel = "window")
   const currentRequire = typeof candidateWindow?.__require === "function"
     ? candidateWindow.__require
     : null;
+  const launcherRequireSource = toFunctionSource(launcherRequireRef);
+  const currentRequireSource = toFunctionSource(currentRequire);
   const scriptUrls = getWindowScriptUrls(candidateWindow);
   const performanceUrls = getWindowPerformanceResourceUrls(candidateWindow);
   const canonicalModuleChecks = Object.fromEntries(
@@ -555,11 +607,16 @@ const inspectSingleWindowBundleState = (candidateWindow, windowLabel = "window")
   const sameRequireRef = launcherRequireRef && currentRequire
     ? currentRequire === launcherRequireRef
     : null;
+  const sameRequireSource = launcherRequireSource && currentRequireSource
+    ? currentRequireSource === launcherRequireSource
+    : null;
   const hasRequireSwap = launcherRequireRef && currentRequire
     ? currentRequire !== launcherRequireRef
     : false;
   const requireFunctionName = currentRequire?.name || null;
   const launcherRequireFunctionName = launcherRequireRef?.name || null;
+  const launcherRequireFingerprint = getRequireFingerprint(launcherRequireRef);
+  const liveRequireFingerprint = getRequireFingerprint(currentRequire);
   const sceneName = candidateWindow?.cc?.director?.getScene?.()?.name
     ?? (state?.runSceneCalls || []).filter((entry) => entry?.sceneName).at(-1)?.sceneName
     ?? null;
@@ -588,9 +645,20 @@ const inspectSingleWindowBundleState = (candidateWindow, windowLabel = "window")
     || runSceneCalls.some((entry) => entry.sceneName === "Game");
   const battleModulesReady = gameSceneRunning
     && canonicalModuleChecks.BattleUIManager?.status === "present";
+  const allCanonicalModulesMissing = XYZW_CANONICAL_REPLAY_MODULE_IDS.every((moduleId) =>
+    canonicalModuleChecks[moduleId]?.missing === true,
+  );
+  const firstRequireExecError = XYZW_CANONICAL_REPLAY_MODULE_IDS.find((moduleId) =>
+    canonicalModuleChecks[moduleId]?.status === "require-threw",
+  ) || null;
+  const wrongRequireInstance = gameSceneRunning
+    && hasRequireSwap
+    && allCanonicalModulesMissing;
+  const requireExecError = !battleModulesReady && Boolean(firstRequireExecError);
 
   return {
     details: {
+      allCanonicalModulesMissing,
       battleModulesReady,
       canonicalModuleChecks,
       gameBundleLoaded,
@@ -601,30 +669,36 @@ const inspectSingleWindowBundleState = (candidateWindow, windowLabel = "window")
       gameScriptInPerformance: performanceUrls.some(isGameScriptUrl),
       hasRequire,
       hasRequireSwap,
+      firstRequireExecErrorModuleId: firstRequireExecError,
       launcherRequireFunctionName,
+      launcherRequireFingerprint,
       loadBundleCalls,
       loadEvidence: {
         bundleEvents: (state?.bundleEvents || []).map(cloneEntry),
         scriptEvents: (state?.scriptEvents || []).map(cloneEntry),
       },
+      liveRequireFingerprint,
       mainScriptInDocument: scriptUrls.some(isMainScriptUrl),
       mainScriptInPerformance: performanceUrls.some(isMainScriptUrl),
       moduleChecks: canonicalModuleChecks,
+      requireExecError,
       requireFunctionName,
+      requireSwap: hasRequireSwap,
       runSceneCalls,
+      sameRequireSource,
+      scene: sceneName,
       sceneName,
       sameRequireRef,
       tryLoadAssetCalls,
       windowLabel,
+      wrongRequireInstance,
     },
     layer: deriveRuntimeStage({
       battleModulesReady,
-      gameBundleLoaded,
-      gameBundleRequested,
-      gameSceneAssetLoaded,
       gameSceneRunning,
       hasRequire,
-      hasRequireSwap,
+      requireExecError,
+      wrongRequireInstance,
     }),
     windowLabel,
   };
@@ -641,8 +715,11 @@ export const detectXyzwRuntimeLayer = (gameWindow, { windowLabel = "window" } = 
             moduleId,
             {
               error: null,
+              errorMessage: null,
+              errorName: null,
               missing: false,
               ok: false,
+              stackTop: null,
               status: "no-window",
             },
           ]),
@@ -655,12 +732,15 @@ export const detectXyzwRuntimeLayer = (gameWindow, { windowLabel = "window" } = 
         gameScriptInPerformance: false,
         hasRequire: false,
         hasRequireSwap: false,
+        firstRequireExecErrorModuleId: null,
         launcherRequireFunctionName: null,
+        launcherRequireFingerprint: null,
         loadBundleCalls: [],
         loadEvidence: {
           bundleEvents: [],
           scriptEvents: [],
         },
+        liveRequireFingerprint: null,
         mainScriptInDocument: false,
         mainScriptInPerformance: false,
         moduleChecks: Object.fromEntries(
@@ -668,18 +748,26 @@ export const detectXyzwRuntimeLayer = (gameWindow, { windowLabel = "window" } = 
             moduleId,
             {
               error: null,
+              errorMessage: null,
+              errorName: null,
               missing: false,
               ok: false,
+              stackTop: null,
               status: "no-window",
             },
           ]),
         ),
+        requireExecError: false,
         requireFunctionName: null,
+        requireSwap: false,
         runSceneCalls: [],
+        sameRequireSource: null,
+        scene: null,
         sceneName: null,
         sameRequireRef: null,
         tryLoadAssetCalls: [],
         windowLabel,
+        wrongRequireInstance: false,
       },
     };
   }
@@ -727,11 +815,16 @@ export const inspectBundleState = (rootWindow = null) => {
     gameSceneRunning: windows[0]?.details?.gameSceneRunning ?? false,
     hasRequire: windows[0]?.details?.hasRequire ?? false,
     hasRequireSwap: windows[0]?.details?.hasRequireSwap ?? false,
+    launcherRequireFingerprint: windows[0]?.details?.launcherRequireFingerprint ?? null,
     launcherRequireFunctionName: windows[0]?.details?.launcherRequireFunctionName ?? null,
+    liveRequireFingerprint: windows[0]?.details?.liveRequireFingerprint ?? null,
     loadBundleCalls: windows[0]?.details?.loadBundleCalls || [],
     moduleChecks: windows[0]?.details?.canonicalModuleChecks || {},
     requireFunctionName: windows[0]?.details?.requireFunctionName ?? null,
+    requireSwap: windows[0]?.details?.requireSwap ?? false,
     runSceneCalls: windows[0]?.details?.runSceneCalls || [],
+    sameRequireSource: windows[0]?.details?.sameRequireSource ?? null,
+    scene: windows[0]?.details?.scene ?? null,
     sceneName: windows[0]?.details?.sceneName ?? null,
     sameRequireRef: windows[0]?.details?.sameRequireRef ?? null,
     tryLoadAssetCalls: windows[0]?.details?.tryLoadAssetCalls || [],
@@ -746,23 +839,31 @@ const buildBattleModulesReadySource = (details) => {
   if (details.battleModulesReady) {
     return "BattleUIManager";
   }
+  if (details.requireExecError) {
+    return "require-exec-error";
+  }
+  if (details.wrongRequireInstance) {
+    return "wrong-require-instance";
+  }
   if (details.gameSceneRunning) {
     return "runScene(Game)";
-  }
-  if (details.gameSceneAssetLoaded) {
-    return "TRY_LOAD_ASSET(game, scenes/Game)";
-  }
-  if (details.gameBundleLoaded) {
-    return "loadBundle(game)";
-  }
-  if (details.gameBundleRequested) {
-    return "loadBundle(game):requested";
   }
   if (details.hasRequire) {
     return "launcher-ready";
   }
   return null;
 };
+
+const getRuntimeLayerErrorMessage = (details) =>
+  details?.canonicalModuleChecks?.BattleUIManager?.errorMessage
+  || details?.canonicalModuleChecks?.BattleUIManager?.error
+  || (
+    details?.firstRequireExecErrorModuleId
+      ? details?.canonicalModuleChecks?.[details.firstRequireExecErrorModuleId]?.errorMessage
+        || details?.canonicalModuleChecks?.[details.firstRequireExecErrorModuleId]?.error
+      : null
+  )
+  || null;
 
 const waitForSignal = async (runtimeWindow, intervalMs) => {
   await new Promise((resolve) => runtimeWindow.setTimeout(resolve, intervalMs));
@@ -778,6 +879,8 @@ export const waitForBattleModulesReady = async ({
   const initial = detectXyzwRuntimeLayer(gameWindow, { windowLabel });
   if (
     initial.layer === "battle-modules-ready"
+    || initial.layer === "wrong-require-instance"
+    || initial.layer === "require-exec-error"
     || initial.layer === "no-window"
     || initial.layer === "no-require"
   ) {
@@ -786,7 +889,7 @@ export const waitForBattleModulesReady = async ({
       details: initial.details,
       error: initial.layer === "battle-modules-ready"
         ? null
-        : initial.details?.canonicalModuleChecks?.BattleUIManager?.error || null,
+        : getRuntimeLayerErrorMessage(initial.details),
       gameBundleReadySource: buildBattleModulesReadySource(initial.details),
       layer: initial.layer,
       ok: initial.layer === "battle-modules-ready",
@@ -814,14 +917,22 @@ export const waitForBattleModulesReady = async ({
     }
 
     latest = detectXyzwRuntimeLayer(gameWindow, { windowLabel });
-    if (latest.layer === "battle-modules-ready") {
+    if (
+      latest.layer === "battle-modules-ready"
+      || latest.layer === "wrong-require-instance"
+      || latest.layer === "require-exec-error"
+      || latest.layer === "no-window"
+      || latest.layer === "no-require"
+    ) {
       return {
         attempts,
         details: latest.details,
-        error: null,
+        error: latest.layer === "battle-modules-ready"
+          ? null
+          : getRuntimeLayerErrorMessage(latest.details),
         gameBundleReadySource: buildBattleModulesReadySource(latest.details),
         layer: latest.layer,
-        ok: true,
+        ok: latest.layer === "battle-modules-ready",
         status: latest.layer,
       };
     }
@@ -830,7 +941,7 @@ export const waitForBattleModulesReady = async ({
   return {
     attempts,
     details: latest.details,
-    error: latest.details?.canonicalModuleChecks?.BattleUIManager?.error || null,
+    error: getRuntimeLayerErrorMessage(latest.details),
     gameBundleReadySource: buildBattleModulesReadySource(latest.details),
     layer: latest.layer,
     ok: false,
