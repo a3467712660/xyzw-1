@@ -97,6 +97,24 @@ const REPLAY_VM2_SHIM_KEY = "VM2_INTERNAL_STATE_DO_NOT_USE_OR_PROGRAM_WILL_FAIL"
 const toErrorMessage = (error, fallback) =>
   error?.message || String(error || fallback || "Unknown error");
 
+const toSafeModuleKeys = (value) => {
+  if (!value || (typeof value !== "object" && typeof value !== "function")) {
+    return [];
+  }
+
+  try {
+    return Object.keys(value).slice(0, 40);
+  } catch {
+    return [];
+  }
+};
+
+const isMissingModuleError = (message) =>
+  /cannot find module|module not found|cannot find/i.test(String(message || ""));
+
+const readRequireResultModule = (result) =>
+  result?.ok ? result.module : null;
+
 const getReplayAuxiliaryModuleCandidates = (moduleName) => {
   const normalizedName = String(moduleName || "").trim();
   const candidates = new Set();
@@ -1062,11 +1080,39 @@ const createScopedReplayWxShim = ({ canvas, accessLog }) => {
   };
 };
 
-const safeRequireModule = (runtimeRequire, name) => {
+export const safeRequireModule = (runtimeRequire, name) => {
+  if (typeof runtimeRequire !== "function") {
+    return {
+      ok: false,
+      module: null,
+      keys: [],
+      error: "Replay runtime require is unavailable.",
+      errorType: "require-unavailable",
+      missing: false,
+    };
+  }
+
   try {
-    return runtimeRequire(name);
+    const module = runtimeRequire(name);
+    return {
+      ok: true,
+      module,
+      keys: toSafeModuleKeys(module),
+      error: null,
+      errorType: null,
+      missing: module == null,
+    };
   } catch (error) {
-    return null;
+    const message = toErrorMessage(error, `Failed to require module "${name}".`);
+    const missing = isMissingModuleError(message);
+    return {
+      ok: false,
+      module: null,
+      keys: [],
+      error: message,
+      errorType: missing ? "module-missing" : "require-threw",
+      missing,
+    };
   }
 };
 
@@ -1359,7 +1405,9 @@ export const installReplayPrivacyGuard = ({
       return null;
     }
     for (const name of names) {
-      const moduleValue = safeRequireModule(runtimeRequire, name);
+      const moduleValue = readRequireResultModule(
+        safeRequireModule(runtimeRequire, name),
+      );
       if (moduleValue) {
         return moduleValue;
       }
@@ -1509,7 +1557,7 @@ export const installReplayPromiseUtilShim = ({
 } = {}) => {
   const runtimeRequire = runtimeWindow.__require;
   const promiseUtilModule = typeof runtimeRequire === "function"
-    ? safeRequireModule(runtimeRequire, "PromiseUtil")
+    ? readRequireResultModule(safeRequireModule(runtimeRequire, "PromiseUtil"))
     : null;
   const promiseUtil = promiseUtilModule?.default || promiseUtilModule;
   const previousWait = promiseUtil?.wait;
@@ -1621,13 +1669,13 @@ const readRuntimeModules = () => {
   }
 
   return {
-    BattleUIManager: safeRequireModule(runtimeRequire, "BattleUIManager"),
-    Game: safeRequireModule(runtimeRequire, "Game"),
-    GlobalVarManager: safeRequireModule(runtimeRequire, "GlobalVarManager"),
-    Launcher: safeRequireModule(runtimeRequire, "Launcher"),
-    PlatformManager: safeRequireModule(runtimeRequire, "PlatformManager"),
-    ResourceManager: safeRequireModule(runtimeRequire, "ResourceManager"),
-    consts: safeRequireModule(runtimeRequire, "consts"),
+    BattleUIManager: readRequireResultModule(safeRequireModule(runtimeRequire, "BattleUIManager")),
+    Game: readRequireResultModule(safeRequireModule(runtimeRequire, "Game")),
+    GlobalVarManager: readRequireResultModule(safeRequireModule(runtimeRequire, "GlobalVarManager")),
+    Launcher: readRequireResultModule(safeRequireModule(runtimeRequire, "Launcher")),
+    PlatformManager: readRequireResultModule(safeRequireModule(runtimeRequire, "PlatformManager")),
+    ResourceManager: readRequireResultModule(safeRequireModule(runtimeRequire, "ResourceManager")),
+    consts: readRequireResultModule(safeRequireModule(runtimeRequire, "consts")),
   };
 };
 
@@ -2411,7 +2459,7 @@ export const installReplayBattleStartProbe = ({
   const runtimeRequire = runtimeWindow.__require;
   const battleUIManagerModule = modules?.BattleUIManager
     || (typeof runtimeRequire === "function"
-      ? safeRequireModule(runtimeRequire, "BattleUIManager")
+      ? readRequireResultModule(safeRequireModule(runtimeRequire, "BattleUIManager"))
       : null);
   let replayStartEvent = null;
   diagnostics.replayStartSignal = false;
@@ -2527,7 +2575,26 @@ export const installReplayBattleStartProbe = ({
   };
 };
 
-const locateReplayEntrypoint = ({ diagnostics } = {}) => {
+const resolveLocatorProperty = (read) => {
+  try {
+    return {
+      ok: true,
+      value: read(),
+      error: null,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      value: null,
+      error: toErrorMessage(error, "Failed to resolve locator property."),
+    };
+  }
+};
+
+export const locateReplayEntrypoint = ({
+  diagnostics,
+  allowDebugFallbackEntrypoints = false,
+} = {}) => {
   const runtimeWindow = getRuntimeWindow();
   const runtimeRequire
     = runtimeWindow.__require
@@ -2536,10 +2603,83 @@ const locateReplayEntrypoint = ({ diagnostics } = {}) => {
       || runtimeWindow.cc?.require
       || null;
   const scannedCandidates = [];
+  const requireDebug = [];
 
-  const registerCandidate = (label, value, invoke) => {
-    const found = Boolean(value && typeof invoke === "function");
-    scannedCandidates.push({ label, found });
+  diagnostics.replayEntrypointCandidates = scannedCandidates;
+  diagnostics.replayEntrypointRequireDebug = requireDebug;
+  diagnostics.fallbackEntrypointUsed = false;
+  diagnostics.fallbackEntrypointReason = null;
+  diagnostics.enterOssAvailableButRejected = false;
+  diagnostics.battleKitAvailableButRejected = false;
+  diagnostics.battleUiManagerModuleStatus = typeof runtimeRequire === "function"
+    ? "unresolved"
+    : "require-unavailable";
+
+  const pushRequireDebug = (moduleName, result) => {
+    requireDebug.push({
+      moduleName,
+      ok: Boolean(result?.ok),
+      error: result?.error || null,
+      errorType: result?.errorType || null,
+      missing: Boolean(result?.missing),
+      keys: [...(result?.keys || [])],
+    });
+  };
+
+  const registerRequireCandidate = ({
+    label,
+    moduleName,
+    requireResult,
+    propertyResult,
+    invoke,
+  }) => {
+    const moduleStatus = requireResult?.ok
+      ? "found"
+      : requireResult?.errorType || "module-unavailable";
+    const propertyStatus = !requireResult?.ok
+      ? "module-unavailable"
+      : propertyResult?.ok === false
+        ? "property-threw"
+        : propertyResult?.value && typeof invoke === "function"
+          ? "resolved"
+          : "property-missing";
+    const found = propertyStatus === "resolved";
+    scannedCandidates.push({
+      label,
+      moduleName,
+      moduleStatus,
+      propertyStatus,
+      found,
+      errorType: requireResult?.errorType || null,
+      error: propertyResult?.error || requireResult?.error || null,
+    });
+    if (!found) {
+      return null;
+    }
+    return { label, invoke };
+  };
+
+  const registerWindowCandidate = ({
+    label,
+    propertyResult,
+    invoke,
+  }) => {
+    const hasValue = propertyResult?.ok !== false && propertyResult?.value != null;
+    const propertyStatus = propertyResult?.ok === false
+      ? "property-threw"
+      : hasValue && typeof invoke === "function"
+        ? "resolved"
+        : "property-missing";
+    const found = propertyStatus === "resolved";
+    scannedCandidates.push({
+      label,
+      moduleName: "window",
+      moduleStatus: hasValue ? "window-found" : "window-missing",
+      propertyStatus,
+      found,
+      errorType: null,
+      error: propertyResult?.error || null,
+    });
     if (!found) {
       return null;
     }
@@ -2568,191 +2708,170 @@ const locateReplayEntrypoint = ({ diagnostics } = {}) => {
     return (payload) => {
       instance._inputData = payload;
       instance._initBattleData = instance._initBattleData || { replayOnly: true };
-      instance._stage = instance._stage ?? 2;
+      instance._stage = 2;
       instance._isApplicationLoaded = true;
       return instance.tryRaisePlayback(true);
     };
   };
 
-  const replayUiCandidates = [
-    registerCandidate(
-      "window.showBattleReplayUI",
-      runtimeWindow.showBattleReplayUI,
-      typeof runtimeWindow.showBattleReplayUI === "function"
-        ? (payload) => runtimeWindow.showBattleReplayUI(payload)
+  const battleUIRequireResult = safeRequireModule(
+    runtimeRequire,
+    "BattleUIManager",
+  );
+  pushRequireDebug("BattleUIManager", battleUIRequireResult);
+  diagnostics.battleUiManagerModuleStatus = battleUIRequireResult.ok
+    ? "found"
+    : battleUIRequireResult.errorType;
+  diagnostics.battleUiManagerModuleFound = battleUIRequireResult.ok;
+  const battleUIManagerModule = readRequireResultModule(battleUIRequireResult);
+  const battleUiManagerResultGetter = resolveLocatorProperty(
+    () => battleUIManagerModule?.GET_BATTLE_RESULT?.(),
+  );
+
+  const primaryEntrypoints = [
+    registerRequireCandidate({
+      label: "require:BattleUIManager.SHOW_BATTLE_REPLAY_UI",
+      moduleName: "BattleUIManager",
+      requireResult: battleUIRequireResult,
+      propertyResult: resolveLocatorProperty(() => battleUIManagerModule?.SHOW_BATTLE_REPLAY_UI),
+      invoke: typeof battleUIManagerModule?.SHOW_BATTLE_REPLAY_UI === "function"
+        ? (payload) => battleUIManagerModule.SHOW_BATTLE_REPLAY_UI(payload)
         : null,
-    ),
-    registerCandidate(
-      "window.SHOW_BATTLE_REPLAY_UI",
-      runtimeWindow.SHOW_BATTLE_REPLAY_UI,
-      typeof runtimeWindow.SHOW_BATTLE_REPLAY_UI === "function"
+    }),
+    registerRequireCandidate({
+      label: "require:BattleUIManager.GET_BATTLE_RESULT().showBattleReplayUI",
+      moduleName: "BattleUIManager",
+      requireResult: battleUIRequireResult,
+      propertyResult: battleUiManagerResultGetter.ok
+        ? resolveLocatorProperty(() => battleUiManagerResultGetter.value?.showBattleReplayUI)
+        : battleUiManagerResultGetter,
+      invoke: typeof battleUiManagerResultGetter.value?.showBattleReplayUI === "function"
+        ? (payload) => battleUiManagerResultGetter.value.showBattleReplayUI(payload)
+        : null,
+    }),
+    registerRequireCandidate({
+      label: "require:BattleUIManager.BattleUIManager.instance.showBattleReplayUI",
+      moduleName: "BattleUIManager",
+      requireResult: battleUIRequireResult,
+      propertyResult: resolveLocatorProperty(
+        () => battleUIManagerModule?.BattleUIManager?.instance?.showBattleReplayUI,
+      ),
+      invoke: typeof battleUIManagerModule?.BattleUIManager?.instance?.showBattleReplayUI === "function"
+        ? (payload) => battleUIManagerModule.BattleUIManager.instance.showBattleReplayUI(payload)
+        : null,
+    }),
+    registerRequireCandidate({
+      label: "require:BattleUIManager.BattleUIManager.showBattleReplayUI",
+      moduleName: "BattleUIManager",
+      requireResult: battleUIRequireResult,
+      propertyResult: resolveLocatorProperty(
+        () => battleUIManagerModule?.BattleUIManager?.showBattleReplayUI,
+      ),
+      invoke: typeof battleUIManagerModule?.BattleUIManager?.showBattleReplayUI === "function"
+        ? (payload) => battleUIManagerModule.BattleUIManager.showBattleReplayUI(payload)
+        : null,
+    }),
+  ].filter(Boolean);
+
+  if (primaryEntrypoints.length > 0) {
+    return primaryEntrypoints[0];
+  }
+
+  const secondaryEntrypoints = [
+    registerWindowCandidate({
+      label: "window.SHOW_BATTLE_REPLAY_UI",
+      propertyResult: resolveLocatorProperty(() => runtimeWindow.SHOW_BATTLE_REPLAY_UI),
+      invoke: typeof runtimeWindow.SHOW_BATTLE_REPLAY_UI === "function"
         ? (payload) => runtimeWindow.SHOW_BATTLE_REPLAY_UI(payload)
         : null,
-    ),
-    registerCandidate(
-      "window.BattleUIManager.showBattleReplayUI",
-      runtimeWindow.BattleUIManager?.showBattleReplayUI,
-      typeof runtimeWindow.BattleUIManager?.showBattleReplayUI === "function"
-        ? (payload) => runtimeWindow.BattleUIManager.showBattleReplayUI(payload)
-        : null,
-    ),
-    registerCandidate(
-      "window.BattleUIManager.instance.showBattleReplayUI",
-      runtimeWindow.BattleUIManager?.instance?.showBattleReplayUI,
-      typeof runtimeWindow.BattleUIManager?.instance?.showBattleReplayUI === "function"
+    }),
+    registerWindowCandidate({
+      label: "window.BattleUIManager.instance.showBattleReplayUI",
+      propertyResult: resolveLocatorProperty(
+        () => runtimeWindow.BattleUIManager?.instance?.showBattleReplayUI,
+      ),
+      invoke: typeof runtimeWindow.BattleUIManager?.instance?.showBattleReplayUI === "function"
         ? (payload) => runtimeWindow.BattleUIManager.instance.showBattleReplayUI(payload)
         : null,
-    ),
-    registerCandidate(
-      "window.BattleUIManager.SHOW_BATTLE_REPLAY_UI",
-      runtimeWindow.BattleUIManager?.SHOW_BATTLE_REPLAY_UI,
-      typeof runtimeWindow.BattleUIManager?.SHOW_BATTLE_REPLAY_UI === "function"
-        ? (payload) => runtimeWindow.BattleUIManager.SHOW_BATTLE_REPLAY_UI(payload)
+    }),
+    registerWindowCandidate({
+      label: "window.BattleUIManager.showBattleReplayUI",
+      propertyResult: resolveLocatorProperty(
+        () => runtimeWindow.BattleUIManager?.showBattleReplayUI,
+      ),
+      invoke: typeof runtimeWindow.BattleUIManager?.showBattleReplayUI === "function"
+        ? (payload) => runtimeWindow.BattleUIManager.showBattleReplayUI(payload)
         : null,
-    ),
-  ];
+    }),
+  ].filter(Boolean);
 
-  const replayUiRequireCandidates = [
-    "BattleUIManager",
-    "../managers/BattleUIManager",
-    "../../managers/BattleUIManager",
-    "../../../managers/BattleUIManager",
-    "SHOW_BATTLE_REPLAY_UI",
-    "showBattleReplayUI",
-    "battleReplay",
-    "BattleReplay",
-    "PlaybackMemoryMode",
-  ].map((name) => {
-    if (typeof runtimeRequire !== "function") {
-      scannedCandidates.push({ label: `require:${name}`, found: false });
-      return null;
-    }
-    const mod = safeRequireModule(runtimeRequire, name);
-    return (
-      registerCandidate(
-        `require:${name}.showBattleReplayUI`,
-        mod?.showBattleReplayUI,
-        typeof mod?.showBattleReplayUI === "function"
-          ? (payload) => mod.showBattleReplayUI(payload)
-          : null,
-      )
-      || registerCandidate(
-        `require:${name}.SHOW_BATTLE_REPLAY_UI`,
-        mod?.SHOW_BATTLE_REPLAY_UI,
-        typeof mod?.SHOW_BATTLE_REPLAY_UI === "function"
-          ? (payload) => mod.SHOW_BATTLE_REPLAY_UI(payload)
-          : null,
-      )
-      || registerCandidate(
-        `require:${name}.BattleUIManager.showBattleReplayUI`,
-        mod?.BattleUIManager?.showBattleReplayUI,
-        typeof mod?.BattleUIManager?.showBattleReplayUI === "function"
-          ? (payload) => mod.BattleUIManager.showBattleReplayUI(payload)
-          : null,
-      )
-      || registerCandidate(
-        `require:${name}.BattleUIManager.instance.showBattleReplayUI`,
-        mod?.BattleUIManager?.instance?.showBattleReplayUI,
-        typeof mod?.BattleUIManager?.instance?.showBattleReplayUI === "function"
-          ? (payload) => mod.BattleUIManager.instance.showBattleReplayUI(payload)
-          : null,
-      )
-      || registerCandidate(
-        `require:${name}.BattleUIManager.SHOW_BATTLE_REPLAY_UI`,
-        mod?.BattleUIManager?.SHOW_BATTLE_REPLAY_UI,
-        typeof mod?.BattleUIManager?.SHOW_BATTLE_REPLAY_UI === "function"
-          ? (payload) => mod.BattleUIManager.SHOW_BATTLE_REPLAY_UI(payload)
-          : null,
-      )
-      || registerCandidate(
-        `require:${name}.GET_BATTLE_RESULT().showBattleReplayUI`,
-        mod?.GET_BATTLE_RESULT,
-        typeof mod?.GET_BATTLE_RESULT === "function"
-          && typeof mod?.GET_BATTLE_RESULT()?.showBattleReplayUI === "function"
-          ? (payload) => mod.GET_BATTLE_RESULT().showBattleReplayUI(payload)
-          : null,
-      )
-      || registerCandidate(
-        `require:${name}.default`,
-        mod?.default,
-        typeof mod?.default === "function" && /replay/i.test(name)
-          ? (payload) => mod.default(payload)
-          : null,
-      )
-    );
+  if (secondaryEntrypoints.length > 0) {
+    return secondaryEntrypoints[0];
+  }
+
+  const enterOssWindowProperty = resolveLocatorProperty(
+    () => runtimeWindow.EnterOSSState,
+  );
+  const enterOssWindowCandidate = registerWindowCandidate({
+    label: "window.EnterOSSState.showBattleViewWithData",
+    propertyResult: enterOssWindowProperty,
+    invoke: createEnterOSSInvoker(enterOssWindowProperty.value),
   });
-
-  const enterOssCandidates = [
-    registerCandidate(
-      "window.EnterOSSState.showBattleViewWithData",
-      runtimeWindow.EnterOSSState,
-      createEnterOSSInvoker(runtimeWindow.EnterOSSState),
-    ),
-  ];
-
-  const enterOssRequireCandidates = [
-    "EnterOSSState",
-    "enter-oss",
-    "../states/EnterOSSState",
-    "../../states/EnterOSSState",
-    "../../../states/EnterOSSState",
-  ].map((name) => {
-    if (typeof runtimeRequire !== "function") {
-      scannedCandidates.push({ label: `require:${name}`, found: false });
-      return null;
-    }
-    const mod = safeRequireModule(runtimeRequire, name);
-    return registerCandidate(
-      `require:${name}.EnterOSSState.showBattleViewWithData`,
-      mod,
-      createEnterOSSInvoker(mod),
-    );
+  const enterOssRequireResult = safeRequireModule(runtimeRequire, "EnterOSSState");
+  pushRequireDebug("EnterOSSState", enterOssRequireResult);
+  const enterOssRequireCandidate = registerRequireCandidate({
+    label: "require:EnterOSSState.showBattleViewWithData",
+    moduleName: "EnterOSSState",
+    requireResult: enterOssRequireResult,
+    propertyResult: resolveLocatorProperty(() => readRequireResultModule(enterOssRequireResult)),
+    invoke: createEnterOSSInvoker(readRequireResultModule(enterOssRequireResult)),
   });
+  const enterOssFallbackCandidate = enterOssRequireCandidate || enterOssWindowCandidate;
 
-  const battleKitCandidates = [
-    registerCandidate(
-      "window.BattleKitCrossSite.instance.tryRaisePlayback",
-      runtimeWindow.BattleKitCrossSite,
-      createBattleKitCrossSiteInvoker(runtimeWindow.BattleKitCrossSite),
-    ),
-  ];
+  const battleKitWindowProperty = resolveLocatorProperty(
+    () => runtimeWindow.BattleKitCrossSite,
+  );
+  const battleKitWindowCandidate = registerWindowCandidate({
+    label: "window.BattleKitCrossSite.instance.tryRaisePlayback",
+    propertyResult: battleKitWindowProperty,
+    invoke: createBattleKitCrossSiteInvoker(battleKitWindowProperty.value),
+  });
+  const battleKitRequireResult = safeRequireModule(runtimeRequire, "BattleKitCrossSite");
+  pushRequireDebug("BattleKitCrossSite", battleKitRequireResult);
+  const battleKitRequireCandidate = registerRequireCandidate({
+    label: "require:BattleKitCrossSite.instance.tryRaisePlayback",
+    moduleName: "BattleKitCrossSite",
+    requireResult: battleKitRequireResult,
+    propertyResult: resolveLocatorProperty(() => readRequireResultModule(battleKitRequireResult)),
+    invoke: createBattleKitCrossSiteInvoker(readRequireResultModule(battleKitRequireResult)),
+  });
+  const battleKitFallbackCandidate = battleKitRequireCandidate || battleKitWindowCandidate;
 
-  const battleKitRequireCandidates = ["BattleKitCrossSite"].map((name) => {
-    const candidates = [
-      name,
-      "../utils/debug/BattleKitCrossSite",
-      "../../utils/debug/BattleKitCrossSite",
-      "../../../utils/debug/BattleKitCrossSite",
-    ];
-    if (typeof runtimeRequire !== "function") {
-      candidates.forEach((candidate) => {
-        scannedCandidates.push({ label: `require:${candidate}`, found: false });
-      });
-      return null;
-    }
-    for (const candidate of candidates) {
-      const mod = safeRequireModule(runtimeRequire, candidate);
-      const found = registerCandidate(
-        `require:${candidate}.instance.tryRaisePlayback`,
-        mod,
-        createBattleKitCrossSiteInvoker(mod),
-      );
-      if (found) {
-        return found;
-      }
+  const fallbackRejectedReason = "rejected-due-to-mapId-risk";
+  if (enterOssFallbackCandidate && !allowDebugFallbackEntrypoints) {
+    diagnostics.enterOssAvailableButRejected = true;
+  }
+  if (battleKitFallbackCandidate && !allowDebugFallbackEntrypoints) {
+    diagnostics.battleKitAvailableButRejected = true;
+  }
+
+  if (!allowDebugFallbackEntrypoints) {
+    if (diagnostics.enterOssAvailableButRejected || diagnostics.battleKitAvailableButRejected) {
+      diagnostics.fallbackEntrypointReason = fallbackRejectedReason;
     }
     return null;
-  });
+  }
 
-  diagnostics.replayEntrypointCandidates = scannedCandidates;
-  return [
-    ...replayUiCandidates,
-    ...replayUiRequireCandidates,
-    ...enterOssCandidates,
-    ...enterOssRequireCandidates,
-    ...battleKitCandidates,
-    ...battleKitRequireCandidates,
-  ].find(Boolean) || null;
+  const selectedFallback = enterOssFallbackCandidate || battleKitFallbackCandidate || null;
+  if (!selectedFallback) {
+    return null;
+  }
+
+  diagnostics.fallbackEntrypointUsed = true;
+  diagnostics.fallbackEntrypointReason = battleUIRequireResult.ok
+    ? "battle-ui-manager-entrypoint-unresolved"
+    : "battle-ui-manager-unavailable";
+  return selectedFallback;
 };
 
 const startReplayEntrypoint = async ({
@@ -2772,6 +2891,7 @@ export const startFightPvpReplayRuntime = async ({
   replay,
   hostElement,
   liveContext = null,
+  allowDebugFallbackEntrypoints = false,
   runtimeAdapter = {},
 } = {}) => {
   const diagnostics = {
@@ -3061,17 +3181,27 @@ export const startFightPvpReplayRuntime = async ({
     const replayEntrypoint = adapter.locateReplayEntrypoint({
       modules,
       diagnostics,
+      allowDebugFallbackEntrypoints,
     });
 
     if (!replayEntrypoint) {
       const scanned = diagnostics.replayEntrypointCandidates || [];
       const scannedSummary = scanned.length > 0
-        ? scanned.map((entry) => `${entry.label}:${entry.found ? "found" : "missing"}`).join(", ")
+        ? scanned.map((entry) => `${entry.label}:${entry.moduleStatus || "unknown"}/${entry.propertyStatus || "unknown"}`).join(", ")
         : "none";
+      const requireSummary = Array.isArray(diagnostics.replayEntrypointRequireDebug)
+        ? diagnostics.replayEntrypointRequireDebug
+            .map((entry) => `${entry.moduleName}:${entry.ok ? "found" : (entry.errorType || "missing")}`)
+            .join(", ")
+        : "none";
+      const detail = `已检查：${scannedSummary}。require: ${requireSummary}。`;
+      const message = diagnostics.battleUiManagerModuleStatus === "found"
+        ? `运行时已进入 ${runtimeReady.sceneName || GAME_SCENE_NAME}，BattleUIManager 模块可访问，但未成功解析 FightPvp 所需的 replay 调用入口。${detail}`
+        : `运行时已进入 ${runtimeReady.sceneName || GAME_SCENE_NAME}，但未找到 battle replay 启动入口。${detail}`;
       return {
         ok: false,
         reason: "replay-start-failed",
-        message: `运行时已进入 ${runtimeReady.sceneName || GAME_SCENE_NAME}，但未找到 battle replay 启动入口。已检查：${scannedSummary}。`,
+        message,
         diagnostics,
         dispose,
       };

@@ -16,8 +16,10 @@ import {
   installReplayPageExitGuard,
   installReplayMissingModuleShims,
   installReplayManifestShim,
+  locateReplayEntrypoint,
   probeGameSceneAssets,
   resolveReplayAuxiliaryModuleRegistration,
+  safeRequireModule,
   startFightPvpReplayRuntime,
   toAbsoluteBundleRequestTarget,
   waitForRuntimeReadyForReplay,
@@ -81,6 +83,222 @@ const createSnapshotReplayRecord = ({
   pvpMapIdSource: "test.mapId",
   battleInputSnapshot: createFightPvpBattleInputSnapshot(battleInputData),
   ...overrides,
+});
+
+test.afterEach(() => {
+  delete globalThis.window;
+  delete globalThis.__require;
+  delete globalThis.HTMLElement;
+});
+
+test("fight pvp replay locator prioritizes require BattleUIManager SHOW_BATTLE_REPLAY_UI", () => {
+  const invokeCalls = [];
+  globalThis.window = {
+    __require(name) {
+      if (name === "BattleUIManager") {
+        return {
+          SHOW_BATTLE_REPLAY_UI(payload) {
+            invokeCalls.push(payload);
+          },
+        };
+      }
+      throw new Error(`Cannot find module '${name}'`);
+    },
+  };
+
+  const diagnostics = {};
+  const entrypoint = locateReplayEntrypoint({ diagnostics });
+
+  assert.equal(entrypoint?.label, "require:BattleUIManager.SHOW_BATTLE_REPLAY_UI");
+  entrypoint.invoke({ replay: true });
+  assert.deepEqual(invokeCalls, [{ replay: true }]);
+  assert.equal(diagnostics.battleUiManagerModuleStatus, "found");
+});
+
+test("fight pvp replay locator falls back to GET_BATTLE_RESULT().showBattleReplayUI inside BattleUIManager", () => {
+  const invokeCalls = [];
+  globalThis.window = {
+    __require(name) {
+      if (name === "BattleUIManager") {
+        return {
+          GET_BATTLE_RESULT() {
+            return {
+              showBattleReplayUI(payload) {
+                invokeCalls.push(payload);
+              },
+            };
+          },
+        };
+      }
+      throw new Error(`Cannot find module '${name}'`);
+    },
+  };
+
+  const diagnostics = {};
+  const entrypoint = locateReplayEntrypoint({ diagnostics });
+
+  assert.equal(
+    entrypoint?.label,
+    "require:BattleUIManager.GET_BATTLE_RESULT().showBattleReplayUI",
+  );
+  entrypoint.invoke({ replay: "secondary" });
+  assert.deepEqual(invokeCalls, [{ replay: "secondary" }]);
+});
+
+test("fight pvp replay locator distinguishes BattleUIManager module found from property missing", () => {
+  globalThis.window = {
+    __require(name) {
+      if (name === "BattleUIManager") {
+        return {
+          BattleUIManager: {},
+          unexpected: true,
+        };
+      }
+      throw new Error(`Cannot find module '${name}'`);
+    },
+  };
+
+  const diagnostics = {};
+  const entrypoint = locateReplayEntrypoint({ diagnostics });
+
+  assert.equal(entrypoint, null);
+  assert.equal(diagnostics.battleUiManagerModuleStatus, "found");
+  assert.deepEqual(diagnostics.replayEntrypointRequireDebug, [
+    {
+      moduleName: "BattleUIManager",
+      ok: true,
+      error: null,
+      errorType: null,
+      missing: false,
+      keys: ["BattleUIManager", "unexpected"],
+    },
+    {
+      moduleName: "EnterOSSState",
+      ok: false,
+      error: "Cannot find module 'EnterOSSState'",
+      errorType: "module-missing",
+      missing: true,
+      keys: [],
+    },
+    {
+      moduleName: "BattleKitCrossSite",
+      ok: false,
+      error: "Cannot find module 'BattleKitCrossSite'",
+      errorType: "module-missing",
+      missing: true,
+      keys: [],
+    },
+  ]);
+  const primaryCandidates = diagnostics.replayEntrypointCandidates.filter(
+    (entry) => entry.moduleName === "BattleUIManager",
+  );
+  assert.ok(primaryCandidates.length >= 4);
+  assert.ok(primaryCandidates.every((entry) => entry.moduleStatus === "found"));
+  assert.ok(primaryCandidates.every((entry) => entry.propertyStatus === "property-missing"));
+});
+
+test("fight pvp replay locator rejects EnterOSSState and BattleKitCrossSite by default", () => {
+  globalThis.window = {
+    __require(name) {
+      if (name === "BattleUIManager") {
+        return {};
+      }
+      if (name === "EnterOSSState") {
+        return {
+          EnterOSSState: class {
+            showBattleViewWithData() {}
+          },
+        };
+      }
+      if (name === "BattleKitCrossSite") {
+        return {
+          BattleKitCrossSite: {
+            instance: {
+              tryRaisePlayback() {},
+            },
+          },
+        };
+      }
+      throw new Error(`Cannot find module '${name}'`);
+    },
+  };
+
+  const diagnostics = {};
+  const entrypoint = locateReplayEntrypoint({ diagnostics });
+
+  assert.equal(entrypoint, null);
+  assert.equal(diagnostics.fallbackEntrypointUsed, false);
+  assert.equal(diagnostics.fallbackEntrypointReason, "rejected-due-to-mapId-risk");
+  assert.equal(diagnostics.enterOssAvailableButRejected, true);
+  assert.equal(diagnostics.battleKitAvailableButRejected, true);
+});
+
+test("fight pvp replay locator allows BattleKitCrossSite debug fallback and forces _stage to 2", () => {
+  const battleKitInstance = {
+    _stage: 0,
+    _isApplicationLoaded: false,
+    _initBattleData: null,
+    _inputData: null,
+    tryRaisePlayback() {
+      return this._stage;
+    },
+  };
+
+  globalThis.window = {
+    __require(name) {
+      if (name === "BattleUIManager") {
+        throw new Error(`Cannot find module '${name}'`);
+      }
+      if (name === "BattleKitCrossSite") {
+        return {
+          BattleKitCrossSite: {
+            instance: battleKitInstance,
+          },
+        };
+      }
+      throw new Error(`Cannot find module '${name}'`);
+    },
+  };
+
+  const diagnostics = {};
+  const entrypoint = locateReplayEntrypoint({
+    diagnostics,
+    allowDebugFallbackEntrypoints: true,
+  });
+
+  assert.equal(
+    entrypoint?.label,
+    "require:BattleKitCrossSite.instance.tryRaisePlayback",
+  );
+  entrypoint.invoke({ replay: "debug" });
+  assert.equal(battleKitInstance._stage, 2);
+  assert.equal(diagnostics.fallbackEntrypointUsed, true);
+  assert.equal(
+    diagnostics.fallbackEntrypointReason,
+    "battle-ui-manager-unavailable",
+  );
+});
+
+test("fight pvp replay safeRequireModule distinguishes missing modules from thrown requires", () => {
+  const missing = safeRequireModule(
+    () => {
+      throw new Error("Cannot find module 'BattleUIManager'");
+    },
+    "BattleUIManager",
+  );
+  const threw = safeRequireModule(
+    () => {
+      throw new Error("Permission denied");
+    },
+    "BattleUIManager",
+  );
+
+  assert.equal(missing.ok, false);
+  assert.equal(missing.errorType, "module-missing");
+  assert.equal(missing.missing, true);
+  assert.equal(threw.ok, false);
+  assert.equal(threw.errorType, "require-threw");
+  assert.equal(threw.missing, false);
 });
 
 test("fight pvp replay runtime bridge initializes missing bundle version containers", () => {

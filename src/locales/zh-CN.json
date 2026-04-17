@@ -3014,6 +3014,7 @@
       "missingMapIdDescription": "无法确定本场切磋地图，当前回放无法播放。",
       "missingFieldsDescription": "该历史回放缺少必要字段，当前无法播放。",
       "engineEntrypointUnavailableDescription": "回放运行时已准备，但没有找到可用的引擎回放入口。",
+      "engineEntrypointResolveFailedDescription": "运行时已进入 Game，BattleUIManager 模块可访问，但未成功解析 FightPvp 所需的 replay 调用入口。",
       "replaySignalMissingDescription": "回放运行时已准备，但这场记录没有真正进入回放启动链。",
       "runtimeNotReady": "运行时尚未准备好，暂时无法播放该回放。",
       "mapIdReasons": {

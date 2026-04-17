@@ -227,6 +227,28 @@ const diagnosticLines = computed(() => {
   if (diagnostics.engineReplayEntrypoint) {
     lines.push(`engineReplayEntrypoint: ${diagnostics.engineReplayEntrypoint}`);
   }
+  if (Array.isArray(diagnostics.replayEntrypointCandidates) && diagnostics.replayEntrypointCandidates.length > 0) {
+    lines.push(
+      `scannedEntrypointCandidates: ${diagnostics.replayEntrypointCandidates.map((entry) => `${entry.label}:${entry.moduleStatus || "unknown"}/${entry.propertyStatus || "unknown"}`).join(", ")}`,
+    );
+  }
+  if (Array.isArray(diagnostics.replayEntrypointRequireDebug) && diagnostics.replayEntrypointRequireDebug.length > 0) {
+    lines.push(
+      `replayEntrypointRequireDebug: ${formatDiagnosticValue(diagnostics.replayEntrypointRequireDebug)}`,
+    );
+  }
+  if (typeof diagnostics.fallbackEntrypointUsed === "boolean") {
+    lines.push(`fallbackEntrypointUsed: ${diagnostics.fallbackEntrypointUsed}`);
+  }
+  if (diagnostics.fallbackEntrypointReason) {
+    lines.push(`fallbackEntrypointReason: ${diagnostics.fallbackEntrypointReason}`);
+  }
+  if (typeof diagnostics.enterOssAvailableButRejected === "boolean") {
+    lines.push(`enterOssAvailableButRejected: ${diagnostics.enterOssAvailableButRejected}`);
+  }
+  if (typeof diagnostics.battleKitAvailableButRejected === "boolean") {
+    lines.push(`battleKitAvailableButRejected: ${diagnostics.battleKitAvailableButRejected}`);
+  }
   if (Array.isArray(diagnostics.missingRuntimeFields) && diagnostics.missingRuntimeFields.length > 0) {
     lines.push(`missingRuntimeFields: ${diagnostics.missingRuntimeFields.join(", ")}`);
   }
@@ -390,6 +412,18 @@ const buildReplayFailureMessage = ({
   ) {
     return appendTechnicalMessage(
       props.t("fightPvpCard.replay.replaySignalMissingDescription"),
+      detail,
+    );
+  }
+
+  if (
+    failureState === "replay-start-failed"
+    && diagnostics?.battleUiManagerModuleStatus === "found"
+    && Array.isArray(diagnostics?.replayEntrypointCandidates)
+    && diagnostics.replayEntrypointCandidates.length > 0
+  ) {
+    return appendTechnicalMessage(
+      props.t("fightPvpCard.replay.engineEntrypointResolveFailedDescription"),
       detail,
     );
   }
