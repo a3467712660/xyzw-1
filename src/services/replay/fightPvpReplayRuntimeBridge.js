@@ -176,6 +176,232 @@ const getRuntimeWindow = () => {
   return window;
 };
 
+const formatReplayGameWindowSourceLabel = (source) =>
+  !source || source === "window"
+    ? "window"
+    : `${source}.contentWindow`;
+
+const formatReplayRequireCallLabel = (source, moduleId) =>
+  `${formatReplayGameWindowSourceLabel(source)}.__require("${moduleId}")`;
+
+const formatReplayEntrypointLabel = (source, moduleId, propertyPath) =>
+  `${formatReplayRequireCallLabel(source, moduleId)}.${propertyPath}`;
+
+const REPLAY_GAME_BUNDLE_READY_ATTEMPTS = 30;
+const REPLAY_GAME_BUNDLE_READY_INTERVAL_MS = 100;
+const REPLAY_GAME_BUNDLE_READY_MODULE_ID = "BattleUIManager";
+const REPLAY_LOADER_NOT_READY_DETAIL
+  = "current window.__require is still launcher/main bundle or game.js is not ready yet";
+const REPLAY_CANONICAL_MODULE_IDS = Object.freeze([
+  "BattleUIManager",
+  "enter-oss",
+  "BattleKitCrossSite",
+]);
+const REPLAY_CANONICAL_MODULE_ID_SET = new Set(REPLAY_CANONICAL_MODULE_IDS);
+const REPLAY_ENTRYPOINT_PROBE_CONFIGS = Object.freeze([
+  {
+    kind: "require-export",
+    moduleId: "BattleUIManager",
+    exportPath: Object.freeze(["SHOW_BATTLE_REPLAY_UI"]),
+  },
+  {
+    kind: "require-export",
+    moduleId: "BattleUIManager",
+    exportPath: Object.freeze(["BattleUIManager", "instance", "showBattleReplayUI"]),
+  },
+  {
+    kind: "require-export",
+    moduleId: "enter-oss",
+    exportPath: Object.freeze(["EnterOSSState", "prototype", "showBattleViewWithData"]),
+  },
+  {
+    kind: "require-export",
+    moduleId: "BattleKitCrossSite",
+    exportPath: Object.freeze(["BattleKitCrossSite", "instance", "tryRaisePlayback"]),
+  },
+]);
+const REPLAY_LEGACY_DEBUG_ITEMS = Object.freeze([
+  {
+    label: "require(\"BattleUIManager\")",
+    moduleId: "BattleUIManager",
+    status: "wrong-loader",
+    detail:
+      "游戏 bundle 模块应通过真实游戏 window 的 window.__require(...) 访问，而不是普通 require(...)。",
+  },
+  {
+    label: "require(\"EnterOSSState\")",
+    moduleId: "EnterOSSState",
+    status: "wrong-module-id",
+    detail: "EnterOSSState 不是 module id；正确 module id 是 enter-oss。",
+  },
+  {
+    label: "require(\"BattleKitCrossSite\").instance.tryRaisePlayback",
+    moduleId: "BattleKitCrossSite",
+    status: "wrong-export-path",
+    detail:
+      "BattleKitCrossSite 的正确路径是 BattleKitCrossSite.BattleKitCrossSite.instance.tryRaisePlayback。",
+  },
+  {
+    label: "window.BattleKitCrossSite.instance.tryRaisePlayback",
+    moduleId: "BattleKitCrossSite",
+    status: "wrong-export-path",
+    detail:
+      "BattleKitCrossSite 不是挂在 window.BattleKitCrossSite.instance 上，而是 bundle 模块导出 BattleKitCrossSite.BattleKitCrossSite.instance。",
+  },
+]);
+
+export const findGameWindow = (rootWindow = null) => {
+  const runtimeWindow = rootWindow || getRuntimeWindow();
+
+  if (typeof runtimeWindow?.__require === "function") {
+    return {
+      gameWindow: runtimeWindow,
+      source: "window",
+      status: "present",
+      error: null,
+      checkedIframes: [],
+    };
+  }
+
+  const checkedIframes = [];
+  const iframes = Array.from(
+    runtimeWindow?.document?.querySelectorAll?.("iframe") || [],
+  );
+  for (let index = 0; index < iframes.length; index += 1) {
+    const source = `iframe[${index}]`;
+    checkedIframes.push(source);
+    try {
+      const iframeWindow = iframes[index]?.contentWindow || null;
+      if (typeof iframeWindow?.__require === "function") {
+        return {
+          gameWindow: iframeWindow,
+          source,
+          status: "wrong-window",
+          error: null,
+          checkedIframes,
+        };
+      }
+    } catch {
+      // Ignore cross-origin or detached iframe access; only same-origin runtime iframes are usable here.
+    }
+  }
+
+  return {
+    gameWindow: null,
+    source: null,
+    status: "wrong-loader",
+    error: "No game window with window.__require(...) was found.",
+    checkedIframes,
+  };
+};
+
+export const findReplayGameWindow = findGameWindow;
+
+export const getReplaySource = (gameWindow) => {
+  const runtimeWindow = getRuntimeWindow();
+  return (
+    gameWindow?.__REPLAY_DATA__
+    ?? runtimeWindow.__REPLAY_DATA__
+    ?? gameWindow?.__xyzwReplayData
+    ?? runtimeWindow.__xyzwReplayData
+    ?? null
+  );
+};
+
+export const looksLikeBattleInput = (source) =>
+  Boolean(
+    source?.battleData
+    && typeof source?.mapId !== "undefined"
+    && (
+      typeof source?.battleData?.leftTeam?.team?.get === "function"
+      || typeof source?.battleData?.leftTeam?.team?.forEach === "function"
+    )
+    && (
+      typeof source?.battleData?.rightTeam?.team?.get === "function"
+      || typeof source?.battleData?.rightTeam?.team?.forEach === "function"
+    ),
+  );
+
+const isPlainReplayOptionsObject = (value) =>
+  Object.prototype.toString.call(value) === "[object Object]";
+
+const mergeReplayProbeOptions = (target, options) => {
+  if (!options || Object.keys(options).length === 0) {
+    return;
+  }
+
+  if (!target.options) {
+    target.options = options;
+    return;
+  }
+
+  if (isPlainReplayOptionsObject(target.options)) {
+    Object.assign(target.options, options);
+    return;
+  }
+
+  target.__replayProbeOptions = options;
+};
+
+const applyReplayInputPassthroughFields = (inputData, source) => {
+  const passthroughKeys = [
+    "mapId",
+    "battleResult",
+    "stageNameStr",
+    "startTipTopName",
+    "startTipStage",
+    "topName",
+    "showRightPower",
+    "hideLeftSkinName",
+    "hideRightSkinName",
+    "clientRoleNum",
+    "isReplay",
+    "options",
+  ];
+
+  for (const key of passthroughKeys) {
+    if (source && source[key] != null) {
+      inputData[key] = source[key];
+    }
+  }
+};
+
+export const ensureReplayInputData = (source, gameWindow, options = {}) => {
+  if (!gameWindow) {
+    throw new Error("No game window with __require found");
+  }
+
+  const req = gameWindow.__require;
+  if (typeof req !== "function") {
+    throw new TypeError("gameWindow.__require is not a function");
+  }
+
+  if (looksLikeBattleInput(source)) {
+    const prepared = source;
+    prepared.battleResult ??= prepared.battleData?.result;
+    prepared.mapId ??= 10001;
+    mergeReplayProbeOptions(prepared, options);
+    return prepared;
+  }
+
+  const { EnterOSSState } = req("enter-oss");
+  const oss = new EnterOSSState();
+  const battleData = oss.getBattleDataByOSS(source);
+
+  if (!battleData) {
+    throw new Error(
+      "getBattleDataByOSS returned null: expected raw battleData / {battleData} / {fightRoleBase,lastBattleData}",
+    );
+  }
+
+  const inputData = oss.createBattleInputData(battleData, battleData.result);
+  applyReplayInputPassthroughFields(inputData, source);
+  inputData.mapId ??= 10001;
+  inputData.battleResult ??= inputData.battleData?.result;
+  mergeReplayProbeOptions(inputData, options);
+  return inputData;
+};
+
 const wait = (runtimeWindow, ms) =>
   new Promise((resolve) => runtimeWindow.setTimeout(resolve, ms));
 
@@ -2575,303 +2801,608 @@ export const installReplayBattleStartProbe = ({
   };
 };
 
-const resolveLocatorProperty = (read) => {
-  try {
-    return {
-      ok: true,
-      value: read(),
-      error: null,
-    };
-  } catch (error) {
+const toReplayExportPathLabel = (exportPathArr = []) => exportPathArr.join(".");
+
+const buildReplayEntrypointLabel = (source, moduleId, exportPathArr) =>
+  formatReplayEntrypointLabel(source || "window", moduleId, toReplayExportPathLabel(exportPathArr));
+
+export const requireModule = (gameWindow, moduleId) => {
+  if (!gameWindow) {
     return {
       ok: false,
+      status: "wrong-window",
+      moduleId,
       value: null,
-      error: toErrorMessage(error, "Failed to resolve locator property."),
+      error: null,
+      detail: "game window is unavailable.",
     };
+  }
+
+  if (typeof gameWindow.__require !== "function") {
+    return {
+      ok: false,
+      status: "wrong-loader",
+      moduleId,
+      value: null,
+      error: null,
+      detail: "gameWindow.__require is unavailable.",
+    };
+  }
+
+  try {
+    const value = gameWindow.__require(moduleId);
+    return {
+      ok: true,
+      status: "present",
+      moduleId,
+      value,
+      error: null,
+      detail: null,
+    };
+  } catch (error) {
+    const errorText = toErrorMessage(error, `Failed to require module "${moduleId}".`);
+    if (isMissingModuleError(errorText)) {
+      return REPLAY_CANONICAL_MODULE_ID_SET.has(moduleId)
+        ? {
+            ok: false,
+            status: "wrong-loader",
+            moduleId,
+            value: null,
+            error: errorText,
+            detail: REPLAY_LOADER_NOT_READY_DETAIL,
+          }
+        : {
+            ok: false,
+            status: "wrong-module-id",
+            moduleId,
+            value: null,
+            error: errorText,
+            detail: `${moduleId} is not a valid replay probe module id.`,
+          };
+    }
+
+    return REPLAY_CANONICAL_MODULE_ID_SET.has(moduleId)
+      ? {
+          ok: false,
+          status: "wrong-loader",
+          moduleId,
+          value: null,
+          error: errorText,
+          detail: REPLAY_LOADER_NOT_READY_DETAIL,
+        }
+      : {
+          ok: false,
+          status: "wrong-module-id",
+          moduleId,
+          value: null,
+          error: errorText,
+          detail: `${moduleId} is not a valid replay probe module id.`,
+        };
   }
 };
 
-export const locateReplayEntrypoint = ({
-  diagnostics,
-  allowDebugFallbackEntrypoints = false,
+export const resolveExport = (obj, exportPathArr) => {
+  const exportPath = Array.isArray(exportPathArr) ? [...exportPathArr] : [];
+  let current = obj;
+
+  for (const segment of exportPath) {
+    if (
+      current == null
+      || !(
+        (typeof current === "object" || typeof current === "function")
+        && segment in current
+      )
+    ) {
+      return {
+        ok: false,
+        status: "wrong-export-path",
+        value: null,
+        error: null,
+        detail: `missing export segment "${segment}" while resolving ${toReplayExportPathLabel(exportPath)}.`,
+      };
+    }
+    current = current[segment];
+  }
+
+  if (typeof current !== "function") {
+    return {
+      ok: false,
+      status: "not-callable",
+      value: current,
+      error: null,
+      detail: `${toReplayExportPathLabel(exportPath)} resolved to ${typeof current}, not a function.`,
+    };
+  }
+
+  return {
+    ok: true,
+    status: "present",
+    value: current,
+    error: null,
+    detail: null,
+  };
+};
+
+export const probeRequireExport = (gameWindow, moduleId, exportPathArr) => {
+  const moduleResult = requireModule(gameWindow, moduleId);
+  if (!moduleResult.ok) {
+    return {
+      ok: false,
+      status: moduleResult.status,
+      moduleId,
+      exportPath: [...(exportPathArr || [])],
+      moduleResult,
+      exportResult: null,
+      value: null,
+      error: moduleResult.error,
+      detail: moduleResult.detail,
+    };
+  }
+
+  const exportResult = resolveExport(moduleResult.value, exportPathArr);
+  return {
+    ok: exportResult.ok,
+    status: exportResult.status,
+    moduleId,
+    exportPath: [...(exportPathArr || [])],
+    moduleResult,
+    exportResult,
+    value: exportResult.value,
+    error: exportResult.error,
+    detail: exportResult.detail,
+  };
+};
+
+export const waitForReplayGameBundleReady = async ({
+  gameWindow,
+  runtimeWindow = gameWindow || getRuntimeWindow(),
+  attempts = REPLAY_GAME_BUNDLE_READY_ATTEMPTS,
+  intervalMs = REPLAY_GAME_BUNDLE_READY_INTERVAL_MS,
+  moduleId = REPLAY_GAME_BUNDLE_READY_MODULE_ID,
+} = {}) => {
+  let lastResult = null;
+  if (!gameWindow || typeof gameWindow?.__require !== "function") {
+    lastResult = requireModule(gameWindow, moduleId);
+    return {
+      ...lastResult,
+      attempts: 0,
+    };
+  }
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    lastResult = requireModule(gameWindow, moduleId);
+    if (lastResult.ok || lastResult.status !== "wrong-loader") {
+      return {
+        ...lastResult,
+        attempts: attempt,
+      };
+    }
+    if (attempt < attempts) {
+      await wait(runtimeWindow, intervalMs);
+    }
+  }
+
+  return {
+    ...lastResult,
+    attempts,
+  };
+};
+
+const createBattleKitCrossSiteReplayInvoker = (moduleValue) => {
+  const instance = moduleValue?.BattleKitCrossSite?.instance || null;
+  if (!instance || typeof instance.tryRaisePlayback !== "function") {
+    return null;
+  }
+
+  return (payload) => {
+    instance._inputData = payload;
+    instance._initBattleData = instance._initBattleData || { replayOnly: true };
+    instance._stage = 2;
+    instance._isApplicationLoaded = true;
+    return instance.tryRaisePlayback(true);
+  };
+};
+
+const createReplayEntrypointInvoker = (moduleId, exportPathArr, moduleValue) => {
+  if (
+    moduleId === "BattleUIManager"
+    && exportPathArr.length === 1
+    && exportPathArr[0] === "SHOW_BATTLE_REPLAY_UI"
+  ) {
+    return (payload) => moduleValue.SHOW_BATTLE_REPLAY_UI(payload);
+  }
+
+  if (
+    moduleId === "BattleUIManager"
+    && exportPathArr.length === 3
+    && exportPathArr[0] === "BattleUIManager"
+    && exportPathArr[1] === "instance"
+    && exportPathArr[2] === "showBattleReplayUI"
+  ) {
+    return (payload) => moduleValue.BattleUIManager.instance.showBattleReplayUI(payload);
+  }
+
+  if (
+    moduleId === "enter-oss"
+    && exportPathArr.length === 3
+    && exportPathArr[0] === "EnterOSSState"
+    && exportPathArr[1] === "prototype"
+    && exportPathArr[2] === "showBattleViewWithData"
+  ) {
+    return (payload) => new moduleValue.EnterOSSState().showBattleViewWithData(payload);
+  }
+
+  if (
+    moduleId === "BattleKitCrossSite"
+    && exportPathArr.length === 3
+    && exportPathArr[0] === "BattleKitCrossSite"
+    && exportPathArr[1] === "instance"
+    && exportPathArr[2] === "tryRaisePlayback"
+  ) {
+    return createBattleKitCrossSiteReplayInvoker(moduleValue);
+  }
+
+  return null;
+};
+
+const buildReplayProbeReport = ({
+  gameWindow,
+  gameWindowInfo,
+  diagnostics = {},
 } = {}) => {
   const runtimeWindow = getRuntimeWindow();
-  const runtimeRequire
-    = runtimeWindow.__require
-      || globalThis.__require
-      || runtimeWindow.require
-      || runtimeWindow.cc?.require
-      || null;
-  const scannedCandidates = [];
+  const resolvedGameWindowInfo = gameWindowInfo || findReplayGameWindow(runtimeWindow);
+  const resolvedGameWindow = gameWindow || resolvedGameWindowInfo.gameWindow || null;
+  const source = resolvedGameWindowInfo.source || null;
+  const loaderLabel = formatReplayGameWindowSourceLabel(source || "window");
+  const candidates = [];
   const requireDebug = [];
+  const seenModuleIds = new Set();
 
-  diagnostics.replayEntrypointCandidates = scannedCandidates;
+  diagnostics.replayEntrypointCandidates = candidates;
   diagnostics.replayEntrypointRequireDebug = requireDebug;
+  diagnostics.replayGameWindowSource = source;
+  diagnostics.replayGameWindowStatus = resolvedGameWindowInfo.status || "wrong-loader";
   diagnostics.fallbackEntrypointUsed = false;
   diagnostics.fallbackEntrypointReason = null;
   diagnostics.enterOssAvailableButRejected = false;
   diagnostics.battleKitAvailableButRejected = false;
-  diagnostics.battleUiManagerModuleStatus = typeof runtimeRequire === "function"
-    ? "unresolved"
-    : "require-unavailable";
 
-  const pushRequireDebug = (moduleName, result) => {
+  const currentWindowLoaderStatus = typeof runtimeWindow?.__require === "function"
+    ? "present"
+    : diagnostics.replayGameWindowStatus === "wrong-window"
+      ? "wrong-window"
+      : "wrong-loader";
+  requireDebug.push({
+    label: "window.__require",
+    moduleId: null,
+    source: "window",
+    status: currentWindowLoaderStatus,
+    detail:
+      currentWindowLoaderStatus === "wrong-window"
+        ? `当前页面没有 window.__require，已切换到 ${loaderLabel}.__require。`
+        : currentWindowLoaderStatus === "wrong-loader"
+          ? "当前页面和可见 iframe 中都没有可用的 window.__require。"
+          : null,
+    error: null,
+    keys: [],
+  });
+  if (diagnostics.replayGameWindowStatus === "wrong-window" && source) {
     requireDebug.push({
-      moduleName,
-      ok: Boolean(result?.ok),
-      error: result?.error || null,
-      errorType: result?.errorType || null,
-      missing: Boolean(result?.missing),
-      keys: [...(result?.keys || [])],
+      label: `${loaderLabel}.__require`,
+      moduleId: null,
+      source,
+      status: "present",
+      detail: null,
+      error: null,
+      keys: [],
     });
-  };
+  }
 
-  const registerRequireCandidate = ({
-    label,
-    moduleName,
-    requireResult,
-    propertyResult,
-    invoke,
-  }) => {
-    const moduleStatus = requireResult?.ok
-      ? "found"
-      : requireResult?.errorType || "module-unavailable";
-    const propertyStatus = !requireResult?.ok
-      ? "module-unavailable"
-      : propertyResult?.ok === false
-        ? "property-threw"
-        : propertyResult?.value && typeof invoke === "function"
-          ? "resolved"
-          : "property-missing";
-    const found = propertyStatus === "resolved";
-    scannedCandidates.push({
-      label,
-      moduleName,
-      moduleStatus,
-      propertyStatus,
-      found,
-      errorType: requireResult?.errorType || null,
-      error: propertyResult?.error || requireResult?.error || null,
-    });
-    if (!found) {
-      return null;
-    }
-    return { label, invoke };
-  };
+  let resolvedEntrypoint = null;
+  let battleUiManagerModuleStatus = diagnostics.replayGameWindowStatus;
+  let battleUiManagerModuleFound = false;
 
-  const registerWindowCandidate = ({
-    label,
-    propertyResult,
-    invoke,
-  }) => {
-    const hasValue = propertyResult?.ok !== false && propertyResult?.value != null;
-    const propertyStatus = propertyResult?.ok === false
-      ? "property-threw"
-      : hasValue && typeof invoke === "function"
-        ? "resolved"
-        : "property-missing";
-    const found = propertyStatus === "resolved";
-    scannedCandidates.push({
-      label,
-      moduleName: "window",
-      moduleStatus: hasValue ? "window-found" : "window-missing",
-      propertyStatus,
-      found,
-      errorType: null,
-      error: propertyResult?.error || null,
-    });
-    if (!found) {
-      return null;
-    }
-    return { label, invoke };
-  };
-
-  const createEnterOSSInvoker = (value) => {
-    const EnterOSSState = value?.EnterOSSState
-      || value?.default?.EnterOSSState
-      || (typeof value === "function" ? value : null);
-    if (typeof EnterOSSState !== "function") {
-      return null;
-    }
-    return (payload) => new EnterOSSState().showBattleViewWithData(payload);
-  };
-
-  const createBattleKitCrossSiteInvoker = (value) => {
-    const BattleKitCrossSite = value?.BattleKitCrossSite
-      || value?.default?.BattleKitCrossSite
-      || value;
-    const instance = BattleKitCrossSite?.instance || BattleKitCrossSite?._inst || null;
-    if (!instance || typeof instance.tryRaisePlayback !== "function") {
-      return null;
+  for (const probeConfig of REPLAY_ENTRYPOINT_PROBE_CONFIGS) {
+    const probeResult = probeRequireExport(
+      resolvedGameWindow,
+      probeConfig.moduleId,
+      probeConfig.exportPath,
+    );
+    const moduleResult = probeResult.moduleResult || null;
+    if (!seenModuleIds.has(probeConfig.moduleId)) {
+      seenModuleIds.add(probeConfig.moduleId);
+      requireDebug.push({
+        label: formatReplayRequireCallLabel(source || "window", probeConfig.moduleId),
+        moduleId: probeConfig.moduleId,
+        source,
+        status:
+          diagnostics.replayGameWindowStatus === "wrong-loader"
+            ? "wrong-loader"
+            : moduleResult?.status || probeResult.status,
+        detail: moduleResult?.detail || probeResult.detail || null,
+        error: moduleResult?.error || probeResult.error || null,
+        keys: moduleResult?.ok ? toSafeModuleKeys(moduleResult.value) : [],
+      });
     }
 
-    return (payload) => {
-      instance._inputData = payload;
-      instance._initBattleData = instance._initBattleData || { replayOnly: true };
-      instance._stage = 2;
-      instance._isApplicationLoaded = true;
-      return instance.tryRaisePlayback(true);
+    if (probeConfig.moduleId === "BattleUIManager") {
+      battleUiManagerModuleStatus = moduleResult?.status || probeResult.status;
+      battleUiManagerModuleFound = Boolean(moduleResult?.ok);
+    }
+
+    const status = diagnostics.replayGameWindowStatus === "wrong-loader"
+      ? "wrong-loader"
+      : probeResult.status;
+    const candidate = {
+      kind: probeConfig.kind,
+      moduleId: probeConfig.moduleId,
+      exportPath: [...probeConfig.exportPath],
+      label: buildReplayEntrypointLabel(source || "window", probeConfig.moduleId, probeConfig.exportPath),
+      status,
+      detail: probeResult.detail || moduleResult?.detail || probeResult.error || moduleResult?.error || null,
+      found: status === "present",
     };
+    candidates.push(candidate);
+
+    if (!resolvedEntrypoint && candidate.found) {
+      resolvedEntrypoint = {
+        label: candidate.label,
+        invoke: createReplayEntrypointInvoker(
+          probeConfig.moduleId,
+          probeConfig.exportPath,
+          moduleResult?.value,
+        ),
+        gameWindow: resolvedGameWindow,
+        source,
+        kind: probeConfig.kind,
+        moduleId: probeConfig.moduleId,
+        exportPath: [...probeConfig.exportPath],
+      };
+      if (typeof resolvedEntrypoint.invoke !== "function") {
+        candidate.status = "not-callable";
+        candidate.detail = `${toReplayExportPathLabel(probeConfig.exportPath)} resolved, but no invoke adapter is available.`;
+        candidate.found = false;
+        resolvedEntrypoint = null;
+      }
+    }
+  }
+
+  for (const legacyItem of REPLAY_LEGACY_DEBUG_ITEMS) {
+    requireDebug.push({
+      label: legacyItem.label,
+      moduleId: legacyItem.moduleId,
+      source: "legacy-probe",
+      status: legacyItem.status,
+      detail: legacyItem.detail,
+      error: null,
+      keys: [],
+    });
+  }
+
+  diagnostics.battleUiManagerModuleStatus = battleUiManagerModuleStatus;
+  diagnostics.battleUiManagerModuleFound = battleUiManagerModuleFound;
+
+  return {
+    entrypoint: resolvedEntrypoint,
+    candidates,
+    requireDebug,
+  };
+};
+
+const inspectReplayEntrypoints = async (gameWindow = null) => {
+  const runtimeWindow = getRuntimeWindow();
+  const discoveredGameWindowInfo = findGameWindow(runtimeWindow);
+  const resolvedGameWindowInfo = discoveredGameWindowInfo.gameWindow
+    ? discoveredGameWindowInfo
+    : gameWindow
+      ? {
+          gameWindow,
+          source: runtimeWindow === gameWindow ? "window" : "bound-window",
+          status: runtimeWindow === gameWindow ? "present" : "wrong-window",
+          error: null,
+          checkedIframes: [],
+        }
+      : discoveredGameWindowInfo;
+  const resolvedGameWindow = resolvedGameWindowInfo.gameWindow || gameWindow || null;
+  const bundleReadyInfo = await waitForReplayGameBundleReady({
+    gameWindow: resolvedGameWindow,
+    runtimeWindow: resolvedGameWindow || runtimeWindow,
+  });
+  const diagnostics = {
+    replayGameBundleReady: bundleReadyInfo.ok,
+    replayGameBundleReadyAttempts: bundleReadyInfo.attempts ?? 0,
+    replayGameBundleReadyError: bundleReadyInfo.error || null,
+  };
+  const { entrypoint } = buildReplayProbeReport({
+    gameWindow: resolvedGameWindow,
+    gameWindowInfo: resolvedGameWindowInfo,
+    diagnostics,
+  });
+
+  return {
+    ...diagnostics,
+    replayEntrypoint: entrypoint?.label || null,
+    engineReplayEntrypoint: entrypoint?.label || null,
+  };
+};
+
+const inspectReplayRuntimeInputs = (gameWindow) => {
+  const replayData = getReplaySource(gameWindow);
+  const modules = {
+    BattleUIManager: requireModule(gameWindow, "BattleUIManager"),
+    enterOss: requireModule(gameWindow, "enter-oss"),
+    battleKit: requireModule(gameWindow, "BattleKitCrossSite"),
   };
 
-  const battleUIRequireResult = safeRequireModule(
-    runtimeRequire,
-    "BattleUIManager",
-  );
-  pushRequireDebug("BattleUIManager", battleUIRequireResult);
-  diagnostics.battleUiManagerModuleStatus = battleUIRequireResult.ok
-    ? "found"
-    : battleUIRequireResult.errorType;
-  diagnostics.battleUiManagerModuleFound = battleUIRequireResult.ok;
-  const battleUIManagerModule = readRequireResultModule(battleUIRequireResult);
-  const battleUiManagerResultGetter = resolveLocatorProperty(
-    () => battleUIManagerModule?.GET_BATTLE_RESULT?.(),
-  );
+  const battleUIManager = modules.BattleUIManager.ok ? modules.BattleUIManager.value : null;
+  const enterOss = modules.enterOss.ok ? modules.enterOss.value : null;
+  const battleKit = modules.battleKit.ok ? modules.battleKit.value : null;
 
-  const primaryEntrypoints = [
-    registerRequireCandidate({
-      label: "require:BattleUIManager.SHOW_BATTLE_REPLAY_UI",
-      moduleName: "BattleUIManager",
-      requireResult: battleUIRequireResult,
-      propertyResult: resolveLocatorProperty(() => battleUIManagerModule?.SHOW_BATTLE_REPLAY_UI),
-      invoke: typeof battleUIManagerModule?.SHOW_BATTLE_REPLAY_UI === "function"
-        ? (payload) => battleUIManagerModule.SHOW_BATTLE_REPLAY_UI(payload)
-        : null,
-    }),
-    registerRequireCandidate({
-      label: "require:BattleUIManager.GET_BATTLE_RESULT().showBattleReplayUI",
-      moduleName: "BattleUIManager",
-      requireResult: battleUIRequireResult,
-      propertyResult: battleUiManagerResultGetter.ok
-        ? resolveLocatorProperty(() => battleUiManagerResultGetter.value?.showBattleReplayUI)
-        : battleUiManagerResultGetter,
-      invoke: typeof battleUiManagerResultGetter.value?.showBattleReplayUI === "function"
-        ? (payload) => battleUiManagerResultGetter.value.showBattleReplayUI(payload)
-        : null,
-    }),
-    registerRequireCandidate({
-      label: "require:BattleUIManager.BattleUIManager.instance.showBattleReplayUI",
-      moduleName: "BattleUIManager",
-      requireResult: battleUIRequireResult,
-      propertyResult: resolveLocatorProperty(
-        () => battleUIManagerModule?.BattleUIManager?.instance?.showBattleReplayUI,
-      ),
-      invoke: typeof battleUIManagerModule?.BattleUIManager?.instance?.showBattleReplayUI === "function"
-        ? (payload) => battleUIManagerModule.BattleUIManager.instance.showBattleReplayUI(payload)
-        : null,
-    }),
-    registerRequireCandidate({
-      label: "require:BattleUIManager.BattleUIManager.showBattleReplayUI",
-      moduleName: "BattleUIManager",
-      requireResult: battleUIRequireResult,
-      propertyResult: resolveLocatorProperty(
-        () => battleUIManagerModule?.BattleUIManager?.showBattleReplayUI,
-      ),
-      invoke: typeof battleUIManagerModule?.BattleUIManager?.showBattleReplayUI === "function"
-        ? (payload) => battleUIManagerModule.BattleUIManager.showBattleReplayUI(payload)
-        : null,
-    }),
-  ].filter(Boolean);
+  return {
+    hasGameWindow: Boolean(gameWindow),
+    hasRequire: typeof gameWindow?.__require === "function",
+    BattleUIManagerKeys: Object.keys(battleUIManager || {}),
+    EnterOSSKeys: Object.keys(enterOss || {}),
+    BattleKitCrossSiteKeys: Object.keys(battleKit || {}),
+    showReplayType: typeof battleUIManager?.SHOW_BATTLE_REPLAY_UI,
+    enterOSSCtorType: typeof enterOss?.EnterOSSState,
+    enterOSSGetBattleDataByOSSType: typeof enterOss?.EnterOSSState?.prototype?.getBattleDataByOSS,
+    enterOSSCreateBattleInputDataType:
+      typeof enterOss?.EnterOSSState?.prototype?.createBattleInputData,
+    crossSiteTryRaisePlaybackType:
+      typeof battleKit?.BattleKitCrossSite?.instance?.tryRaisePlayback,
+    replayData: replayData
+      ? {
+          isWrapped: Boolean(replayData?.battleData || replayData?.lastBattleData),
+          isBattleInputLike: looksLikeBattleInput(replayData),
+          mapId: replayData?.mapId,
+          leftTeamGetType: typeof replayData?.battleData?.leftTeam?.team?.get,
+          leftTeamForEachType: typeof replayData?.battleData?.leftTeam?.team?.forEach,
+          rightTeamGetType: typeof replayData?.battleData?.rightTeam?.team?.get,
+          rightTeamForEachType: typeof replayData?.battleData?.rightTeam?.team?.forEach,
+        }
+      : null,
+  };
+};
 
-  if (primaryEntrypoints.length > 0) {
-    return primaryEntrypoints[0];
-  }
-
-  const secondaryEntrypoints = [
-    registerWindowCandidate({
-      label: "window.SHOW_BATTLE_REPLAY_UI",
-      propertyResult: resolveLocatorProperty(() => runtimeWindow.SHOW_BATTLE_REPLAY_UI),
-      invoke: typeof runtimeWindow.SHOW_BATTLE_REPLAY_UI === "function"
-        ? (payload) => runtimeWindow.SHOW_BATTLE_REPLAY_UI(payload)
-        : null,
-    }),
-    registerWindowCandidate({
-      label: "window.BattleUIManager.instance.showBattleReplayUI",
-      propertyResult: resolveLocatorProperty(
-        () => runtimeWindow.BattleUIManager?.instance?.showBattleReplayUI,
-      ),
-      invoke: typeof runtimeWindow.BattleUIManager?.instance?.showBattleReplayUI === "function"
-        ? (payload) => runtimeWindow.BattleUIManager.instance.showBattleReplayUI(payload)
-        : null,
-    }),
-    registerWindowCandidate({
-      label: "window.BattleUIManager.showBattleReplayUI",
-      propertyResult: resolveLocatorProperty(
-        () => runtimeWindow.BattleUIManager?.showBattleReplayUI,
-      ),
-      invoke: typeof runtimeWindow.BattleUIManager?.showBattleReplayUI === "function"
-        ? (payload) => runtimeWindow.BattleUIManager.showBattleReplayUI(payload)
-        : null,
-    }),
-  ].filter(Boolean);
-
-  if (secondaryEntrypoints.length > 0) {
-    return secondaryEntrypoints[0];
-  }
-
-  const enterOssWindowProperty = resolveLocatorProperty(
-    () => runtimeWindow.EnterOSSState,
-  );
-  const enterOssWindowCandidate = registerWindowCandidate({
-    label: "window.EnterOSSState.showBattleViewWithData",
-    propertyResult: enterOssWindowProperty,
-    invoke: createEnterOSSInvoker(enterOssWindowProperty.value),
-  });
-  const enterOssRequireResult = safeRequireModule(runtimeRequire, "EnterOSSState");
-  pushRequireDebug("EnterOSSState", enterOssRequireResult);
-  const enterOssRequireCandidate = registerRequireCandidate({
-    label: "require:EnterOSSState.showBattleViewWithData",
-    moduleName: "EnterOSSState",
-    requireResult: enterOssRequireResult,
-    propertyResult: resolveLocatorProperty(() => readRequireResultModule(enterOssRequireResult)),
-    invoke: createEnterOSSInvoker(readRequireResultModule(enterOssRequireResult)),
-  });
-  const enterOssFallbackCandidate = enterOssRequireCandidate || enterOssWindowCandidate;
-
-  const battleKitWindowProperty = resolveLocatorProperty(
-    () => runtimeWindow.BattleKitCrossSite,
-  );
-  const battleKitWindowCandidate = registerWindowCandidate({
-    label: "window.BattleKitCrossSite.instance.tryRaisePlayback",
-    propertyResult: battleKitWindowProperty,
-    invoke: createBattleKitCrossSiteInvoker(battleKitWindowProperty.value),
-  });
-  const battleKitRequireResult = safeRequireModule(runtimeRequire, "BattleKitCrossSite");
-  pushRequireDebug("BattleKitCrossSite", battleKitRequireResult);
-  const battleKitRequireCandidate = registerRequireCandidate({
-    label: "require:BattleKitCrossSite.instance.tryRaisePlayback",
-    moduleName: "BattleKitCrossSite",
-    requireResult: battleKitRequireResult,
-    propertyResult: resolveLocatorProperty(() => readRequireResultModule(battleKitRequireResult)),
-    invoke: createBattleKitCrossSiteInvoker(readRequireResultModule(battleKitRequireResult)),
-  });
-  const battleKitFallbackCandidate = battleKitRequireCandidate || battleKitWindowCandidate;
-
-  const fallbackRejectedReason = "rejected-due-to-mapId-risk";
-  if (enterOssFallbackCandidate && !allowDebugFallbackEntrypoints) {
-    diagnostics.enterOssAvailableButRejected = true;
-  }
-  if (battleKitFallbackCandidate && !allowDebugFallbackEntrypoints) {
-    diagnostics.battleKitAvailableButRejected = true;
-  }
-
-  if (!allowDebugFallbackEntrypoints) {
-    if (diagnostics.enterOssAvailableButRejected || diagnostics.battleKitAvailableButRejected) {
-      diagnostics.fallbackEntrypointReason = fallbackRejectedReason;
+const scheduleReplayPostCheck = (gameWindow, prepared, logger = console.log) => {
+  const runtimeWindow = gameWindow || getRuntimeWindow();
+  runtimeWindow.setTimeout(() => {
+    try {
+      logger("[xyzw replay] post-check", {
+        scene: runtimeWindow.cc?.director?.getScene?.()?.name,
+        canvas: Boolean(runtimeWindow.cc?.game?.canvas),
+        mapId: prepared?.mapId,
+        mode: prepared?.battleData?.mode,
+        leftTeamGetType: typeof prepared?.battleData?.leftTeam?.team?.get,
+        rightTeamGetType: typeof prepared?.battleData?.rightTeam?.team?.get,
+        leftTeamForEachType: typeof prepared?.battleData?.leftTeam?.team?.forEach,
+        rightTeamForEachType: typeof prepared?.battleData?.rightTeam?.team?.forEach,
+      });
+    } catch (error) {
+      console.warn("[xyzw replay] post-check failed", error);
     }
-    return null;
+  }, 1200);
+};
+
+const createReplayConsoleHelpers = (gameWindow) => {
+  const helper = {
+    req: typeof gameWindow?.__require === "function" ? gameWindow.__require : null,
+    result: null,
+    async inspect() {
+      const result = {
+        ...(await inspectReplayEntrypoints(gameWindow)),
+        ...inspectReplayRuntimeInputs(gameWindow),
+      };
+      console.log("[xyzw replay] inspect", result);
+      helper.result = result;
+      return result;
+    },
+    showReplay(inputDataOrRaw = getReplaySource(gameWindow), options = {}) {
+      const prepared = ensureReplayInputData(inputDataOrRaw, gameWindow, options);
+      console.log("[xyzw replay] dispatch showReplay", {
+        mapId: prepared?.mapId,
+        mode: prepared?.battleData?.mode,
+      });
+      const ret = gameWindow.__require("BattleUIManager").SHOW_BATTLE_REPLAY_UI(prepared, options);
+      scheduleReplayPostCheck(gameWindow, prepared);
+      helper.lastPrepared = prepared;
+      return ret;
+    },
+    showReplayDirect(rawOrWrappedBattleData = getReplaySource(gameWindow), options = {}) {
+      const prepared = ensureReplayInputData(rawOrWrappedBattleData, gameWindow, options);
+      console.log("[xyzw replay] dispatch showReplayDirect", {
+        mapId: prepared?.mapId,
+        mode: prepared?.battleData?.mode,
+      });
+      const ret = gameWindow.__require("BattleUIManager").SHOW_BATTLE_REPLAY_UI(prepared, options);
+      scheduleReplayPostCheck(gameWindow, prepared);
+      helper.lastPrepared = prepared;
+      return ret;
+    },
+    showReplayViaEnterOSS(rawOrWrappedBattleData = getReplaySource(gameWindow)) {
+      const { EnterOSSState } = gameWindow.__require("enter-oss");
+      return new EnterOSSState().showBattleViewWithData(rawOrWrappedBattleData);
+    },
+    tryCrossSitePlayback(force = true) {
+      const ret = gameWindow.__require("BattleKitCrossSite").BattleKitCrossSite.instance.tryRaisePlayback(force);
+      console.log("[xyzw replay] tryCrossSitePlayback", { force, ret });
+      return ret;
+    },
+  };
+
+  return helper;
+};
+
+const exposeReplayConsoleHelpers = (gameWindow) => {
+  if (!gameWindow || typeof gameWindow.__require !== "function") {
+    return {
+      helper: null,
+      result: null,
+      dispose() {},
+    };
   }
 
-  const selectedFallback = enterOssFallbackCandidate || battleKitFallbackCandidate || null;
-  if (!selectedFallback) {
-    return null;
+  const runtimeWindow = getRuntimeWindow();
+  const helper = createReplayConsoleHelpers(gameWindow);
+  const previousGameWindowHelper = gameWindow.__xyzwReplay;
+  const previousWindowHelper = runtimeWindow.__xyzwReplay;
+  const previousWindowGameWindow = runtimeWindow.__xyzwReplayGameWindow;
+
+  gameWindow.__xyzwReplay = helper;
+  runtimeWindow.__xyzwReplay = helper;
+  if (runtimeWindow !== gameWindow) {
+    runtimeWindow.__xyzwReplayGameWindow = gameWindow;
+  } else {
+    delete runtimeWindow.__xyzwReplayGameWindow;
   }
 
-  diagnostics.fallbackEntrypointUsed = true;
-  diagnostics.fallbackEntrypointReason = battleUIRequireResult.ok
-    ? "battle-ui-manager-entrypoint-unresolved"
-    : "battle-ui-manager-unavailable";
-  return selectedFallback;
+  return {
+    helper,
+    result: helper.result,
+    dispose() {
+      if (previousGameWindowHelper === undefined) {
+        delete gameWindow.__xyzwReplay;
+      } else {
+        gameWindow.__xyzwReplay = previousGameWindowHelper;
+      }
+
+      if (previousWindowHelper === undefined) {
+        delete runtimeWindow.__xyzwReplay;
+      } else {
+        runtimeWindow.__xyzwReplay = previousWindowHelper;
+      }
+
+      if (runtimeWindow !== gameWindow) {
+        if (previousWindowGameWindow === undefined) {
+          delete runtimeWindow.__xyzwReplayGameWindow;
+        } else {
+          runtimeWindow.__xyzwReplayGameWindow = previousWindowGameWindow;
+        }
+      }
+    },
+  };
+};
+
+export const locateReplayEntrypoint = ({
+  diagnostics = {},
+  allowDebugFallbackEntrypoints = false,
+  gameWindowInfo = null,
+} = {}) => {
+  const runtimeWindow = getRuntimeWindow();
+  const resolvedGameWindowInfo = gameWindowInfo || findReplayGameWindow(runtimeWindow);
+  const { entrypoint } = buildReplayProbeReport({
+    gameWindow: resolvedGameWindowInfo.gameWindow || null,
+    gameWindowInfo: resolvedGameWindowInfo,
+    diagnostics,
+  });
+
+  if (allowDebugFallbackEntrypoints) {
+    diagnostics.fallbackEntrypointReason = "legacy-flag-ignored";
+  }
+
+  return entrypoint;
 };
 
 const startReplayEntrypoint = async ({
@@ -2921,10 +3452,13 @@ export const startFightPvpReplayRuntime = async ({
     inspectGameBundleModuleCoverage: inspectReplayGameBundleModuleCoverage,
     probeGameSceneAssets,
     ensureReplayBootstrapScene,
+    findReplayGameWindow,
     locateReplayEntrypoint,
+    exposeReplayConsoleHelpers,
     probeGameBundleAssets,
     readRuntimeModules,
     startReplayEntrypoint,
+    waitForReplayGameBundleReady,
     waitForRuntimeReadyForReplay,
     ...runtimeAdapter,
   };
@@ -3177,27 +3711,41 @@ export const startFightPvpReplayRuntime = async ({
     });
     cleanups.push(() => replayStartProbe.dispose?.());
 
+    diagnostics.steps.push("find-replay-game-window");
+    const replayGameWindowInfo = adapter.findReplayGameWindow();
+    diagnostics.replayGameWindowSource = replayGameWindowInfo.source || null;
+    diagnostics.replayGameWindowStatus = replayGameWindowInfo.status || "wrong-loader";
+
+    diagnostics.steps.push("wait-for-replay-game-bundle-ready");
+    const replayGameBundleReady = await adapter.waitForReplayGameBundleReady({
+      gameWindow: replayGameWindowInfo.gameWindow || null,
+    });
+    diagnostics.replayGameBundleReady = replayGameBundleReady.ok;
+    diagnostics.replayGameBundleReadyAttempts = replayGameBundleReady.attempts ?? 0;
+    diagnostics.replayGameBundleReadyError = replayGameBundleReady.error || null;
+
     diagnostics.steps.push("locate-replay-entrypoint");
     const replayEntrypoint = adapter.locateReplayEntrypoint({
       modules,
       diagnostics,
       allowDebugFallbackEntrypoints,
+      gameWindowInfo: replayGameWindowInfo,
     });
 
     if (!replayEntrypoint) {
       const scanned = diagnostics.replayEntrypointCandidates || [];
       const scannedSummary = scanned.length > 0
-        ? scanned.map((entry) => `${entry.label}:${entry.moduleStatus || "unknown"}/${entry.propertyStatus || "unknown"}`).join(", ")
+        ? scanned.map((entry) => `${entry.label}:${entry.status || "unknown"}`).join(", ")
         : "none";
       const requireSummary = Array.isArray(diagnostics.replayEntrypointRequireDebug)
         ? diagnostics.replayEntrypointRequireDebug
-            .map((entry) => `${entry.moduleName}:${entry.ok ? "found" : (entry.errorType || "missing")}`)
+            .map((entry) => `${entry.label}:${entry.status || "unknown"}`)
             .join(", ")
         : "none";
-      const detail = `已检查：${scannedSummary}。require: ${requireSummary}。`;
-      const message = diagnostics.battleUiManagerModuleStatus === "found"
-        ? `运行时已进入 ${runtimeReady.sceneName || GAME_SCENE_NAME}，BattleUIManager 模块可访问，但未成功解析 FightPvp 所需的 replay 调用入口。${detail}`
-        : `运行时已进入 ${runtimeReady.sceneName || GAME_SCENE_NAME}，但未找到 battle replay 启动入口。${detail}`;
+      const detail = `已检查：gameWindow=${diagnostics.replayGameWindowStatus || "unknown"}@${diagnostics.replayGameWindowSource || "window"}；bundleReady=${diagnostics.replayGameBundleReady ? "yes" : "no"}(${diagnostics.replayGameBundleReadyAttempts ?? 0})；entrypoints=${scannedSummary}；debug=${requireSummary}。`;
+      const message = diagnostics.replayGameBundleReady === false
+        ? `运行时已进入 ${runtimeReady.sceneName || GAME_SCENE_NAME}，并已找到真实游戏 window。当前探针已改为真实执行 window.__require(moduleId)，但当前 window.__require 仍可能停留在 launcher/main bundle，或 game.js 尚未 ready，因此 battle replay 入口暂未成功解析。原先的 wrong-export-path 误报来自对调用表达式的字符串化解析，而不是导出路径本身不存在。${detail}`
+        : `运行时已进入 ${runtimeReady.sceneName || GAME_SCENE_NAME}，并已找到真实游戏 window。当前探针已真实执行 window.__require(moduleId)；若仍未能解析 battle replay 入口，则剩余问题在于目标导出路径不存在或末端不可调用，而不是调用表达式本身没有执行。${detail}`;
       return {
         ok: false,
         reason: "replay-start-failed",
@@ -3205,6 +3753,15 @@ export const startFightPvpReplayRuntime = async ({
         diagnostics,
         dispose,
       };
+    }
+
+    if (replayEntrypoint.gameWindow) {
+      const replayConsoleHelpers = adapter.exposeReplayConsoleHelpers(
+        replayEntrypoint.gameWindow,
+      );
+      diagnostics.replayConsoleHelperExposed = Boolean(replayConsoleHelpers.helper);
+      diagnostics.replayConsoleHelperResult = replayConsoleHelpers.result;
+      cleanups.push(() => replayConsoleHelpers.dispose?.());
     }
 
     diagnostics.steps.push("start-replay-entrypoint");

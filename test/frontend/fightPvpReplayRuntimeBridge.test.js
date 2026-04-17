@@ -16,12 +16,20 @@ import {
   installReplayPageExitGuard,
   installReplayMissingModuleShims,
   installReplayManifestShim,
+  findReplayGameWindow,
+  getReplaySource,
+  ensureReplayInputData,
   locateReplayEntrypoint,
+  looksLikeBattleInput,
+  probeRequireExport,
   probeGameSceneAssets,
+  requireModule,
+  resolveExport,
   resolveReplayAuxiliaryModuleRegistration,
   safeRequireModule,
   startFightPvpReplayRuntime,
   toAbsoluteBundleRequestTarget,
+  waitForReplayGameBundleReady,
   waitForRuntimeReadyForReplay,
 } from "../../src/services/replay/fightPvpReplayRuntimeBridge.js";
 import {
@@ -89,9 +97,342 @@ test.afterEach(() => {
   delete globalThis.window;
   delete globalThis.__require;
   delete globalThis.HTMLElement;
+  delete globalThis.document;
+  delete globalThis.__REPLAY_DATA__;
+  delete globalThis.__xyzwReplayData;
 });
 
-test("fight pvp replay locator prioritizes require BattleUIManager SHOW_BATTLE_REPLAY_UI", () => {
+test("fight pvp replay locator finds the current window when window.__require is available", () => {
+  const runtimeWindow = {
+    __require() {
+      return null;
+    },
+    document: {
+      querySelectorAll() {
+        return [];
+      },
+    },
+  };
+
+  const result = findReplayGameWindow(runtimeWindow);
+
+  assert.equal(result.gameWindow, runtimeWindow);
+  assert.equal(result.source, "window");
+  assert.equal(result.status, "present");
+});
+
+test("fight pvp replay locator falls back to iframe game window when current window has no loader", () => {
+  const iframeWindow = {
+    __require() {
+      return null;
+    },
+  };
+  const runtimeWindow = {
+    document: {
+      querySelectorAll() {
+        return [{ contentWindow: iframeWindow }];
+      },
+    },
+  };
+
+  const result = findReplayGameWindow(runtimeWindow);
+
+  assert.equal(result.gameWindow, iframeWindow);
+  assert.equal(result.source, "iframe[0]");
+  assert.equal(result.status, "wrong-window");
+});
+
+test("fight pvp replay locator reports wrong-loader when neither window nor iframe exposes __require", () => {
+  const runtimeWindow = {
+    document: {
+      querySelectorAll() {
+        return [{ contentWindow: {} }];
+      },
+    },
+  };
+
+  const result = findReplayGameWindow(runtimeWindow);
+
+  assert.equal(result.gameWindow, null);
+  assert.equal(result.source, null);
+  assert.equal(result.status, "wrong-loader");
+});
+
+test("fight pvp replay requireModule reports wrong-window when game window is missing", () => {
+  const result = requireModule(null, "BattleUIManager");
+
+  assert.equal(result.ok, false);
+  assert.equal(result.status, "wrong-window");
+});
+
+test("fight pvp replay requireModule reports wrong-loader when __require is unavailable", () => {
+  const result = requireModule({}, "BattleUIManager");
+
+  assert.equal(result.ok, false);
+  assert.equal(result.status, "wrong-loader");
+});
+
+test("fight pvp replay requireModule reports wrong-loader when canonical module id is still missing from __require", () => {
+  const result = requireModule({
+    __require() {
+      throw new Error("Cannot find module 'BattleUIManager'");
+    },
+  }, "BattleUIManager");
+
+  assert.equal(result.ok, false);
+  assert.equal(result.status, "wrong-loader");
+  assert.equal(
+    result.detail,
+    "current window.__require is still launcher/main bundle or game.js is not ready yet",
+  );
+});
+
+test("fight pvp replay requireModule reports wrong-module-id for legacy EnterOSSState module lookups", () => {
+  const result = requireModule({
+    __require() {
+      throw new Error("Cannot find module 'EnterOSSState'");
+    },
+  }, "EnterOSSState");
+
+  assert.equal(result.ok, false);
+  assert.equal(result.status, "wrong-module-id");
+});
+
+test("fight pvp replay resolveExport reports wrong-export-path when a property segment is missing", () => {
+  const result = resolveExport(
+    {
+      BattleUIManager: {},
+    },
+    ["BattleUIManager", "instance", "showBattleReplayUI"],
+  );
+
+  assert.equal(result.ok, false);
+  assert.equal(result.status, "wrong-export-path");
+});
+
+test("fight pvp replay resolveExport reports not-callable when the final export is not a function", () => {
+  const result = resolveExport(
+    {
+      SHOW_BATTLE_REPLAY_UI: true,
+    },
+    ["SHOW_BATTLE_REPLAY_UI"],
+  );
+
+  assert.equal(result.ok, false);
+  assert.equal(result.status, "not-callable");
+});
+
+test("fight pvp replay resolveExport reports present when the final export is callable", () => {
+  const result = resolveExport(
+    {
+      SHOW_BATTLE_REPLAY_UI() {},
+    },
+    ["SHOW_BATTLE_REPLAY_UI"],
+  );
+
+  assert.equal(result.ok, true);
+  assert.equal(result.status, "present");
+});
+
+test("fight pvp replay probeRequireExport executes window.__require(moduleId) before resolving exports", () => {
+  let requireCalls = 0;
+  const result = probeRequireExport({
+    __require(name) {
+      requireCalls += 1;
+      if (name === "BattleUIManager") {
+        return {
+          SHOW_BATTLE_REPLAY_UI() {},
+        };
+      }
+      throw new Error(`Cannot find module '${name}'`);
+    },
+  }, "BattleUIManager", ["SHOW_BATTLE_REPLAY_UI"]);
+
+  assert.equal(requireCalls, 1);
+  assert.equal(result.ok, true);
+  assert.equal(result.status, "present");
+});
+
+test("fight pvp replay probeRequireExport never reports wrong-export-path when window.__require(moduleId) itself fails", () => {
+  const result = probeRequireExport({
+    __require() {
+      throw new Error("Cannot find module 'BattleUIManager'");
+    },
+  }, "BattleUIManager", ["SHOW_BATTLE_REPLAY_UI"]);
+
+  assert.equal(result.ok, false);
+  assert.equal(result.status, "wrong-loader");
+});
+
+test("fight pvp replay waitForReplayGameBundleReady retries BattleUIManager until the game bundle is ready", async () => {
+  let calls = 0;
+  const runtimeWindow = {
+    __require(name) {
+      calls += 1;
+      if (name === "BattleUIManager" && calls >= 3) {
+        return {
+          SHOW_BATTLE_REPLAY_UI() {},
+        };
+      }
+      throw new Error(`Cannot find module '${name}'`);
+    },
+    setTimeout,
+  };
+
+  const result = await waitForReplayGameBundleReady({
+    gameWindow: runtimeWindow,
+    runtimeWindow,
+    attempts: 5,
+    intervalMs: 1,
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.status, "present");
+  assert.equal(result.attempts, 3);
+});
+
+test("fight pvp replay waitForReplayGameBundleReady returns wrong-loader when BattleUIManager never becomes available", async () => {
+  const runtimeWindow = {
+    __require() {
+      throw new Error("Cannot find module 'BattleUIManager'");
+    },
+    setTimeout,
+  };
+
+  const result = await waitForReplayGameBundleReady({
+    gameWindow: runtimeWindow,
+    runtimeWindow,
+    attempts: 2,
+    intervalMs: 1,
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.status, "wrong-loader");
+  assert.equal(result.attempts, 2);
+});
+
+test("fight pvp replay looksLikeBattleInput detects normalized battle input data", () => {
+  const battleInput = createReplayBattleInput();
+
+  assert.equal(looksLikeBattleInput(battleInput), true);
+  assert.equal(looksLikeBattleInput({ battleData: {} }), false);
+});
+
+test("fight pvp replay getReplaySource prefers game window replay globals before current window fallbacks", () => {
+  globalThis.window = {
+    __REPLAY_DATA__: { from: "window" },
+    __xyzwReplayData: { from: "window-fallback" },
+  };
+
+  const result = getReplaySource({
+    __REPLAY_DATA__: { from: "game-window" },
+  });
+
+  assert.deepEqual(result, { from: "game-window" });
+});
+
+test("fight pvp replay ensureReplayInputData reuses normalized battleInputData and preserves non-plain options types", () => {
+  const battleInput = createReplayBattleInput();
+  const gameWindow = {
+    __require() {
+      throw new Error("should not require enter-oss for normalized battle input");
+    },
+  };
+
+  const prepared = ensureReplayInputData(
+    battleInput,
+    gameWindow,
+    { fromProbe: true },
+  );
+
+  assert.equal(prepared, battleInput);
+  assert.equal(prepared.battleResult?.isWin, true);
+  assert.equal(prepared.mapId, 110001);
+  assert.equal(prepared.options instanceof Map, true);
+  assert.deepEqual(prepared.__replayProbeOptions, { fromProbe: true });
+});
+
+test("fight pvp replay ensureReplayInputData normalizes wrapped replay payloads through enter-oss", () => {
+  const rawBattleData = {
+    mode: 32,
+    result: { isWin: true },
+  };
+  const wrappedSource = {
+    battleData: rawBattleData,
+    mapId: 40001,
+    stageNameStr: "切磋系统",
+    startTipTopName: "切磋系统",
+    startTipStage: "开始切磋",
+    showRightPower: true,
+  };
+  const gameWindow = {
+    __require(name) {
+      if (name === "enter-oss") {
+        return {
+          EnterOSSState: class {
+            getBattleDataByOSS(source) {
+              return source.battleData;
+            }
+
+            createBattleInputData(battleData, battleResult) {
+              return {
+                battleData: {
+                  ...battleData,
+                  leftTeam: { team: new Map([[0, { heroId: 1001 }]]) },
+                  rightTeam: { team: new Map([[0, { heroId: 2001 }]]) },
+                },
+                battleResult,
+                options: {},
+              };
+            }
+          },
+        };
+      }
+      throw new Error(`Cannot find module '${name}'`);
+    },
+  };
+
+  const prepared = ensureReplayInputData(wrappedSource, gameWindow, {
+    replayProbe: true,
+  });
+
+  assert.equal(looksLikeBattleInput(prepared), true);
+  assert.equal(prepared.mapId, 40001);
+  assert.equal(prepared.stageNameStr, "切磋系统");
+  assert.equal(prepared.startTipTopName, "切磋系统");
+  assert.equal(prepared.startTipStage, "开始切磋");
+  assert.equal(prepared.showRightPower, true);
+  assert.equal(prepared.battleResult?.isWin, true);
+  assert.equal(prepared.options.replayProbe, true);
+});
+
+test("fight pvp replay ensureReplayInputData throws a readable error when getBattleDataByOSS returns null", () => {
+  const gameWindow = {
+    __require(name) {
+      if (name === "enter-oss") {
+        return {
+          EnterOSSState: class {
+            getBattleDataByOSS() {
+              return null;
+            }
+
+            createBattleInputData() {
+              throw new Error("should not be called");
+            }
+          },
+        };
+      }
+      throw new Error(`Cannot find module '${name}'`);
+    },
+  };
+
+  assert.throws(
+    () => ensureReplayInputData({ lastBattleData: null }, gameWindow),
+    /getBattleDataByOSS returned null: expected raw battleData \/ \{battleData\} \/ \{fightRoleBase,lastBattleData\}/,
+  );
+});
+
+test("fight pvp replay locator prioritizes window.__require BattleUIManager SHOW_BATTLE_REPLAY_UI", () => {
   const invokeCalls = [];
   globalThis.window = {
     __require(name) {
@@ -102,33 +443,11 @@ test("fight pvp replay locator prioritizes require BattleUIManager SHOW_BATTLE_R
           },
         };
       }
-      throw new Error(`Cannot find module '${name}'`);
-    },
-  };
-
-  const diagnostics = {};
-  const entrypoint = locateReplayEntrypoint({ diagnostics });
-
-  assert.equal(entrypoint?.label, "require:BattleUIManager.SHOW_BATTLE_REPLAY_UI");
-  entrypoint.invoke({ replay: true });
-  assert.deepEqual(invokeCalls, [{ replay: true }]);
-  assert.equal(diagnostics.battleUiManagerModuleStatus, "found");
-});
-
-test("fight pvp replay locator falls back to GET_BATTLE_RESULT().showBattleReplayUI inside BattleUIManager", () => {
-  const invokeCalls = [];
-  globalThis.window = {
-    __require(name) {
-      if (name === "BattleUIManager") {
-        return {
-          GET_BATTLE_RESULT() {
-            return {
-              showBattleReplayUI(payload) {
-                invokeCalls.push(payload);
-              },
-            };
-          },
-        };
+      if (name === "enter-oss") {
+        return {};
+      }
+      if (name === "BattleKitCrossSite") {
+        return {};
       }
       throw new Error(`Cannot find module '${name}'`);
     },
@@ -139,20 +458,87 @@ test("fight pvp replay locator falls back to GET_BATTLE_RESULT().showBattleRepla
 
   assert.equal(
     entrypoint?.label,
-    "require:BattleUIManager.GET_BATTLE_RESULT().showBattleReplayUI",
+    "window.__require(\"BattleUIManager\").SHOW_BATTLE_REPLAY_UI",
   );
-  entrypoint.invoke({ replay: "secondary" });
-  assert.deepEqual(invokeCalls, [{ replay: "secondary" }]);
+  entrypoint.invoke({ replay: true });
+  assert.deepEqual(invokeCalls, [{ replay: true }]);
+  assert.equal(diagnostics.replayGameWindowStatus, "present");
+  assert.equal(diagnostics.battleUiManagerModuleStatus, "present");
 });
 
-test("fight pvp replay locator distinguishes BattleUIManager module found from property missing", () => {
+test("fight pvp replay locator uses iframe loader and marks wrong-window when only iframe has game modules", () => {
+  const invokeCalls = [];
+  const iframeWindow = {
+    __require(name) {
+      if (name === "BattleUIManager") {
+        return {
+          SHOW_BATTLE_REPLAY_UI(payload) {
+            invokeCalls.push(payload);
+          },
+        };
+      }
+      if (name === "enter-oss") {
+        return {};
+      }
+      if (name === "BattleKitCrossSite") {
+        return {};
+      }
+      throw new Error(`Cannot find module '${name}'`);
+    },
+  };
+  globalThis.window = {
+    document: {
+      querySelectorAll() {
+        return [{ contentWindow: iframeWindow }];
+      },
+    },
+  };
+
+  const diagnostics = {};
+  const entrypoint = locateReplayEntrypoint({ diagnostics });
+
+  assert.equal(
+    entrypoint?.label,
+    "iframe[0].contentWindow.__require(\"BattleUIManager\").SHOW_BATTLE_REPLAY_UI",
+  );
+  entrypoint.invoke({ replay: "iframe" });
+  assert.deepEqual(invokeCalls, [{ replay: "iframe" }]);
+  assert.equal(diagnostics.replayGameWindowStatus, "wrong-window");
+  assert.equal(diagnostics.replayGameWindowSource, "iframe[0]");
+});
+
+test("fight pvp replay locator reports wrong-loader on all formal candidates when no game loader exists", () => {
+  globalThis.window = {
+    document: {
+      querySelectorAll() {
+        return [];
+      },
+    },
+  };
+
+  const diagnostics = {};
+  const entrypoint = locateReplayEntrypoint({ diagnostics });
+
+  assert.equal(entrypoint, null);
+  assert.equal(diagnostics.replayGameWindowStatus, "wrong-loader");
+  assert.ok(
+    diagnostics.replayEntrypointCandidates.every((entry) => entry.status === "wrong-loader"),
+  );
+});
+
+test("fight pvp replay locator reports not-callable when export exists but is not a function", () => {
   globalThis.window = {
     __require(name) {
       if (name === "BattleUIManager") {
         return {
-          BattleUIManager: {},
-          unexpected: true,
+          SHOW_BATTLE_REPLAY_UI: true,
         };
+      }
+      if (name === "enter-oss") {
+        return {};
+      }
+      if (name === "BattleKitCrossSite") {
+        return {};
       }
       throw new Error(`Cannot find module '${name}'`);
     },
@@ -162,48 +548,16 @@ test("fight pvp replay locator distinguishes BattleUIManager module found from p
   const entrypoint = locateReplayEntrypoint({ diagnostics });
 
   assert.equal(entrypoint, null);
-  assert.equal(diagnostics.battleUiManagerModuleStatus, "found");
-  assert.deepEqual(diagnostics.replayEntrypointRequireDebug, [
-    {
-      moduleName: "BattleUIManager",
-      ok: true,
-      error: null,
-      errorType: null,
-      missing: false,
-      keys: ["BattleUIManager", "unexpected"],
-    },
-    {
-      moduleName: "EnterOSSState",
-      ok: false,
-      error: "Cannot find module 'EnterOSSState'",
-      errorType: "module-missing",
-      missing: true,
-      keys: [],
-    },
-    {
-      moduleName: "BattleKitCrossSite",
-      ok: false,
-      error: "Cannot find module 'BattleKitCrossSite'",
-      errorType: "module-missing",
-      missing: true,
-      keys: [],
-    },
-  ]);
-  const primaryCandidates = diagnostics.replayEntrypointCandidates.filter(
-    (entry) => entry.moduleName === "BattleUIManager",
-  );
-  assert.ok(primaryCandidates.length >= 4);
-  assert.ok(primaryCandidates.every((entry) => entry.moduleStatus === "found"));
-  assert.ok(primaryCandidates.every((entry) => entry.propertyStatus === "property-missing"));
+  assert.equal(diagnostics.replayEntrypointCandidates[0].status, "not-callable");
 });
 
-test("fight pvp replay locator rejects EnterOSSState and BattleKitCrossSite by default", () => {
+test("fight pvp replay locator uses enter-oss with the correct module id and records legacy wrong-module-id debug", () => {
   globalThis.window = {
     __require(name) {
       if (name === "BattleUIManager") {
         return {};
       }
-      if (name === "EnterOSSState") {
+      if (name === "enter-oss") {
         return {
           EnterOSSState: class {
             showBattleViewWithData() {}
@@ -211,13 +565,7 @@ test("fight pvp replay locator rejects EnterOSSState and BattleKitCrossSite by d
         };
       }
       if (name === "BattleKitCrossSite") {
-        return {
-          BattleKitCrossSite: {
-            instance: {
-              tryRaisePlayback() {},
-            },
-          },
-        };
+        return {};
       }
       throw new Error(`Cannot find module '${name}'`);
     },
@@ -226,14 +574,19 @@ test("fight pvp replay locator rejects EnterOSSState and BattleKitCrossSite by d
   const diagnostics = {};
   const entrypoint = locateReplayEntrypoint({ diagnostics });
 
-  assert.equal(entrypoint, null);
-  assert.equal(diagnostics.fallbackEntrypointUsed, false);
-  assert.equal(diagnostics.fallbackEntrypointReason, "rejected-due-to-mapId-risk");
-  assert.equal(diagnostics.enterOssAvailableButRejected, true);
-  assert.equal(diagnostics.battleKitAvailableButRejected, true);
+  assert.equal(
+    entrypoint?.label,
+    "window.__require(\"enter-oss\").EnterOSSState.prototype.showBattleViewWithData",
+  );
+  assert.equal(
+    diagnostics.replayEntrypointRequireDebug.find(
+      (entry) => entry.label === "require(\"EnterOSSState\")",
+    )?.status,
+    "wrong-module-id",
+  );
 });
 
-test("fight pvp replay locator allows BattleKitCrossSite debug fallback and forces _stage to 2", () => {
+test("fight pvp replay locator uses BattleKitCrossSite singleton path and records legacy wrong-export-path debug", () => {
   const battleKitInstance = {
     _stage: 0,
     _isApplicationLoaded: false,
@@ -247,7 +600,10 @@ test("fight pvp replay locator allows BattleKitCrossSite debug fallback and forc
   globalThis.window = {
     __require(name) {
       if (name === "BattleUIManager") {
-        throw new Error(`Cannot find module '${name}'`);
+        return {};
+      }
+      if (name === "enter-oss") {
+        return {};
       }
       if (name === "BattleKitCrossSite") {
         return {
@@ -261,21 +617,19 @@ test("fight pvp replay locator allows BattleKitCrossSite debug fallback and forc
   };
 
   const diagnostics = {};
-  const entrypoint = locateReplayEntrypoint({
-    diagnostics,
-    allowDebugFallbackEntrypoints: true,
-  });
+  const entrypoint = locateReplayEntrypoint({ diagnostics });
 
   assert.equal(
     entrypoint?.label,
-    "require:BattleKitCrossSite.instance.tryRaisePlayback",
+    "window.__require(\"BattleKitCrossSite\").BattleKitCrossSite.instance.tryRaisePlayback",
   );
   entrypoint.invoke({ replay: "debug" });
   assert.equal(battleKitInstance._stage, 2);
-  assert.equal(diagnostics.fallbackEntrypointUsed, true);
   assert.equal(
-    diagnostics.fallbackEntrypointReason,
-    "battle-ui-manager-unavailable",
+    diagnostics.replayEntrypointRequireDebug.find(
+      (entry) => entry.label === "window.BattleKitCrossSite.instance.tryRaisePlayback",
+    )?.status,
+    "wrong-export-path",
   );
 });
 
@@ -1308,15 +1662,78 @@ test("fight pvp replay runtime bridge returns ok true when replay entrypoint sta
     }
   }
 
+  const helperDispatches = [];
+  let enterOssShowBattleViewWithDataCalls = 0;
   globalThis.window = {
     HTMLElement: MockHTMLElement,
-    clearTimeout,
-    requestAnimationFrame(callback) {
-      return setTimeout(callback, 0);
+    clearTimeout() {},
+    __require(name) {
+      if (name === "BattleUIManager") {
+        return {
+          SHOW_BATTLE_REPLAY_UI(payload, options) {
+            helperDispatches.push({ payload, options });
+          },
+        };
+      }
+      if (name === "enter-oss") {
+        return {
+          EnterOSSState: class {
+            getBattleDataByOSS(source) {
+              return source?.battleData ?? source?.lastBattleData ?? null;
+            }
+
+            createBattleInputData(battleData, battleResult) {
+              const inputData = createReplayBattleInput({
+                mapId: 10001,
+                mode: battleData?.mode ?? 7,
+              });
+              inputData.battleResult = battleResult;
+              return inputData;
+            }
+
+            showBattleViewWithData() {
+              enterOssShowBattleViewWithDataCalls += 1;
+            }
+          },
+        };
+      }
+      if (name === "BattleKitCrossSite") {
+        return {
+          BattleKitCrossSite: {
+            instance: {
+              tryRaisePlayback() {},
+            },
+          },
+        };
+      }
+      throw new Error(`Cannot find module '${name}'`);
     },
-    setTimeout,
+    requestAnimationFrame(callback) {
+      callback();
+      return 1;
+    },
+    setTimeout(callback) {
+      callback();
+      return 1;
+    },
+    cc: {
+      director: {
+        getScene() {
+          return { name: "Game" };
+        },
+      },
+      game: {
+        canvas: {},
+      },
+    },
   };
   globalThis.HTMLElement = MockHTMLElement;
+  globalThis.window.__REPLAY_DATA__ = {
+    battleData: {
+      mode: 32,
+      result: { isWin: true },
+    },
+  };
 
   const battleInputData = createReplayBattleInput();
   const hostElement = new MockHTMLElement();
@@ -1342,6 +1759,34 @@ test("fight pvp replay runtime bridge returns ok true when replay entrypoint sta
         viewport: {},
       }),
       createWxShim: () => ({
+        dispose() {},
+      }),
+      installLoadingErrorObserver: () => ({
+        dispose() {},
+      }),
+      installReplayAssetRequestObserver: () => ({
+        dispose() {},
+      }),
+      installMissingModuleShims: () => ({
+        dispose() {},
+        providedAliases: new Set(),
+      }),
+      installReplayPrivacyGuard: () => ({
+        dispose() {},
+      }),
+      installManifestShim: () => ({
+        dispose() {},
+      }),
+      installPageExitGuard: () => ({
+        dispose() {},
+      }),
+      installResourceManagerGuard: () => ({
+        dispose() {},
+      }),
+      installBundleResolverPatch: () => ({
+        dispose() {},
+      }),
+      installReplayPromiseUtilShim: () => ({
         dispose() {},
       }),
       ensureBundleVersionContainers() {},
@@ -1370,6 +1815,7 @@ test("fight pvp replay runtime bridge returns ok true when replay entrypoint sta
       locateReplayEntrypoint: () => ({
         label: "mock-entrypoint",
         invoke() {},
+        gameWindow: globalThis.window,
       }),
       inspectGameBundleModuleCoverage: async () => ({
         missingModules: [],
@@ -1396,6 +1842,38 @@ test("fight pvp replay runtime bridge returns ok true when replay entrypoint sta
   assert.equal(session.diagnostics.sourceType, "live-memory-battle-input");
   assert.equal(session.diagnostics.battleInputSource, "live-memory-battle-input");
   assert.equal(session.diagnostics.engineReplayEntrypoint, "mock-entrypoint");
+  const inspectResult = await globalThis.window.__xyzwReplay.inspect();
+  assert.equal(typeof globalThis.window.__xyzwReplay?.inspect, "function");
+  assert.equal(typeof globalThis.window.__xyzwReplay?.showReplay, "function");
+  assert.equal(typeof globalThis.window.__xyzwReplay?.showReplayDirect, "function");
+  assert.equal(typeof globalThis.window.__xyzwReplay?.showReplayViaEnterOSS, "function");
+  assert.equal(typeof globalThis.window.__xyzwReplay?.tryCrossSitePlayback, "function");
+  assert.equal(Array.isArray(inspectResult.replayEntrypointCandidates), true);
+  assert.equal(inspectResult.hasGameWindow, true);
+  assert.equal(inspectResult.hasRequire, true);
+  assert.equal(inspectResult.replayData.isWrapped, true);
+  assert.equal(inspectResult.replayData.isBattleInputLike, false);
+  globalThis.window.__xyzwReplay.showReplay(battleInputData, { fromManual: true });
+  globalThis.window.__xyzwReplay.showReplayDirect({
+    battleData: {
+      mode: 32,
+      result: { isWin: true },
+    },
+    mapId: 40001,
+    stageNameStr: "切磋系统",
+  }, { fromDirect: true });
+  assert.equal(helperDispatches.length, 2);
+  assert.equal(helperDispatches[0].payload, battleInputData);
+  assert.equal(helperDispatches[1].payload.mapId, 40001);
+  assert.equal(helperDispatches[1].payload.battleResult.isWin, true);
+  assert.equal(enterOssShowBattleViewWithDataCalls, 0);
+  globalThis.window.__xyzwReplay.showReplayViaEnterOSS({
+    battleData: {
+      mode: 32,
+      result: { isWin: true },
+    },
+  });
+  assert.equal(enterOssShowBattleViewWithDataCalls, 1);
   assert.equal(session.diagnostics.replayStartSignal, true);
   assert.equal(session.diagnostics.replayStartPanel, "CommonBattleTeamPanel");
   session.dispose();

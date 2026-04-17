@@ -73,11 +73,33 @@ test("fight pvp replay runtime real fixture smoke enters game scene and starts r
     ),
   ).toBeTruthy();
   expect(result.diagnostics.replayEntrypoint).toBe(
-    "require:BattleUIManager.SHOW_BATTLE_REPLAY_UI",
+    "window.__require(\"BattleUIManager\").SHOW_BATTLE_REPLAY_UI",
   );
   expect(result.diagnostics.engineReplayEntrypoint).toBe(
-    "require:BattleUIManager.SHOW_BATTLE_REPLAY_UI",
+    "window.__require(\"BattleUIManager\").SHOW_BATTLE_REPLAY_UI",
   );
+  const helperReady = await page.evaluate(async () => {
+    const replayHelper = (window as any).__xyzwReplay;
+    const inspectResult = await replayHelper?.inspect?.();
+    return {
+      hasInspect: typeof replayHelper?.inspect === "function",
+      hasShowReplay: typeof replayHelper?.showReplay === "function",
+      hasShowReplayDirect: typeof replayHelper?.showReplayDirect === "function",
+      hasShowReplayViaEnterOSS:
+        typeof replayHelper?.showReplayViaEnterOSS === "function",
+      hasTryCrossSitePlayback: typeof replayHelper?.tryCrossSitePlayback === "function",
+      inspectResult,
+    };
+  });
+  expect(helperReady.hasInspect).toBeTruthy();
+  expect(helperReady.hasShowReplay).toBeTruthy();
+  expect(helperReady.hasShowReplayDirect).toBeTruthy();
+  expect(helperReady.hasShowReplayViaEnterOSS).toBeTruthy();
+  expect(helperReady.hasTryCrossSitePlayback).toBeTruthy();
+  expect(helperReady.inspectResult.hasGameWindow).toBeTruthy();
+  expect(helperReady.inspectResult.hasRequire).toBeTruthy();
+  expect(helperReady.inspectResult.replayGameWindowStatus).toBeTruthy();
+  expect(Array.isArray(helperReady.inspectResult.replayEntrypointCandidates)).toBeTruthy();
   expect(result.diagnostics.replayStartSignal).toBeTruthy();
   expect(result.diagnostics.replayStartIsReplay).toBeTruthy();
   expect(result.diagnostics.replayStartMapId).toBe(40001);

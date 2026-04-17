@@ -227,9 +227,24 @@ const diagnosticLines = computed(() => {
   if (diagnostics.engineReplayEntrypoint) {
     lines.push(`engineReplayEntrypoint: ${diagnostics.engineReplayEntrypoint}`);
   }
+  if (diagnostics.replayGameWindowSource) {
+    lines.push(`replayGameWindowSource: ${diagnostics.replayGameWindowSource}`);
+  }
+  if (diagnostics.replayGameWindowStatus) {
+    lines.push(`replayGameWindowStatus: ${diagnostics.replayGameWindowStatus}`);
+  }
+  if (typeof diagnostics.replayGameBundleReady === "boolean") {
+    lines.push(`replayGameBundleReady: ${diagnostics.replayGameBundleReady}`);
+  }
+  if (typeof diagnostics.replayGameBundleReadyAttempts === "number") {
+    lines.push(`replayGameBundleReadyAttempts: ${diagnostics.replayGameBundleReadyAttempts}`);
+  }
+  if (diagnostics.replayGameBundleReadyError) {
+    lines.push(`replayGameBundleReadyError: ${diagnostics.replayGameBundleReadyError}`);
+  }
   if (Array.isArray(diagnostics.replayEntrypointCandidates) && diagnostics.replayEntrypointCandidates.length > 0) {
     lines.push(
-      `scannedEntrypointCandidates: ${diagnostics.replayEntrypointCandidates.map((entry) => `${entry.label}:${entry.moduleStatus || "unknown"}/${entry.propertyStatus || "unknown"}`).join(", ")}`,
+      `scannedEntrypointCandidates: ${diagnostics.replayEntrypointCandidates.map((entry) => `${entry.label}:${entry.status || "unknown"}`).join(", ")}`,
     );
   }
   if (Array.isArray(diagnostics.replayEntrypointRequireDebug) && diagnostics.replayEntrypointRequireDebug.length > 0) {
@@ -418,12 +433,25 @@ const buildReplayFailureMessage = ({
 
   if (
     failureState === "replay-start-failed"
-    && diagnostics?.battleUiManagerModuleStatus === "found"
+    && Array.isArray(diagnostics?.replayEntrypointCandidates)
+    && diagnostics.replayEntrypointCandidates.some((entry) =>
+      ["wrong-module-id", "wrong-export-path", "not-callable"].includes(entry?.status),
+    )
+  ) {
+    return appendTechnicalMessage(
+      props.t("fightPvpCard.replay.engineEntrypointResolveFailedDescription"),
+      detail,
+    );
+  }
+
+  if (
+    failureState === "replay-start-failed"
+    && ["wrong-window", "wrong-loader"].includes(diagnostics?.replayGameWindowStatus)
     && Array.isArray(diagnostics?.replayEntrypointCandidates)
     && diagnostics.replayEntrypointCandidates.length > 0
   ) {
     return appendTechnicalMessage(
-      props.t("fightPvpCard.replay.engineEntrypointResolveFailedDescription"),
+      props.t("fightPvpCard.replay.engineEntrypointUnavailableDescription"),
       detail,
     );
   }
