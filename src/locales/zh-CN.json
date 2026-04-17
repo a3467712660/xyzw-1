@@ -3019,6 +3019,19 @@
       "loaderFamilyMismatchDescription": "当前线上运行的是 production/public loader，而不是 source-era loader；因此 BattleUIManager、enter-oss、BattleKitCrossSite 这些 probe 与当前 loader family 不兼容。",
       "bridgeNotExposedDescription": "当前已识别为 production/public loader，但尚未发现稳定的 replay bridge；因此当前问题应归类为 bridge-not-exposed，而不是等待 BattleUIManager 注册。",
       "bridgePlayTargetMissingDescription": "当前 production replay bridge 已经暴露，但还没有解析到稳定的 production 播放目标；这时应继续根据 scene/global 候选绑定真实控制器，而不是再回退到 source-era module probe。",
+      "publicBridgeSummaryDescription": "运行时已进入 Game，并已加载 production replay bridge。`showBattleLoading` 未找到仅为可选 visual probe，不构成主失败原因；当前应优先根据 `playTargetScore/Why`、`payloadShapeBefore/After`、`primaryRisk` 和 `visualPostCheck` 判断 blank-screen 的根因。",
+      "publicBridgeTargetThrewDescription": "运行时已进入 Game，并已加载 production replay bridge。当前 bridge 已解析到播放目标，但目标调用本身抛出了运行时异常；应优先检查 `playTargetScore/Why`、候选排序以及下游控制器是否选错。",
+      "publicBridgeNoVisualChangeDescription": "运行时已进入 Game，并已加载 production replay bridge。bridge 调用已返回，但当前没有观测到可靠的画面级变化；应优先检查 `primaryRisk`、`payloadShapeBefore/After`、`playTargetScore/Why` 和 `visualPostCheck`。",
+      "publicBridgeVisualChangedDescription": "运行时已进入 Game，并已加载 production replay bridge。当前已观测到画面级变化；若仍有异常，应继续根据 `visualPostCheck` 和 `playTargetScore/Why` 判断是否进入了错误面板或错误控制器。",
+      "staleProbeSummaryDescription": "当前页面仍在使用旧的 replay 汇总逻辑，尚未消费最新 public replay bridge 的 `primaryRisk`、`rankedTargets`、`payloadShape*` 与 `visualPostCheck` 输出；当前问题应归类为 stale-probe-summary。",
+      "stalePageAssetsDescription": "当前页面没有消费到最新 `public/replay-runtime-probe.js` 的输出，或仍在运行旧页面资源；当前问题应归类为 stale-page-assets。",
+      "publicBridgePrimaryRiskDescriptions": {
+        "targetSelectionRisk": "当前主风险是 `target-selection-risk`：候选 target 的可信度不足，更可能是目标选错而不是入口没找到。",
+        "payloadShapeRisk": "当前主风险是 `payload-shape-risk`：bridge 已到播放层，但 payload 形状仍不够像可消费的 production replay 输入。",
+        "visualSideEffectMissing": "当前主风险是 `visual-side-effect-missing`：target 与 payload 看起来已进入调用阶段，但没有任何可靠的画面级 side effect。",
+        "runtimeNotReadyForSceneScan": "当前主风险是 `runtime-not-ready-for-scene-scan`：runtime 还没有进入可扫描的 scene，不能再把 blank-screen 归因为 source-era 入口或 `showBattleLoading`。",
+        "targetDiscoveryEmpty": "当前主风险是 `target-discovery-empty`：scene/global 扫描结果仍为空，更像是 production target 发现规则过窄或运行时对象尚未挂出。"
+      },
       "moduleIdFamilyMismatchDescription": "当前使用的是 source-era module id probe，但页面运行的是 production/public loader；这类 probe 对当前 loader family 不成立。",
       "runtimeNotReady": "运行时尚未准备好，暂时无法播放该回放。",
       "runtimeStageDescriptions": {

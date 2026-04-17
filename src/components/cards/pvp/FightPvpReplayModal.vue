@@ -394,6 +394,26 @@ const diagnosticLines = computed(() => {
       `replayStart: signal=${diagnostics.replayStartSignal ? "true" : "false"}, panel=${diagnostics.replayStartPanel || "-"}, isReplay=${diagnostics.replayStartIsReplay ?? "-"}, mapId=${diagnostics.replayStartMapId ?? "-"}, mode=${diagnostics.replayStartBattleMode ?? "-"}`,
     );
   }
+  if (diagnostics.loaderFamily === "public-xyzw-loader") {
+    lines.push(
+      `publicBridgeSummary: loaderFamily=${formatDiagnosticValue(diagnostics.loaderFamily)}, bridgeStatus=${formatDiagnosticValue(diagnostics.bridgeStatus)}, primaryRisk=${formatDiagnosticValue(diagnostics.primaryRisk)}, playTargetLabel=${formatDiagnosticValue(diagnostics.playTargetLabel)}, playTargetScore=${formatDiagnosticValue(diagnostics.playTargetScore)}, showBattleLoading=${formatDiagnosticValue(diagnostics.visualProbeCapabilities?.showBattleLoading)}`,
+    );
+    lines.push(
+      `publicBridgePlayTargetWhy: ${formatDiagnosticValue(diagnostics.playTargetWhy)}`,
+    );
+    lines.push(
+      `publicBridgeRankedTargets: ${formatDiagnosticValue(Array.isArray(diagnostics.rankedTargets) ? diagnostics.rankedTargets.slice(0, 5) : [])}`,
+    );
+    lines.push(
+      `publicBridgePayloadShapeBefore: ${formatDiagnosticValue(diagnostics.payloadShapeBefore ?? diagnostics.payloadShapeDefault ?? null)}`,
+    );
+    lines.push(
+      `publicBridgePayloadShapeAfter: ${formatDiagnosticValue(diagnostics.payloadShapeAfter ?? null)}`,
+    );
+    lines.push(
+      `publicBridgeVisualPostCheck: ${formatDiagnosticValue(diagnostics.visualPostCheck ?? null)}`,
+    );
+  }
   if (diagnostics.error) {
     lines.push(`error: ${diagnostics.error}`);
   }
@@ -480,6 +500,146 @@ const buildSpecificMapIdFailureMessage = (diagnostics) => {
     : lead;
 };
 
+const isPublicLoaderDiagnostics = (diagnostics) =>
+  diagnostics?.loaderFamily === "public-xyzw-loader";
+
+const getPublicBridgeStatus = (diagnostics) => {
+  const explicitStatus = diagnostics?.replayEntrypointInvokeStatus || diagnostics?.bridgeStatus || null;
+  if (
+    [
+      "bridge-play-target-threw",
+      "bridge-exposed-but-play-target-missing",
+      "played-via-production-bridge-but-no-visual-change",
+      "played-via-production-bridge-and-visual-changed",
+    ].includes(explicitStatus)
+  ) {
+    return explicitStatus;
+  }
+
+  const hasProductionBridgeSignal = Boolean(
+    diagnostics?.playTargetLabel
+    || String(diagnostics?.replayEntrypoint || "").includes("__xyzwReplayBridge")
+    || String(diagnostics?.bridgeSource || "").includes("__xyzwReplayBridge"),
+  );
+
+  if (hasProductionBridgeSignal && diagnostics?.replayStartSignal === false) {
+    return "played-via-production-bridge-but-no-visual-change";
+  }
+
+  if (hasProductionBridgeSignal && diagnostics?.replayStartSignal === true) {
+    return "played-via-production-bridge-and-visual-changed";
+  }
+
+  return explicitStatus;
+};
+
+const hasModernPublicBridgeFields = (diagnostics) =>
+  Boolean(
+    diagnostics
+    && (
+      typeof diagnostics?.primaryRisk === "string"
+      || Array.isArray(diagnostics?.rankedTargets)
+      || diagnostics?.payloadShapeDefault
+      || diagnostics?.payloadShapeBefore
+      || diagnostics?.payloadShapeAfter
+      || diagnostics?.visualPostCheck
+      || diagnostics?.visualProbeCapabilities
+    ),
+  );
+
+const classifyPublicReplayBridgeStaleness = (diagnostics) => {
+  if (!isPublicLoaderDiagnostics(diagnostics) || hasModernPublicBridgeFields(diagnostics)) {
+    return null;
+  }
+
+  const hasBridgeSignal = Boolean(
+    diagnostics?.bridgeStatus
+    || diagnostics?.bridgeSource
+    || diagnostics?.replayEntrypointInvokeStatus
+    || String(diagnostics?.replayEntrypoint || "").includes("__xyzwReplayBridge"),
+  );
+
+  return hasBridgeSignal
+    ? "stale-probe-summary"
+    : "stale-page-assets";
+};
+
+const getPublicBridgePrimaryRiskMessage = (diagnostics) => {
+  const riskKeyMap = {
+    "target-selection-risk": "fightPvpCard.replay.publicBridgePrimaryRiskDescriptions.targetSelectionRisk",
+    "payload-shape-risk": "fightPvpCard.replay.publicBridgePrimaryRiskDescriptions.payloadShapeRisk",
+    "visual-side-effect-missing": "fightPvpCard.replay.publicBridgePrimaryRiskDescriptions.visualSideEffectMissing",
+    "runtime-not-ready-for-scene-scan": "fightPvpCard.replay.publicBridgePrimaryRiskDescriptions.runtimeNotReadyForSceneScan",
+    "target-discovery-empty": "fightPvpCard.replay.publicBridgePrimaryRiskDescriptions.targetDiscoveryEmpty",
+  };
+
+  const key = riskKeyMap[diagnostics?.primaryRisk];
+  return key ? props.t(key) : "";
+};
+
+const sanitizePublicReplayBridgeDetail = (detail = "") => {
+  const trimmed = String(detail || "").trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  return /(battleInputData|EnterOSSState|BattleUIManager|SHOW_BATTLE_REPLAY_UI|showBattleViewWithData)/.test(trimmed)
+    ? "detail=suppressed-source-era-summary-for-public-loader"
+    : trimmed;
+};
+
+const buildPublicReplayBridgeDebugDetail = (diagnostics, detail = "") => {
+  const rankedTargets = Array.isArray(diagnostics?.rankedTargets)
+    ? diagnostics.rankedTargets.slice(0, 5)
+    : [];
+  const fieldSummary = [
+    `loaderFamily=${formatDiagnosticValue(diagnostics?.loaderFamily)}`,
+    `bridgeStatus=${formatDiagnosticValue(diagnostics?.bridgeStatus)}`,
+    `primaryRisk=${formatDiagnosticValue(diagnostics?.primaryRisk)}`,
+    `playTargetLabel=${formatDiagnosticValue(diagnostics?.playTargetLabel)}`,
+    `playTargetScore=${formatDiagnosticValue(diagnostics?.playTargetScore)}`,
+    `playTargetWhy=${formatDiagnosticValue(diagnostics?.playTargetWhy)}`,
+    `rankedTargets=${formatDiagnosticValue(rankedTargets)}`,
+    `payloadShapeBefore=${formatDiagnosticValue(diagnostics?.payloadShapeBefore ?? diagnostics?.payloadShapeDefault ?? null)}`,
+    `payloadShapeAfter=${formatDiagnosticValue(diagnostics?.payloadShapeAfter ?? null)}`,
+    `visualPostCheck=${formatDiagnosticValue(diagnostics?.visualPostCheck ?? null)}`,
+    `showBattleLoading=${formatDiagnosticValue(diagnostics?.visualProbeCapabilities?.showBattleLoading)}`,
+  ].join(", ");
+
+  return [fieldSummary, sanitizePublicReplayBridgeDetail(detail)].filter(Boolean).join("；");
+};
+
+const buildPublicReplayBridgeSummary = (diagnostics, detail = "") => {
+  const staleReason = classifyPublicReplayBridgeStaleness(diagnostics);
+  if (staleReason === "stale-probe-summary") {
+    return appendTechnicalMessage(
+      props.t("fightPvpCard.replay.staleProbeSummaryDescription"),
+      buildPublicReplayBridgeDebugDetail(diagnostics, detail),
+    );
+  }
+  if (staleReason === "stale-page-assets") {
+    return appendTechnicalMessage(
+      props.t("fightPvpCard.replay.stalePageAssetsDescription"),
+      buildPublicReplayBridgeDebugDetail(diagnostics, detail),
+    );
+  }
+
+  const status = getPublicBridgeStatus(diagnostics);
+  const leadKeyMap = {
+    "bridge-play-target-threw": "fightPvpCard.replay.publicBridgeTargetThrewDescription",
+    "bridge-exposed-but-play-target-missing": "fightPvpCard.replay.bridgePlayTargetMissingDescription",
+    "played-via-production-bridge-but-no-visual-change": "fightPvpCard.replay.publicBridgeNoVisualChangeDescription",
+    "played-via-production-bridge-and-visual-changed": "fightPvpCard.replay.publicBridgeVisualChangedDescription",
+  };
+  const lead = props.t(leadKeyMap[status] || "fightPvpCard.replay.publicBridgeSummaryDescription");
+  const riskMessage = getPublicBridgePrimaryRiskMessage(diagnostics);
+  const summaryLead = [lead, riskMessage].filter(Boolean).join(" ");
+  return appendTechnicalMessage(
+    summaryLead,
+    buildPublicReplayBridgeDebugDetail(diagnostics, detail),
+  );
+};
+
 const buildReplayFailureMessage = ({
   failureState,
   detail = "",
@@ -512,6 +672,13 @@ const buildReplayFailureMessage = ({
       props.t("fightPvpCard.replay.missingFieldsDescription"),
       missingFieldsDetail,
     );
+  }
+
+  if (
+    failureState === "replay-start-failed"
+    && isPublicLoaderDiagnostics(diagnostics)
+  ) {
+    return buildPublicReplayBridgeSummary(diagnostics, detail);
   }
 
   if (

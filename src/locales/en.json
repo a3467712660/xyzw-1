@@ -3043,6 +3043,19 @@
       "loaderFamilyMismatchDescription": "The current live page is running the production/public loader, not the source-era loader, so BattleUIManager, enter-oss, and BattleKitCrossSite are incompatible probes for this loader family.",
       "bridgeNotExposedDescription": "The production/public loader has been identified, but no stable replay bridge has been exposed yet. This should be classified as bridge-not-exposed, not as waiting for BattleUIManager registration.",
       "bridgePlayTargetMissingDescription": "The production replay bridge is exposed, but no stable production play target has been resolved yet. The next step is to bind a real controller from scene/global candidates instead of falling back to source-era module probes.",
+      "publicBridgeSummaryDescription": "The runtime reached Game and the production replay bridge is active. `showBattleLoading` not being found is only an optional visual probe and is not a primary failure cause. Blank-screen diagnosis should now be driven by `playTargetScore/Why`, `payloadShapeBefore/After`, `primaryRisk`, and `visualPostCheck`.",
+      "publicBridgeTargetThrewDescription": "The runtime reached Game and the production replay bridge resolved a play target, but invoking that target threw a runtime exception. The main next step is to inspect `playTargetScore/Why`, candidate ranking, and whether the selected controller is the wrong target.",
+      "publicBridgeNoVisualChangeDescription": "The runtime reached Game and the production replay bridge call returned, but no reliable visual change was observed. The main next step is to inspect `primaryRisk`, `payloadShapeBefore/After`, `playTargetScore/Why`, and `visualPostCheck`.",
+      "publicBridgeVisualChangedDescription": "The runtime reached Game and the production replay bridge already caused a visual change. If behavior is still wrong, the next step is to inspect `visualPostCheck` and `playTargetScore/Why` to confirm whether the runtime entered the wrong panel or controller.",
+      "staleProbeSummaryDescription": "The current page is still using an older replay summary layer and is not consuming the latest public replay bridge outputs such as `primaryRisk`, `rankedTargets`, `payloadShape*`, and `visualPostCheck`. This should be classified as stale-probe-summary.",
+      "stalePageAssetsDescription": "The current page is not consuming the latest `public/replay-runtime-probe.js` output, or it is still serving stale page assets. This should be classified as stale-page-assets.",
+      "publicBridgePrimaryRiskDescriptions": {
+        "targetSelectionRisk": "The primary risk is `target-selection-risk`: the chosen target does not look trustworthy, so a wrong target is more likely than a missing entrypoint.",
+        "payloadShapeRisk": "The primary risk is `payload-shape-risk`: the bridge reached the play layer, but the payload still does not look like a production replay input the target can consume.",
+        "visualSideEffectMissing": "The primary risk is `visual-side-effect-missing`: target invocation happened, but no reliable visual side effect followed.",
+        "runtimeNotReadyForSceneScan": "The primary risk is `runtime-not-ready-for-scene-scan`: the runtime still has not entered a scannable scene, so blank-screen should not be blamed on source-era entrypoints or `showBattleLoading`.",
+        "targetDiscoveryEmpty": "The primary risk is `target-discovery-empty`: scene/global scanning is still empty, which is more consistent with missing production target discovery than with source-era replay routing."
+      },
       "moduleIdFamilyMismatchDescription": "A source-era module-id probe is being used against the production/public loader. That probe family is incompatible with the current loader family.",
       "runtimeNotReady": "The runtime is not ready, so this replay cannot start yet.",
       "runtimeStageDescriptions": {
