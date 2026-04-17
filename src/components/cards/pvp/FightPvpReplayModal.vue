@@ -256,6 +256,18 @@ const diagnosticLines = computed(() => {
   if (diagnostics.battleModulesReady !== undefined) {
     lines.push(`battleModulesReady: ${diagnostics.battleModulesReady}`);
   }
+  if (diagnostics.sameRequireRef !== undefined && diagnostics.sameRequireRef !== null) {
+    lines.push(`sameRequireRef: ${diagnostics.sameRequireRef}`);
+  }
+  if (diagnostics.hasRequireSwap !== undefined) {
+    lines.push(`hasRequireSwap: ${diagnostics.hasRequireSwap}`);
+  }
+  if (diagnostics.requireFunctionName) {
+    lines.push(`requireFunctionName: ${diagnostics.requireFunctionName}`);
+  }
+  if (diagnostics.launcherRequireFunctionName) {
+    lines.push(`launcherRequireFunctionName: ${diagnostics.launcherRequireFunctionName}`);
+  }
   if (diagnostics.gameScriptInDocument !== undefined) {
     lines.push(`gameScriptInDocument: ${diagnostics.gameScriptInDocument}`);
   }
@@ -413,6 +425,7 @@ const getRuntimeStageMessage = (stage) => {
     "game-bundle-loaded": "fightPvpCard.replay.runtimeStageDescriptions.gameBundleLoaded",
     "game-scene-asset-loaded": "fightPvpCard.replay.runtimeStageDescriptions.gameSceneAssetLoaded",
     "game-scene-running": "fightPvpCard.replay.runtimeStageDescriptions.gameSceneRunning",
+    "require-swapped": "fightPvpCard.replay.runtimeStageDescriptions.requireSwapped",
     "battle-modules-ready": "fightPvpCard.replay.runtimeStageDescriptions.battleModulesReady",
   };
   const key = stageMap[stage];
@@ -493,6 +506,17 @@ const buildReplayFailureMessage = ({
 
   if (
     failureState === "replay-start-failed"
+    && diagnostics?.sceneName === "Game"
+    && diagnostics?.sameRequireRef === true
+  ) {
+    return appendTechnicalMessage(
+      props.t("fightPvpCard.replay.staleRequireReferenceDescription"),
+      detail,
+    );
+  }
+
+  if (
+    failureState === "replay-start-failed"
     && Array.isArray(diagnostics?.replayEntrypointCandidates)
     && diagnostics.replayEntrypointCandidates.some((entry) =>
       ["wrong-module-id", "wrong-export-path", "not-callable"].includes(entry?.status),
@@ -514,6 +538,7 @@ const buildReplayFailureMessage = ({
       "game-bundle-loaded",
       "game-scene-asset-loaded",
       "game-scene-running",
+      "require-swapped",
     ].includes(
       diagnostics?.runtimeStage || diagnostics?.runtimeLayer || diagnostics?.replayGameWindowStatus,
     )

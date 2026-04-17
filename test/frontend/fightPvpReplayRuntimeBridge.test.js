@@ -364,6 +364,11 @@ test("fight pvp replay detectXyzwRuntimeLayer distinguishes staged replay runtim
       },
     },
   };
+  const swappedWindow = {
+    __require(name) {
+      throw new Error(`Cannot find module '${name}'`);
+    },
+  };
 
   launcherReadyWindow.__xyzwReplayRuntimeLayerState = {
     nextId: 0,
@@ -431,6 +436,10 @@ test("fight pvp replay detectXyzwRuntimeLayer distinguishes staged replay runtim
   readyWindow.__xyzwReplayRuntimeLayerState = {
     ...runningWindow.__xyzwReplayRuntimeLayerState,
   };
+  swappedWindow.__xyzwReplayRuntimeLayerState = {
+    ...launcherReadyWindow.__xyzwReplayRuntimeLayerState,
+    launcherRequireRef: function launcherReq() {},
+  };
 
   assert.equal(detectXyzwRuntimeLayer(null).layer, "no-window");
   assert.equal(detectXyzwRuntimeLayer({}).layer, "no-require");
@@ -439,6 +448,7 @@ test("fight pvp replay detectXyzwRuntimeLayer distinguishes staged replay runtim
   assert.equal(detectXyzwRuntimeLayer(bundleLoadedWindow).layer, "game-bundle-loaded");
   assert.equal(detectXyzwRuntimeLayer(sceneAssetWindow).layer, "game-scene-asset-loaded");
   assert.equal(detectXyzwRuntimeLayer(runningWindow).layer, "game-scene-running");
+  assert.equal(detectXyzwRuntimeLayer(swappedWindow).layer, "require-swapped");
   assert.equal(detectXyzwRuntimeLayer(readyWindow).layer, "battle-modules-ready");
 });
 
@@ -631,6 +641,57 @@ test("fight pvp replay exposes only inspectBundleState and waitForBattleModulesR
   assert.equal(typeof helper?.showReplay, "undefined");
   assert.equal(typeof helper?.showReplayDirect, "undefined");
   assert.equal(typeof helper?.tryCrossSitePlayback, "undefined");
+
+  dispose();
+});
+
+test("fight pvp replay helper req getter always returns the live __require after a loader swap", async () => {
+  const launcherReq = function launcherReq() {
+    throw new Error("Cannot find module 'BattleUIManager'");
+  };
+  const freshReq = function freshReq(name) {
+    if (name === "BattleUIManager") {
+      return {
+        SHOW_BATTLE_REPLAY_UI() {},
+      };
+    }
+    return {};
+  };
+  globalThis.window = {
+    __require: launcherReq,
+    cc: {
+      director: {
+        getScene() {
+          return { name: "Game" };
+        },
+      },
+    },
+    document: {
+      querySelectorAll() {
+        return [];
+      },
+      scripts: [],
+    },
+    performance: {
+      getEntriesByType() {
+        return [];
+      },
+    },
+    setTimeout,
+  };
+
+  const { helper, dispose } = exposeReplayConsoleHelpers(globalThis.window, {
+    runtimeLayerInfo: detectXyzwRuntimeLayer(globalThis.window, {
+      windowLabel: "window",
+    }),
+  });
+  globalThis.window.__require = freshReq;
+
+  assert.equal(helper.req, freshReq);
+  assert.equal(helper.req === launcherReq, false);
+  const waitResult = await helper.waitForBattleModulesReady({ timeoutMs: 5, intervalMs: 1 });
+  assert.equal(waitResult.status, "battle-modules-ready");
+  assert.equal(waitResult.details.hasRequireSwap, true);
 
   dispose();
 });

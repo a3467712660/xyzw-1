@@ -5,11 +5,13 @@ import {
 import {
   detectXyzwRuntimeLayer as detectXyzwRuntimeLayerShared,
   ensureXyzwGameBundleReady as ensureXyzwGameBundleReadyShared,
+  getLiveRequire,
   inspectBundleState as inspectBundleStateShared,
   probeXyzwRuntimeModule,
   recordXyzwBundleEvent,
   recordXyzwRunSceneCall,
   recordXyzwRuntimeScriptEvent,
+  rememberLauncherRequireRef,
   trackXyzwBundlePromise,
   trackXyzwTryLoadAssetPromise,
   waitForBattleModulesReady as waitForBattleModulesReadyShared,
@@ -228,6 +230,8 @@ const buildRuntimeLayerDetail = (runtimeLayerInfo) => {
       return "the Game scene asset is ready, but runScene(Game) has not happened yet.";
     case "game-scene-running":
       return "Game scene is already running, but battle modules are not registered yet.";
+    case "require-swapped":
+      return "window.__require changed after launcher bootstrap, but battle modules are still unavailable from the live require.";
     case "battle-modules-ready":
       return "battle modules are registered and the replay entrypoint can be called.";
     case "no-require":
@@ -411,10 +415,7 @@ export const ensureReplayInputData = (source, gameWindow, options = {}) => {
     throw new Error("No game window with __require found");
   }
 
-  const req = gameWindow.__require;
-  if (typeof req !== "function") {
-    throw new TypeError("gameWindow.__require is not a function");
-  }
+  const req = getLiveRequire(gameWindow);
 
   if (looksLikeBattleInput(source)) {
     const prepared = source;
@@ -3176,13 +3177,13 @@ const createBattleKitCrossSiteReplayInvoker = (moduleValue) => {
   };
 };
 
-const createReplayEntrypointInvoker = (moduleId, exportPathArr, moduleValue) => {
+const createReplayEntrypointInvoker = (gameWindow, moduleId, exportPathArr) => {
   if (
     moduleId === "BattleUIManager"
     && exportPathArr.length === 1
     && exportPathArr[0] === "SHOW_BATTLE_REPLAY_UI"
   ) {
-    return (payload) => moduleValue.SHOW_BATTLE_REPLAY_UI(payload);
+    return (payload) => getLiveRequire(gameWindow)("BattleUIManager").SHOW_BATTLE_REPLAY_UI(payload);
   }
 
   if (
@@ -3192,7 +3193,7 @@ const createReplayEntrypointInvoker = (moduleId, exportPathArr, moduleValue) => 
     && exportPathArr[1] === "instance"
     && exportPathArr[2] === "showBattleReplayUI"
   ) {
-    return (payload) => moduleValue.BattleUIManager.instance.showBattleReplayUI(payload);
+    return (payload) => getLiveRequire(gameWindow)("BattleUIManager").BattleUIManager.instance.showBattleReplayUI(payload);
   }
 
   if (
@@ -3202,7 +3203,10 @@ const createReplayEntrypointInvoker = (moduleId, exportPathArr, moduleValue) => 
     && exportPathArr[1] === "prototype"
     && exportPathArr[2] === "showBattleViewWithData"
   ) {
-    return (payload) => new moduleValue.EnterOSSState().showBattleViewWithData(payload);
+    return (payload) => {
+      const { EnterOSSState } = getLiveRequire(gameWindow)("enter-oss");
+      return new EnterOSSState().showBattleViewWithData(payload);
+    };
   }
 
   if (
@@ -3212,7 +3216,14 @@ const createReplayEntrypointInvoker = (moduleId, exportPathArr, moduleValue) => 
     && exportPathArr[1] === "instance"
     && exportPathArr[2] === "tryRaisePlayback"
   ) {
-    return createBattleKitCrossSiteReplayInvoker(moduleValue);
+    return (payload) => {
+      const moduleValue = getLiveRequire(gameWindow)("BattleKitCrossSite");
+      const invoker = createBattleKitCrossSiteReplayInvoker(moduleValue);
+      if (typeof invoker !== "function") {
+        throw new TypeError("BattleKitCrossSite replay invoker is unavailable from the live require.");
+      }
+      return invoker(payload);
+    };
   }
 
   return null;
@@ -3249,6 +3260,10 @@ const buildReplayProbeReport = ({
   diagnostics.gameSceneAssetLoaded = Boolean(runtimeLayerInfo.details?.gameSceneAssetLoaded);
   diagnostics.gameSceneRunning = Boolean(runtimeLayerInfo.details?.gameSceneRunning);
   diagnostics.battleModulesReady = Boolean(runtimeLayerInfo.details?.battleModulesReady);
+  diagnostics.sameRequireRef = runtimeLayerInfo.details?.sameRequireRef ?? null;
+  diagnostics.hasRequireSwap = Boolean(runtimeLayerInfo.details?.hasRequireSwap);
+  diagnostics.requireFunctionName = runtimeLayerInfo.details?.requireFunctionName ?? null;
+  diagnostics.launcherRequireFunctionName = runtimeLayerInfo.details?.launcherRequireFunctionName ?? null;
   diagnostics.loadBundleCalls = runtimeLayerInfo.details?.loadBundleCalls || [];
   diagnostics.tryLoadAssetCalls = runtimeLayerInfo.details?.tryLoadAssetCalls || [];
   diagnostics.runSceneCalls = runtimeLayerInfo.details?.runSceneCalls || [];
@@ -3341,9 +3356,9 @@ const buildReplayProbeReport = ({
       resolvedEntrypoint = {
         label: candidate.label,
         invoke: createReplayEntrypointInvoker(
+          resolvedGameWindow,
           probeConfig.moduleId,
           probeConfig.exportPath,
-          moduleResult?.value,
         ),
         gameWindow: resolvedGameWindow,
         source,
@@ -3488,6 +3503,15 @@ const createReplayConsoleHelpers = (gameWindow, {
   runtimeLayerInfo = detectXyzwRuntimeLayerShared(gameWindow, { windowLabel: "window" }),
   limited = false,
 } = {}) => {
+  const defineLiveRequireGetter = (helperTarget) => {
+    Object.defineProperty(helperTarget, "req", {
+      enumerable: true,
+      get() {
+        return getLiveRequire(gameWindow);
+      },
+    });
+    return helperTarget;
+  };
   const baseHelper = {
     inspectBundleState() {
       const result = inspectBundleStateShared(getRuntimeWindow());
@@ -3510,12 +3534,11 @@ const createReplayConsoleHelpers = (gameWindow, {
   };
 
   if (limited || runtimeLayerInfo?.layer !== "battle-modules-ready") {
-    return baseHelper;
+    return defineLiveRequireGetter(baseHelper);
   }
 
-  const helper = {
+  const helper = defineLiveRequireGetter({
     ...baseHelper,
-    req: typeof gameWindow?.__require === "function" ? gameWindow.__require : null,
     async inspect() {
       const result = {
         ...(await inspectReplayEntrypoints(gameWindow)),
@@ -3534,7 +3557,7 @@ const createReplayConsoleHelpers = (gameWindow, {
         mapId: prepared?.mapId,
         mode: prepared?.battleData?.mode,
       });
-      const ret = gameWindow.__require("BattleUIManager").SHOW_BATTLE_REPLAY_UI(prepared, options);
+      const ret = getLiveRequire(gameWindow)("BattleUIManager").SHOW_BATTLE_REPLAY_UI(prepared, options);
       scheduleReplayPostCheck(gameWindow, prepared);
       helper.lastPrepared = prepared;
       return ret;
@@ -3545,21 +3568,21 @@ const createReplayConsoleHelpers = (gameWindow, {
         mapId: prepared?.mapId,
         mode: prepared?.battleData?.mode,
       });
-      const ret = gameWindow.__require("BattleUIManager").SHOW_BATTLE_REPLAY_UI(prepared, options);
+      const ret = getLiveRequire(gameWindow)("BattleUIManager").SHOW_BATTLE_REPLAY_UI(prepared, options);
       scheduleReplayPostCheck(gameWindow, prepared);
       helper.lastPrepared = prepared;
       return ret;
     },
     showReplayViaEnterOSS(rawOrWrappedBattleData = getReplaySource(gameWindow)) {
-      const { EnterOSSState } = gameWindow.__require("enter-oss");
+      const { EnterOSSState } = getLiveRequire(gameWindow)("enter-oss");
       return new EnterOSSState().showBattleViewWithData(rawOrWrappedBattleData);
     },
     tryCrossSitePlayback(force = true) {
-      const ret = gameWindow.__require("BattleKitCrossSite").BattleKitCrossSite.instance.tryRaisePlayback(force);
+      const ret = getLiveRequire(gameWindow)("BattleKitCrossSite").BattleKitCrossSite.instance.tryRaisePlayback(force);
       console.log("[xyzw replay] tryCrossSitePlayback", { force, ret });
       return ret;
     },
-  };
+  });
 
   return helper;
 };
@@ -3576,6 +3599,7 @@ export const exposeReplayConsoleHelpers = (gameWindow, {
   }
 
   const runtimeWindow = getRuntimeWindow();
+  rememberLauncherRequireRef(gameWindow);
   const helper = createReplayConsoleHelpers(gameWindow, {
     runtimeLayerInfo,
     limited: runtimeLayerInfo?.layer !== "battle-modules-ready",
@@ -3735,6 +3759,7 @@ export const startFightPvpReplayRuntime = async ({
     await adapter.ensureRuntimeLoaded({
       variant: XYZW_RUNTIME_VARIANTS.REPLAY_BROWSER,
     });
+    rememberLauncherRequireRef(getRuntimeWindow());
 
     diagnostics.steps.push("install-vm2-shim");
     const vm2Shim = adapter.createVm2Shim();
@@ -3979,6 +4004,10 @@ export const startFightPvpReplayRuntime = async ({
     diagnostics.gameSceneAssetLoaded = Boolean(initialRuntimeLayerInfo.details?.gameSceneAssetLoaded);
     diagnostics.gameSceneRunning = Boolean(initialRuntimeLayerInfo.details?.gameSceneRunning);
     diagnostics.battleModulesReady = Boolean(initialRuntimeLayerInfo.details?.battleModulesReady);
+    diagnostics.sameRequireRef = initialRuntimeLayerInfo.details?.sameRequireRef ?? null;
+    diagnostics.hasRequireSwap = Boolean(initialRuntimeLayerInfo.details?.hasRequireSwap);
+    diagnostics.requireFunctionName = initialRuntimeLayerInfo.details?.requireFunctionName ?? null;
+    diagnostics.launcherRequireFunctionName = initialRuntimeLayerInfo.details?.launcherRequireFunctionName ?? null;
     diagnostics.loadBundleCalls = initialRuntimeLayerInfo.details?.loadBundleCalls || [];
     diagnostics.tryLoadAssetCalls = initialRuntimeLayerInfo.details?.tryLoadAssetCalls || [];
     diagnostics.runSceneCalls = initialRuntimeLayerInfo.details?.runSceneCalls || [];
@@ -4016,6 +4045,10 @@ export const startFightPvpReplayRuntime = async ({
     diagnostics.gameSceneAssetLoaded = Boolean(replayGameBundleReady.details?.gameSceneAssetLoaded);
     diagnostics.gameSceneRunning = Boolean(replayGameBundleReady.details?.gameSceneRunning);
     diagnostics.battleModulesReady = Boolean(replayGameBundleReady.details?.battleModulesReady);
+    diagnostics.sameRequireRef = replayGameBundleReady.details?.sameRequireRef ?? diagnostics.sameRequireRef;
+    diagnostics.hasRequireSwap = Boolean(replayGameBundleReady.details?.hasRequireSwap);
+    diagnostics.requireFunctionName = replayGameBundleReady.details?.requireFunctionName ?? diagnostics.requireFunctionName;
+    diagnostics.launcherRequireFunctionName = replayGameBundleReady.details?.launcherRequireFunctionName ?? diagnostics.launcherRequireFunctionName;
     diagnostics.loadBundleCalls = replayGameBundleReady.details?.loadBundleCalls || diagnostics.loadBundleCalls;
     diagnostics.tryLoadAssetCalls = replayGameBundleReady.details?.tryLoadAssetCalls || diagnostics.tryLoadAssetCalls;
     diagnostics.runSceneCalls = replayGameBundleReady.details?.runSceneCalls || diagnostics.runSceneCalls;
@@ -4042,9 +4075,11 @@ export const startFightPvpReplayRuntime = async ({
             .map((entry) => `${entry.label}:${entry.status || "unknown"}`)
             .join(", ")
         : "none";
-      const detail = `已检查：gameWindow=${diagnostics.replayGameWindowStatus || "unknown"}@${diagnostics.replayGameWindowSource || "window"}；runtimeStage=${diagnostics.runtimeStage || "unknown"}；scene=${diagnostics.sceneName || "-"}；bundleReady=${diagnostics.replayGameBundleReady ? "yes" : "no"}(${diagnostics.replayGameBundleReadyAttempts ?? 0}, source=${diagnostics.replayGameBundleReadySource || "-"})；gameScript=document:${diagnostics.gameScriptInDocument ? "yes" : "no"}/performance:${diagnostics.gameScriptInPerformance ? "yes" : "no"}；entrypoints=${scannedSummary}；debug=${requireSummary}。`;
+      const detail = `已检查：gameWindow=${diagnostics.replayGameWindowStatus || "unknown"}@${diagnostics.replayGameWindowSource || "window"}；runtimeStage=${diagnostics.runtimeStage || "unknown"}；scene=${diagnostics.sceneName || "-"}；requireSwap=${diagnostics.hasRequireSwap ? "yes" : "no"}；sameRequireRef=${diagnostics.sameRequireRef ?? "-"}；requireFn=${diagnostics.requireFunctionName || "-"}；launcherRequireFn=${diagnostics.launcherRequireFunctionName || "-"}；bundleReady=${diagnostics.replayGameBundleReady ? "yes" : "no"}(${diagnostics.replayGameBundleReadyAttempts ?? 0}, source=${diagnostics.replayGameBundleReadySource || "-"})；gameScript=document:${diagnostics.gameScriptInDocument ? "yes" : "no"}/performance:${diagnostics.gameScriptInPerformance ? "yes" : "no"}；entrypoints=${scannedSummary}；debug=${requireSummary}。`;
       const message = diagnostics.replayGameBundleReady === false
-        ? `运行时已进入 ${runtimeReady.sceneName || GAME_SCENE_NAME}，并已找到候选 window。当前 replay diagnose 已切到真实阶段模型：launcher/main 的 __require 只代表 launcher-ready；只有 Game scene handoff 完成并注册 BattleUIManager 后，battle replay 入口才真正可用。${detail}`
+        ? diagnostics.sceneName === GAME_SCENE_NAME && diagnostics.sameRequireRef === true
+          ? `运行时已进入 ${runtimeReady.sceneName || GAME_SCENE_NAME}，并已找到候选 window。Game scene 已切换，但当前 helper 仍在使用 launcher 阶段缓存的 __require；battle 模块解析失败更可能来自 stale require reference，而不是模块未注册。${detail}`
+          : `运行时已进入 ${runtimeReady.sceneName || GAME_SCENE_NAME}，并已找到候选 window。当前 replay diagnose 已切到真实阶段模型：launcher/main 的 __require 只代表 launcher-ready；只有 Game scene handoff 完成并注册 BattleUIManager 后，battle replay 入口才真正可用。${detail}`
         : `运行时已进入 ${runtimeReady.sceneName || GAME_SCENE_NAME}，并已找到真实游戏 window。真实加载阶段已推进到 battle-modules-ready；若仍未能解析 replay 入口，则剩余问题在于目标导出路径不存在或末端不可调用。${detail}`;
       return {
         ok: false,

@@ -82,6 +82,15 @@ test("fight pvp replay runtime real fixture smoke enters game scene and starts r
     const replayHelper = (window as any).__xyzwReplay;
     const inspectResult = await replayHelper?.inspect?.();
     const bundleState = replayHelper?.inspectBundleState?.();
+    const reqDebug = (() => {
+      const cachedReq = replayHelper?.req;
+      const freshReq = (window as any).__require;
+      return {
+        cachedReqName: cachedReq?.name || null,
+        freshReqName: freshReq?.name || null,
+        sameRef: cachedReq === freshReq,
+      };
+    })();
     return {
       hasInspect: typeof replayHelper?.inspect === "function",
       hasInspectBundleState: typeof replayHelper?.inspectBundleState === "function",
@@ -94,6 +103,7 @@ test("fight pvp replay runtime real fixture smoke enters game scene and starts r
         typeof replayHelper?.waitForBattleModulesReady === "function",
       bundleState,
       inspectResult,
+      reqDebug,
     };
   });
   expect(helperReady.hasInspect).toBeTruthy();
@@ -104,6 +114,7 @@ test("fight pvp replay runtime real fixture smoke enters game scene and starts r
   expect(helperReady.hasTryCrossSitePlayback).toBeTruthy();
   expect(helperReady.hasWaitForBattleModulesReady).toBeTruthy();
   expect(helperReady.bundleState.currentWindowLabel).toBe("window");
+  expect(helperReady.reqDebug.sameRef).toBeTruthy();
   expect(helperReady.inspectResult.hasGameWindow).toBeTruthy();
   expect(helperReady.inspectResult.hasRequire).toBeTruthy();
   expect(helperReady.inspectResult.replayGameWindowStatus).toBeTruthy();

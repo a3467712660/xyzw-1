@@ -80,6 +80,7 @@ export const getOrCreateXyzwRuntimeLayerState = (runtimeWindow) => {
   }
 
   const state = {
+    launcherRequireRef: null,
     nextId: 0,
     bundleEvents: [],
     loadBundleCalls: [],
@@ -96,6 +97,28 @@ export const getOrCreateXyzwRuntimeLayerState = (runtimeWindow) => {
     value: state,
   });
   return state;
+};
+
+export const getLiveRequire = (gameWindow) => {
+  const req = gameWindow?.__require;
+  if (typeof req !== "function") {
+    throw new TypeError("live window.__require is not available");
+  }
+  return req;
+};
+
+export const rememberLauncherRequireRef = (gameWindow) => {
+  const state = getOrCreateXyzwRuntimeLayerState(gameWindow);
+  if (!state) {
+    return null;
+  }
+  if (!state.launcherRequireRef) {
+    const req = gameWindow?.__require;
+    if (typeof req === "function") {
+      state.launcherRequireRef = req;
+    }
+  }
+  return state.launcherRequireRef || null;
 };
 
 const appendStateEntry = (collection, entry) => {
@@ -438,7 +461,10 @@ export const probeXyzwRuntimeModule = (gameWindow, moduleId) => {
     };
   }
 
-  if (typeof gameWindow.__require !== "function") {
+  let req;
+  try {
+    req = getLiveRequire(gameWindow);
+  } catch {
     return {
       ok: false,
       status: "no-require",
@@ -454,7 +480,7 @@ export const probeXyzwRuntimeModule = (gameWindow, moduleId) => {
       ok: true,
       status: "present",
       moduleId,
-      value: gameWindow.__require(moduleId),
+      value: req(moduleId),
       error: null,
       missing: false,
     };
@@ -480,6 +506,7 @@ const toSerializableModuleCheck = (result) => ({
 
 const deriveRuntimeStage = ({
   hasRequire,
+  hasRequireSwap,
   gameBundleRequested,
   gameBundleLoaded,
   gameSceneAssetLoaded,
@@ -504,11 +531,18 @@ const deriveRuntimeStage = ({
   if (gameBundleRequested) {
     return "game-bundle-requested";
   }
+  if (hasRequireSwap) {
+    return "require-swapped";
+  }
   return "launcher-ready";
 };
 
 const inspectSingleWindowBundleState = (candidateWindow, windowLabel = "window") => {
   const state = getOrCreateXyzwRuntimeLayerState(candidateWindow);
+  const launcherRequireRef = state?.launcherRequireRef || null;
+  const currentRequire = typeof candidateWindow?.__require === "function"
+    ? candidateWindow.__require
+    : null;
   const scriptUrls = getWindowScriptUrls(candidateWindow);
   const performanceUrls = getWindowPerformanceResourceUrls(candidateWindow);
   const canonicalModuleChecks = Object.fromEntries(
@@ -518,6 +552,14 @@ const inspectSingleWindowBundleState = (candidateWindow, windowLabel = "window")
     ]),
   );
   const hasRequire = typeof candidateWindow?.__require === "function";
+  const sameRequireRef = launcherRequireRef && currentRequire
+    ? currentRequire === launcherRequireRef
+    : null;
+  const hasRequireSwap = launcherRequireRef && currentRequire
+    ? currentRequire !== launcherRequireRef
+    : false;
+  const requireFunctionName = currentRequire?.name || null;
+  const launcherRequireFunctionName = launcherRequireRef?.name || null;
   const sceneName = candidateWindow?.cc?.director?.getScene?.()?.name
     ?? (state?.runSceneCalls || []).filter((entry) => entry?.sceneName).at(-1)?.sceneName
     ?? null;
@@ -558,6 +600,8 @@ const inspectSingleWindowBundleState = (candidateWindow, windowLabel = "window")
       gameScriptInDocument: scriptUrls.some(isGameScriptUrl),
       gameScriptInPerformance: performanceUrls.some(isGameScriptUrl),
       hasRequire,
+      hasRequireSwap,
+      launcherRequireFunctionName,
       loadBundleCalls,
       loadEvidence: {
         bundleEvents: (state?.bundleEvents || []).map(cloneEntry),
@@ -566,8 +610,10 @@ const inspectSingleWindowBundleState = (candidateWindow, windowLabel = "window")
       mainScriptInDocument: scriptUrls.some(isMainScriptUrl),
       mainScriptInPerformance: performanceUrls.some(isMainScriptUrl),
       moduleChecks: canonicalModuleChecks,
+      requireFunctionName,
       runSceneCalls,
       sceneName,
+      sameRequireRef,
       tryLoadAssetCalls,
       windowLabel,
     },
@@ -578,6 +624,7 @@ const inspectSingleWindowBundleState = (candidateWindow, windowLabel = "window")
       gameSceneAssetLoaded,
       gameSceneRunning,
       hasRequire,
+      hasRequireSwap,
     }),
     windowLabel,
   };
@@ -607,6 +654,8 @@ export const detectXyzwRuntimeLayer = (gameWindow, { windowLabel = "window" } = 
         gameScriptInDocument: false,
         gameScriptInPerformance: false,
         hasRequire: false,
+        hasRequireSwap: false,
+        launcherRequireFunctionName: null,
         loadBundleCalls: [],
         loadEvidence: {
           bundleEvents: [],
@@ -625,8 +674,10 @@ export const detectXyzwRuntimeLayer = (gameWindow, { windowLabel = "window" } = 
             },
           ]),
         ),
+        requireFunctionName: null,
         runSceneCalls: [],
         sceneName: null,
+        sameRequireRef: null,
         tryLoadAssetCalls: [],
         windowLabel,
       },
@@ -675,10 +726,14 @@ export const inspectBundleState = (rootWindow = null) => {
     gameSceneAssetLoaded: windows[0]?.details?.gameSceneAssetLoaded ?? false,
     gameSceneRunning: windows[0]?.details?.gameSceneRunning ?? false,
     hasRequire: windows[0]?.details?.hasRequire ?? false,
+    hasRequireSwap: windows[0]?.details?.hasRequireSwap ?? false,
+    launcherRequireFunctionName: windows[0]?.details?.launcherRequireFunctionName ?? null,
     loadBundleCalls: windows[0]?.details?.loadBundleCalls || [],
     moduleChecks: windows[0]?.details?.canonicalModuleChecks || {},
+    requireFunctionName: windows[0]?.details?.requireFunctionName ?? null,
     runSceneCalls: windows[0]?.details?.runSceneCalls || [],
     sceneName: windows[0]?.details?.sceneName ?? null,
+    sameRequireRef: windows[0]?.details?.sameRequireRef ?? null,
     tryLoadAssetCalls: windows[0]?.details?.tryLoadAssetCalls || [],
     windows,
   };

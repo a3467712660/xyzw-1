@@ -21,6 +21,13 @@ function getReplaySource(gameWindow) {
   );
 }
 
+function getLiveRequire(gameWindow) {
+  const req = gameWindow?.__require;
+  if (typeof req !== "function")
+    throw new Error("live window.__require is not available");
+  return req;
+}
+
 function looksLikeBattleInput(source) {
   return !!source?.battleData
     && typeof source?.mapId !== "undefined"
@@ -37,9 +44,7 @@ function looksLikeBattleInput(source) {
 function ensureReplayInputData(source, gameWindow, options = {}) {
   if (!gameWindow)
     throw new Error("No game window with __require found");
-  const req = gameWindow.__require;
-  if (typeof req !== "function")
-    throw new Error("gameWindow.__require is not a function");
+  const req = getLiveRequire(gameWindow);
 
   if (looksLikeBattleInput(source)) {
     const prepared = source;
@@ -125,6 +130,13 @@ function probeModule(gameWindow, moduleId) {
 
 function inspectSingleWindow(candidateWindow, label) {
   const state = candidateWindow?.__xyzwReplayRuntimeLayerState || {};
+  if (state && typeof state.launcherRequireRef !== "function" && typeof candidateWindow?.__require === "function") {
+    state.launcherRequireRef = candidateWindow.__require;
+  }
+  const launcherRequireRef = state?.launcherRequireRef || null;
+  const currentRequire = typeof candidateWindow?.__require === "function"
+    ? candidateWindow.__require
+    : null;
   const canonicalModuleChecks = {
     BattleUIManager: probeModule(candidateWindow, "BattleUIManager"),
     "enter-oss": probeModule(candidateWindow, "enter-oss"),
@@ -145,6 +157,14 @@ function inspectSingleWindow(candidateWindow, label) {
   const gameSceneRunning = sceneName === "Game"
     || !!state?.runSceneCalls?.some((entry) => entry.sceneName === "Game");
   const battleModulesReady = gameSceneRunning && canonicalModuleChecks.BattleUIManager.ok;
+  const sameRequireRef = launcherRequireRef && currentRequire
+    ? launcherRequireRef === currentRequire
+    : null;
+  const hasRequireSwap = launcherRequireRef && currentRequire
+    ? launcherRequireRef !== currentRequire
+    : false;
+  const requireFunctionName = currentRequire?.name || null;
+  const launcherRequireFunctionName = launcherRequireRef?.name || null;
   let runtimeStage = "launcher-ready";
   if (!candidateWindow) {
     runtimeStage = "no-window";
@@ -160,6 +180,8 @@ function inspectSingleWindow(candidateWindow, label) {
     runtimeStage = "game-bundle-loaded";
   } else if (gameBundleRequested) {
     runtimeStage = "game-bundle-requested";
+  } else if (hasRequireSwap) {
+    runtimeStage = "require-swapped";
   }
 
   return {
@@ -171,10 +193,14 @@ function inspectSingleWindow(candidateWindow, label) {
     gameSceneAssetLoaded,
     gameSceneRunning,
     hasRequire: typeof candidateWindow?.__require === "function",
+    hasRequireSwap,
+    launcherRequireFunctionName,
     loadBundleCalls: state?.loadBundleCalls || [],
     runSceneCalls: state?.runSceneCalls || [],
+    requireFunctionName,
     runtimeStage,
     sceneName,
+    sameRequireRef,
     tryLoadAssetCalls: state?.tryLoadAssetCalls || [],
   };
 }
@@ -238,7 +264,10 @@ async function waitForBattleModulesReady(gameWindow, {
     return;
   }
 
-  const req = gameWindow.__require;
+  const state = gameWindow.__xyzwReplayRuntimeLayerState || (gameWindow.__xyzwReplayRuntimeLayerState = {});
+  if (typeof state.launcherRequireRef !== "function" && typeof gameWindow.__require === "function") {
+    state.launcherRequireRef = gameWindow.__require;
+  }
   const stageInfo = inspectSingleWindow(gameWindow, label || "window");
 
   function inspect() {
@@ -246,13 +275,13 @@ async function waitForBattleModulesReady(gameWindow, {
     const info = {
       ...inspectBundleState(window),
       BattleUIManagerKeys: Object.keys((() => {
-        try { return req("BattleUIManager"); } catch { return {}; }
+        try { return getLiveRequire(gameWindow)("BattleUIManager"); } catch { return {}; }
       })()),
       EnterOSSKeys: Object.keys((() => {
-        try { return req("enter-oss"); } catch { return {}; }
+        try { return getLiveRequire(gameWindow)("enter-oss"); } catch { return {}; }
       })()),
       BattleKitCrossSiteKeys: Object.keys((() => {
-        try { return req("BattleKitCrossSite"); } catch { return {}; }
+        try { return getLiveRequire(gameWindow)("BattleKitCrossSite"); } catch { return {}; }
       })()),
     };
     if (replayData) {
@@ -301,28 +330,34 @@ async function waitForBattleModulesReady(gameWindow, {
     inspect,
     showReplay(inputDataOrRaw = getReplaySource(gameWindow), options = {}) {
       const prepared = ensureReplayInputData(inputDataOrRaw, gameWindow, options);
-      const ret = req("BattleUIManager").SHOW_BATTLE_REPLAY_UI(prepared, options);
+      const ret = getLiveRequire(gameWindow)("BattleUIManager").SHOW_BATTLE_REPLAY_UI(prepared, options);
       postCheck(prepared);
       return ret;
     },
     showReplayDirect(rawOrWrappedBattleData = getReplaySource(gameWindow), options = {}) {
       const prepared = ensureReplayInputData(rawOrWrappedBattleData, gameWindow, options);
-      const ret = req("BattleUIManager").SHOW_BATTLE_REPLAY_UI(prepared, options);
+      const ret = getLiveRequire(gameWindow)("BattleUIManager").SHOW_BATTLE_REPLAY_UI(prepared, options);
       postCheck(prepared);
       return ret;
     },
     showReplayViaEnterOSS(rawOrWrappedBattleData = getReplaySource(gameWindow)) {
-      const { EnterOSSState } = req("enter-oss");
+      const { EnterOSSState } = getLiveRequire(gameWindow)("enter-oss");
       return new EnterOSSState().showBattleViewWithData(rawOrWrappedBattleData);
     },
     tryCrossSitePlayback(force = true) {
-      return req("BattleKitCrossSite").BattleKitCrossSite.instance.tryRaisePlayback(force);
+      return getLiveRequire(gameWindow)("BattleKitCrossSite").BattleKitCrossSite.instance.tryRaisePlayback(force);
     },
   };
 
   gameWindow.__xyzwReplay = stageInfo.runtimeStage === "battle-modules-ready"
     ? fullHelper
     : earlyHelper;
+  Object.defineProperty(gameWindow.__xyzwReplay, "req", {
+    enumerable: true,
+    get() {
+      return getLiveRequire(gameWindow);
+    },
+  });
   window.__xyzwReplay = gameWindow.__xyzwReplay;
   if (window !== gameWindow)
     window.__xyzwReplayGameWindow = gameWindow;

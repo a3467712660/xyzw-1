@@ -3016,6 +3016,7 @@
       "engineEntrypointUnavailableDescription": "运行时已进入 Game，并已找到候选 window。当前 window 已安装 launcher/main bundle 的 __require，但 battle 模块所在的 game.js 尚未在该 window 中执行；因此 replay 入口暂不可用。has __require 只能说明 launcher 已初始化，不能说明 battle bundle 已 ready。",
       "engineEntrypointResolveFailedDescription": "运行时已进入 Game，并已找到真实游戏 window。当前探针已真实执行 window.__require(moduleId)；若仍显示 wrong-export-path 或 not-callable，则说明模块已加载，但目标导出路径不存在或末端不可调用。",
       "replaySignalMissingDescription": "运行时已进入 Game，并已找到真实游戏 window。battle replay 入口已可调用；当前无报错但无画面，更可能是传入数据尚未归一化为 battleInputData，或手动入口走了 EnterOSSState.showBattleViewWithData 的通用链路而非 BattleUIManager.SHOW_BATTLE_REPLAY_UI 的 replay 路由。",
+      "staleRequireReferenceDescription": "Game scene 已切换，但当前 helper 仍在使用 launcher 阶段缓存的 __require；battle 模块解析失败更可能来自 stale require reference，而不是模块未注册。",
       "runtimeNotReady": "运行时尚未准备好，暂时无法播放该回放。",
       "runtimeStageDescriptions": {
         "launcherReady": "launcher 初始化完成，但尚未请求 game bundle。",
@@ -3023,6 +3024,7 @@
         "gameBundleLoaded": "game bundle 已回调成功，正在等待 Game scene asset。",
         "gameSceneAssetLoaded": "Game scene asset 已拿到，正在等待 runScene。",
         "gameSceneRunning": "Game scene 已切换，正在等待 battle modules 注册。",
+        "requireSwapped": "当前 window.__require 已经发生切换，但 live require 仍未解析出 battle 模块。",
         "battleModulesReady": "battle modules 已注册，replay 入口可用。"
       },
       "mapIdReasons": {
