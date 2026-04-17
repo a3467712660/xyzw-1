@@ -657,6 +657,7 @@ onUnmounted(() => {
   color: var(--text-primary);
   position: relative;
   overflow: clip;
+  isolation: isolate;
 }
 
 .home-page--ready {
@@ -677,8 +678,8 @@ onUnmounted(() => {
 .bg-orb {
   position: absolute;
   border-radius: 50%;
-  filter: blur(56px);
-  opacity: 0.7;
+  filter: blur(72px);
+  opacity: 0.76;
 }
 
 .orb-a {
@@ -726,10 +727,10 @@ onUnmounted(() => {
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(to right, rgba(15, 107, 255, 0.06) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(15, 107, 255, 0.06) 1px, transparent 1px);
-  background-size: 56px 56px;
-  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.3), transparent 72%);
+    linear-gradient(to right, rgba(15, 107, 255, 0.07) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(15, 107, 255, 0.07) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.36), transparent 78%);
 }
 
 .navbar,
@@ -742,13 +743,17 @@ onUnmounted(() => {
 .navbar {
   position: sticky;
   top: 0;
-  backdrop-filter: blur(14px);
-  background: rgba(247, 251, 255, 0.72);
-  border-bottom: 1px solid rgba(15, 107, 255, 0.18);
+  backdrop-filter: blur(18px);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.18), transparent 100%),
+    rgba(248, 251, 255, 0.76);
+  border-bottom: 1px solid var(--console-divider);
 }
 
 [data-theme="dark"] .navbar {
-  background: rgba(7, 20, 38, 0.72);
+  background:
+    linear-gradient(180deg, rgba(96, 165, 250, 0.04), transparent 100%),
+    rgba(7, 20, 38, 0.78);
 }
 
 .nav-content {
@@ -850,13 +855,14 @@ onUnmounted(() => {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--spacing-md);
-  border: 1px solid rgba(15, 107, 255, 0.25);
-  border-radius: 16px;
+  border: 1px solid rgba(15, 107, 255, 0.2);
+  border-radius: 20px;
   padding: var(--spacing-md);
   background:
-    linear-gradient(135deg, rgba(15, 107, 255, 0.12), rgba(0, 163, 137, 0.08)),
-    rgba(255, 255, 255, 0.75);
-  backdrop-filter: blur(10px);
+    linear-gradient(135deg, rgba(15, 107, 255, 0.16), rgba(20, 184, 166, 0.08)),
+    var(--surface-glass-strong);
+  backdrop-filter: blur(14px);
+  box-shadow: var(--shadow-light);
 }
 
 [data-theme="dark"] .trial-banner {
@@ -885,7 +891,7 @@ onUnmounted(() => {
 }
 
 .hero-section {
-  padding: 48px 0 30px;
+  padding: 56px 0 34px;
 }
 
 .hero-shell {
@@ -914,7 +920,7 @@ onUnmounted(() => {
 
 .hero-title {
   font-size: clamp(2rem, 4.2vw, 3.8rem);
-  line-height: 1.04;
+  line-height: 0.98;
   margin: 0 0 14px;
   letter-spacing: -0.02em;
   color: var(--text-primary);
@@ -949,12 +955,13 @@ onUnmounted(() => {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 9px 12px;
+  padding: 10px 14px;
   border-radius: 999px;
-  background: rgba(8, 24, 43, 0.84);
-  color: rgba(247, 251, 255, 0.92);
-  border: 1px solid rgba(112, 167, 255, 0.18);
-  box-shadow: 0 10px 24px rgba(7, 17, 34, 0.18);
+  background: rgba(5, 16, 31, 0.88);
+  color: rgba(248, 250, 252, 0.94);
+  border: 1px solid rgba(96, 165, 250, 0.24);
+  box-shadow: 0 14px 30px rgba(7, 17, 34, 0.22);
+  font-family: var(--font-family-mono);
 }
 
 .trust-pill :deep(svg) {
@@ -963,24 +970,26 @@ onUnmounted(() => {
 }
 
 .hero-panel {
-  padding: 18px;
-  border-radius: 20px;
-  border: 1px solid rgba(15, 107, 255, 0.2);
+  padding: 20px;
+  border-radius: 24px;
+  border: 1px solid rgba(15, 107, 255, 0.16);
   background: linear-gradient(
     165deg,
-    rgba(255, 255, 255, 0.86),
-    rgba(246, 251, 255, 0.8)
+    rgba(255, 255, 255, 0.9),
+    rgba(239, 246, 255, 0.82)
   );
-  box-shadow: var(--shadow-medium);
-  backdrop-filter: blur(12px);
+  box-shadow:
+    var(--shadow-medium),
+    inset 0 1px 0 rgba(255, 255, 255, 0.24);
+  backdrop-filter: blur(16px);
   min-width: 0;
 }
 
 [data-theme="dark"] .hero-panel {
   background: linear-gradient(
     165deg,
-    rgba(9, 24, 44, 0.86),
-    rgba(9, 27, 49, 0.8)
+    rgba(8, 19, 36, 0.92),
+    rgba(9, 24, 44, 0.84)
   );
 }
 
@@ -1041,8 +1050,10 @@ onUnmounted(() => {
   gap: 14px;
   padding: 16px;
   border-radius: 18px;
-  border: 1px solid rgba(148, 163, 184, 0.14);
-  background: rgba(255, 255, 255, 0.68);
+  border: 1px solid rgba(15, 107, 255, 0.12);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.14), transparent 18%),
+    var(--console-panel);
 }
 
 [data-theme="dark"] .mockup-sidebar {

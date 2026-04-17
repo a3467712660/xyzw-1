@@ -1197,6 +1197,7 @@ onMounted(async () => {
   padding: var(--spacing-xl) 0;
   padding-bottom: calc(var(--spacing-md) + env(safe-area-inset-bottom));
   animation: profile-fade-in 0.42s ease;
+  isolation: isolate;
 }
 
 .container {
@@ -1208,6 +1209,8 @@ onMounted(async () => {
 
 .profile-page__content {
   width: 100%;
+  display: grid;
+  gap: var(--spacing-md);
 }
 
 .page-header {
@@ -1242,8 +1245,8 @@ h2 {
   font-size: var(--font-size-xl);
   font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
-  margin: var(--spacing-lg) 0 var(--spacing-md);
-  padding-left: var(--spacing-sm);
+  margin: var(--spacing-lg) 0 0;
+  padding-left: 12px;
   border-left: 3px solid var(--primary-color);
   letter-spacing: 0.01em;
 }
@@ -1253,12 +1256,13 @@ h2 {
 }
 
 :deep(.arco-card) {
-  border-radius: var(--border-radius-large);
+  border-radius: 22px;
   border: 1px solid var(--surface-glass-border);
   box-shadow: var(--shadow-light);
-  background: var(--surface-glass-strong);
-  backdrop-filter: blur(10px);
-  margin-bottom: var(--spacing-lg);
+  background:
+    linear-gradient(135deg, rgba(15, 107, 255, 0.08), transparent 74%),
+    var(--surface-glass-strong);
+  backdrop-filter: blur(12px);
 }
 
 :deep(.arco-card .arco-card-body) {
@@ -1284,10 +1288,12 @@ h2 {
     justify-content: space-between;
     align-items: center;
     padding: var(--spacing-lg);
-    border: 1px solid var(--border-light);
-    border-radius: var(--border-radius-medium);
+    border: 1px solid var(--surface-glass-border);
+    border-radius: 18px;
     transition: all var(--transition-fast);
-    background: var(--bg-elevated);
+    background:
+      linear-gradient(135deg, rgba(15, 107, 255, 0.08), transparent 76%),
+      var(--console-panel);
 
     &:hover {
       box-shadow: var(--shadow-light);

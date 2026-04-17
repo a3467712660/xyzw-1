@@ -2,7 +2,7 @@
   <div v-if="canAccess" class="admin-wechat-page">
     <div class="container admin-wechat-page__container">
       <div class="page-header">
-        <div>
+        <div class="page-header__main">
           <h1>微信联系配置</h1>
           <p>管理价格菜单里的微信联系人入口，支持二维码落地页、企业微信客服链接和外部链接。</p>
         </div>
@@ -12,10 +12,19 @@
         </div>
       </div>
 
-      <div class="summary-bar">
-        <span>共 {{ contacts.length }} 条</span>
-        <span>展示中 {{ visibleCount }} 条</span>
-        <span>启用中 {{ activeCount }} 条</span>
+      <div class="page-overview">
+        <div class="overview-card">
+          <span class="overview-label">联系人总数</span>
+          <strong class="overview-value">{{ contacts.length }}</strong>
+        </div>
+        <div class="overview-card">
+          <span class="overview-label">价格菜单展示</span>
+          <strong class="overview-value">{{ visibleCount }}</strong>
+        </div>
+        <div class="overview-card">
+          <span class="overview-label">启用中</span>
+          <strong class="overview-value">{{ activeCount }}</strong>
+        </div>
       </div>
 
       <n-spin :show="loading">

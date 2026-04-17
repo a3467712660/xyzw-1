@@ -1,21 +1,21 @@
 .game-workbench-v2 {
-  --gwb2-panel: color-mix(in srgb, var(--bg-elevated) 68%, #dce4eb 32%);
-  --gwb2-panel-strong: color-mix(in srgb, var(--bg-elevated) 56%, #d4dde7 44%);
-  --gwb2-border: rgba(86, 101, 122, 0.24);
-  --gwb2-glow: rgba(47, 85, 126, 0.12);
-  --gwb2-accent: color-mix(in srgb, var(--primary-color) 72%, #95c6df);
-  --gwb2-accent-soft: rgba(51, 86, 119, 0.1);
-  --gwb2-success-soft: rgba(63, 143, 107, 0.12);
-  --gwb2-warning-soft: rgba(201, 149, 77, 0.12);
-  --gwb2-error-soft: rgba(188, 90, 113, 0.12);
-  --gwb2-console-panel: color-mix(in srgb, var(--bg-elevated) 48%, #dfe6ee 52%);
-  --gwb2-console-panel-strong: color-mix(in srgb, var(--bg-secondary) 28%, #d6dfe8 72%);
-  --gwb2-console-panel-muted: rgba(221, 229, 238, 0.72);
-  --gwb2-console-panel-hover: rgba(230, 237, 244, 0.92);
-  --gwb2-console-border: rgba(78, 94, 116, 0.2);
-  --gwb2-console-divider: rgba(78, 94, 116, 0.16);
-  --gwb2-console-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
-  --gwb2-console-shadow-strong: 0 14px 28px rgba(15, 23, 42, 0.1);
+  --gwb2-panel: color-mix(in srgb, var(--bg-elevated) 72%, #dce8f8 28%);
+  --gwb2-panel-strong: color-mix(in srgb, var(--bg-elevated) 60%, #d7e4f7 40%);
+  --gwb2-border: rgba(47, 92, 168, 0.22);
+  --gwb2-glow: rgba(15, 107, 255, 0.12);
+  --gwb2-accent: color-mix(in srgb, var(--primary-color) 76%, #8ec5ff);
+  --gwb2-accent-soft: rgba(15, 107, 255, 0.1);
+  --gwb2-success-soft: rgba(22, 163, 74, 0.12);
+  --gwb2-warning-soft: rgba(217, 119, 6, 0.12);
+  --gwb2-error-soft: rgba(220, 38, 38, 0.12);
+  --gwb2-console-panel: color-mix(in srgb, var(--bg-elevated) 42%, #dfe9f8 58%);
+  --gwb2-console-panel-strong: color-mix(in srgb, var(--bg-secondary) 24%, #d8e3f3 76%);
+  --gwb2-console-panel-muted: rgba(228, 236, 247, 0.76);
+  --gwb2-console-panel-hover: rgba(236, 243, 251, 0.94);
+  --gwb2-console-border: rgba(47, 92, 168, 0.18);
+  --gwb2-console-divider: rgba(47, 92, 168, 0.14);
+  --gwb2-console-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+  --gwb2-console-shadow-strong: 0 18px 36px rgba(15, 23, 42, 0.1);
   --gwb2-console-emboss: inset 0 1px 0 rgba(255, 255, 255, 0.28);
   --gwb2-console-strip: linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(217, 227, 237, 0.2));
   --gwb2-console-grid:
@@ -29,20 +29,20 @@
 }
 
 [data-theme="dark"] .game-workbench-v2 {
-  --gwb2-panel: color-mix(in srgb, var(--bg-elevated) 84%, #0e1b2b 16%);
-  --gwb2-panel-strong: color-mix(in srgb, var(--bg-elevated) 76%, #102031 24%);
-  --gwb2-border: rgba(115, 135, 160, 0.22);
-  --gwb2-glow: rgba(83, 132, 182, 0.12);
-  --gwb2-accent: color-mix(in srgb, #85accd 58%, var(--primary-color) 42%);
-  --gwb2-accent-soft: rgba(83, 132, 182, 0.12);
-  --gwb2-console-panel: color-mix(in srgb, var(--bg-elevated) 88%, #0d1723 12%);
-  --gwb2-console-panel-strong: color-mix(in srgb, var(--bg-secondary) 52%, #122133 48%);
-  --gwb2-console-panel-muted: rgba(20, 34, 51, 0.78);
-  --gwb2-console-panel-hover: rgba(24, 40, 61, 0.92);
-  --gwb2-console-border: rgba(104, 126, 152, 0.22);
-  --gwb2-console-divider: rgba(104, 126, 152, 0.16);
-  --gwb2-console-shadow: 0 10px 22px rgba(0, 0, 0, 0.24);
-  --gwb2-console-shadow-strong: 0 18px 36px rgba(0, 0, 0, 0.28);
+  --gwb2-panel: color-mix(in srgb, var(--bg-elevated) 84%, #081421 16%);
+  --gwb2-panel-strong: color-mix(in srgb, var(--bg-elevated) 78%, #0b1726 22%);
+  --gwb2-border: rgba(66, 113, 184, 0.24);
+  --gwb2-glow: rgba(15, 107, 255, 0.14);
+  --gwb2-accent: color-mix(in srgb, #8dbfff 58%, var(--primary-color) 42%);
+  --gwb2-accent-soft: rgba(15, 107, 255, 0.12);
+  --gwb2-console-panel: color-mix(in srgb, var(--bg-elevated) 90%, #07101c 10%);
+  --gwb2-console-panel-strong: color-mix(in srgb, var(--bg-secondary) 54%, #0a1422 46%);
+  --gwb2-console-panel-muted: rgba(11, 21, 36, 0.82);
+  --gwb2-console-panel-hover: rgba(15, 27, 45, 0.94);
+  --gwb2-console-border: rgba(66, 113, 184, 0.18);
+  --gwb2-console-divider: rgba(66, 113, 184, 0.14);
+  --gwb2-console-shadow: 0 14px 30px rgba(0, 0, 0, 0.26);
+  --gwb2-console-shadow-strong: 0 22px 42px rgba(0, 0, 0, 0.3);
   --gwb2-console-emboss: inset 0 1px 0 rgba(255, 255, 255, 0.06);
   --gwb2-console-strip: linear-gradient(180deg, rgba(120, 150, 186, 0.08), rgba(9, 19, 31, 0.06));
   --gwb2-console-grid:
@@ -61,9 +61,10 @@
 
 .game-workbench-v2::before {
   background:
-    radial-gradient(circle at 10% 8%, rgba(113, 154, 192, 0.12), transparent 24%),
-    radial-gradient(circle at 88% 16%, rgba(67, 96, 133, 0.12), transparent 26%),
-    linear-gradient(180deg, rgba(243, 247, 251, 0.88), rgba(230, 236, 243, 0.92));
+    radial-gradient(circle at 10% 8%, rgba(15, 107, 255, 0.12), transparent 24%),
+    radial-gradient(circle at 88% 16%, rgba(20, 184, 166, 0.12), transparent 26%),
+    radial-gradient(circle at 50% 100%, rgba(249, 115, 22, 0.08), transparent 30%),
+    linear-gradient(180deg, rgba(243, 247, 251, 0.9), rgba(232, 239, 248, 0.94));
   opacity: 1;
 }
 

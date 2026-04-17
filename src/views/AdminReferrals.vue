@@ -11,6 +11,25 @@
         </NButton>
       </div>
 
+      <div class="page-overview">
+        <div class="overview-card">
+          <span class="overview-label">归因记录</span>
+          <strong class="overview-value">{{ attributions.length }}</strong>
+        </div>
+        <div class="overview-card">
+          <span class="overview-label">返佣记录</span>
+          <strong class="overview-value">{{ conversions.length }}</strong>
+        </div>
+        <div class="overview-card">
+          <span class="overview-label">待结算</span>
+          <strong class="overview-value">{{ pendingConversionCount }}</strong>
+        </div>
+        <div class="overview-card">
+          <span class="overview-label">已打款</span>
+          <strong class="overview-value">{{ paidConversionCount }}</strong>
+        </div>
+      </div>
+
       <n-card embedded class="list-card">
         <div class="list-card__head">
           <h2>{{ t("adminReferralsPage.attributions.title") }}</h2>
@@ -65,6 +84,12 @@ const settlementChannelOptions = computed(() => ([
   { label: t("adminReferralsPage.channels.bank"), value: "bank" },
   { label: t("adminReferralsPage.channels.other"), value: "other" },
 ]));
+const pendingConversionCount = computed(() =>
+  conversions.value.filter((row) => row.rewardStatus === "pending").length,
+);
+const paidConversionCount = computed(() =>
+  conversions.value.filter((row) => row.rewardStatus === "paid").length,
+);
 
 const formatTime = (value) =>
   value ? new Date(value).toLocaleString(locale.value === "en" ? "en-US" : "zh-CN") : "-";

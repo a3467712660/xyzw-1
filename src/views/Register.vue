@@ -618,6 +618,7 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   padding: 24px;
+  isolation: isolate;
 }
 
 .register-bg {
@@ -630,7 +631,7 @@ onMounted(() => {
 .bg-orb {
   position: absolute;
   border-radius: 999px;
-  filter: blur(72px);
+  filter: blur(84px);
 }
 
 .orb-a {
@@ -725,16 +726,20 @@ onMounted(() => {
 
 .register-intro,
 .register-card {
-  border: 1px solid var(--border-light);
-  border-radius: 24px;
+  border: 1px solid var(--surface-glass-border);
+  border-radius: 28px;
   box-shadow: var(--shadow-medium);
-  background: rgba(255, 255, 255, 0.8);
-  backdrop-filter: blur(16px);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.14), transparent 16%),
+    var(--surface-glass-strong);
+  backdrop-filter: blur(18px);
 }
 
 [data-theme="dark"] .register-intro,
 [data-theme="dark"] .register-card {
-  background: rgba(8, 22, 41, 0.78);
+  background:
+    linear-gradient(180deg, rgba(96, 165, 250, 0.06), transparent 18%),
+    rgba(8, 22, 41, 0.82);
 }
 
 .register-intro {
@@ -781,10 +786,12 @@ onMounted(() => {
 }
 
 .point-item {
-  border: 1px solid var(--border-light);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.66);
-  padding: 12px;
+  border: 1px solid var(--surface-glass-border);
+  border-radius: 18px;
+  background:
+    linear-gradient(135deg, rgba(15, 107, 255, 0.08), transparent 76%),
+    rgba(255, 255, 255, 0.68);
+  padding: 14px;
   display: grid;
   grid-template-columns: auto 1fr;
   gap: 10px;
@@ -836,7 +843,7 @@ onMounted(() => {
 }
 
 .register-card {
-  padding: 26px;
+  padding: 30px;
 }
 
 .card-header {
@@ -871,8 +878,8 @@ onMounted(() => {
 
 .referral-banner {
   margin-bottom: 16px;
-  padding: 14px 16px;
-  border-radius: 16px;
+  padding: 16px 18px;
+  border-radius: 18px;
   background: rgba(15, 107, 255, 0.08);
   border: 1px solid rgba(15, 107, 255, 0.16);
   display: grid;
@@ -896,10 +903,12 @@ onMounted(() => {
 
 .password-strength {
   margin: -4px 0 14px;
-  padding: 12px 14px;
-  border-radius: 14px;
-  border: 1px solid rgba(148, 163, 184, 0.18);
-  background: rgba(255, 255, 255, 0.72);
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(15, 107, 255, 0.12);
+  background:
+    linear-gradient(135deg, rgba(15, 107, 255, 0.08), transparent 76%),
+    rgba(255, 255, 255, 0.72);
 }
 
 [data-theme="dark"] .password-strength {

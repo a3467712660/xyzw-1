@@ -9,6 +9,25 @@
         <n-button :loading="loading" @click="fetchFeedbacks">刷新</n-button>
       </div>
 
+      <div class="page-overview">
+        <div class="overview-card">
+          <span class="overview-label">当前结果</span>
+          <strong class="overview-value">{{ feedbacks.length }}</strong>
+        </div>
+        <div class="overview-card">
+          <span class="overview-label">待处理</span>
+          <strong class="overview-value">{{ openCount }}</strong>
+        </div>
+        <div class="overview-card">
+          <span class="overview-label">处理中</span>
+          <strong class="overview-value">{{ inProgressCount }}</strong>
+        </div>
+        <div class="overview-card">
+          <span class="overview-label">已完成</span>
+          <strong class="overview-value">{{ resolvedCount }}</strong>
+        </div>
+      </div>
+
       <div class="toolbar">
         <n-select
           class="toolbar__filter"
@@ -43,19 +62,25 @@
             <p class="ticket-item__content">{{ item.content }}</p>
 
             <div class="ticket-item__actions">
-              <n-select
-                class="ticket-item__status"
-                :options="statusOptions"
-                :value="statusDraftMap[item.id]"
-                @update:value="(value) => (statusDraftMap[item.id] = value)"
-              ></n-select>
-              <n-input
-                placeholder="管理员备注（工单处理说明）"
-                type="textarea"
-                :rows="2"
-                :value="noteDraftMap[item.id]"
-                @update:value="(value) => (noteDraftMap[item.id] = value)"
-              ></n-input>
+              <div class="ticket-item__field">
+                <span class="ticket-item__field-label">处理状态</span>
+                <n-select
+                  class="ticket-item__status"
+                  :options="statusOptions"
+                  :value="statusDraftMap[item.id]"
+                  @update:value="(value) => (statusDraftMap[item.id] = value)"
+                ></n-select>
+              </div>
+              <div class="ticket-item__field">
+                <span class="ticket-item__field-label">管理员备注</span>
+                <n-input
+                  placeholder="管理员备注（工单处理说明）"
+                  type="textarea"
+                  :rows="2"
+                  :value="noteDraftMap[item.id]"
+                  @update:value="(value) => (noteDraftMap[item.id] = value)"
+                ></n-input>
+              </div>
               <div class="ticket-item__button-row">
                 <n-button
                   type="primary"
@@ -119,6 +144,9 @@ const statusFilterOptions = [
   { label: "全部状态", value: "all" },
   ...statusOptions,
 ];
+const openCount = computed(() => feedbacks.value.filter((item) => item.status === "open").length);
+const inProgressCount = computed(() => feedbacks.value.filter((item) => item.status === "in_progress").length);
+const resolvedCount = computed(() => feedbacks.value.filter((item) => item.status === "resolved").length);
 
 const formatDate = (value) =>
   value ? new Date(value).toLocaleString("zh-CN") : "-";
@@ -298,6 +326,19 @@ onMounted(async () => {
   margin-top: 10px;
   display: grid;
   gap: 8px;
+}
+
+.ticket-item__field {
+  display: grid;
+  gap: 6px;
+}
+
+.ticket-item__field-label {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-family: var(--font-family-mono);
 }
 
 .ticket-item__status {

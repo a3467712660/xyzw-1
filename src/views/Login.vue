@@ -724,6 +724,7 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: center;
+  isolation: isolate;
 }
 
 .login-bg {
@@ -748,7 +749,7 @@ onBeforeUnmount(() => {
 .bg-orb {
   position: absolute;
   border-radius: 999px;
-  filter: blur(72px);
+  filter: blur(84px);
 }
 
 .orb-a {
@@ -820,16 +821,22 @@ onBeforeUnmount(() => {
 
 .intro-panel,
 .login-card {
-  border: 1px solid var(--border-light);
-  border-radius: 24px;
-  background: rgba(255, 255, 255, 0.8);
-  backdrop-filter: blur(16px);
-  box-shadow: var(--shadow-medium);
+  border: 1px solid var(--surface-glass-border);
+  border-radius: 28px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.14), transparent 16%),
+    var(--surface-glass-strong);
+  backdrop-filter: blur(18px);
+  box-shadow:
+    var(--shadow-medium),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 
 [data-theme="dark"] .intro-panel,
 [data-theme="dark"] .login-card {
-  background: rgba(8, 22, 41, 0.78);
+  background:
+    linear-gradient(180deg, rgba(96, 165, 250, 0.06), transparent 18%),
+    rgba(8, 22, 41, 0.82);
 }
 
 .intro-panel {
@@ -877,10 +884,12 @@ onBeforeUnmount(() => {
   display: grid;
   grid-template-columns: auto 1fr;
   gap: 10px;
-  border: 1px solid var(--border-light);
-  border-radius: 14px;
-  padding: 12px;
-  background: rgba(255, 255, 255, 0.66);
+  border: 1px solid var(--surface-glass-border);
+  border-radius: 18px;
+  padding: 14px;
+  background:
+    linear-gradient(135deg, rgba(15, 107, 255, 0.08), transparent 76%),
+    rgba(255, 255, 255, 0.68);
   opacity: 0;
   transform: translateY(12px);
 }
@@ -910,9 +919,9 @@ onBeforeUnmount(() => {
 }
 
 .feature-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 11px;
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
   display: grid;
   place-items: center;
   color: #fff;
@@ -939,7 +948,7 @@ onBeforeUnmount(() => {
 }
 
 .login-card {
-  padding: 28px;
+  padding: 30px;
 }
 
 .card-header {
@@ -949,6 +958,7 @@ onBeforeUnmount(() => {
 .card-header h2 {
   font-size: 28px;
   margin-bottom: 6px;
+  letter-spacing: -0.02em;
 }
 
 .card-header p {
@@ -964,10 +974,10 @@ onBeforeUnmount(() => {
 
 .rate-limit-hint {
   margin: 0 0 10px;
-  padding: 10px 12px;
-  border-radius: 10px;
+  padding: 12px 14px;
+  border-radius: 14px;
   border: 1px solid rgba(255, 124, 51, 0.32);
-  background: rgba(255, 124, 51, 0.08);
+  background: rgba(249, 115, 22, 0.1);
   color: #b44c16;
   font-size: 13px;
 }

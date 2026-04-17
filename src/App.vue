@@ -9,13 +9,15 @@
         <n-notification-provider>
           <n-dialog-provider>
             <div id="app">
+              <a class="app-skip-link" href="#app-main">跳到主要内容</a>
               <div aria-hidden="true" class="app-flow-bg">
                 <span class="flow-orb flow-orb--a"></span>
                 <span class="flow-orb flow-orb--b"></span>
                 <span class="flow-orb flow-orb--c"></span>
                 <span class="flow-grain"></span>
+                <span class="flow-scanline"></span>
               </div>
-              <div class="app-content">
+              <main id="app-main" class="app-content" tabindex="-1">
                 <router-view v-slot="{ Component, route }">
                   <transition
                     appear
@@ -28,7 +30,7 @@
                     ></component>
                   </transition>
                 </router-view>
-              </div>
+              </main>
             </div>
           </n-dialog-provider>
         </n-notification-provider>
@@ -58,24 +60,24 @@ const naiveTheme = computed(() => (isDark.value ? darkTheme : null));
 const naiveThemeOverrides = computed(() => {
   const isNight = isDark.value;
   const palette = {
-    primary: "#3f77ad",
-    primaryHover: "#345f8a",
-    primaryPressed: "#2b4f74",
-    accent: "#5a9b8e",
-    success: "#3f8f6b",
-    warning: "#c9954d",
-    error: "#bc5a71",
-    info: "#4b83b8",
-    text1: isNight ? "#f2f4f7" : "#101828",
-    text2: isNight ? "#d0d5dd" : "#344054",
-    text3: isNight ? "#98a2b3" : "#667085",
-    body: isNight ? "#08121f" : "#f7f9fc",
-    card: isNight ? "rgba(14, 29, 52, 0.88)" : "rgba(255, 255, 255, 0.88)",
-    elevated: isNight ? "#12203a" : "#ffffff",
-    border: isNight ? "#25324d" : "#e4e7ec",
-    hover: isNight ? "rgba(71, 122, 178, 0.16)" : "rgba(63, 119, 173, 0.08)",
-    modal: isNight ? "#12203a" : "#ffffff",
-    divider: isNight ? "#25324d" : "#e4e7ec",
+    primary: "#0f6bff",
+    primaryHover: "#0a58d8",
+    primaryPressed: "#0847ad",
+    accent: "#14b8a6",
+    success: "#16a34a",
+    warning: "#d97706",
+    error: "#dc2626",
+    info: "#2563eb",
+    text1: isNight ? "#f8fafc" : "#0f172a",
+    text2: isNight ? "#cbd5e1" : "#334155",
+    text3: isNight ? "#94a3b8" : "#64748b",
+    body: isNight ? "#050b16" : "#f8fbff",
+    card: isNight ? "rgba(10, 20, 36, 0.9)" : "rgba(255, 255, 255, 0.88)",
+    elevated: isNight ? "#0d1a2d" : "#ffffff",
+    border: isNight ? "#20324d" : "#d9e2ef",
+    hover: isNight ? "rgba(15, 107, 255, 0.16)" : "rgba(15, 107, 255, 0.08)",
+    modal: isNight ? "#091221" : "#ffffff",
+    divider: isNight ? "#2a4161" : "#d9e2ef",
   };
 
   return {
@@ -103,27 +105,27 @@ const naiveThemeOverrides = computed(() => {
       placeholderColor: isNight ? "rgba(208, 213, 221, 0.52)" : "rgba(102, 112, 133, 0.68)",
       hoverColor: palette.hover,
       fontFamily:
-        "\"Avenir Next\", \"PingFang SC\", \"HarmonyOS Sans SC\", \"Segoe UI Variable\", \"Microsoft YaHei\", sans-serif",
+        "\"Segoe UI Variable\", \"Avenir Next\", \"PingFang SC\", \"HarmonyOS Sans SC\", \"Microsoft YaHei\", sans-serif",
       fontFamilyMono:
         "\"JetBrains Mono\", \"SF Mono\", \"Monaco\", \"Inconsolata\", \"Roboto Mono\", monospace",
-      borderRadius: "14px",
-      borderRadiusSmall: "8px",
-      borderRadiusMedium: "14px",
-      borderRadiusLarge: "18px",
+      borderRadius: "18px",
+      borderRadiusSmall: "10px",
+      borderRadiusMedium: "16px",
+      borderRadiusLarge: "22px",
       boxShadow1: isNight
-        ? "0 4px 18px rgba(0, 0, 0, 0.32)"
-        : "0 2px 10px rgba(16, 24, 40, 0.05)",
+        ? "0 12px 28px rgba(0, 0, 0, 0.28)"
+        : "0 10px 24px rgba(15, 23, 42, 0.06)",
       boxShadow2: isNight
-        ? "0 16px 34px rgba(0, 0, 0, 0.38)"
-        : "0 8px 24px rgba(16, 24, 40, 0.09)",
+        ? "0 22px 46px rgba(0, 0, 0, 0.34)"
+        : "0 18px 42px rgba(15, 23, 42, 0.1)",
       boxShadow3: isNight
-        ? "0 26px 54px rgba(0, 0, 0, 0.45)"
-        : "0 16px 40px rgba(16, 24, 40, 0.14)",
+        ? "0 34px 72px rgba(0, 0, 0, 0.42)"
+        : "0 28px 56px rgba(15, 23, 42, 0.16)",
     },
     Layout: {
       color: palette.body,
-      siderColor: isNight ? "rgba(10, 22, 38, 0.92)" : "rgba(255, 255, 255, 0.8)",
-      headerColor: isNight ? "rgba(12, 25, 45, 0.78)" : "rgba(255, 255, 255, 0.72)",
+      siderColor: isNight ? "rgba(7, 15, 27, 0.96)" : "rgba(255, 255, 255, 0.84)",
+      headerColor: isNight ? "rgba(9, 18, 32, 0.84)" : "rgba(255, 255, 255, 0.78)",
       colorEmbedded: palette.body,
       borderColor: palette.border,
       siderBorderColor: palette.border,
@@ -132,7 +134,7 @@ const naiveThemeOverrides = computed(() => {
     Card: {
       color: palette.card,
       colorModal: palette.modal,
-      borderRadius: "18px",
+      borderRadius: "22px",
       borderColor: palette.border,
       paddingSmall: "16px",
       paddingMedium: "20px",
@@ -142,11 +144,11 @@ const naiveThemeOverrides = computed(() => {
     },
     Drawer: {
       color: palette.modal,
-      borderRadius: "18px",
+      borderRadius: "24px",
     },
     Modal: {
       color: palette.modal,
-      borderRadius: "18px",
+      borderRadius: "24px",
     },
     DataTable: {
       tdColor: palette.elevated,
@@ -262,9 +264,29 @@ html[data-theme="dark"] {
     color 0.3s ease;
 }
 
+.app-skip-link {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: calc(var(--z-toast) + 1);
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: var(--console-panel-strong);
+  border: 1px solid var(--surface-glass-border);
+  box-shadow: var(--shadow-light);
+  color: var(--text-primary);
+  transform: translateY(-180%);
+  transition: transform var(--transition-fast);
+}
+
+.app-skip-link:focus-visible {
+  transform: translateY(0);
+}
+
 .app-content {
   position: relative;
   z-index: 1;
+  isolation: isolate;
 }
 
 .app-flow-bg {
@@ -276,11 +298,21 @@ html[data-theme="dark"] {
   background: var(--bg-gradient);
 }
 
+.app-flow-bg::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 18% 12%, rgba(15, 107, 255, 0.08), transparent 24%),
+    radial-gradient(circle at 84% 18%, rgba(20, 184, 166, 0.08), transparent 24%),
+    radial-gradient(circle at 50% 100%, rgba(249, 115, 22, 0.1), transparent 32%);
+}
+
 .flow-orb {
   position: absolute;
   border-radius: 999px;
-  filter: blur(52px);
-  opacity: 0.56;
+  filter: blur(64px);
+  opacity: 0.62;
 }
 
 .flow-orb--a {
@@ -313,11 +345,31 @@ html[data-theme="dark"] {
 .flow-grain {
   position: absolute;
   inset: 0;
-  opacity: 0.18;
+  opacity: 0.14;
   background-image: radial-gradient(var(--flow-grain) 0.6px, transparent 0.6px);
   background-size: 3px 3px;
   mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.34), transparent 74%);
   animation: app-grain-move 20s linear infinite;
+}
+
+.flow-scanline {
+  position: absolute;
+  inset: 0;
+  opacity: 0.1;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(148, 163, 184, 0.08),
+      rgba(148, 163, 184, 0) 32%
+    ),
+    repeating-linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.02) 0,
+      rgba(255, 255, 255, 0.02) 1px,
+      transparent 1px,
+      transparent 4px
+    );
+  mix-blend-mode: soft-light;
 }
 
 @keyframes app-flow-a {
@@ -361,6 +413,10 @@ html[data-theme="dark"] {
   html:not([data-motion="force"]) .flow-orb,
   html:not([data-motion="force"]) .flow-grain {
     animation: none !important;
+  }
+
+  html:not([data-motion="force"]) .flow-scanline {
+    display: none;
   }
 }
 </style>

@@ -1358,6 +1358,7 @@ onMounted(async () => {
   background: transparent;
   padding-bottom: calc(var(--spacing-md) + env(safe-area-inset-bottom));
   animation: token-fade-in 0.4s ease;
+  isolation: isolate;
 }
 
 [data-theme="dark"] .token-import-page {
@@ -1587,8 +1588,10 @@ onMounted(async () => {
   margin-bottom: var(--spacing-lg);
   border: 1px solid var(--surface-glass-border);
   box-shadow: var(--shadow-light);
-  background: var(--surface-glass-strong);
-  backdrop-filter: blur(12px);
+  background:
+    linear-gradient(135deg, rgba(15, 107, 255, 0.08), transparent 76%),
+    var(--surface-glass-strong);
+  backdrop-filter: blur(14px);
 }
 
 .bin-files-header {
@@ -1611,8 +1614,10 @@ onMounted(async () => {
 }
 
 .tokens-section {
-  background: var(--surface-glass-strong);
-  border-radius: var(--border-radius-xl);
+  background:
+    linear-gradient(135deg, rgba(15, 107, 255, 0.08), transparent 74%),
+    var(--surface-glass-strong);
+  border-radius: 24px;
   padding: var(--spacing-xl);
   box-shadow: var(--shadow-light);
   border: 1px solid var(--surface-glass-border);

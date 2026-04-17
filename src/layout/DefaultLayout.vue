@@ -655,31 +655,41 @@ onUnmounted(() => {
 }
 
 .app-shell__sider {
-  backdrop-filter: blur(16px);
+  backdrop-filter: blur(18px);
 }
 
 .app-shell__sider-inner {
   height: 100%;
   display: flex;
   flex-direction: column;
-  padding: 16px 14px 18px;
-  gap: 14px;
+  padding: 18px 14px 20px;
+  gap: 16px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent 18%),
+    var(--console-panel-strong);
 }
 
 .app-shell__brand {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px;
-  border-radius: 16px;
+  padding: 14px;
+  border-radius: 18px;
   width: 100%;
   text-align: left;
   color: var(--text-primary);
-  transition: background var(--transition-fast), transform var(--transition-fast);
+  border: 1px solid transparent;
+  transition:
+    background var(--transition-fast),
+    transform var(--transition-fast),
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
 }
 
 .app-shell__brand:hover {
-  background: rgba(63, 119, 173, 0.08);
+  background: rgba(15, 107, 255, 0.08);
+  border-color: rgba(15, 107, 255, 0.14);
+  box-shadow: var(--shadow-light);
   transform: translateY(-1px);
 }
 
@@ -688,7 +698,8 @@ onUnmounted(() => {
   width: 44px;
   height: 44px;
   border-radius: 14px;
-  box-shadow: var(--shadow-light);
+  box-shadow: var(--shadow-glow);
+  background: var(--console-panel);
 }
 
 .app-shell__brand-copy,
@@ -713,9 +724,11 @@ onUnmounted(() => {
 }
 
 .app-shell__context-card {
-  padding: 14px 16px;
-  border-radius: 16px;
-  background: var(--surface-glass-strong);
+  padding: 16px 18px;
+  border-radius: 20px;
+  background:
+    linear-gradient(135deg, rgba(15, 107, 255, 0.08), transparent 72%),
+    var(--surface-glass-strong);
   border: 1px solid var(--surface-glass-border);
   box-shadow: var(--shadow-light);
   display: flex;
@@ -749,10 +762,12 @@ onUnmounted(() => {
 }
 
 .app-shell__sider-footer {
-  padding: 14px 16px;
-  border-radius: 16px;
-  background: rgba(63, 119, 173, 0.08);
-  border: 1px solid rgba(63, 119, 173, 0.16);
+  padding: 16px 18px;
+  border-radius: 20px;
+  background:
+    linear-gradient(135deg, rgba(15, 107, 255, 0.1), transparent 78%),
+    rgba(15, 107, 255, 0.04);
+  border: 1px solid rgba(15, 107, 255, 0.16);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -771,7 +786,7 @@ onUnmounted(() => {
   flex-direction: column;
   gap: 6px;
   padding-top: 4px;
-  border-top: 1px solid rgba(63, 119, 173, 0.12);
+  border-top: 1px solid var(--console-divider);
 }
 
 .app-shell__version-row {
@@ -817,12 +832,17 @@ onUnmounted(() => {
   position: sticky;
   top: 0;
   z-index: var(--z-sticky);
-  background: rgba(255, 255, 255, 0.72);
-  backdrop-filter: blur(16px);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.22), transparent 100%),
+    rgba(248, 251, 255, 0.76);
+  backdrop-filter: blur(18px);
+  border-bottom: 1px solid var(--console-divider);
 }
 
 [data-theme="dark"] .app-shell__header {
-  background: rgba(12, 25, 45, 0.78);
+  background:
+    linear-gradient(180deg, rgba(96, 165, 250, 0.04), transparent 100%),
+    rgba(7, 15, 27, 0.82);
 }
 
 .app-shell__header,
@@ -836,7 +856,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 14px 24px;
+  padding: 16px 24px;
 }
 
 .app-shell__header-left,
@@ -859,12 +879,13 @@ onUnmounted(() => {
 }
 
 .app-shell__page-copy strong {
-  font-size: 22px;
+  font-size: 24px;
   line-height: 1.1;
   color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  letter-spacing: -0.02em;
 }
 
 .app-shell__page-meta {
@@ -890,8 +911,8 @@ onUnmounted(() => {
   gap: 10px;
   padding: 10px 14px;
   border-radius: 999px;
-  background: rgba(63, 119, 173, 0.08);
-  border: 1px solid rgba(63, 119, 173, 0.12);
+  background: rgba(15, 107, 255, 0.08);
+  border: 1px solid rgba(15, 107, 255, 0.14);
   max-width: min(340px, 40vw);
 }
 
@@ -929,8 +950,8 @@ onUnmounted(() => {
 
 .notify-trigger,
 .user-info {
-  border: 1px solid transparent;
-  background: transparent;
+  border: 1px solid var(--surface-glass-border);
+  background: var(--surface-glass);
   color: var(--text-primary);
   transition: all var(--transition-fast);
 }
@@ -946,12 +967,14 @@ onUnmounted(() => {
 
 .notify-trigger:hover,
 .user-info:hover {
-  background: var(--bg-tertiary);
-  border-color: var(--border-light);
+  background: rgba(15, 107, 255, 0.08);
+  border-color: rgba(15, 107, 255, 0.18);
+  box-shadow: var(--shadow-light);
 }
 
 .notify-panel {
   width: min(360px, calc(100vw - 32px));
+  padding: 6px 2px;
 }
 
 .notify-panel__head {
@@ -969,17 +992,20 @@ onUnmounted(() => {
 }
 
 .notify-panel__item {
-  border: 1px solid var(--border-light);
-  background: var(--surface-glass-strong);
-  border-radius: 12px;
+  border: 1px solid var(--surface-glass-border);
+  background:
+    linear-gradient(135deg, rgba(15, 107, 255, 0.06), transparent 76%),
+    var(--surface-glass-strong);
+  border-radius: 16px;
   padding: 10px 12px;
   text-align: left;
   transition: all var(--transition-fast);
 }
 
 .notify-panel__item:hover {
-  border-color: rgba(15, 107, 255, 0.28);
+  border-color: rgba(15, 107, 255, 0.24);
   transform: translateY(-1px);
+  box-shadow: var(--shadow-light);
 }
 
 .notify-panel__item--unread {
@@ -1009,8 +1035,8 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 6px 10px;
-  border-radius: 14px;
+  padding: 6px 12px;
+  border-radius: 16px;
 }
 
 .user-meta {
@@ -1042,10 +1068,12 @@ onUnmounted(() => {
 }
 
 .app-shell__drawer-token {
-  padding: 14px 16px;
-  border-radius: 16px;
-  background: rgba(63, 119, 173, 0.08);
-  border: 1px solid rgba(63, 119, 173, 0.16);
+  padding: 16px 18px;
+  border-radius: 18px;
+  background:
+    linear-gradient(135deg, rgba(15, 107, 255, 0.08), transparent 76%),
+    var(--surface-glass);
+  border: 1px solid rgba(15, 107, 255, 0.16);
   display: flex;
   flex-direction: column;
   gap: 6px;

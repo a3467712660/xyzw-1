@@ -60,8 +60,8 @@ button {
 }
 
 :focus-visible {
-  outline: 2px solid rgba(63, 119, 173, 0.42);
-  outline-offset: 2px;
+  outline: 2px solid rgba(15, 107, 255, 0.42);
+  outline-offset: 3px;
 }
 
 // 输入框重置
@@ -619,7 +619,7 @@ h6 {
 }
 
 .n-button.n-button--primary-type {
-  box-shadow: 0 6px 14px rgba(63, 119, 173, 0.18);
+  box-shadow: 0 10px 22px rgba(15, 107, 255, 0.18);
 }
 
 .n-input .n-input-wrapper,
@@ -646,28 +646,28 @@ h6 {
 .page-shell-leave-active,
 .page-shell-appear-active {
   transition:
-    opacity 0.34s cubic-bezier(0.22, 1, 0.36, 1),
-    transform 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+    opacity 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
   will-change: opacity, transform;
 }
 
 .page-shell-enter-from,
 .page-shell-appear-from {
   opacity: 0;
-  transform: translate3d(0, 12px, 0) scale(0.996);
+  transform: translate3d(0, 10px, 0);
 }
 
 .page-shell-leave-to {
   opacity: 0;
-  transform: translate3d(0, -8px, 0) scale(1.004);
+  transform: translate3d(0, -8px, 0);
 }
 
 .page-panel-enter-active,
 .page-panel-leave-active,
 .page-panel-appear-active {
   transition:
-    opacity 0.28s cubic-bezier(0.25, 0.9, 0.4, 1),
-    transform 0.28s cubic-bezier(0.25, 0.9, 0.4, 1);
+    opacity 0.24s cubic-bezier(0.25, 0.9, 0.4, 1),
+    transform 0.24s cubic-bezier(0.25, 0.9, 0.4, 1);
   will-change: opacity, transform;
 }
 
@@ -742,19 +742,8 @@ body,
 body {
   margin: 0;
   padding: 0;
-  font-family:
-    "SF Pro Display",
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    "PingFang SC",
-    "Hiragino Sans GB",
-    "Microsoft YaHei",
-    "Helvetica Neue",
-    Helvetica,
-    Arial,
-    sans-serif;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  font-family: var(--font-family-base);
+  background: var(--bg-gradient);
 }
 
 .app-bootstrap-loading {
@@ -895,10 +884,16 @@ body {
 .app-page__hero,
 .app-section-card,
 .app-surface {
-  background: var(--surface-glass-strong);
+  position: relative;
+  overflow: hidden;
+  background:
+    var(--console-scrim),
+    var(--surface-glass-strong);
   border: 1px solid var(--surface-glass-border);
   border-radius: var(--border-radius-xl);
-  box-shadow: var(--shadow-light);
+  box-shadow:
+    var(--shadow-light),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(12px);
 }
 
@@ -908,6 +903,21 @@ body {
   align-items: flex-start;
   gap: var(--spacing-lg);
   padding: clamp(18px, 2vw, 28px);
+}
+
+.app-page__hero::before,
+.app-section-card::before,
+.app-summary-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(var(--console-grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--console-grid-line) 1px, transparent 1px);
+  background-size: 28px 28px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.28), transparent 60%);
+  opacity: 0.34;
 }
 
 .app-page__hero-copy {
@@ -926,6 +936,7 @@ body {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--primary-color);
+  font-family: var(--font-family-mono);
 }
 
 .app-page__eyebrow::before {
@@ -939,9 +950,10 @@ body {
 
 .app-page__title {
   font-size: clamp(28px, 3vw, 40px);
-  line-height: 1.05;
+  line-height: 1;
   margin: 0;
   color: var(--text-primary);
+  letter-spacing: -0.02em;
 }
 
 .app-page__description {
@@ -970,8 +982,12 @@ body {
 }
 
 .app-summary-card {
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-light);
+  position: relative;
+  overflow: hidden;
+  background:
+    linear-gradient(135deg, rgba(15, 107, 255, 0.08), transparent 72%),
+    var(--console-panel-strong);
+  border: 1px solid rgba(15, 107, 255, 0.12);
   border-radius: var(--border-radius-large);
   padding: var(--spacing-lg);
   box-shadow: var(--shadow-light);
@@ -983,6 +999,9 @@ body {
 .app-summary-card__label {
   color: var(--text-secondary);
   font-size: var(--font-size-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-family: var(--font-family-mono);
 }
 
 .app-summary-card__value {
@@ -990,6 +1009,7 @@ body {
   font-size: clamp(22px, 2.2vw, 30px);
   font-weight: var(--font-weight-bold);
   line-height: 1.1;
+  font-variant-numeric: tabular-nums;
 }
 
 .app-summary-card__meta {
@@ -1008,9 +1028,10 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 12px;
+  padding: 10px 14px;
   border-radius: 999px;
-  background: rgba(63, 119, 173, 0.08);
+  background: rgba(15, 107, 255, 0.08);
+  border: 1px solid rgba(15, 107, 255, 0.14);
   color: var(--text-secondary);
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
@@ -1046,6 +1067,339 @@ body {
   text-align: center;
 }
 
+.app-shell__content .container > .page-header,
+.app-shell__content .container > .page-overview,
+.app-shell__content .container > .tokens-section,
+.app-shell__content .container > .bin-files-section,
+.app-shell__content .container > .desktop-only,
+.app-shell__content .container > .mobile-list,
+.app-shell__content .container > .mobile-user-list,
+.app-shell__content .container > .profile-page__content > :is(.arco-card, .n-card) {
+  backdrop-filter: blur(12px);
+}
+
+.app-shell__content .container > .page-header,
+.app-shell__content .page-overview,
+.app-shell__content .overview-card,
+.app-shell__content :is(.desktop-table-card, .bin-files-section, .mobile-code-card, .mobile-user-card),
+.app-shell__content .profile-page .arco-card,
+.app-shell__content .profile-page .n-card,
+.app-shell__content .token-import-page .arco-card,
+.app-shell__content .token-import-page .n-card {
+  background:
+    linear-gradient(135deg, rgba(15, 107, 255, 0.08), transparent 70%),
+    var(--surface-glass-strong);
+  border-color: var(--surface-glass-border);
+  box-shadow: var(--shadow-light);
+}
+
+.app-shell__content .container > .page-header {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--border-radius-xl);
+  padding: clamp(18px, 2vw, 24px);
+  border: 1px solid var(--surface-glass-border);
+}
+
+.app-shell__content .container > .page-header h1 {
+  font-size: clamp(28px, 3vw, 40px);
+  line-height: 1;
+  margin: 0;
+}
+
+.app-shell__content .container > .page-header p {
+  margin: 8px 0 0;
+  max-width: 72ch;
+}
+
+.app-shell__content .page-overview {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--spacing-md);
+}
+
+.app-shell__content .overview-card {
+  padding: 18px;
+  border: 1px solid var(--surface-glass-border);
+  border-radius: var(--border-radius-large);
+}
+
+.app-shell__content .overview-label {
+  color: var(--text-secondary);
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-family: var(--font-family-mono);
+}
+
+.app-shell__content .overview-value {
+  display: block;
+  margin-top: 10px;
+  color: var(--text-primary);
+  font-size: clamp(24px, 2.4vw, 34px);
+}
+
+.app-shell__content :is(.desktop-table-card, .list-card, .bin-files-section) {
+  overflow: hidden;
+}
+
+.app-shell__content :is(.desktop-table-card__header, .list-card__head, .bin-files-header) {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  padding-bottom: 14px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--console-divider);
+}
+
+.app-shell__content :is(.desktop-table-card__header, .list-card__head, .bin-files-header) h2,
+.app-shell__content :is(.desktop-table-card__header, .list-card__head, .bin-files-header) h3 {
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.app-shell__content :is(.desktop-table-card__header, .list-card__head, .bin-files-header) span {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.app-shell__content :is(.toolbar, .summary-bar, .status-list) {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 14px 16px;
+  border: 1px solid var(--surface-glass-border);
+  border-radius: 18px;
+  background:
+    linear-gradient(135deg, rgba(15, 107, 255, 0.06), transparent 80%),
+    var(--surface-glass);
+  box-shadow: var(--shadow-light);
+}
+
+.app-shell__content .status-list__item {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 180px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: var(--console-panel);
+  border: 1px solid var(--surface-glass-border);
+  flex: 1 1 180px;
+}
+
+.app-shell__content .status-list__meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.app-shell__content .status-list__dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: var(--primary-color);
+}
+
+.app-shell__content .status-list__item--available .status-list__dot,
+.app-shell__content .status-list__item--active .status-list__dot,
+.app-shell__content .status-list__item--paid .status-list__dot {
+  background: var(--success-color);
+}
+
+.app-shell__content .status-list__item--used .status-list__dot,
+.app-shell__content .status-list__item--pending .status-list__dot {
+  background: var(--warning-color);
+}
+
+.app-shell__content .status-list__item--disabled .status-list__dot,
+.app-shell__content .status-list__item--error .status-list__dot {
+  background: var(--error-color);
+}
+
+.app-shell__content .status-list__label {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.app-shell__content .status-list__count {
+  color: var(--text-primary);
+  font-size: 20px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.app-shell__content :is(.chip, .status-chip, .type-chip, .slug-chip) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 107, 255, 0.14);
+  background: rgba(15, 107, 255, 0.08);
+  color: var(--primary-color);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.app-shell__content :is(.chip--type, .type-chip) {
+  background: rgba(20, 184, 166, 0.1);
+  border-color: rgba(20, 184, 166, 0.18);
+  color: var(--secondary-color);
+}
+
+.app-shell__content :is(.chip--open, .status-chip--available) {
+  background: rgba(217, 119, 6, 0.12);
+  border-color: rgba(217, 119, 6, 0.18);
+  color: #9a5b05;
+}
+
+.app-shell__content :is(.chip--resolved, .status-chip--active, .status-chip--admin) {
+  background: rgba(22, 163, 74, 0.12);
+  border-color: rgba(22, 163, 74, 0.2);
+  color: #166534;
+}
+
+.app-shell__content :is(.chip--in_progress, .status-chip--used, .status-chip--current) {
+  background: rgba(249, 115, 22, 0.12);
+  border-color: rgba(249, 115, 22, 0.2);
+  color: #b45309;
+}
+
+.app-shell__content :is(.status-chip--off, .chip--error) {
+  background: rgba(220, 38, 38, 0.1);
+  border-color: rgba(220, 38, 38, 0.18);
+  color: #b91c1c;
+}
+
+.app-shell__content :is(.meta-row, .meta-item, .info-block) {
+  min-width: 0;
+}
+
+.app-shell__content :is(.meta-label, .info-label) {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-family: var(--font-family-mono);
+}
+
+.app-shell__content :is(.mobile-code-card, .mobile-invite-card, .mobile-user-card, .contact-card, .ticket-item) {
+  border-radius: 20px !important;
+  border: 1px solid var(--surface-glass-border) !important;
+  background:
+    linear-gradient(135deg, rgba(15, 107, 255, 0.08), transparent 78%),
+    var(--surface-glass-strong) !important;
+  box-shadow: var(--shadow-light);
+}
+
+.app-shell__content :is(.mobile-code-card, .mobile-invite-card, .mobile-user-card) .n-card__content {
+  display: grid;
+  gap: 14px;
+}
+
+.app-shell__content :is(.desktop-table-card, .list-card, .bin-files-section) :is(.n-data-table, .arco-table) {
+  border-radius: 18px;
+  overflow: hidden;
+}
+
+.app-shell__content :is(.desktop-table-card, .list-card, .bin-files-section) :is(.n-data-table .n-data-table-th, .arco-table-th) {
+  background: rgba(15, 107, 255, 0.08);
+}
+
+.password-modal .n-card,
+.token-activation-modal .n-card,
+.created-codes-modal .n-card,
+.wechat-form-modal .n-card,
+.mfa-setup-modal .n-card,
+.modal-w-500 .n-card {
+  border-radius: 24px !important;
+  border: 1px solid var(--surface-glass-border) !important;
+  background:
+    linear-gradient(135deg, rgba(15, 107, 255, 0.08), transparent 76%),
+    var(--surface-glass-strong) !important;
+  box-shadow: var(--shadow-medium) !important;
+  backdrop-filter: blur(18px);
+}
+
+.password-modal .n-card__content,
+.token-activation-modal .n-card__content,
+.created-codes-modal .n-card__content,
+.wechat-form-modal .n-card__content,
+.mfa-setup-modal .n-card__content,
+.modal-w-500 .n-card__content {
+  display: grid;
+  gap: 16px;
+}
+
+.password-modal .n-card__footer,
+.token-activation-modal .n-card__footer,
+.created-codes-modal .n-card__footer,
+.wechat-form-modal .n-card__footer,
+.mfa-setup-modal .n-card__footer,
+.modal-w-500 .n-card__footer {
+  border-top: 1px solid var(--console-divider);
+}
+
+.token-import-modal .arco-modal {
+  border-radius: 24px !important;
+  overflow: hidden;
+  border: 1px solid var(--surface-glass-border);
+  background:
+    linear-gradient(135deg, rgba(15, 107, 255, 0.08), transparent 76%),
+    var(--surface-glass-strong) !important;
+  box-shadow: var(--shadow-medium) !important;
+  backdrop-filter: blur(18px);
+}
+
+.token-import-modal .arco-modal-header,
+.token-import-modal .arco-modal-footer {
+  border-color: var(--console-divider) !important;
+}
+
+.token-import-modal .arco-modal-body {
+  background: transparent !important;
+}
+
+.app-shell__content .profile-page .arco-card,
+.app-shell__content .profile-page .n-card,
+.app-shell__content .token-import-page .arco-card,
+.app-shell__content .token-import-page .n-card,
+.app-shell__content :is(.desktop-table-card, .bin-files-section, .mobile-code-card, .mobile-user-card) {
+  border-radius: 22px !important;
+  border: 1px solid var(--surface-glass-border) !important;
+}
+
+.app-shell__content .profile-page .arco-card-header,
+.app-shell__content .token-import-page .arco-card-header {
+  border-bottom: 1px solid var(--console-divider);
+}
+
+.app-shell__content .profile-page .arco-form-label-item,
+.app-shell__content .token-import-page .arco-form-label-item {
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.app-shell__content .profile-page .arco-input-wrapper,
+.app-shell__content .profile-page .arco-select-view,
+.app-shell__content .token-import-page .arco-input-wrapper,
+.app-shell__content .token-import-page .arco-select-view {
+  min-height: 42px;
+  border-radius: 14px;
+  border-color: var(--surface-glass-border);
+  background: var(--console-panel);
+}
+
+.app-shell__content :is(.n-modal, .arco-modal) :is(.n-card, .arco-modal-content, .arco-modal-wrapper) {
+  backdrop-filter: blur(16px);
+}
+
 @media (max-width: 959px) {
   .app-page__hero {
     flex-direction: column;
@@ -1054,6 +1408,11 @@ body {
 
   .app-page__actions {
     justify-content: flex-start;
+  }
+
+  .app-shell__content :is(.desktop-table-card__header, .list-card__head, .bin-files-header, .toolbar, .summary-bar) {
+    flex-direction: column;
+    align-items: stretch;
   }
 }
 
@@ -1075,5 +1434,9 @@ body {
 
   .app-summary-card {
     padding: var(--spacing-md);
+  }
+
+  .app-shell__content .container > .page-header {
+    padding: var(--spacing-lg);
   }
 }

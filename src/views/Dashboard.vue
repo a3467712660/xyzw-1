@@ -224,10 +224,11 @@ onMounted(async () => {
 
 .dashboard-hero {
   background:
-    radial-gradient(circle at 78% 20%, rgba(255, 255, 255, 0.22), transparent 45%),
-    linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+    radial-gradient(circle at 78% 20%, rgba(255, 255, 255, 0.16), transparent 42%),
+    linear-gradient(135deg, var(--primary-color-strong) 0%, var(--primary-color) 54%, var(--secondary-color) 100%);
   color: white;
   border-color: rgba(255, 255, 255, 0.16);
+  box-shadow: var(--shadow-medium);
 }
 
 .dashboard-hero :deep(.app-page__title),
@@ -243,6 +244,9 @@ onMounted(async () => {
 
 .dashboard-section {
   padding: var(--spacing-lg);
+  background:
+    linear-gradient(135deg, rgba(15, 107, 255, 0.08), transparent 72%),
+    var(--surface-glass-strong);
 }
 
 .dashboard-section__head {
@@ -271,8 +275,10 @@ onMounted(async () => {
   gap: var(--spacing-md);
   align-items: flex-start;
   padding: var(--spacing-lg);
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-light);
+  background:
+    linear-gradient(135deg, rgba(15, 107, 255, 0.08), transparent 72%),
+    var(--console-panel-strong);
+  border: 1px solid rgba(15, 107, 255, 0.12);
   border-radius: var(--border-radius-large);
   box-shadow: var(--shadow-light);
   transition: all var(--transition-normal);

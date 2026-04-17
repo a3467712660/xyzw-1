@@ -55,7 +55,30 @@
         </div>
       </div>
 
-      <n-card v-if="!isMobile" embedded>
+      <div class="page-overview">
+        <div class="overview-card">
+          <span class="overview-label">激活码总数</span>
+          <strong class="overview-value">{{ codes.length }}</strong>
+        </div>
+        <div class="overview-card">
+          <span class="overview-label">当前可用</span>
+          <strong class="overview-value">{{ availableCount }}</strong>
+        </div>
+        <div class="overview-card">
+          <span class="overview-label">已使用</span>
+          <strong class="overview-value">{{ usedCount }}</strong>
+        </div>
+        <div class="overview-card">
+          <span class="overview-label">存在绑定</span>
+          <strong class="overview-value">{{ boundCount }}</strong>
+        </div>
+      </div>
+
+      <n-card v-if="!isMobile" embedded class="desktop-table-card">
+        <div class="desktop-table-card__header">
+          <h3>激活码列表</h3>
+          <span>当前共 {{ codes.length }} 条</span>
+        </div>
         <n-data-table
           class="activation-codes-table"
           :columns="columns"
@@ -247,6 +270,9 @@ const getPresetSaleAmountYuan = (scope, months) => {
 };
 
 const isOneDayDuration = computed(() => normalizeDurationValue(durationMonths.value) === ONE_DAY_DURATION_MONTHS);
+const availableCount = computed(() => codes.value.filter((row) => row.isActive && !row.usedAt).length);
+const usedCount = computed(() => codes.value.filter((row) => Boolean(row.usedAt)).length);
+const boundCount = computed(() => codes.value.filter((row) => canUnbind(row)).length);
 const presetPriceSummary = computed(() =>
   durationOptions
     .map((option) => `${formatDurationLabel(option.value)} ${formatYuan(getPresetSaleAmountYuan(featureScope.value, option.value))}`)
@@ -762,19 +788,6 @@ onBeforeUnmount(() => {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
-}
-
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 12px;
-  padding: var(--spacing-lg);
-  border: 1px solid var(--surface-glass-border);
-  border-radius: var(--border-radius-xl);
-  background: var(--surface-glass);
-  box-shadow: var(--shadow-light);
-  backdrop-filter: blur(12px);
 }
 
 .page-header__main h1 {
