@@ -233,6 +233,21 @@ const diagnosticLines = computed(() => {
   if (diagnostics.replayGameWindowStatus) {
     lines.push(`replayGameWindowStatus: ${diagnostics.replayGameWindowStatus}`);
   }
+  if (diagnostics.loaderFamily) {
+    lines.push(`loaderFamily: ${diagnostics.loaderFamily}`);
+  }
+  if (diagnostics.probeFamily) {
+    lines.push(`probeFamily: ${diagnostics.probeFamily}`);
+  }
+  if (diagnostics.probeCompatibility) {
+    lines.push(`probeCompatibility: ${diagnostics.probeCompatibility}`);
+  }
+  if (diagnostics.bridgeStatus) {
+    lines.push(`bridgeStatus: ${diagnostics.bridgeStatus}`);
+  }
+  if (diagnostics.bridgeSource) {
+    lines.push(`bridgeSource: ${diagnostics.bridgeSource}`);
+  }
   if (diagnostics.runtimeStage) {
     lines.push(`runtimeStage: ${diagnostics.runtimeStage}`);
   } else if (diagnostics.runtimeLayer) {
@@ -255,6 +270,12 @@ const diagnosticLines = computed(() => {
   }
   if (diagnostics.battleModulesReady !== undefined) {
     lines.push(`battleModulesReady: ${diagnostics.battleModulesReady}`);
+  }
+  if (diagnostics.suspectedBundlePath) {
+    lines.push(`suspectedBundlePath: ${diagnostics.suspectedBundlePath}`);
+  }
+  if (Array.isArray(diagnostics.incompatibleProbes) && diagnostics.incompatibleProbes.length > 0) {
+    lines.push(`incompatibleProbes: ${diagnostics.incompatibleProbes.join(", ")}`);
   }
   if (diagnostics.sameRequireRef !== undefined && diagnostics.sameRequireRef !== null) {
     lines.push(`sameRequireRef: ${diagnostics.sameRequireRef}`);
@@ -421,11 +442,11 @@ const appendTechnicalMessage = (lead, detail) => {
 const getRuntimeStageMessage = (stage) => {
   const stageMap = {
     "launcher-ready": "fightPvpCard.replay.runtimeStageDescriptions.launcherReady",
-    "game-bundle-requested": "fightPvpCard.replay.runtimeStageDescriptions.gameBundleRequested",
-    "game-bundle-loaded": "fightPvpCard.replay.runtimeStageDescriptions.gameBundleLoaded",
-    "game-scene-asset-loaded": "fightPvpCard.replay.runtimeStageDescriptions.gameSceneAssetLoaded",
     "game-scene-running": "fightPvpCard.replay.runtimeStageDescriptions.gameSceneRunning",
-    "require-swapped": "fightPvpCard.replay.runtimeStageDescriptions.requireSwapped",
+    "loader-family-mismatch": "fightPvpCard.replay.runtimeStageDescriptions.loaderFamilyMismatch",
+    "bridge-not-exposed": "fightPvpCard.replay.runtimeStageDescriptions.bridgeNotExposed",
+    "module-id-family-mismatch": "fightPvpCard.replay.runtimeStageDescriptions.moduleIdFamilyMismatch",
+    "require-exec-error": "fightPvpCard.replay.runtimeStageDescriptions.requireExecError",
     "battle-modules-ready": "fightPvpCard.replay.runtimeStageDescriptions.battleModulesReady",
   };
   const key = stageMap[stage];
@@ -506,17 +527,6 @@ const buildReplayFailureMessage = ({
 
   if (
     failureState === "replay-start-failed"
-    && diagnostics?.sceneName === "Game"
-    && diagnostics?.sameRequireRef === true
-  ) {
-    return appendTechnicalMessage(
-      props.t("fightPvpCard.replay.staleRequireReferenceDescription"),
-      detail,
-    );
-  }
-
-  if (
-    failureState === "replay-start-failed"
     && Array.isArray(diagnostics?.replayEntrypointCandidates)
     && diagnostics.replayEntrypointCandidates.some((entry) =>
       ["wrong-module-id", "wrong-export-path", "not-callable"].includes(entry?.status),
@@ -530,15 +540,45 @@ const buildReplayFailureMessage = ({
 
   if (
     failureState === "replay-start-failed"
+    && diagnostics?.runtimeStage === "loader-family-mismatch"
+  ) {
+    return appendTechnicalMessage(
+      props.t("fightPvpCard.replay.loaderFamilyMismatchDescription"),
+      detail,
+    );
+  }
+
+  if (
+    failureState === "replay-start-failed"
+    && diagnostics?.runtimeStage === "bridge-not-exposed"
+  ) {
+    return appendTechnicalMessage(
+      props.t("fightPvpCard.replay.bridgeNotExposedDescription"),
+      detail,
+    );
+  }
+
+  if (
+    failureState === "replay-start-failed"
+    && diagnostics?.runtimeStage === "module-id-family-mismatch"
+  ) {
+    return appendTechnicalMessage(
+      props.t("fightPvpCard.replay.moduleIdFamilyMismatchDescription"),
+      detail,
+    );
+  }
+
+  if (
+    failureState === "replay-start-failed"
     && [
       "wrong-window",
       "no-require",
       "launcher-ready",
-      "game-bundle-requested",
-      "game-bundle-loaded",
-      "game-scene-asset-loaded",
       "game-scene-running",
-      "require-swapped",
+      "loader-family-mismatch",
+      "bridge-not-exposed",
+      "module-id-family-mismatch",
+      "require-exec-error",
     ].includes(
       diagnostics?.runtimeStage || diagnostics?.runtimeLayer || diagnostics?.replayGameWindowStatus,
     )

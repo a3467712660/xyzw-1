@@ -2,10 +2,18 @@ const XYZW_RUNTIME_LAYER_STATE_KEY = "__xyzwReplayRuntimeLayerState";
 const XYZW_RUNTIME_LAYER_EVENT_LIMIT = 60;
 const XYZW_GAME_BUNDLE_NAME = "game";
 const XYZW_GAME_SCENE_PATH = "scenes/Game";
+const XYZW_SRC_LOADER_FAMILY = "src-xyzw-loader";
+const XYZW_PUBLIC_LOADER_FAMILY = "public-xyzw-loader";
+const XYZW_UNKNOWN_LOADER_FAMILY = "unknown-loader";
+const XYZW_SOURCE_PROBE_FAMILY = "source-id-probes";
+const XYZW_PRODUCTION_PROBE_FAMILY = "production-id-probes";
 const XYZW_CANONICAL_REPLAY_MODULE_IDS = Object.freeze([
   "BattleUIManager",
   "enter-oss",
   "BattleKitCrossSite",
+]);
+const XYZW_PUBLIC_SCRIPT_PATTERNS = Object.freeze([
+  "/xyzw/index.js",
 ]);
 const XYZW_GAME_SCRIPT_PATTERNS = Object.freeze([
   "/assets/game/index.js",
@@ -69,6 +77,40 @@ const isGameScriptUrl = (value) =>
 
 const isMainScriptUrl = (value) =>
   matchesScriptPattern(value, XYZW_MAIN_SCRIPT_PATTERNS);
+
+const isPublicRuntimeScriptUrl = (value) =>
+  matchesScriptPattern(value, XYZW_PUBLIC_SCRIPT_PATTERNS);
+
+const toNormalizedSourceSnippet = (value) =>
+  String(value || "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const looksLikePublicXyzwRequireSource = (source) => {
+  const normalized = toNormalizedSourceSnippet(source);
+  if (!normalized) {
+    return false;
+  }
+  return normalized.includes("function e(t, n, r)")
+    || normalized.includes("function e(t,n,r)")
+    || normalized.includes("if (!n[a]) { if (!t[a])")
+    || normalized.includes("if(!n[a]){if(!t[a])");
+};
+
+const looksLikeSrcXyzwRequireSource = (source) => {
+  const normalized = toNormalizedSourceSnippet(source);
+  if (!normalized) {
+    return false;
+  }
+  return normalized.includes("function i(a, s, c)")
+    || normalized.includes("function i(a,s,c)")
+    || normalized.includes("function a(r, s, l)")
+    || normalized.includes("function a(r,s,l)")
+    || normalized.includes("if (!s[t]) { if (!a[t])")
+    || normalized.includes("if(!s[t]){if(!a[t])")
+    || normalized.includes("if (!s[t]) { if (!r[t])")
+    || normalized.includes("if(!s[t]){if(!r[t])");
+};
 
 const trimEntries = (entries = []) => {
   if (entries.length <= XYZW_RUNTIME_LAYER_EVENT_LIMIT) {
@@ -489,6 +531,151 @@ const getWindowPerformanceResourceUrls = (candidateWindow) => {
   }
 };
 
+const collectLoaderEvidenceStrings = ({
+  scriptUrls = [],
+  performanceUrls = [],
+  loadEvidence = null,
+  liveRequireSource = null,
+  launcherRequireSource = null,
+  canonicalModuleChecks = null,
+} = {}) => {
+  const messages = [
+    ...scriptUrls,
+    ...performanceUrls,
+    liveRequireSource,
+    launcherRequireSource,
+  ];
+  for (const entry of loadEvidence?.scriptEvents || []) {
+    messages.push(entry?.src, entry?.detail, entry?.error);
+  }
+  for (const entry of loadEvidence?.bundleEvents || []) {
+    messages.push(entry?.target, entry?.detail, entry?.error);
+  }
+  for (const moduleId of Object.keys(canonicalModuleChecks || {})) {
+    messages.push(
+      canonicalModuleChecks?.[moduleId]?.errorMessage,
+      canonicalModuleChecks?.[moduleId]?.stackTop,
+    );
+  }
+  return messages
+    .map((value) => String(value || "").trim())
+    .filter(Boolean);
+};
+
+const findSuspectedBundlePath = (messages = []) => {
+  const publicPath = messages.find((value) => isPublicRuntimeScriptUrl(value));
+  if (publicPath) {
+    return "/xyzw/index.js";
+  }
+  const sourcePath = messages.find((value) => isMainScriptUrl(value) || isGameScriptUrl(value));
+  return sourcePath || null;
+};
+
+const createModuleFamilyMismatchCheck = (moduleId, loaderFamily, probeFamily) => ({
+  ok: false,
+  status: "module-id-family-mismatch",
+  moduleId,
+  value: null,
+  error: null,
+  errorName: null,
+  errorMessage: `${moduleId} is a source-era probe and is incompatible with ${loaderFamily}.`,
+  stackTop: null,
+  missing: false,
+  incompatibleProbe: true,
+  loaderFamily,
+  probeFamily,
+});
+
+const toSerializableModuleCheck = (result) => ({
+  error: result.error,
+  errorMessage: result.errorMessage || result.error,
+  errorName: result.errorName || null,
+  incompatibleProbe: result.incompatibleProbe === true,
+  loaderFamily: result.loaderFamily || null,
+  missing: result.missing,
+  ok: result.ok,
+  probeFamily: result.probeFamily || null,
+  stackTop: result.stackTop || null,
+  status: result.status,
+});
+
+export const detectLoaderFamily = (gameWindow, {
+  launcherRequireRef = null,
+  currentRequire = null,
+  scriptUrls = null,
+  performanceUrls = null,
+  loadEvidence = null,
+  canonicalModuleChecks = null,
+} = {}) => {
+  const resolvedScriptUrls = scriptUrls || getWindowScriptUrls(gameWindow);
+  const resolvedPerformanceUrls = performanceUrls || getWindowPerformanceResourceUrls(gameWindow);
+  const liveRequire = currentRequire || (typeof gameWindow?.__require === "function" ? gameWindow.__require : null);
+  const launcherRequire = launcherRequireRef || getOrCreateXyzwRuntimeLayerState(gameWindow)?.launcherRequireRef || null;
+  const liveRequireSource = toFunctionSource(liveRequire);
+  const launcherRequireSource = toFunctionSource(launcherRequire);
+  const evidenceStrings = collectLoaderEvidenceStrings({
+    scriptUrls: resolvedScriptUrls,
+    performanceUrls: resolvedPerformanceUrls,
+    loadEvidence,
+    liveRequireSource,
+    launcherRequireSource,
+    canonicalModuleChecks,
+  });
+  const publicEvidence = [];
+  const srcEvidence = [];
+
+  if (resolvedScriptUrls.some(isPublicRuntimeScriptUrl)) {
+    publicEvidence.push("document:/xyzw/index.js");
+  }
+  if (resolvedPerformanceUrls.some(isPublicRuntimeScriptUrl)) {
+    publicEvidence.push("performance:/xyzw/index.js");
+  }
+  if (looksLikePublicXyzwRequireSource(liveRequireSource)) {
+    publicEvidence.push("fingerprint:live-require-public");
+  }
+  if (looksLikePublicXyzwRequireSource(launcherRequireSource)) {
+    publicEvidence.push("fingerprint:launcher-require-public");
+  }
+  if (evidenceStrings.some((value) => isPublicRuntimeScriptUrl(value))) {
+    publicEvidence.push("observed:/xyzw/index.js");
+  }
+
+  if (resolvedScriptUrls.some((value) => isGameScriptUrl(value) || isMainScriptUrl(value))) {
+    srcEvidence.push("document:source-era-loader");
+  }
+  if (resolvedPerformanceUrls.some((value) => isGameScriptUrl(value) || isMainScriptUrl(value))) {
+    srcEvidence.push("performance:source-era-loader");
+  }
+  if (looksLikeSrcXyzwRequireSource(liveRequireSource)) {
+    srcEvidence.push("fingerprint:live-require-source");
+  }
+  if (looksLikeSrcXyzwRequireSource(launcherRequireSource)) {
+    srcEvidence.push("fingerprint:launcher-require-source");
+  }
+  for (const moduleId of XYZW_CANONICAL_REPLAY_MODULE_IDS) {
+    if (canonicalModuleChecks?.[moduleId]?.status === "present") {
+      srcEvidence.push(`source-canonical-module:${moduleId}`);
+    }
+  }
+
+  let loaderFamily = XYZW_UNKNOWN_LOADER_FAMILY;
+  if (publicEvidence.length > 0) {
+    loaderFamily = XYZW_PUBLIC_LOADER_FAMILY;
+  } else if (srcEvidence.length > 0) {
+    loaderFamily = XYZW_SRC_LOADER_FAMILY;
+  }
+
+  return {
+    loaderFamily,
+    evidence: {
+      publicEvidence,
+      srcEvidence,
+    },
+    liveRequireFingerprint: getRequireFingerprint(liveRequire),
+    suspectedBundlePath: findSuspectedBundlePath(evidenceStrings),
+  };
+};
+
 export const probeXyzwRuntimeModule = (gameWindow, moduleId) => {
   if (!gameWindow) {
     return {
@@ -552,25 +739,32 @@ export const probeXyzwRuntimeModule = (gameWindow, moduleId) => {
   }
 };
 
-const toSerializableModuleCheck = (result) => ({
-  error: result.error,
-  errorMessage: result.errorMessage || result.error,
-  errorName: result.errorName || null,
-  missing: result.missing,
-  ok: result.ok,
-  stackTop: result.stackTop || null,
-  status: result.status,
-});
-
 const deriveRuntimeStage = ({
   hasRequire,
+  loaderFamily,
+  probeFamily,
+  probeCompatibility,
+  bridgeExposed,
   gameSceneRunning,
   battleModulesReady,
-  wrongRequireInstance,
   requireExecError,
 } = {}) => {
   if (!hasRequire) {
     return "no-require";
+  }
+  if (
+    loaderFamily === XYZW_PUBLIC_LOADER_FAMILY
+    && probeFamily === XYZW_SOURCE_PROBE_FAMILY
+    && probeCompatibility === "incompatible-probe"
+  ) {
+    return "loader-family-mismatch";
+  }
+  if (
+    loaderFamily === XYZW_PUBLIC_LOADER_FAMILY
+    && probeFamily === XYZW_PRODUCTION_PROBE_FAMILY
+    && bridgeExposed !== true
+  ) {
+    return "bridge-not-exposed";
   }
   if (battleModulesReady) {
     return "battle-modules-ready";
@@ -578,16 +772,19 @@ const deriveRuntimeStage = ({
   if (requireExecError) {
     return "require-exec-error";
   }
-  if (wrongRequireInstance) {
-    return "wrong-require-instance";
-  }
   if (gameSceneRunning) {
     return "game-scene-running";
   }
   return "launcher-ready";
 };
 
-const inspectSingleWindowBundleState = (candidateWindow, windowLabel = "window") => {
+const inspectSingleWindowBundleState = (
+  candidateWindow,
+  windowLabel = "window",
+  {
+    probeFamily = XYZW_SOURCE_PROBE_FAMILY,
+  } = {},
+) => {
   const state = getOrCreateXyzwRuntimeLayerState(candidateWindow);
   const launcherRequireRef = state?.launcherRequireRef || null;
   const currentRequire = typeof candidateWindow?.__require === "function"
@@ -597,12 +794,6 @@ const inspectSingleWindowBundleState = (candidateWindow, windowLabel = "window")
   const currentRequireSource = toFunctionSource(currentRequire);
   const scriptUrls = getWindowScriptUrls(candidateWindow);
   const performanceUrls = getWindowPerformanceResourceUrls(candidateWindow);
-  const canonicalModuleChecks = Object.fromEntries(
-    XYZW_CANONICAL_REPLAY_MODULE_IDS.map((moduleId) => [
-      moduleId,
-      toSerializableModuleCheck(probeXyzwRuntimeModule(candidateWindow, moduleId)),
-    ]),
-  );
   const hasRequire = typeof candidateWindow?.__require === "function";
   const sameRequireRef = launcherRequireRef && currentRequire
     ? currentRequire === launcherRequireRef
@@ -623,6 +814,10 @@ const inspectSingleWindowBundleState = (candidateWindow, windowLabel = "window")
   const loadBundleCalls = (state?.loadBundleCalls || []).map(cloneEntry);
   const tryLoadAssetCalls = (state?.tryLoadAssetCalls || []).map(cloneEntry);
   const runSceneCalls = (state?.runSceneCalls || []).map(cloneEntry);
+  const loadEvidence = {
+    bundleEvents: (state?.bundleEvents || []).map(cloneEntry),
+    scriptEvents: (state?.scriptEvents || []).map(cloneEntry),
+  };
   const gameBundleRequested = loadBundleCalls.some((entry) =>
     entry.bundleName === XYZW_GAME_BUNDLE_NAME
     && entry.phase === "requested",
@@ -643,23 +838,61 @@ const inspectSingleWindowBundleState = (candidateWindow, windowLabel = "window")
   );
   const gameSceneRunning = sceneName === "Game"
     || runSceneCalls.some((entry) => entry.sceneName === "Game");
+  const preliminaryLoaderFamilyInfo = detectLoaderFamily(candidateWindow, {
+    launcherRequireRef,
+    currentRequire,
+    scriptUrls,
+    performanceUrls,
+    loadEvidence,
+  });
+  const canonicalModuleChecks = preliminaryLoaderFamilyInfo.loaderFamily === XYZW_PUBLIC_LOADER_FAMILY
+    ? Object.fromEntries(
+        XYZW_CANONICAL_REPLAY_MODULE_IDS.map((moduleId) => [
+          moduleId,
+          toSerializableModuleCheck(
+            createModuleFamilyMismatchCheck(
+              moduleId,
+              preliminaryLoaderFamilyInfo.loaderFamily,
+              XYZW_SOURCE_PROBE_FAMILY,
+            ),
+          ),
+        ]),
+      )
+    : Object.fromEntries(
+        XYZW_CANONICAL_REPLAY_MODULE_IDS.map((moduleId) => [
+          moduleId,
+          toSerializableModuleCheck(probeXyzwRuntimeModule(candidateWindow, moduleId)),
+        ]),
+      );
+  const loaderFamilyInfo = detectLoaderFamily(candidateWindow, {
+    launcherRequireRef,
+    currentRequire,
+    scriptUrls,
+    performanceUrls,
+    loadEvidence,
+    canonicalModuleChecks,
+  });
+  const loaderFamily = loaderFamilyInfo.loaderFamily;
   const battleModulesReady = gameSceneRunning
+    && loaderFamily === XYZW_SRC_LOADER_FAMILY
     && canonicalModuleChecks.BattleUIManager?.status === "present";
-  const allCanonicalModulesMissing = XYZW_CANONICAL_REPLAY_MODULE_IDS.every((moduleId) =>
-    canonicalModuleChecks[moduleId]?.missing === true,
-  );
   const firstRequireExecError = XYZW_CANONICAL_REPLAY_MODULE_IDS.find((moduleId) =>
     canonicalModuleChecks[moduleId]?.status === "require-threw",
   ) || null;
-  const wrongRequireInstance = gameSceneRunning
-    && hasRequireSwap
-    && allCanonicalModulesMissing;
   const requireExecError = !battleModulesReady && Boolean(firstRequireExecError);
+  const bridgeExposed = Boolean(candidateWindow?.__xyzwReplayBridge || candidateWindow?.__xyzwReplay);
+  const incompatibleProbes = loaderFamily === XYZW_PUBLIC_LOADER_FAMILY
+    ? [...XYZW_CANONICAL_REPLAY_MODULE_IDS]
+    : [];
+  const probeCompatibility = loaderFamily === XYZW_PUBLIC_LOADER_FAMILY
+    && probeFamily === XYZW_SOURCE_PROBE_FAMILY
+    ? "incompatible-probe"
+    : "compatible-probe";
 
   return {
     details: {
-      allCanonicalModulesMissing,
       battleModulesReady,
+      bridgeExposed,
       canonicalModuleChecks,
       gameBundleLoaded,
       gameBundleRequested,
@@ -673,14 +906,16 @@ const inspectSingleWindowBundleState = (candidateWindow, windowLabel = "window")
       launcherRequireFunctionName,
       launcherRequireFingerprint,
       loadBundleCalls,
-      loadEvidence: {
-        bundleEvents: (state?.bundleEvents || []).map(cloneEntry),
-        scriptEvents: (state?.scriptEvents || []).map(cloneEntry),
-      },
+      loadEvidence,
+      loaderFamily,
+      loaderFamilyEvidence: loaderFamilyInfo.evidence,
       liveRequireFingerprint,
       mainScriptInDocument: scriptUrls.some(isMainScriptUrl),
       mainScriptInPerformance: performanceUrls.some(isMainScriptUrl),
       moduleChecks: canonicalModuleChecks,
+      incompatibleProbes,
+      probeCompatibility,
+      probeFamily,
       requireExecError,
       requireFunctionName,
       requireSwap: hasRequireSwap,
@@ -689,27 +924,37 @@ const inspectSingleWindowBundleState = (candidateWindow, windowLabel = "window")
       scene: sceneName,
       sceneName,
       sameRequireRef,
+      suspectedBundlePath: loaderFamilyInfo.suspectedBundlePath,
       tryLoadAssetCalls,
       windowLabel,
-      wrongRequireInstance,
     },
     layer: deriveRuntimeStage({
       battleModulesReady,
+      bridgeExposed,
       gameSceneRunning,
       hasRequire,
+      loaderFamily,
+      probeCompatibility,
+      probeFamily,
       requireExecError,
-      wrongRequireInstance,
     }),
     windowLabel,
   };
 };
 
-export const detectXyzwRuntimeLayer = (gameWindow, { windowLabel = "window" } = {}) => {
+export const detectXyzwRuntimeLayer = (
+  gameWindow,
+  {
+    windowLabel = "window",
+    probeFamily = XYZW_SOURCE_PROBE_FAMILY,
+  } = {},
+) => {
   if (!gameWindow) {
     return {
       layer: "no-window",
       details: {
         battleModulesReady: false,
+        bridgeExposed: false,
         canonicalModuleChecks: Object.fromEntries(
           XYZW_CANONICAL_REPLAY_MODULE_IDS.map((moduleId) => [
             moduleId,
@@ -717,8 +962,11 @@ export const detectXyzwRuntimeLayer = (gameWindow, { windowLabel = "window" } = 
               error: null,
               errorMessage: null,
               errorName: null,
+              incompatibleProbe: false,
+              loaderFamily: null,
               missing: false,
               ok: false,
+              probeFamily: null,
               stackTop: null,
               status: "no-window",
             },
@@ -733,12 +981,18 @@ export const detectXyzwRuntimeLayer = (gameWindow, { windowLabel = "window" } = 
         hasRequire: false,
         hasRequireSwap: false,
         firstRequireExecErrorModuleId: null,
+        incompatibleProbes: [],
         launcherRequireFunctionName: null,
         launcherRequireFingerprint: null,
         loadBundleCalls: [],
         loadEvidence: {
           bundleEvents: [],
           scriptEvents: [],
+        },
+        loaderFamily: XYZW_UNKNOWN_LOADER_FAMILY,
+        loaderFamilyEvidence: {
+          publicEvidence: [],
+          srcEvidence: [],
         },
         liveRequireFingerprint: null,
         mainScriptInDocument: false,
@@ -750,13 +1004,18 @@ export const detectXyzwRuntimeLayer = (gameWindow, { windowLabel = "window" } = 
               error: null,
               errorMessage: null,
               errorName: null,
+              incompatibleProbe: false,
+              loaderFamily: null,
               missing: false,
               ok: false,
+              probeFamily: null,
               stackTop: null,
               status: "no-window",
             },
           ]),
         ),
+        probeCompatibility: "incompatible-probe",
+        probeFamily,
         requireExecError: false,
         requireFunctionName: null,
         requireSwap: false,
@@ -765,21 +1024,28 @@ export const detectXyzwRuntimeLayer = (gameWindow, { windowLabel = "window" } = 
         scene: null,
         sceneName: null,
         sameRequireRef: null,
+        suspectedBundlePath: null,
         tryLoadAssetCalls: [],
         windowLabel,
-        wrongRequireInstance: false,
       },
     };
   }
 
-  const inspection = inspectSingleWindowBundleState(gameWindow, windowLabel);
+  const inspection = inspectSingleWindowBundleState(gameWindow, windowLabel, {
+    probeFamily,
+  });
   return {
     layer: inspection.layer,
     details: inspection.details,
   };
 };
 
-export const inspectBundleState = (rootWindow = null) => {
+export const inspectBundleState = (
+  rootWindow = null,
+  {
+    probeFamily = XYZW_SOURCE_PROBE_FAMILY,
+  } = {},
+) => {
   const windows = [];
 
   if (!rootWindow) {
@@ -790,16 +1056,20 @@ export const inspectBundleState = (rootWindow = null) => {
     };
   }
 
-  windows.push(inspectSingleWindowBundleState(rootWindow, "window"));
+  windows.push(inspectSingleWindowBundleState(rootWindow, "window", { probeFamily }));
   const iframes = Array.from(rootWindow?.document?.querySelectorAll?.("iframe") || []);
   for (let index = 0; index < iframes.length; index += 1) {
     try {
       windows.push(
-        inspectSingleWindowBundleState(iframes[index]?.contentWindow || null, `iframe[${index}]`),
+        inspectSingleWindowBundleState(
+          iframes[index]?.contentWindow || null,
+          `iframe[${index}]`,
+          { probeFamily },
+        ),
       );
     } catch {
       windows.push(
-        detectXyzwRuntimeLayer(null, { windowLabel: `iframe[${index}]` }),
+        detectXyzwRuntimeLayer(null, { windowLabel: `iframe[${index}]`, probeFamily }),
       );
     }
   }
@@ -815,11 +1085,19 @@ export const inspectBundleState = (rootWindow = null) => {
     gameSceneRunning: windows[0]?.details?.gameSceneRunning ?? false,
     hasRequire: windows[0]?.details?.hasRequire ?? false,
     hasRequireSwap: windows[0]?.details?.hasRequireSwap ?? false,
+    incompatibleProbes: windows[0]?.details?.incompatibleProbes || [],
     launcherRequireFingerprint: windows[0]?.details?.launcherRequireFingerprint ?? null,
     launcherRequireFunctionName: windows[0]?.details?.launcherRequireFunctionName ?? null,
+    loaderFamily: windows[0]?.details?.loaderFamily ?? XYZW_UNKNOWN_LOADER_FAMILY,
+    loaderFamilyEvidence: windows[0]?.details?.loaderFamilyEvidence || {
+      publicEvidence: [],
+      srcEvidence: [],
+    },
     liveRequireFingerprint: windows[0]?.details?.liveRequireFingerprint ?? null,
     loadBundleCalls: windows[0]?.details?.loadBundleCalls || [],
     moduleChecks: windows[0]?.details?.canonicalModuleChecks || {},
+    probeCompatibility: windows[0]?.details?.probeCompatibility ?? "compatible-probe",
+    probeFamily: windows[0]?.details?.probeFamily ?? probeFamily,
     requireFunctionName: windows[0]?.details?.requireFunctionName ?? null,
     requireSwap: windows[0]?.details?.requireSwap ?? false,
     runSceneCalls: windows[0]?.details?.runSceneCalls || [],
@@ -827,8 +1105,30 @@ export const inspectBundleState = (rootWindow = null) => {
     scene: windows[0]?.details?.scene ?? null,
     sceneName: windows[0]?.details?.sceneName ?? null,
     sameRequireRef: windows[0]?.details?.sameRequireRef ?? null,
+    suspectedBundlePath: windows[0]?.details?.suspectedBundlePath ?? null,
     tryLoadAssetCalls: windows[0]?.details?.tryLoadAssetCalls || [],
     windows,
+  };
+};
+
+export const inspectLoaderFamily = (
+  rootWindow = null,
+  {
+    probeFamily = XYZW_SOURCE_PROBE_FAMILY,
+  } = {},
+) => {
+  const snapshot = inspectBundleState(rootWindow, { probeFamily });
+  return {
+    currentAssetPath: snapshot.suspectedBundlePath,
+    currentWindow: snapshot.currentWindow,
+    currentWindowLabel: snapshot.currentWindowLabel,
+    incompatibleProbes: snapshot.incompatibleProbes,
+    loaderFamily: snapshot.loaderFamily,
+    probeCompatibility: snapshot.probeCompatibility,
+    probeFamily: snapshot.probeFamily,
+    requireFingerprint: snapshot.liveRequireFingerprint,
+    suspectedBundlePath: snapshot.suspectedBundlePath,
+    windows: snapshot.windows,
   };
 };
 
@@ -836,14 +1136,14 @@ const buildBattleModulesReadySource = (details) => {
   if (!details) {
     return null;
   }
+  if (details.loaderFamily === XYZW_PUBLIC_LOADER_FAMILY) {
+    return "loader-family-mismatch";
+  }
   if (details.battleModulesReady) {
     return "BattleUIManager";
   }
   if (details.requireExecError) {
     return "require-exec-error";
-  }
-  if (details.wrongRequireInstance) {
-    return "wrong-require-instance";
   }
   if (details.gameSceneRunning) {
     return "runScene(Game)";
@@ -875,11 +1175,13 @@ export const waitForBattleModulesReady = async ({
   timeoutMs = 15000,
   intervalMs = 50,
   windowLabel = "window",
+  probeFamily = XYZW_SOURCE_PROBE_FAMILY,
 } = {}) => {
-  const initial = detectXyzwRuntimeLayer(gameWindow, { windowLabel });
+  const initial = detectXyzwRuntimeLayer(gameWindow, { windowLabel, probeFamily });
   if (
     initial.layer === "battle-modules-ready"
-    || initial.layer === "wrong-require-instance"
+    || initial.layer === "loader-family-mismatch"
+    || initial.layer === "bridge-not-exposed"
     || initial.layer === "require-exec-error"
     || initial.layer === "no-window"
     || initial.layer === "no-require"
@@ -916,10 +1218,11 @@ export const waitForBattleModulesReady = async ({
       await waitForSignal(runtimeWindow, intervalMs);
     }
 
-    latest = detectXyzwRuntimeLayer(gameWindow, { windowLabel });
+    latest = detectXyzwRuntimeLayer(gameWindow, { windowLabel, probeFamily });
     if (
       latest.layer === "battle-modules-ready"
-      || latest.layer === "wrong-require-instance"
+      || latest.layer === "loader-family-mismatch"
+      || latest.layer === "bridge-not-exposed"
       || latest.layer === "require-exec-error"
       || latest.layer === "no-window"
       || latest.layer === "no-require"

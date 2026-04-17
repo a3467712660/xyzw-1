@@ -3,7 +3,7 @@ import {
   LOOPBACK_HOST_ALLOWLIST,
 } from "../../utils/hostAllowlist.js";
 import {
-  detectXyzwRuntimeLayer,
+  detectLoaderFamily,
   recordXyzwRuntimeScriptEvent,
 } from "./xyzwReplayRuntimeLayer.js";
 
@@ -162,10 +162,11 @@ export const ensureXyzwRuntimeLoaded = async ({
   const expectedPlatform = getRuntimeExpectedPlatform(variant);
   const currentPlatform = String(runtimeWindow.PLATFORM || "").trim();
   const hasRuntimeRequire = typeof runtimeWindow.__require === "function";
-  const runtimeLayerInfo = variant === XYZW_RUNTIME_VARIANTS.REPLAY_BROWSER && hasRuntimeRequire
-    ? detectXyzwRuntimeLayer(runtimeWindow, { windowLabel: "window" })
+  const loaderFamilyInfo = variant === XYZW_RUNTIME_VARIANTS.REPLAY_BROWSER && hasRuntimeRequire
+    ? detectLoaderFamily(runtimeWindow)
     : null;
-  const replayBrowserRuntimeReady = runtimeLayerInfo?.layer === "battle-modules-ready";
+  const replayBrowserRuntimeReady = loaderFamilyInfo?.loaderFamily
+    && loaderFamilyInfo.loaderFamily !== "unknown-loader";
 
   if (
     hasRuntimeRequire

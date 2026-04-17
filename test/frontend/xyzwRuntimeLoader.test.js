@@ -2,6 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  detectLoaderFamily,
+} from "../../src/services/replay/xyzwReplayRuntimeLayer.js";
+import {
   __resetXyzwRuntimeLoaderForTests,
   ensureRuntimeHostAllowed,
   ensureXyzwRuntimeLoaded,
@@ -111,56 +114,14 @@ test("xyzw runtime loader does not treat launcher-only __require as replay-brows
 test("xyzw runtime loader reuses replay-browser require only when the game bundle is already ready", async () => {
   const { appended, runtimeWindow } = createStubRuntimeWindow();
   runtimeWindow.PLATFORM = "web";
-  runtimeWindow.__require = (name) => {
-    if (name === "BattleUIManager") {
-      return {
-        SHOW_BATTLE_REPLAY_UI() {},
-      };
-    }
+  runtimeWindow.__require = function replayPublicLoader() {
     return {};
   };
-  runtimeWindow.document.scripts = [{ src: "http://localhost/assets/game/index.js" }];
+  runtimeWindow.document.scripts = [{ src: "http://localhost/xyzw/index.js" }];
   runtimeWindow.performance = {
     getEntriesByType() {
-      return [{ name: "http://localhost/assets/game/index.js" }];
+      return [{ name: "http://localhost/xyzw/index.js" }];
     },
-  };
-  runtimeWindow.cc = {
-    director: {
-      getScene() {
-        return { name: "Game" };
-      },
-    },
-  };
-  runtimeWindow.__xyzwReplayRuntimeLayerState = {
-    nextId: 0,
-    bundleEvents: [],
-    loadBundleCalls: [{
-      at: Date.now(),
-      bundleName: "game",
-      phase: "resolved",
-      resolved: true,
-      ok: true,
-      source: "test",
-      target: "game",
-    }],
-    pendingBundlePromises: new Map(),
-    pendingSceneAssetPromises: new Map(),
-    runSceneCalls: [{
-      at: Date.now(),
-      sceneName: "Game",
-      source: "test",
-    }],
-    scriptEvents: [],
-    tryLoadAssetCalls: [{
-      at: Date.now(),
-      bundleName: "game",
-      path: "scenes/Game",
-      phase: "resolved",
-      resolved: true,
-      ok: true,
-      source: "test",
-    }],
   };
 
   const runtimeRequire = await ensureXyzwRuntimeLoaded({
@@ -171,6 +132,25 @@ test("xyzw runtime loader reuses replay-browser require only when the game bundl
 
   assert.equal(runtimeRequire, runtimeWindow.__require);
   assert.deepEqual(appended, []);
+});
+
+test("xyzw runtime loader detects public loader family when /xyzw/index.js evidence is present", () => {
+  const { runtimeWindow } = createStubRuntimeWindow();
+  runtimeWindow.__require = function replayPublicLoader() {
+    return {};
+  };
+  runtimeWindow.document.scripts = [{ src: "http://localhost/xyzw/index.js" }];
+  runtimeWindow.performance = {
+    getEntriesByType() {
+      return [{ name: "http://localhost/xyzw/index.js" }];
+    },
+  };
+
+  const result = detectLoaderFamily(runtimeWindow);
+
+  assert.equal(result.loaderFamily, "public-xyzw-loader");
+  assert.equal(result.suspectedBundlePath, "/xyzw/index.js");
+  assert.ok(result.evidence.publicEvidence.length > 0);
 });
 
 test("xyzw runtime loader allows the repo deployment host without requiring ignored local env files", () => {

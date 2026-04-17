@@ -18,7 +18,9 @@ import {
   installReplayPromiseUtilShim,
   installReplayResourceManagerGuard,
   installReplaySceneStageObserver,
+  inspectLoaderFamily,
   inspectBundleState,
+  detectLoaderFamily,
   detectXyzwRuntimeLayer,
   findReplayGameWindow,
   getReplaySource,
@@ -197,7 +199,7 @@ test("fight pvp replay requireModule reports wrong-loader when canonical module 
   assert.equal(result.status, "wrong-loader");
   assert.equal(
     result.detail,
-    "launcher/main loader is live, but the canonical battle modules are still unavailable from the current window.__require.",
+    "launcher/main loader is live, but no stable replay bridge has been confirmed yet.",
   );
   assert.equal(result.errorMessage, "Cannot find module 'BattleUIManager'");
 });
@@ -213,40 +215,29 @@ test("fight pvp replay requireModule reports wrong-module-id for legacy EnterOSS
   assert.equal(result.status, "wrong-module-id");
 });
 
-test("fight pvp replay requireModule reports wrong-require-instance when Game scene is live, loader swapped, and canonical modules still miss", () => {
+test("fight pvp replay requireModule reports module-id-family-mismatch on the public loader family", () => {
   const runtimeWindow = {
     __require() {
       throw new Error("Cannot find module 'BattleUIManager'");
     },
-    cc: {
-      director: {
-        getScene() {
-          return { name: "Game" };
-        },
-      },
+    document: {
+      scripts: [{ src: "http://localhost/xyzw/index.js" }],
     },
-    __xyzwReplayRuntimeLayerState: {
-      launcherRequireRef: function launcherRequireRef() {},
-      nextId: 0,
-      bundleEvents: [],
-      loadBundleCalls: [],
-      pendingBundlePromises: new Map(),
-      pendingSceneAssetPromises: new Map(),
-      runSceneCalls: [{
-        at: Date.now(),
-        sceneName: "Game",
-        source: "test",
-      }],
-      scriptEvents: [],
-      tryLoadAssetCalls: [],
+    performance: {
+      getEntriesByType() {
+        return [{ name: "http://localhost/xyzw/index.js" }];
+      },
     },
   };
 
   const result = requireModule(runtimeWindow, "BattleUIManager");
 
   assert.equal(result.ok, false);
-  assert.equal(result.status, "wrong-require-instance");
-  assert.equal(result.errorMessage, "Cannot find module 'BattleUIManager'");
+  assert.equal(result.status, "module-id-family-mismatch");
+  assert.equal(
+    result.errorMessage,
+    "BattleUIManager is a source-era probe and is incompatible with public-xyzw-loader.",
+  );
 });
 
 test("fight pvp replay requireModule reports require-exec-error and preserves the thrown error", () => {
@@ -346,7 +337,7 @@ test("fight pvp replay probeRequireExport never reports wrong-export-path when w
   assert.equal(result.status, "wrong-loader");
 });
 
-test("fight pvp replay detectXyzwRuntimeLayer distinguishes replay loader readiness from wrong loader states", () => {
+test("fight pvp replay detectXyzwRuntimeLayer distinguishes source/public loader families and bridge states", () => {
   const launcherReadyWindow = {
     __require() {
       throw new Error("Cannot find module 'BattleUIManager'");
@@ -425,7 +416,7 @@ test("fight pvp replay detectXyzwRuntimeLayer distinguishes replay loader readin
       },
     },
   };
-  const wrongRequireInstanceWindow = {
+  const publicLoaderWindow = {
     __require(name) {
       throw new Error(`Cannot find module '${name}'`);
     },
@@ -434,6 +425,14 @@ test("fight pvp replay detectXyzwRuntimeLayer distinguishes replay loader readin
         getScene() {
           return { name: "Game" };
         },
+      },
+    },
+    document: {
+      scripts: [{ src: "http://localhost/xyzw/index.js" }],
+    },
+    performance: {
+      getEntriesByType() {
+        return [{ name: "http://localhost/xyzw/index.js" }];
       },
     },
   };
@@ -516,7 +515,7 @@ test("fight pvp replay detectXyzwRuntimeLayer distinguishes replay loader readin
   readyWindow.__xyzwReplayRuntimeLayerState = {
     ...runningWindow.__xyzwReplayRuntimeLayerState,
   };
-  wrongRequireInstanceWindow.__xyzwReplayRuntimeLayerState = {
+  publicLoaderWindow.__xyzwReplayRuntimeLayerState = {
     ...runningWindow.__xyzwReplayRuntimeLayerState,
     launcherRequireRef: function launcherReq() {},
   };
@@ -531,7 +530,12 @@ test("fight pvp replay detectXyzwRuntimeLayer distinguishes replay loader readin
   assert.equal(detectXyzwRuntimeLayer(bundleLoadedWindow).layer, "launcher-ready");
   assert.equal(detectXyzwRuntimeLayer(sceneAssetWindow).layer, "launcher-ready");
   assert.equal(detectXyzwRuntimeLayer(runningWindow).layer, "game-scene-running");
-  assert.equal(detectXyzwRuntimeLayer(wrongRequireInstanceWindow).layer, "wrong-require-instance");
+  assert.equal(detectLoaderFamily(publicLoaderWindow).loaderFamily, "public-xyzw-loader");
+  assert.equal(detectXyzwRuntimeLayer(publicLoaderWindow).layer, "loader-family-mismatch");
+  assert.equal(
+    detectXyzwRuntimeLayer(publicLoaderWindow, { probeFamily: "production-id-probes" }).layer,
+    "bridge-not-exposed",
+  );
   assert.equal(detectXyzwRuntimeLayer(execErrorWindow).layer, "require-exec-error");
   assert.equal(detectXyzwRuntimeLayer(readyWindow).layer, "battle-modules-ready");
 });
@@ -590,6 +594,7 @@ test("fight pvp replay inspectBundleState inspects current window and same-origi
   assert.equal(result.requireSwap, false);
   assert.equal(result.sameRequireRef, true);
   assert.equal(result.sameRequireSource, true);
+  assert.equal(result.loaderFamily, "unknown-loader");
   assert.equal(result.launcherRequireFingerprint?.name, "launcherRequire");
   assert.equal(result.liveRequireFingerprint?.name, "launcherRequire");
   assert.equal(
@@ -597,6 +602,34 @@ test("fight pvp replay inspectBundleState inspects current window and same-origi
     "Cannot find module 'BattleUIManager'",
   );
   assert.equal(typeof result.canonicalModuleChecks.BattleUIManager.stackTop, "string");
+});
+
+test("fight pvp replay inspectLoaderFamily reports public loader evidence and incompatible source probes", () => {
+  const runtimeWindow = {
+    __require() {
+      return {};
+    },
+    document: {
+      querySelectorAll() {
+        return [];
+      },
+      scripts: [{ src: "http://localhost/xyzw/index.js" }],
+    },
+    performance: {
+      getEntriesByType() {
+        return [{ name: "http://localhost/xyzw/index.js" }];
+      },
+    },
+  };
+
+  const result = inspectLoaderFamily(runtimeWindow, {
+    probeFamily: "production-id-probes",
+  });
+
+  assert.equal(result.loaderFamily, "public-xyzw-loader");
+  assert.equal(result.currentAssetPath, "/xyzw/index.js");
+  assert.equal(result.probeFamily, "production-id-probes");
+  assert.equal(result.incompatibleProbes.includes("BattleUIManager"), true);
 });
 
 test("fight pvp replay probeRequireError preserves exact error message and stack top", () => {
@@ -621,6 +654,28 @@ test("fight pvp replay probeRequireError preserves exact error message and stack
     "Cannot read properties of undefined (reading 'battle')",
   );
   assert.equal(typeof result.BattleUIManager.stackTop, "string");
+});
+
+test("fight pvp replay probeRequireError marks source-era ids as incompatible on the public loader family", () => {
+  const runtimeWindow = {
+    __require() {
+      throw new Error("Cannot find module 'BattleUIManager'");
+    },
+    document: {
+      scripts: [{ src: "http://localhost/xyzw/index.js" }],
+    },
+    performance: {
+      getEntriesByType() {
+        return [{ name: "http://localhost/xyzw/index.js" }];
+      },
+    },
+  };
+
+  const result = probeRequireError(runtimeWindow);
+
+  assert.equal(result.BattleUIManager.status, "module-id-family-mismatch");
+  assert.equal(result["enter-oss"].status, "module-id-family-mismatch");
+  assert.equal(result.BattleKitCrossSite.status, "module-id-family-mismatch");
 });
 
 test("fight pvp replay waitForBattleModulesReady retries until the battle modules are ready", async () => {
@@ -684,7 +739,7 @@ test("fight pvp replay waitForBattleModulesReady returns launcher-ready when Bat
   assert.equal(result.status, "launcher-ready");
 });
 
-test("fight pvp replay waitForBattleModulesReady returns wrong-require-instance immediately when Game scene is live, loader swapped, and canonical modules still miss", async () => {
+test("fight pvp replay waitForBattleModulesReady returns loader-family-mismatch immediately on the public loader family", async () => {
   const runtimeWindow = {
     __require() {
       throw new Error("Cannot find module 'BattleUIManager'");
@@ -696,36 +751,13 @@ test("fight pvp replay waitForBattleModulesReady returns wrong-require-instance 
         },
       },
     },
-    __xyzwReplayRuntimeLayerState: {
-      launcherRequireRef: function launcherRequireRef() {},
-      nextId: 0,
-      bundleEvents: [],
-      loadBundleCalls: [{
-        at: Date.now(),
-        bundleName: "game",
-        phase: "resolved",
-        resolved: true,
-        ok: true,
-        source: "test",
-        target: "game",
-      }],
-      pendingBundlePromises: new Map(),
-      pendingSceneAssetPromises: new Map(),
-      runSceneCalls: [{
-        at: Date.now(),
-        sceneName: "Game",
-        source: "test",
-      }],
-      scriptEvents: [],
-      tryLoadAssetCalls: [{
-        at: Date.now(),
-        bundleName: "game",
-        path: "scenes/Game",
-        phase: "resolved",
-        resolved: true,
-        ok: true,
-        source: "test",
-      }],
+    document: {
+      scripts: [{ src: "http://localhost/xyzw/index.js" }],
+    },
+    performance: {
+      getEntriesByType() {
+        return [{ name: "http://localhost/xyzw/index.js" }];
+      },
     },
     setTimeout,
   };
@@ -738,7 +770,36 @@ test("fight pvp replay waitForBattleModulesReady returns wrong-require-instance 
   });
 
   assert.equal(result.ok, false);
-  assert.equal(result.status, "wrong-require-instance");
+  assert.equal(result.status, "loader-family-mismatch");
+  assert.equal(result.attempts, 0);
+});
+
+test("fight pvp replay waitForBattleModulesReady returns bridge-not-exposed immediately on the public loader family when using production probes", async () => {
+  const runtimeWindow = {
+    __require() {
+      return {};
+    },
+    document: {
+      scripts: [{ src: "http://localhost/xyzw/index.js" }],
+    },
+    performance: {
+      getEntriesByType() {
+        return [{ name: "http://localhost/xyzw/index.js" }];
+      },
+    },
+    setTimeout,
+  };
+
+  const result = await waitForBattleModulesReady({
+    gameWindow: runtimeWindow,
+    runtimeWindow,
+    timeoutMs: 2,
+    intervalMs: 1,
+    probeFamily: "production-id-probes",
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.status, "bridge-not-exposed");
   assert.equal(result.attempts, 0);
 });
 

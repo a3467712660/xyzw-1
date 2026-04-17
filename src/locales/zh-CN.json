@@ -3016,16 +3016,18 @@
       "engineEntrypointUnavailableDescription": "运行时已进入 Game，并已找到候选 window。当前 window 已安装 launcher/main bundle 的 __require，但 battle 模块所在的 game.js 尚未在该 window 中执行；因此 replay 入口暂不可用。has __require 只能说明 launcher 已初始化，不能说明 battle bundle 已 ready。",
       "engineEntrypointResolveFailedDescription": "运行时已进入 Game，并已找到真实游戏 window。当前探针已真实执行 window.__require(moduleId)；若仍显示 wrong-export-path 或 not-callable，则说明模块已加载，但目标导出路径不存在或末端不可调用。",
       "replaySignalMissingDescription": "运行时已进入 Game，并已找到真实游戏 window。battle replay 入口已可调用；当前无报错但无画面，更可能是传入数据尚未归一化为 battleInputData，或手动入口走了 EnterOSSState.showBattleViewWithData 的通用链路而非 BattleUIManager.SHOW_BATTLE_REPLAY_UI 的 replay 路由。",
-      "staleRequireReferenceDescription": "Game scene 已切换，但当前 helper 仍在使用 launcher 阶段缓存的 __require；battle 模块解析失败更可能来自 stale require reference，而不是模块未注册。",
+      "loaderFamilyMismatchDescription": "当前线上运行的是 production/public loader，而不是 source-era loader；因此 BattleUIManager、enter-oss、BattleKitCrossSite 这些 probe 与当前 loader family 不兼容。",
+      "bridgeNotExposedDescription": "当前已识别为 production/public loader，但尚未发现稳定的 replay bridge；因此当前问题应归类为 bridge-not-exposed，而不是等待 BattleUIManager 注册。",
+      "moduleIdFamilyMismatchDescription": "当前使用的是 source-era module id probe，但页面运行的是 production/public loader；这类 probe 对当前 loader family 不成立。",
       "runtimeNotReady": "运行时尚未准备好，暂时无法播放该回放。",
       "runtimeStageDescriptions": {
-        "launcherReady": "launcher 初始化完成，但尚未请求 game bundle。",
-        "gameBundleRequested": "已请求 game bundle，正在等待 bundle callback。",
-        "gameBundleLoaded": "game bundle 已回调成功，正在等待 Game scene asset。",
-        "gameSceneAssetLoaded": "Game scene asset 已拿到，正在等待 runScene。",
-        "gameSceneRunning": "Game scene 已切换，正在等待 battle modules 注册。",
-        "requireSwapped": "当前 window.__require 已经发生切换，但 live require 仍未解析出 battle 模块。",
-        "battleModulesReady": "battle modules 已注册，replay 入口可用。"
+        "launcherReady": "runtime loader 已加载，但当前还没有确认到稳定的 replay bridge。",
+        "gameSceneRunning": "Game scene 已切换；这只说明 scene handoff 完成，不说明 battle modules 还会继续注册。",
+        "loaderFamilyMismatch": "当前 loader family 与当前 probe family 不兼容，source-era string module id 不适用于这套 production/public 运行时。",
+        "bridgeNotExposed": "当前已经识别为 production/public loader，但还没有稳定暴露的 replay bridge。",
+        "moduleIdFamilyMismatch": "当前 source-era module id probe 与 production/public loader family 不兼容。",
+        "requireExecError": "当前 __require(moduleId) 已触达到 live loader，但模块执行本身抛出了真实运行时异常。",
+        "battleModulesReady": "当前为 source-era loader，battle modules 已可直接解析，replay 入口可用。"
       },
       "mapIdReasons": {
         "runtimeRoleUnavailable": "当前 live capture 无法直接读取运行时 self role，因而拿不到 ROLE.pvpMapId。",

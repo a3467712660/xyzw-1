@@ -3040,16 +3040,18 @@
       "engineEntrypointUnavailableDescription": "The runtime reached Game and a candidate window was found. That window already has the launcher/main __require, but the battle modules from game.js have not executed in that same window yet, so the replay entrypoint is still unavailable. Having __require only proves the launcher initialized; it does not prove the battle bundle is ready.",
       "engineEntrypointResolveFailedDescription": "The runtime reached Game and the real game window was found. The current probe now executes window.__require(moduleId) for real; if wrong-export-path or not-callable still appears, the module loaded successfully but the target export path is missing or the final value is not callable.",
       "replaySignalMissingDescription": "The runtime reached Game and the real game window was found. The battle replay entrypoint is callable; if there is still no error and no picture, the more likely cause is that the input has not been normalized into battleInputData, or the manual entry went through EnterOSSState.showBattleViewWithData instead of the replay route BattleUIManager.SHOW_BATTLE_REPLAY_UI.",
-      "staleRequireReferenceDescription": "The Game scene is already running, but the helper is still using the __require reference captured during the launcher phase. Battle module resolution is more likely failing because of a stale require reference than because the modules were never registered.",
+      "loaderFamilyMismatchDescription": "The current live page is running the production/public loader, not the source-era loader, so BattleUIManager, enter-oss, and BattleKitCrossSite are incompatible probes for this loader family.",
+      "bridgeNotExposedDescription": "The production/public loader has been identified, but no stable replay bridge has been exposed yet. This should be classified as bridge-not-exposed, not as waiting for BattleUIManager registration.",
+      "moduleIdFamilyMismatchDescription": "A source-era module-id probe is being used against the production/public loader. That probe family is incompatible with the current loader family.",
       "runtimeNotReady": "The runtime is not ready, so this replay cannot start yet.",
       "runtimeStageDescriptions": {
-        "launcherReady": "Launcher initialization is complete, but the game bundle has not been requested yet.",
-        "gameBundleRequested": "The game bundle was requested and is waiting for the bundle callback.",
-        "gameBundleLoaded": "The game bundle callback resolved successfully and is now waiting for the Game scene asset.",
-        "gameSceneAssetLoaded": "The Game scene asset is ready and is now waiting for runScene.",
-        "gameSceneRunning": "The Game scene is running and is waiting for battle modules to register.",
-        "requireSwapped": "window.__require has already changed, but the live require still cannot resolve the battle modules.",
-        "battleModulesReady": "Battle modules are registered and the replay entrypoint is ready."
+        "launcherReady": "The runtime loader is present, but no stable replay bridge has been confirmed yet.",
+        "gameSceneRunning": "The Game scene is running. That only proves the scene handoff completed; it does not mean battle modules will register later.",
+        "loaderFamilyMismatch": "The current loader family is incompatible with the current probe family, so source-era string module ids do not apply to this production/public runtime.",
+        "bridgeNotExposed": "The production/public loader has been identified, but no stable replay bridge is exposed yet.",
+        "moduleIdFamilyMismatch": "The current source-era module-id probe is incompatible with the production/public loader family.",
+        "requireExecError": "window.__require(moduleId) reached the live loader, but module execution itself threw a real runtime exception.",
+        "battleModulesReady": "The runtime is using the source-era loader and the battle modules are directly resolvable, so the replay entrypoint is ready."
       },
       "mapIdReasons": {
         "runtimeRoleUnavailable": "Live capture could not reach the runtime self-role directly, so ROLE.pvpMapId was unavailable.",

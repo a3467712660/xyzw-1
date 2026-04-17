@@ -3,10 +3,12 @@ import {
   XYZW_RUNTIME_VARIANTS,
 } from "./xyzwRuntimeLoader.js";
 import {
+  detectLoaderFamily as detectLoaderFamilyShared,
   detectXyzwRuntimeLayer as detectXyzwRuntimeLayerShared,
   ensureXyzwGameBundleReady as ensureXyzwGameBundleReadyShared,
   getLiveRequire,
   inspectBundleState as inspectBundleStateShared,
+  inspectLoaderFamily as inspectLoaderFamilyShared,
   probeXyzwRuntimeModule,
   recordXyzwBundleEvent,
   recordXyzwRunSceneCall,
@@ -212,24 +214,39 @@ const REPLAY_CANONICAL_MODULE_IDS = Object.freeze([
   "BattleKitCrossSite",
 ]);
 const REPLAY_CANONICAL_MODULE_ID_SET = new Set(REPLAY_CANONICAL_MODULE_IDS);
+const REPLAY_LOADER_FAMILIES = Object.freeze({
+  SRC: "src-xyzw-loader",
+  PUBLIC: "public-xyzw-loader",
+  UNKNOWN: "unknown-loader",
+});
+const REPLAY_PROBE_FAMILIES = Object.freeze({
+  SOURCE: "source-id-probes",
+  PRODUCTION: "production-id-probes",
+});
 
 export const detectXyzwRuntimeLayer = detectXyzwRuntimeLayerShared;
+export const detectLoaderFamily = detectLoaderFamilyShared;
 export const inspectBundleState = inspectBundleStateShared;
+export const inspectLoaderFamily = inspectLoaderFamilyShared;
 export const ensureXyzwGameBundleReady = ensureXyzwGameBundleReadyShared;
 export const waitForBattleModulesReady = waitForBattleModulesReadyShared;
 
 const buildRuntimeLayerDetail = (runtimeLayerInfo) => {
   switch (runtimeLayerInfo?.layer) {
     case "launcher-ready":
-      return "launcher/main loader is live, but the canonical battle modules are still unavailable from the current window.__require.";
+      return "launcher/main loader is live, but no stable replay bridge has been confirmed yet.";
     case "game-scene-running":
-      return "Game scene handoff is complete, but the current live window.__require still has not proven that it is the battle loader.";
-    case "wrong-require-instance":
-      return "Game scene is live and window.__require already swapped, but all canonical battle modules still resolve as missing from the live loader.";
+      return "Game scene handoff is complete, but the runtime still needs a compatible replay probe family or bridge.";
+    case "loader-family-mismatch":
+      return "The live loader family does not match the current probe family, so source-era module ids are incompatible here.";
+    case "module-id-family-mismatch":
+      return "The requested source-era module id is incompatible with the current loader family.";
+    case "bridge-not-exposed":
+      return "The production/public loader is live, but no stable replay bridge has been exposed yet.";
     case "require-exec-error":
       return "window.__require(moduleId) reached the live loader, but module execution threw a real runtime exception.";
     case "battle-modules-ready":
-      return "battle modules are registered and the replay entrypoint can be called.";
+      return "The source-era battle modules are available and the replay entrypoint can be called.";
     case "no-require":
       return "gameWindow.__require is unavailable.";
     case "no-window":
@@ -3037,6 +3054,64 @@ const formatRequireFingerprintSummary = (fingerprint) =>
     ? `${fingerprint.name || "anonymous"}#${fingerprint.length}`
     : "-";
 
+const detectReplayLoaderFamily = (gameWindow) =>
+  detectLoaderFamilyShared(gameWindow);
+
+const inspectReplayLoaderFamily = (
+  rootWindow = null,
+  {
+    probeFamily = REPLAY_PROBE_FAMILIES.PRODUCTION,
+  } = {},
+) => inspectLoaderFamilyShared(rootWindow, { probeFamily });
+
+const findExposedReplayBridge = (
+  runtimeWindow = getRuntimeWindow(),
+  gameWindow = runtimeWindow,
+) => {
+  const bridgeCandidates = [
+    {
+      label: "gameWindow.__xyzwReplayBridge",
+      value: gameWindow?.__xyzwReplayBridge || null,
+    },
+    {
+      label: "window.__xyzwReplayBridge",
+      value: runtimeWindow?.__xyzwReplayBridge || null,
+    },
+    {
+      label: "gameWindow.__xyzwReplay",
+      value: gameWindow?.__xyzwReplay || null,
+    },
+    {
+      label: "window.__xyzwReplay",
+      value: runtimeWindow?.__xyzwReplay || null,
+    },
+  ];
+  const matched = bridgeCandidates.find((entry) =>
+    entry.value
+    && entry.value.__xyzwReplayBridgeReady === true
+    && (typeof entry.value.inspect === "function" || typeof entry.value.play === "function"),
+  ) || null;
+
+  return {
+    bridge: matched?.value || null,
+    hasInspect: typeof matched?.value?.inspect === "function",
+    hasPlay: typeof matched?.value?.play === "function",
+    source: matched?.label || null,
+    status: matched ? "present" : "bridge-not-exposed",
+  };
+};
+
+const createBridgeNotExposedResult = ({
+  loaderFamily,
+  bridgeSource = null,
+} = {}) => ({
+  ok: false,
+  status: "bridge-not-exposed",
+  value: null,
+  detail: `The ${loaderFamily || REPLAY_LOADER_FAMILIES.PUBLIC} runtime has no stable replay bridge exposed yet.`,
+  bridgeSource,
+});
+
 export const requireModule = (gameWindow, moduleId) => {
   if (!gameWindow) {
     return {
@@ -3080,6 +3155,21 @@ export const requireModule = (gameWindow, moduleId) => {
     };
   }
 
+  const loaderFamilyInfo = detectReplayLoaderFamily(gameWindow);
+  if (loaderFamilyInfo.loaderFamily === REPLAY_LOADER_FAMILIES.PUBLIC) {
+    return {
+      ok: false,
+      status: "module-id-family-mismatch",
+      moduleId,
+      value: null,
+      error: null,
+      errorName: null,
+      errorMessage: `${moduleId} is a source-era probe and is incompatible with ${loaderFamilyInfo.loaderFamily}.`,
+      stackTop: null,
+      detail: "The current live loader belongs to the public/xyzw family, so source-era module ids must not be used here.",
+    };
+  }
+
   const moduleProbe = probeXyzwRuntimeModule(gameWindow, moduleId);
   if (moduleProbe.ok) {
     return {
@@ -3097,17 +3187,15 @@ export const requireModule = (gameWindow, moduleId) => {
 
   const runtimeLayerInfo = detectXyzwRuntimeLayerShared(gameWindow, {
     windowLabel: "window",
+    probeFamily: REPLAY_PROBE_FAMILIES.SOURCE,
   });
   const moduleChecks
     = runtimeLayerInfo.details?.canonicalModuleChecks
       || runtimeLayerInfo.details?.moduleChecks
       || {};
   const moduleCheck = moduleChecks?.[moduleId] || null;
-  const wrongRequireInstance = runtimeLayerInfo.details?.wrongRequireInstance === true;
   const status = moduleProbe.missing
-    ? wrongRequireInstance
-      ? "wrong-require-instance"
-      : "wrong-loader"
+    ? "wrong-loader"
     : "require-exec-error";
   const errorMessage = moduleProbe.errorMessage || moduleProbe.error || getModuleCheckError(moduleCheck);
   const errorName = moduleProbe.errorName || moduleCheck?.errorName || null;
@@ -3123,9 +3211,7 @@ export const requireModule = (gameWindow, moduleId) => {
     errorMessage,
     stackTop,
     detail:
-      status === "wrong-require-instance"
-        ? "Game scene is already running and window.__require has swapped, but the live loader still cannot find the canonical battle modules."
-        : buildRuntimeLayerDetail(runtimeLayerInfo),
+      buildRuntimeLayerDetail(runtimeLayerInfo),
   };
 };
 
@@ -3307,10 +3393,17 @@ const buildReplayProbeReport = ({
   const resolvedGameWindow = gameWindow || resolvedGameWindowInfo.gameWindow || null;
   const source = resolvedGameWindowInfo.source || null;
   const loaderLabel = formatReplayGameWindowSourceLabel(source || "window");
+  const loaderFamilyInfo = detectReplayLoaderFamily(resolvedGameWindow);
+  const probeFamily = loaderFamilyInfo.loaderFamily === REPLAY_LOADER_FAMILIES.PUBLIC
+    ? REPLAY_PROBE_FAMILIES.PRODUCTION
+    : REPLAY_PROBE_FAMILIES.SOURCE;
   const runtimeLayerInfo = detectXyzwRuntimeLayerShared(resolvedGameWindow, {
     windowLabel: loaderLabel,
+    probeFamily,
   });
-  const bundleState = inspectBundleStateShared(runtimeWindow);
+  const bundleState = inspectBundleStateShared(runtimeWindow, { probeFamily });
+  const loaderInspection = inspectReplayLoaderFamily(runtimeWindow, { probeFamily });
+  const bridgeInfo = findExposedReplayBridge(runtimeWindow, resolvedGameWindow);
   const candidates = [];
   const requireDebug = [];
   const seenModuleIds = new Set();
@@ -3319,6 +3412,13 @@ const buildReplayProbeReport = ({
   diagnostics.replayEntrypointRequireDebug = requireDebug;
   diagnostics.replayGameWindowSource = source;
   diagnostics.replayGameWindowStatus = resolvedGameWindowInfo.status || "no-require";
+  diagnostics.loaderFamily = runtimeLayerInfo.details?.loaderFamily || loaderFamilyInfo.loaderFamily;
+  diagnostics.loaderFamilyEvidence = runtimeLayerInfo.details?.loaderFamilyEvidence || loaderFamilyInfo.evidence;
+  diagnostics.probeFamily = probeFamily;
+  diagnostics.probeCompatibility = runtimeLayerInfo.details?.probeCompatibility ?? loaderInspection.probeCompatibility ?? "compatible-probe";
+  diagnostics.bridgeExposure = Boolean(bridgeInfo.bridge);
+  diagnostics.bridgeStatus = bridgeInfo.status;
+  diagnostics.bridgeSource = bridgeInfo.source || null;
   diagnostics.runtimeLayer = runtimeLayerInfo.layer;
   diagnostics.runtimeStage = runtimeLayerInfo.layer;
   diagnostics.bundleState = bundleState;
@@ -3343,6 +3443,8 @@ const buildReplayProbeReport = ({
   diagnostics.gameScriptInDocument = Boolean(runtimeLayerInfo.details?.gameScriptInDocument);
   diagnostics.gameScriptInPerformance = Boolean(runtimeLayerInfo.details?.gameScriptInPerformance);
   diagnostics.moduleChecks = runtimeLayerInfo.details?.canonicalModuleChecks || runtimeLayerInfo.details?.moduleChecks || {};
+  diagnostics.incompatibleProbes = runtimeLayerInfo.details?.incompatibleProbes || [];
+  diagnostics.suspectedBundlePath = runtimeLayerInfo.details?.suspectedBundlePath ?? loaderFamilyInfo.suspectedBundlePath ?? null;
   diagnostics.fallbackEntrypointUsed = false;
   diagnostics.fallbackEntrypointReason = null;
   diagnostics.enterOssAvailableButRejected = false;
@@ -3393,77 +3495,135 @@ const buildReplayProbeReport = ({
   let battleUiManagerModuleStatus = diagnostics.replayGameWindowStatus;
   let battleUiManagerModuleFound = false;
 
-  for (const probeConfig of REPLAY_ENTRYPOINT_PROBE_CONFIGS) {
-    const probeResult = probeRequireExport(
-      resolvedGameWindow,
-      probeConfig.moduleId,
-      probeConfig.exportPath,
-    );
-    const moduleResult = probeResult.moduleResult || null;
-    if (!seenModuleIds.has(probeConfig.moduleId)) {
-      seenModuleIds.add(probeConfig.moduleId);
+  if (loaderFamilyInfo.loaderFamily === REPLAY_LOADER_FAMILIES.PUBLIC) {
+    requireDebug.push({
+      label: bridgeInfo.source || "window.__xyzwReplayBridge",
+      moduleId: null,
+      source,
+      status: bridgeInfo.status,
+      detail: bridgeInfo.hasPlay
+        ? "A production/public replay bridge is exposed."
+        : "No stable production/public replay bridge is currently exposed.",
+      error: null,
+      errorMessage: null,
+      keys: [],
+      stackTop: null,
+    });
+    for (const moduleId of REPLAY_CANONICAL_MODULE_IDS) {
+      const moduleResult = requireModule(resolvedGameWindow, moduleId);
       requireDebug.push({
-        label: formatReplayRequireCallLabel(source || "window", probeConfig.moduleId),
-        moduleId: probeConfig.moduleId,
+        label: formatReplayRequireCallLabel(source || "window", moduleId),
+        moduleId,
         source,
-        status:
-          diagnostics.replayGameWindowStatus === "no-require"
-            ? "no-require"
-            : moduleResult?.status || probeResult.status,
-        detail: moduleResult?.detail || probeResult.detail || null,
-        error: moduleResult?.errorMessage || moduleResult?.error || probeResult.errorMessage || probeResult.error || null,
-        errorMessage: moduleResult?.errorMessage || moduleResult?.error || probeResult.errorMessage || probeResult.error || null,
-        keys: moduleResult?.ok ? toSafeModuleKeys(moduleResult.value) : [],
-        stackTop: moduleResult?.stackTop || probeResult.stackTop || null,
+        status: moduleResult.status,
+        detail: moduleResult.detail,
+        error: moduleResult.errorMessage || moduleResult.error || null,
+        errorMessage: moduleResult.errorMessage || moduleResult.error || null,
+        keys: [],
+        stackTop: moduleResult.stackTop || null,
       });
     }
-
-    if (probeConfig.moduleId === "BattleUIManager") {
-      battleUiManagerModuleStatus = moduleResult?.status || probeResult.status;
-      battleUiManagerModuleFound = Boolean(moduleResult?.ok);
-    }
-
-    const status = diagnostics.replayGameWindowStatus === "no-require"
-      ? "no-require"
-      : probeResult.status;
-    const candidate = {
-      kind: probeConfig.kind,
-      moduleId: probeConfig.moduleId,
-      exportPath: [...probeConfig.exportPath],
-      label: buildReplayEntrypointLabel(source || "window", probeConfig.moduleId, probeConfig.exportPath),
-      status,
-      detail:
-        probeResult.detail
-        || moduleResult?.detail
-        || probeResult.errorMessage
-        || probeResult.error
-        || moduleResult?.errorMessage
-        || moduleResult?.error
-        || null,
-      found: status === "present",
-      stackTop: probeResult.stackTop || moduleResult?.stackTop || null,
+    battleUiManagerModuleStatus = "module-id-family-mismatch";
+    battleUiManagerModuleFound = false;
+    const bridgeCandidate = {
+      kind: "bridge",
+      moduleId: null,
+      exportPath: [],
+      label: bridgeInfo.source
+        ? `${bridgeInfo.source}.play`
+        : "window.__xyzwReplayBridge.play",
+      status: bridgeInfo.hasPlay ? "present" : "bridge-not-exposed",
+      detail: bridgeInfo.hasPlay
+        ? "A production/public replay bridge was discovered."
+        : "The current loader family is public-xyzw-loader, but no stable replay bridge has been exposed yet.",
+      found: bridgeInfo.hasPlay,
+      stackTop: null,
     };
-    candidates.push(candidate);
-
-    if (!resolvedEntrypoint && candidate.found) {
+    candidates.push(bridgeCandidate);
+    if (bridgeInfo.hasPlay && bridgeInfo.bridge) {
       resolvedEntrypoint = {
-        label: candidate.label,
-        invoke: createReplayEntrypointInvoker(
-          resolvedGameWindow,
-          probeConfig.moduleId,
-          probeConfig.exportPath,
-        ),
+        label: bridgeCandidate.label,
+        invoke: (payload) => bridgeInfo.bridge.play(payload),
         gameWindow: resolvedGameWindow,
-        source,
+        source: bridgeInfo.source || source,
+        kind: "bridge",
+        moduleId: null,
+        exportPath: [],
+      };
+    }
+  } else {
+    for (const probeConfig of REPLAY_ENTRYPOINT_PROBE_CONFIGS) {
+      const probeResult = probeRequireExport(
+        resolvedGameWindow,
+        probeConfig.moduleId,
+        probeConfig.exportPath,
+      );
+      const moduleResult = probeResult.moduleResult || null;
+      if (!seenModuleIds.has(probeConfig.moduleId)) {
+        seenModuleIds.add(probeConfig.moduleId);
+        requireDebug.push({
+          label: formatReplayRequireCallLabel(source || "window", probeConfig.moduleId),
+          moduleId: probeConfig.moduleId,
+          source,
+          status:
+            diagnostics.replayGameWindowStatus === "no-require"
+              ? "no-require"
+              : moduleResult?.status || probeResult.status,
+          detail: moduleResult?.detail || probeResult.detail || null,
+          error: moduleResult?.errorMessage || moduleResult?.error || probeResult.errorMessage || probeResult.error || null,
+          errorMessage: moduleResult?.errorMessage || moduleResult?.error || probeResult.errorMessage || probeResult.error || null,
+          keys: moduleResult?.ok ? toSafeModuleKeys(moduleResult.value) : [],
+          stackTop: moduleResult?.stackTop || probeResult.stackTop || null,
+        });
+      }
+
+      if (probeConfig.moduleId === "BattleUIManager") {
+        battleUiManagerModuleStatus = moduleResult?.status || probeResult.status;
+        battleUiManagerModuleFound = Boolean(moduleResult?.ok);
+      }
+
+      const status = diagnostics.replayGameWindowStatus === "no-require"
+        ? "no-require"
+        : probeResult.status;
+      const candidate = {
         kind: probeConfig.kind,
         moduleId: probeConfig.moduleId,
         exportPath: [...probeConfig.exportPath],
+        label: buildReplayEntrypointLabel(source || "window", probeConfig.moduleId, probeConfig.exportPath),
+        status,
+        detail:
+          probeResult.detail
+          || moduleResult?.detail
+          || probeResult.errorMessage
+          || probeResult.error
+          || moduleResult?.errorMessage
+          || moduleResult?.error
+          || null,
+        found: status === "present",
+        stackTop: probeResult.stackTop || moduleResult?.stackTop || null,
       };
-      if (typeof resolvedEntrypoint.invoke !== "function") {
-        candidate.status = "not-callable";
-        candidate.detail = `${toReplayExportPathLabel(probeConfig.exportPath)} resolved, but no invoke adapter is available.`;
-        candidate.found = false;
-        resolvedEntrypoint = null;
+      candidates.push(candidate);
+
+      if (!resolvedEntrypoint && candidate.found) {
+        resolvedEntrypoint = {
+          label: candidate.label,
+          invoke: createReplayEntrypointInvoker(
+            resolvedGameWindow,
+            probeConfig.moduleId,
+            probeConfig.exportPath,
+          ),
+          gameWindow: resolvedGameWindow,
+          source,
+          kind: probeConfig.kind,
+          moduleId: probeConfig.moduleId,
+          exportPath: [...probeConfig.exportPath],
+        };
+        if (typeof resolvedEntrypoint.invoke !== "function") {
+          candidate.status = "not-callable";
+          candidate.detail = `${toReplayExportPathLabel(probeConfig.exportPath)} resolved, but no invoke adapter is available.`;
+          candidate.found = false;
+          resolvedEntrypoint = null;
+        }
       }
     }
   }
@@ -3507,9 +3667,14 @@ const inspectReplayEntrypoints = async (gameWindow = null) => {
         }
       : discoveredGameWindowInfo;
   const resolvedGameWindow = resolvedGameWindowInfo.gameWindow || gameWindow || null;
+  const loaderFamilyInfo = detectReplayLoaderFamily(resolvedGameWindow);
+  const probeFamily = loaderFamilyInfo.loaderFamily === REPLAY_LOADER_FAMILIES.PUBLIC
+    ? REPLAY_PROBE_FAMILIES.PRODUCTION
+    : REPLAY_PROBE_FAMILIES.SOURCE;
   const bundleReadyInfo = await waitForBattleModulesReadyShared({
     gameWindow: resolvedGameWindow,
     runtimeWindow: resolvedGameWindow || runtimeWindow,
+    probeFamily,
     windowLabel: formatReplayGameWindowSourceLabel(
       resolvedGameWindowInfo.source || (runtimeWindow === resolvedGameWindow ? "window" : "bound-window"),
     ),
@@ -3609,8 +3774,20 @@ const createReplayConsoleHelpers = (gameWindow, {
   };
   const baseHelper = {
     inspectBundleState() {
-      const result = inspectBundleStateShared(getRuntimeWindow());
+      const probeFamily = runtimeLayerInfo?.details?.loaderFamily === REPLAY_LOADER_FAMILIES.PUBLIC
+        ? REPLAY_PROBE_FAMILIES.PRODUCTION
+        : REPLAY_PROBE_FAMILIES.SOURCE;
+      const result = inspectBundleStateShared(getRuntimeWindow(), { probeFamily });
       console.log("[xyzw replay] inspectBundleState", result);
+      baseHelper.result = result;
+      return result;
+    },
+    inspectLoaderFamily() {
+      const probeFamily = runtimeLayerInfo?.details?.loaderFamily === REPLAY_LOADER_FAMILIES.PUBLIC
+        ? REPLAY_PROBE_FAMILIES.PRODUCTION
+        : REPLAY_PROBE_FAMILIES.SOURCE;
+      const result = inspectLoaderFamilyShared(getRuntimeWindow(), { probeFamily });
+      console.log("[xyzw replay] inspectLoaderFamily", result);
       baseHelper.result = result;
       return result;
     },
@@ -3622,8 +3799,41 @@ const createReplayConsoleHelpers = (gameWindow, {
     result: runtimeLayerInfo,
   };
 
+  if (runtimeLayerInfo?.details?.loaderFamily === REPLAY_LOADER_FAMILIES.PUBLIC) {
+    const helper = defineLiveRequireGetter({
+      ...baseHelper,
+      inspect() {
+        const result = {
+          bundleState: baseHelper.inspectBundleState(),
+          loaderFamily: baseHelper.inspectLoaderFamily(),
+        };
+        console.log("[xyzw replay] inspect", result);
+        helper.result = result;
+        return result;
+      },
+      play(rawOrWrappedData = getReplaySource(gameWindow)) {
+        const bridgeInfo = findExposedReplayBridge(getRuntimeWindow(), gameWindow);
+        if (bridgeInfo.bridge && bridgeInfo.bridge !== helper && typeof bridgeInfo.bridge.play === "function") {
+          return bridgeInfo.bridge.play(rawOrWrappedData);
+        }
+        const result = createBridgeNotExposedResult({
+          loaderFamily: runtimeLayerInfo?.details?.loaderFamily,
+          bridgeSource: bridgeInfo.source,
+        });
+        console.warn("[xyzw replay] play bridge-not-exposed", result);
+        return result;
+      },
+    });
+    helper.__xyzwReplayDiagnosticHelper = true;
+    helper.__xyzwReplayBridgeReady = false;
+    return helper;
+  }
+
   if (limited || runtimeLayerInfo?.layer !== "battle-modules-ready") {
-    return defineLiveRequireGetter(baseHelper);
+    const helper = defineLiveRequireGetter(baseHelper);
+    helper.__xyzwReplayDiagnosticHelper = true;
+    helper.__xyzwReplayBridgeReady = false;
+    return helper;
   }
 
   const helper = defineLiveRequireGetter({
@@ -3672,6 +3882,8 @@ const createReplayConsoleHelpers = (gameWindow, {
       return ret;
     },
   });
+  helper.__xyzwReplayDiagnosticHelper = true;
+  helper.__xyzwReplayBridgeReady = true;
 
   return helper;
 };
@@ -3694,11 +3906,19 @@ export const exposeReplayConsoleHelpers = (gameWindow, {
     limited: runtimeLayerInfo?.layer !== "battle-modules-ready",
   });
   const previousGameWindowHelper = gameWindow.__xyzwReplay;
+  const previousGameWindowBridge = gameWindow.__xyzwReplayBridge;
   const previousWindowHelper = runtimeWindow.__xyzwReplay;
+  const previousWindowBridge = runtimeWindow.__xyzwReplayBridge;
   const previousWindowGameWindow = runtimeWindow.__xyzwReplayGameWindow;
 
   gameWindow.__xyzwReplay = helper;
+  if (!previousGameWindowBridge || previousGameWindowBridge.__xyzwReplayDiagnosticHelper === true) {
+    gameWindow.__xyzwReplayBridge = helper;
+  }
   runtimeWindow.__xyzwReplay = helper;
+  if (!previousWindowBridge || previousWindowBridge.__xyzwReplayDiagnosticHelper === true) {
+    runtimeWindow.__xyzwReplayBridge = helper;
+  }
   if (runtimeWindow !== gameWindow) {
     runtimeWindow.__xyzwReplayGameWindow = gameWindow;
   } else {
@@ -3714,11 +3934,21 @@ export const exposeReplayConsoleHelpers = (gameWindow, {
       } else {
         gameWindow.__xyzwReplay = previousGameWindowHelper;
       }
+      if (previousGameWindowBridge === undefined) {
+        delete gameWindow.__xyzwReplayBridge;
+      } else {
+        gameWindow.__xyzwReplayBridge = previousGameWindowBridge;
+      }
 
       if (previousWindowHelper === undefined) {
         delete runtimeWindow.__xyzwReplay;
       } else {
         runtimeWindow.__xyzwReplay = previousWindowHelper;
+      }
+      if (previousWindowBridge === undefined) {
+        delete runtimeWindow.__xyzwReplayBridge;
+      } else {
+        runtimeWindow.__xyzwReplayBridge = previousWindowBridge;
       }
 
       if (runtimeWindow !== gameWindow) {
@@ -3799,9 +4029,11 @@ export const startFightPvpReplayRuntime = async ({
     installMissingModuleShims: installReplayMissingModuleShims,
     inspectGameBundleModuleCoverage: inspectReplayGameBundleModuleCoverage,
     inspectBundleState,
+    inspectLoaderFamily,
     probeRequireError,
     probeGameSceneAssets,
     ensureReplayBootstrapScene,
+    detectLoaderFamily,
     detectXyzwRuntimeLayer,
     ensureXyzwGameBundleReady,
     waitForBattleModulesReady,
@@ -4076,13 +4308,31 @@ export const startFightPvpReplayRuntime = async ({
     diagnostics.replayGameWindowSource = replayGameWindowInfo.source || null;
     diagnostics.replayGameWindowStatus = replayGameWindowInfo.status || "no-require";
 
+    const initialLoaderFamilyInfo = adapter.detectLoaderFamily(
+      replayGameWindowInfo.gameWindow || null,
+    );
+    const replayProbeFamily = initialLoaderFamilyInfo.loaderFamily === REPLAY_LOADER_FAMILIES.PUBLIC
+      ? REPLAY_PROBE_FAMILIES.PRODUCTION
+      : REPLAY_PROBE_FAMILIES.SOURCE;
+    diagnostics.loaderFamily = initialLoaderFamilyInfo.loaderFamily;
+    diagnostics.loaderFamilyEvidence = initialLoaderFamilyInfo.evidence;
+    diagnostics.suspectedBundlePath = initialLoaderFamilyInfo.suspectedBundlePath || null;
+    diagnostics.probeFamily = replayProbeFamily;
     diagnostics.steps.push("inspect-replay-bundle-state");
-    diagnostics.bundleState = adapter.inspectBundleState(getRuntimeWindow());
+    diagnostics.bundleState = adapter.inspectBundleState(
+      getRuntimeWindow(),
+      { probeFamily: replayProbeFamily },
+    );
+    diagnostics.loaderInspection = adapter.inspectLoaderFamily(
+      getRuntimeWindow(),
+      { probeFamily: replayProbeFamily },
+    );
 
     diagnostics.steps.push("detect-runtime-layer");
     const initialRuntimeLayerInfo = adapter.detectXyzwRuntimeLayer(
       replayGameWindowInfo.gameWindow || null,
       {
+        probeFamily: replayProbeFamily,
         windowLabel: formatReplayGameWindowSourceLabel(replayGameWindowInfo.source || "window"),
       },
     );
@@ -4095,6 +4345,19 @@ export const startFightPvpReplayRuntime = async ({
     diagnostics.gameSceneAssetLoaded = Boolean(initialRuntimeLayerInfo.details?.gameSceneAssetLoaded);
     diagnostics.gameSceneRunning = Boolean(initialRuntimeLayerInfo.details?.gameSceneRunning);
     diagnostics.battleModulesReady = Boolean(initialRuntimeLayerInfo.details?.battleModulesReady);
+    diagnostics.bridgeExposure = Boolean(
+      findExposedReplayBridge(getRuntimeWindow(), replayGameWindowInfo.gameWindow || null).bridge,
+    );
+    diagnostics.bridgeStatus = findExposedReplayBridge(
+      getRuntimeWindow(),
+      replayGameWindowInfo.gameWindow || null,
+    ).status;
+    diagnostics.bridgeSource = findExposedReplayBridge(
+      getRuntimeWindow(),
+      replayGameWindowInfo.gameWindow || null,
+    ).source || null;
+    diagnostics.probeCompatibility = initialRuntimeLayerInfo.details?.probeCompatibility ?? diagnostics.probeCompatibility ?? "compatible-probe";
+    diagnostics.incompatibleProbes = initialRuntimeLayerInfo.details?.incompatibleProbes || [];
     diagnostics.sameRequireSource = initialRuntimeLayerInfo.details?.sameRequireSource ?? null;
     diagnostics.sameRequireRef = initialRuntimeLayerInfo.details?.sameRequireRef ?? null;
     diagnostics.hasRequireSwap = Boolean(initialRuntimeLayerInfo.details?.hasRequireSwap);
@@ -4122,10 +4385,11 @@ export const startFightPvpReplayRuntime = async ({
       cleanups.push(() => replayConsoleHelpers.dispose?.());
     }
 
-    diagnostics.steps.push("wait-for-battle-modules-ready");
+    diagnostics.steps.push("wait-for-compatible-replay-probe");
     const replayGameBundleReady = await adapter.waitForBattleModulesReady({
       gameWindow: replayGameWindowInfo.gameWindow || null,
       runtimeWindow: getRuntimeWindow(),
+      probeFamily: replayProbeFamily,
       windowLabel: formatReplayGameWindowSourceLabel(replayGameWindowInfo.source || "window"),
     });
     diagnostics.replayGameBundleReady = replayGameBundleReady.ok;
@@ -4141,6 +4405,8 @@ export const startFightPvpReplayRuntime = async ({
     diagnostics.gameSceneAssetLoaded = Boolean(replayGameBundleReady.details?.gameSceneAssetLoaded);
     diagnostics.gameSceneRunning = Boolean(replayGameBundleReady.details?.gameSceneRunning);
     diagnostics.battleModulesReady = Boolean(replayGameBundleReady.details?.battleModulesReady);
+    diagnostics.probeCompatibility = replayGameBundleReady.details?.probeCompatibility ?? diagnostics.probeCompatibility;
+    diagnostics.incompatibleProbes = replayGameBundleReady.details?.incompatibleProbes || diagnostics.incompatibleProbes;
     diagnostics.sameRequireSource = replayGameBundleReady.details?.sameRequireSource ?? diagnostics.sameRequireSource;
     diagnostics.sameRequireRef = replayGameBundleReady.details?.sameRequireRef ?? diagnostics.sameRequireRef;
     diagnostics.hasRequireSwap = Boolean(replayGameBundleReady.details?.hasRequireSwap);
@@ -4155,7 +4421,20 @@ export const startFightPvpReplayRuntime = async ({
     diagnostics.gameScriptInDocument = Boolean(replayGameBundleReady.details?.gameScriptInDocument);
     diagnostics.gameScriptInPerformance = Boolean(replayGameBundleReady.details?.gameScriptInPerformance);
     diagnostics.moduleChecks = replayGameBundleReady.details?.canonicalModuleChecks || replayGameBundleReady.details?.moduleChecks || diagnostics.moduleChecks;
-    diagnostics.bundleState = adapter.inspectBundleState(getRuntimeWindow());
+    diagnostics.loaderFamily = replayGameBundleReady.details?.loaderFamily || diagnostics.loaderFamily;
+    diagnostics.loaderFamilyEvidence = replayGameBundleReady.details?.loaderFamilyEvidence || diagnostics.loaderFamilyEvidence;
+    diagnostics.suspectedBundlePath = replayGameBundleReady.details?.suspectedBundlePath || diagnostics.suspectedBundlePath;
+    diagnostics.bundleState = adapter.inspectBundleState(
+      getRuntimeWindow(),
+      { probeFamily: replayProbeFamily },
+    );
+    const replayBridgeInfo = findExposedReplayBridge(
+      getRuntimeWindow(),
+      replayGameWindowInfo.gameWindow || null,
+    );
+    diagnostics.bridgeExposure = Boolean(replayBridgeInfo.bridge);
+    diagnostics.bridgeStatus = replayBridgeInfo.status;
+    diagnostics.bridgeSource = replayBridgeInfo.source || null;
 
     diagnostics.steps.push("locate-replay-entrypoint");
     const replayEntrypoint = adapter.locateReplayEntrypoint({
@@ -4187,15 +4466,27 @@ export const startFightPvpReplayRuntime = async ({
         return `${moduleId}:${moduleCheck.status || "unknown"}${suffix}`;
       }).join(", ");
       const sceneLabel = diagnostics.sceneName || diagnostics.scene || GAME_SCENE_NAME;
-      const detail = `已检查：gameWindow=${diagnostics.replayGameWindowStatus || "unknown"}@${diagnostics.replayGameWindowSource || "window"}；runtimeStage=${diagnostics.runtimeStage || "unknown"}；scene=${sceneLabel || "-"}；requireSwap=${diagnostics.requireSwap ? "yes" : "no"}；sameRequireRef=${diagnostics.sameRequireRef ?? "-"}；sameRequireSource=${diagnostics.sameRequireSource ?? "-"}；requireFn=${diagnostics.requireFunctionName || "-"}；launcherRequireFn=${diagnostics.launcherRequireFunctionName || "-"}；launcherRequireFp=${formatRequireFingerprintSummary(diagnostics.launcherRequireFingerprint)}；liveRequireFp=${formatRequireFingerprintSummary(diagnostics.liveRequireFingerprint)}；bundleReady=${diagnostics.replayGameBundleReady ? "yes" : "no"}(${diagnostics.replayGameBundleReadyAttempts ?? 0}, source=${diagnostics.replayGameBundleReadySource || "-"})；gameScript=document:${diagnostics.gameScriptInDocument ? "yes" : "no"}/performance:${diagnostics.gameScriptInPerformance ? "yes" : "no"}；modules=${canonicalSummary}；entrypoints=${scannedSummary}；debug=${requireSummary}。`;
+      const detail = `已检查：gameWindow=${diagnostics.replayGameWindowStatus || "unknown"}@${diagnostics.replayGameWindowSource || "window"}；loaderFamily=${diagnostics.loaderFamily || REPLAY_LOADER_FAMILIES.UNKNOWN}；probeFamily=${diagnostics.probeFamily || "-"}；probeCompatibility=${diagnostics.probeCompatibility || "-"}；bridgeStatus=${diagnostics.bridgeStatus || "-"}@${diagnostics.bridgeSource || "-"}；runtimeStage=${diagnostics.runtimeStage || "unknown"}；scene=${sceneLabel || "-"}；suspectedBundlePath=${diagnostics.suspectedBundlePath || "-"}；requireSwap=${diagnostics.requireSwap ? "yes" : "no"}；sameRequireRef=${diagnostics.sameRequireRef ?? "-"}；sameRequireSource=${diagnostics.sameRequireSource ?? "-"}；requireFn=${diagnostics.requireFunctionName || "-"}；launcherRequireFn=${diagnostics.launcherRequireFunctionName || "-"}；launcherRequireFp=${formatRequireFingerprintSummary(diagnostics.launcherRequireFingerprint)}；liveRequireFp=${formatRequireFingerprintSummary(diagnostics.liveRequireFingerprint)}；bundleReady=${diagnostics.replayGameBundleReady ? "yes" : "no"}(${diagnostics.replayGameBundleReadyAttempts ?? 0}, source=${diagnostics.replayGameBundleReadySource || "-"})；gameScript=document:${diagnostics.gameScriptInDocument ? "yes" : "no"}/performance:${diagnostics.gameScriptInPerformance ? "yes" : "no"}；modules=${canonicalSummary}；entrypoints=${scannedSummary}；debug=${requireSummary}。`;
       const message = diagnostics.replayGameBundleReady === false
-        ? diagnostics.runtimeStage === "wrong-require-instance"
-          || (sceneLabel === GAME_SCENE_NAME && diagnostics.requireSwap === true && allCanonicalMissing)
-          ? `运行时已进入 ${sceneLabel}，并已找到候选 window。当前 live window.__require 不是 src/xyzw/game.js 的 battle loader，而是另一份 loader / 被其他 bundle 再次覆盖。${detail}`
+        ? diagnostics.runtimeStage === "loader-family-mismatch"
+          || diagnostics.probeCompatibility === "incompatible-probe"
+          || (
+            diagnostics.loaderFamily === REPLAY_LOADER_FAMILIES.PUBLIC
+            && allCanonicalMissing
+          )
+          ? `运行时已进入 ${sceneLabel}，并已找到候选 window。当前 live loader 属于 production/public family，source-era 的 BattleUIManager/enter-oss/BattleKitCrossSite probes 与该 loader 不兼容；当前状态应归类为 loader-family-mismatch。${detail}`
+          : diagnostics.runtimeStage === "bridge-not-exposed"
+            || (
+              diagnostics.loaderFamily === REPLAY_LOADER_FAMILIES.PUBLIC
+              && diagnostics.bridgeStatus !== "present"
+            )
+            ? `运行时已进入 ${sceneLabel}，并已识别为 production/public loader，但尚未发现稳定的 replay bridge；因此当前状态应归类为 bridge-not-exposed，而不是等待 BattleUIManager 注册。${detail}`
           : diagnostics.runtimeStage === "require-exec-error" || firstRequireExecError
             ? `运行时已进入 ${sceneLabel}，并已找到候选 window。当前更像是 require-exec-error：${firstRequireExecError?.moduleId || REPLAY_GAME_BUNDLE_READY_MODULE_ID} -> ${firstRequireExecError?.errorMessage || diagnostics.replayGameBundleReadyError || "unknown error"}${firstRequireExecError?.stackTop ? ` @ ${firstRequireExecError.stackTop}` : ""}。${detail}`
-            : `运行时已进入 ${sceneLabel}，并已找到候选 window。Game scene handoff 只说明场景切换完成，不说明 battle modules 会在后续再注册；当前 live loader 仍未直接暴露 canonical battle modules。${detail}`
-        : `运行时已进入 ${sceneLabel}，并已找到真实游戏 window。BattleUIManager 已可从 live require 直接解析；若仍未能定位回放入口，则剩余问题在于目标导出路径不存在或末端不可调用。${detail}`;
+            : `运行时已进入 ${sceneLabel}，并已找到候选 window。当前 replay 诊断已切到 loader-family-aware 模型，不会再把 scene=Game 解释为后续等待 battle modules 注册。${detail}`
+        : diagnostics.loaderFamily === REPLAY_LOADER_FAMILIES.PUBLIC
+          ? `运行时已进入 ${sceneLabel}，并已识别为 production/public loader。当前 replay 入口通过显式 bridge 暴露；若仍未能调用，则剩余问题在于 bridge 的 play() 实现或 bridge 下游的 production hook。${detail}`
+          : `运行时已进入 ${sceneLabel}，并已找到真实游戏 window。BattleUIManager 已可从 live require 直接解析；若仍未能定位回放入口，则剩余问题在于目标导出路径不存在或末端不可调用。${detail}`;
       return {
         ok: false,
         reason: "replay-start-failed",
