@@ -1049,6 +1049,38 @@ test("fight pvp replay scanSceneForReplayCandidates widens discovery to scene-co
   assert.equal(result.replayLikeNodeContexts.includes("Game/战报中心"), true);
 });
 
+test("fight pvp replay scanSceneForReplayCandidates widens discovery to new ui context words and handler prefixes", () => {
+  class HistoryPanel {
+    onHistory() {}
+  }
+
+  const scene = {
+    name: "Game",
+    children: [{
+      name: "查看历史",
+      children: [],
+      _components: [new HistoryPanel()],
+    }],
+    _components: [],
+  };
+
+  const result = scanSceneForReplayCandidates({
+    cc: {
+      director: {
+        getScene() {
+          return scene;
+        },
+      },
+    },
+  });
+
+  const onHistoryCandidate = result.playMethodCandidates.find((candidate) => candidate.methodName === "onHistory");
+  assert.ok(onHistoryCandidate);
+  assert.equal(onHistoryCandidate.label, "Game/查看历史#HistoryPanel.onHistory");
+  assert.equal(onHistoryCandidate.source, "scene-context-handler");
+  assert.equal(result.replayLikeNodeContexts.includes("Game/查看历史"), true);
+});
+
 test("fight pvp replay resolveProductionReplayPlayTarget prefers global candidates before scene components", () => {
   class ScenePanel {
     play() {}
@@ -1140,8 +1172,9 @@ test("fight pvp replay resolveProductionReplayPlayTarget blacklists obvious erro
   });
 
   assert.equal(result.playTarget, null);
-  assert.equal(result.bridgeStatus, "candidate-space-too-narrow");
+  assert.equal(result.bridgeStatus, "target-discovery-empty-after-blacklist");
   assert.equal(result.playTargetLabel, "Game/Global Entity#GlobalAudioServices._dealPlayErr");
+  assert.equal(result.discoveryEmptyAfterBlacklist, true);
   assert.equal(result.candidateSpaceTooNarrow, true);
   for (const methodName of ["_dealPlayErr", "playMusic", "playVideoAd", "playEffect", "playEffect2"]) {
     const entry = result.rankedTargets.find((candidate) => candidate.methodName === methodName);
@@ -1315,6 +1348,118 @@ test("fight pvp replay buildProductionReplayBridge prioritizes interaction trace
   assert.equal(inspectResult.candidateDiscoverySources.includes("interaction-trace"), true);
   assert.equal(inspectResult.interactionTraceCandidates.length > 0, true);
   assert.equal(inspectResult.playTargetSource, "interaction-trace");
+});
+
+test("fight pvp replay buildProductionReplayBridge discovers new button and interaction candidates before static scene candidates", () => {
+  class MockButton {
+    _onTouchEnded() {}
+  }
+
+  class HistoryPanel {
+    onRecord() {}
+  }
+
+  class GenericScenePanel {
+    play() {}
+  }
+
+  const targetNode = {
+    name: "RecordPanelTarget",
+    children: [],
+    _components: [new HistoryPanel()],
+  };
+  const buttonNode = {
+    name: "DiscoveryButtonRoot",
+    children: [],
+    _components: [],
+  };
+  const genericSceneNode = {
+    name: "GenericSceneRoot",
+    children: [],
+    _components: [new GenericScenePanel()],
+  };
+  const buttonComponent = new MockButton();
+  buttonComponent.node = buttonNode;
+  buttonComponent.clickEvents = [{
+    component: "HistoryPanel",
+    customEventData: "播放详情",
+    handler: "onRecord",
+    target: targetNode,
+  }];
+  buttonNode._components = [buttonComponent, { string: "查看记录" }];
+  const scene = {
+    name: "Game",
+    children: [buttonNode, targetNode, genericSceneNode],
+    _components: [],
+  };
+  const runtimeWindow = createPublicLoaderWindow({
+    extra: {
+      cc: {
+        Button: MockButton,
+        Component: {
+          EventHandler: {
+            emitEvents() {
+              return true;
+            },
+          },
+        },
+        director: {
+          getScene() {
+            return scene;
+          },
+        },
+      },
+    },
+  });
+  globalThis.window = runtimeWindow;
+
+  const bridge = buildProductionReplayBridge(runtimeWindow, {
+    gameWindowSource: "window",
+    runtimeWindow,
+  });
+  const traceState = bridge.traceUiReplayHandlers();
+  runtimeWindow.cc.Button.prototype._onTouchEnded.call(buttonComponent);
+  runtimeWindow.cc.Component.EventHandler.emitEvents(buttonComponent.clickEvents);
+
+  const inspectResult = bridge.inspect();
+  const candidateLabel = "Game/RecordPanelTarget#HistoryPanel.onRecord";
+
+  assert.equal(traceState.emitEventsPatched, true);
+  assert.equal(
+    inspectResult.buttonHandlerCandidates.some((candidate) =>
+      candidate.handlerName === "onRecord"
+      && candidate.targetNodePath === "Game/RecordPanelTarget"),
+    true,
+  );
+  assert.equal(
+    inspectResult.interactionTraceCandidates.some((candidate) => candidate.label === candidateLabel),
+    true,
+  );
+  assert.equal(inspectResult.replayLikeButtonTexts.includes("查看记录"), true);
+  assert.equal(inspectResult.replayLikeCustomEventData.includes("播放详情"), true);
+  assert.equal(
+    inspectResult.rankedTargets.some((candidate) =>
+      candidate.source === "button-click-event"
+      && candidate.label === candidateLabel),
+    true,
+  );
+  assert.equal(
+    inspectResult.rankedTargets.some((candidate) =>
+      candidate.source === "interaction-trace"
+      && candidate.label === candidateLabel),
+    true,
+  );
+  assert.equal(inspectResult.playTargetSource, "interaction-trace");
+  assert.equal(
+    inspectResult.candidateDiscoverySources.indexOf("interaction-trace")
+      < inspectResult.candidateDiscoverySources.indexOf("scene-component"),
+    true,
+  );
+  assert.equal(
+    inspectResult.candidateDiscoverySources.indexOf("button-click-event")
+      < inspectResult.candidateDiscoverySources.indexOf("scene-component"),
+    true,
+  );
 });
 
 test("fight pvp replay buildProductionReplayBridge inspect returns scanner output and play uses the resolved production target", () => {

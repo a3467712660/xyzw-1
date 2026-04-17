@@ -360,23 +360,32 @@ const REPLAY_PRODUCTION_REPLAY_SPECIFIC_REASONS = new Set([
   "buttonText:replay",
   "customEventData:replay",
 ]);
-const REPLAY_PRODUCTION_UI_CONTEXT_RE = /replay|playback|battle|fight|pvp|回放|战报|录像|对战|战斗/i;
+const REPLAY_PRODUCTION_UI_CONTEXT_RE = /replay|playback|battle|fight|pvp|回放|战报|录像|对战|战斗|记录|战绩|详情|查看|历史|播放|重播/i;
 const REPLAY_PRODUCTION_CONTEXT_HANDLER_NAME_PREFIXES = Object.freeze([
   "open",
+  "openpanel",
   "show",
+  "showpanel",
   "init",
   "enter",
+  "enterreplay",
   "start",
   "onclick",
   "onbtn",
+  "onopen",
   "onpress",
+  "onshow",
+  "onrecord",
+  "onhistory",
   "click",
   "handle",
+  "playrecord",
   "setdata",
   "setinfo",
   "refresh",
   "load",
   "preview",
+  "previewrecord",
 ]);
 const REPLAY_PRODUCTION_DISCOVERY_SOURCE_PRIORITY = Object.freeze({
   "interaction-trace": 6,
@@ -393,6 +402,17 @@ const REPLAY_PRODUCTION_DISCOVERY_RICH_SOURCES = new Set([
 ]);
 const REPLAY_PRODUCTION_INTERACTION_TRACE_LIMIT = 20;
 const REPLAY_PRODUCTION_BUTTON_HANDLER_LIMIT = 20;
+
+const sortProductionDiscoverySources = (sources = []) =>
+  [...new Set(Array.isArray(sources) ? sources.filter(Boolean) : [])]
+    .sort((left, right) => {
+      const priorityDiff = (REPLAY_PRODUCTION_DISCOVERY_SOURCE_PRIORITY[right] || 0)
+        - (REPLAY_PRODUCTION_DISCOVERY_SOURCE_PRIORITY[left] || 0);
+      if (priorityDiff !== 0) {
+        return priorityDiff;
+      }
+      return String(left).localeCompare(String(right));
+    });
 
 const isReplayObjectLike = (value) =>
   Boolean(value) && (typeof value === "object" || typeof value === "function");
@@ -1869,10 +1889,10 @@ export const resolveProductionReplayPlayTarget = (
   const buttonCandidates = scanButtonClickEventCandidates(gameWindow);
   const interactionTrace = getProductionInteractionTraceCandidates(state.interactionTrace);
   const candidateTargets = [
-    ...globalCandidates.targetCandidates,
-    ...sceneCandidates.targetCandidates,
-    ...buttonCandidates.targetCandidates,
     ...interactionTrace.targetCandidates,
+    ...buttonCandidates.targetCandidates,
+    ...sceneCandidates.targetCandidates,
+    ...globalCandidates.targetCandidates,
   ];
   const rankedEntries = candidateTargets
     .filter(isValidProductionReplayTarget)
@@ -1883,9 +1903,9 @@ export const resolveProductionReplayPlayTarget = (
     .sort(sortProductionReplayEntries);
   const playableEntries = rankedEntries.filter((entry) => !entry.targetBlacklisted && !entry.rejectedReason);
   const selectedTargetEntry = rankedEntries[0] || null;
-  const candidateDiscoverySources = [
-    ...new Set(candidateTargets.map((candidate) => candidate.source).filter(Boolean)),
-  ];
+  const candidateDiscoverySources = sortProductionDiscoverySources(
+    candidateTargets.map((candidate) => candidate.source),
+  );
   const replayLikeNodeContexts = [...new Set(sceneCandidates.replayLikeNodeContexts || [])];
   const replayLikeButtonTexts = [
     ...new Set([
@@ -1915,10 +1935,10 @@ export const resolveProductionReplayPlayTarget = (
   const discoveryEmptyAfterBlacklist = playableEntries.length === 0
     && rankedEntries.length > 0
     && rankedEntries.every((entry) => entry.targetBlacklisted || entry.rejectedReason);
-  const bridgeStatus = candidateSpaceTooNarrow
-    ? "candidate-space-too-narrow"
-    : discoveryEmptyAfterBlacklist
-      ? "target-discovery-empty-after-blacklist"
+  const bridgeStatus = discoveryEmptyAfterBlacklist
+    ? "target-discovery-empty-after-blacklist"
+    : candidateSpaceTooNarrow
+      ? "candidate-space-too-narrow"
       : getProductionReplaySelectionStatus(selectedTargetEntry);
   const playTarget = bridgeStatus === "bridge-ready"
     ? selectedTargetEntry?.candidate || null
@@ -2010,18 +2030,25 @@ export const buildProductionReplayBridge = (
       runtimeWindow,
     });
     const result = {
-      availableGlobals: resolution.availableGlobals,
+      interactionTraceCandidates: resolution.interactionTraceCandidates,
       buttonHandlerCandidates: resolution.buttonHandlerCandidates,
-      bridgeStatus: resolution.bridgeStatus,
+      replayLikeButtonTexts: resolution.replayLikeButtonTexts,
+      replayLikeCustomEventData: resolution.replayLikeCustomEventData,
       candidateDiscoverySources: resolution.candidateDiscoverySources,
+      bridgeStatus: resolution.bridgeStatus,
       candidateSpaceTooNarrow: resolution.candidateSpaceTooNarrow,
+      targetDiscoverySummary: resolution.targetDiscoverySummary,
+      primaryRisk: getProductionReplayPrimaryRisk({
+        payloadShapeAfter: payloadShapeDefault,
+        resolution,
+      }),
+      availableGlobals: resolution.availableGlobals,
       currentAssetPath: loaderFamilyInfo.suspectedBundlePath,
       gameWindowSource,
       incompatibleProbes:
         loaderFamilyInfo.loaderFamily === REPLAY_LOADER_FAMILIES.PUBLIC
           ? [...REPLAY_CANONICAL_MODULE_IDS]
           : [],
-      interactionTraceCandidates: resolution.interactionTraceCandidates,
       loaderFamily: loaderFamilyInfo.loaderFamily,
       loaderFamilyEvidence: loaderFamilyInfo.evidence,
       minimumPlayableScore: resolution.minimumPlayableScore,
@@ -2031,15 +2058,9 @@ export const buildProductionReplayBridge = (
       playTargetScore: resolution.playTargetScore,
       playTargetSource: resolution.playTargetSource,
       playTargetWhy: resolution.playTargetWhy,
-      primaryRisk: getProductionReplayPrimaryRisk({
-        payloadShapeAfter: payloadShapeDefault,
-        resolution,
-      }),
       probeCompatibility: "compatible-probe",
       probeFamily: REPLAY_PROBE_FAMILIES.PRODUCTION,
       rankedTargets: buildProductionReplayRankedTargets(resolution),
-      replayLikeButtonTexts: resolution.replayLikeButtonTexts,
-      replayLikeCustomEventData: resolution.replayLikeCustomEventData,
       replayLikeNodeContexts: resolution.replayLikeNodeContexts,
       requireFingerprint: loaderFamilyInfo.requireFingerprint,
       scene: resolution.scene,
@@ -2049,7 +2070,6 @@ export const buildProductionReplayBridge = (
       sourceIdProbes: createSourceIdProbeMismatchMap(loaderFamilyInfo.loaderFamily),
       suspectedBundlePath: loaderFamilyInfo.suspectedBundlePath,
       targetBlacklisted: resolution.targetBlacklisted,
-      targetDiscoverySummary: resolution.targetDiscoverySummary,
       targetLooksGetterLike: resolution.targetLooksGetterLike,
       targetLooksMetadataLike: resolution.targetLooksMetadataLike,
       targetRejectedReason: resolution.targetRejectedReason,
