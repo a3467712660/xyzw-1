@@ -3018,6 +3018,7 @@
       "replaySignalMissingDescription": "运行时已进入 Game，并已找到真实游戏 window。battle replay 入口已可调用；当前无报错但无画面，更可能是传入数据尚未归一化为 battleInputData，或手动入口走了 EnterOSSState.showBattleViewWithData 的通用链路而非 BattleUIManager.SHOW_BATTLE_REPLAY_UI 的 replay 路由。",
       "loaderFamilyMismatchDescription": "当前线上运行的是 production/public loader，而不是 source-era loader；因此 BattleUIManager、enter-oss、BattleKitCrossSite 这些 probe 与当前 loader family 不兼容。",
       "bridgeNotExposedDescription": "当前已识别为 production/public loader，但尚未发现稳定的 replay bridge；因此当前问题应归类为 bridge-not-exposed，而不是等待 BattleUIManager 注册。",
+      "bridgePlayTargetMissingDescription": "当前 production replay bridge 已经暴露，但还没有解析到稳定的 production 播放目标；这时应继续根据 scene/global 候选绑定真实控制器，而不是再回退到 source-era module probe。",
       "moduleIdFamilyMismatchDescription": "当前使用的是 source-era module id probe，但页面运行的是 production/public loader；这类 probe 对当前 loader family 不成立。",
       "runtimeNotReady": "运行时尚未准备好，暂时无法播放该回放。",
       "runtimeStageDescriptions": {
@@ -3027,7 +3028,7 @@
         "bridgeNotExposed": "当前已经识别为 production/public loader，但还没有稳定暴露的 replay bridge。",
         "moduleIdFamilyMismatch": "当前 source-era module id probe 与 production/public loader family 不兼容。",
         "requireExecError": "当前 __require(moduleId) 已触达到 live loader，但模块执行本身抛出了真实运行时异常。",
-        "battleModulesReady": "当前为 source-era loader，battle modules 已可直接解析，replay 入口可用。"
+        "battleModulesReady": "当前 replay 入口已就绪；在 source-era loader 下表示 battle modules 已可直接解析，在 production/public loader 下表示显式 replay bridge 已经暴露。"
       },
       "mapIdReasons": {
         "runtimeRoleUnavailable": "当前 live capture 无法直接读取运行时 self role，因而拿不到 ROLE.pvpMapId。",

@@ -3042,6 +3042,7 @@
       "replaySignalMissingDescription": "The runtime reached Game and the real game window was found. The battle replay entrypoint is callable; if there is still no error and no picture, the more likely cause is that the input has not been normalized into battleInputData, or the manual entry went through EnterOSSState.showBattleViewWithData instead of the replay route BattleUIManager.SHOW_BATTLE_REPLAY_UI.",
       "loaderFamilyMismatchDescription": "The current live page is running the production/public loader, not the source-era loader, so BattleUIManager, enter-oss, and BattleKitCrossSite are incompatible probes for this loader family.",
       "bridgeNotExposedDescription": "The production/public loader has been identified, but no stable replay bridge has been exposed yet. This should be classified as bridge-not-exposed, not as waiting for BattleUIManager registration.",
+      "bridgePlayTargetMissingDescription": "The production replay bridge is exposed, but no stable production play target has been resolved yet. The next step is to bind a real controller from scene/global candidates instead of falling back to source-era module probes.",
       "moduleIdFamilyMismatchDescription": "A source-era module-id probe is being used against the production/public loader. That probe family is incompatible with the current loader family.",
       "runtimeNotReady": "The runtime is not ready, so this replay cannot start yet.",
       "runtimeStageDescriptions": {
@@ -3051,7 +3052,7 @@
         "bridgeNotExposed": "The production/public loader has been identified, but no stable replay bridge is exposed yet.",
         "moduleIdFamilyMismatch": "The current source-era module-id probe is incompatible with the production/public loader family.",
         "requireExecError": "window.__require(moduleId) reached the live loader, but module execution itself threw a real runtime exception.",
-        "battleModulesReady": "The runtime is using the source-era loader and the battle modules are directly resolvable, so the replay entrypoint is ready."
+        "battleModulesReady": "The replay entrypoint is ready. On the source-era loader this means the battle modules are directly resolvable; on the production/public loader this means the explicit replay bridge is exposed."
       },
       "mapIdReasons": {
         "runtimeRoleUnavailable": "Live capture could not reach the runtime self-role directly, so ROLE.pvpMapId was unavailable.",

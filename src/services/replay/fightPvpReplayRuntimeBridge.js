@@ -246,7 +246,9 @@ const buildRuntimeLayerDetail = (runtimeLayerInfo) => {
     case "require-exec-error":
       return "window.__require(moduleId) reached the live loader, but module execution threw a real runtime exception.";
     case "battle-modules-ready":
-      return "The source-era battle modules are available and the replay entrypoint can be called.";
+      return runtimeLayerInfo?.details?.loaderFamily === REPLAY_LOADER_FAMILIES.PUBLIC
+        ? "A production/public replay bridge is exposed and can be used as the replay entrypoint."
+        : "The source-era battle modules are available and the replay entrypoint can be called.";
     case "no-require":
       return "gameWindow.__require is unavailable.";
     case "no-window":
@@ -254,6 +256,600 @@ const buildRuntimeLayerDetail = (runtimeLayerInfo) => {
     default:
       return REPLAY_LOADER_NOT_READY_DETAIL;
   }
+};
+
+const REPLAY_PRODUCTION_KEYWORD_RE = /replay|playback|battle|fight|pvp/i;
+const REPLAY_PRODUCTION_BRIDGE_STATE_KEY = "__xyzwReplayProductionBridgeState";
+const REPLAY_PRODUCTION_GLOBAL_KEY_LIMIT = 240;
+const REPLAY_PRODUCTION_MATCH_LIMIT = 40;
+const REPLAY_PRODUCTION_MEMBER_LIMIT = 12;
+
+const isReplayObjectLike = (value) =>
+  Boolean(value) && (typeof value === "object" || typeof value === "function");
+
+const matchesProductionReplayKeyword = (value) =>
+  REPLAY_PRODUCTION_KEYWORD_RE.test(String(value || "").trim());
+
+const getReplayObjectName = (value) => {
+  if (!value) {
+    return null;
+  }
+  if (typeof value === "function" && value.name) {
+    return value.name;
+  }
+  const constructorName = value?.constructor?.name;
+  if (constructorName && constructorName !== "Object") {
+    return constructorName;
+  }
+  return value?.__classname__ || value?.name || null;
+};
+
+const getReplayStackTop = (error) =>
+  String(error?.stack || "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)[1] || null;
+
+const getProductionReplayBridgeState = (
+  gameWindow,
+  runtimeWindow = getRuntimeWindow(),
+) => {
+  const owner = isReplayObjectLike(gameWindow) ? gameWindow : runtimeWindow;
+  const existing = owner?.[REPLAY_PRODUCTION_BRIDGE_STATE_KEY];
+  if (existing && typeof existing === "object") {
+    return existing;
+  }
+  const state = {
+    lastInspect: null,
+    playTarget: null,
+  };
+  Object.defineProperty(owner, REPLAY_PRODUCTION_BRIDGE_STATE_KEY, {
+    configurable: true,
+    enumerable: false,
+    writable: true,
+    value: state,
+  });
+  return state;
+};
+
+const visitReplayMemberHolder = (holder, names, methodSet, propertySet) => {
+  if (!holder || !Array.isArray(names)) {
+    return;
+  }
+
+  for (const name of names) {
+    if (name === "constructor" || !matchesProductionReplayKeyword(name)) {
+      continue;
+    }
+
+    let descriptor = null;
+    try {
+      descriptor = Object.getOwnPropertyDescriptor(holder, name) || null;
+    } catch {
+      descriptor = null;
+    }
+    if (!descriptor) {
+      continue;
+    }
+
+    if (typeof descriptor.value === "function") {
+      methodSet.add(name);
+      continue;
+    }
+    propertySet.add(name);
+  }
+};
+
+const collectReplayMemberMatches = (value) => {
+  if (!isReplayObjectLike(value)) {
+    return {
+      methodMatches: [],
+      propertyMatches: [],
+    };
+  }
+
+  const methodSet = new Set();
+  const propertySet = new Set();
+
+  try {
+    visitReplayMemberHolder(
+      value,
+      Object.keys(value).slice(0, REPLAY_PRODUCTION_GLOBAL_KEY_LIMIT),
+      methodSet,
+      propertySet,
+    );
+  } catch {
+    // Ignore dynamic host objects that throw during key enumeration.
+  }
+
+  const prototype = Object.getPrototypeOf(value);
+  if (
+    prototype
+    && prototype !== Object.prototype
+    && prototype !== Function.prototype
+  ) {
+    try {
+      visitReplayMemberHolder(
+        prototype,
+        Object.getOwnPropertyNames(prototype).slice(0, REPLAY_PRODUCTION_GLOBAL_KEY_LIMIT),
+        methodSet,
+        propertySet,
+      );
+    } catch {
+      // Ignore inaccessible prototype chains.
+    }
+  }
+
+  return {
+    methodMatches: [...methodSet].slice(0, REPLAY_PRODUCTION_MEMBER_LIMIT),
+    propertyMatches: [...propertySet].slice(0, REPLAY_PRODUCTION_MEMBER_LIMIT),
+  };
+};
+
+const createProductionReplayTargetCandidate = ({
+  label,
+  source,
+  invoke,
+  methodName = null,
+  nodeName = null,
+  nodePath = null,
+  componentName = null,
+  ownerKey = null,
+} = {}) => ({
+  componentName,
+  invoke,
+  label,
+  methodName,
+  nodeName,
+  nodePath,
+  ownerKey,
+  source,
+});
+
+const getSceneNodeChildren = (node) => {
+  if (Array.isArray(node?.children)) {
+    return node.children.filter(Boolean);
+  }
+  if (Array.isArray(node?._children)) {
+    return node._children.filter(Boolean);
+  }
+  return [];
+};
+
+const getSceneNodeComponents = (node) => {
+  if (Array.isArray(node?._components)) {
+    return node._components.filter(Boolean);
+  }
+  if (Array.isArray(node?.components)) {
+    return node.components.filter(Boolean);
+  }
+  return [];
+};
+
+const createSourceIdProbeMismatchMap = (loaderFamily) =>
+  Object.fromEntries(
+    REPLAY_CANONICAL_MODULE_IDS.map((moduleId) => [
+      moduleId,
+      {
+        ok: false,
+        status: "module-id-family-mismatch",
+        moduleId,
+        errorMessage: `${moduleId} is a source-era probe and is incompatible with ${loaderFamily}.`,
+        stackTop: null,
+      },
+    ]),
+  );
+
+const unwrapProductionReplayPayload = (value) => {
+  if (!value || typeof value !== "object") {
+    return value;
+  }
+
+  const unwrapped = value?.battleInputData
+    || value?.battleInputSnapshot
+    || value;
+
+  if (!unwrapped || typeof unwrapped !== "object") {
+    return value;
+  }
+
+  if (unwrapped.battleResult == null && unwrapped?.battleData?.result != null) {
+    unwrapped.battleResult = unwrapped.battleData.result;
+  }
+  return unwrapped;
+};
+
+export const collectReplayGlobalCandidates = (
+  gameWindow,
+  {
+    runtimeWindow = getRuntimeWindow(),
+  } = {},
+) => {
+  const availableGlobals = [];
+  const playMethodCandidates = [];
+  const targetCandidates = [];
+  const seenRoots = new Set();
+  const seenGlobals = new Set();
+  const seenTargets = new Set();
+  const roots = [];
+
+  const addRoot = (holder, source) => {
+    if (!isReplayObjectLike(holder) || seenRoots.has(holder)) {
+      return;
+    }
+    seenRoots.add(holder);
+    roots.push({ holder, source });
+  };
+
+  addRoot(gameWindow, "gameWindow");
+  addRoot(runtimeWindow, "window");
+  addRoot(globalThis, "globalThis");
+
+  for (const root of roots) {
+    let keys = [];
+    try {
+      keys = Object.keys(root.holder).slice(0, REPLAY_PRODUCTION_GLOBAL_KEY_LIMIT);
+    } catch {
+      keys = [];
+    }
+
+    for (const key of keys) {
+      if (
+        key === "__xyzwReplayBridge"
+        || key === "__xyzwReplay"
+        || key === REPLAY_PRODUCTION_BRIDGE_STATE_KEY
+      ) {
+        continue;
+      }
+
+      let value = null;
+      try {
+        value = root.holder[key];
+      } catch {
+        value = null;
+      }
+
+      const keyMatches = matchesProductionReplayKeyword(key);
+      const { methodMatches, propertyMatches } = collectReplayMemberMatches(value);
+
+      if (!keyMatches && methodMatches.length === 0 && propertyMatches.length === 0) {
+        continue;
+      }
+
+      const globalKey = `${root.source}:${key}`;
+      if (!seenGlobals.has(globalKey) && availableGlobals.length < REPLAY_PRODUCTION_MATCH_LIMIT) {
+        seenGlobals.add(globalKey);
+        availableGlobals.push({
+          key,
+          keyMatched: keyMatches,
+          methodMatches,
+          objectType: getReplayObjectName(value),
+          propertyMatches,
+          source: root.source,
+          type: typeof value,
+        });
+      }
+
+      if (
+        typeof value === "function"
+        && keyMatches
+        && targetCandidates.length < REPLAY_PRODUCTION_MATCH_LIMIT
+      ) {
+        const label = `${root.source}.${key}`;
+        if (!seenTargets.has(label)) {
+          seenTargets.add(label);
+          playMethodCandidates.push({
+            label,
+            methodName: key,
+            ownerKey: key,
+            source: "global-function",
+          });
+          targetCandidates.push(createProductionReplayTargetCandidate({
+            label,
+            source: "global-function",
+            ownerKey: key,
+            methodName: key,
+            invoke: (payload, options = {}) => value.call(root.holder, payload, options),
+          }));
+        }
+      }
+
+      if (!isReplayObjectLike(value)) {
+        continue;
+      }
+
+      for (const methodName of methodMatches) {
+        if (targetCandidates.length >= REPLAY_PRODUCTION_MATCH_LIMIT) {
+          break;
+        }
+
+        const method = value?.[methodName];
+        if (typeof method !== "function") {
+          continue;
+        }
+
+        const label = `${root.source}.${key}.${methodName}`;
+        if (seenTargets.has(label)) {
+          continue;
+        }
+
+        seenTargets.add(label);
+        playMethodCandidates.push({
+          label,
+          methodName,
+          ownerKey: key,
+          source: "global-object",
+        });
+        targetCandidates.push(createProductionReplayTargetCandidate({
+          label,
+          source: "global-object",
+          ownerKey: key,
+          methodName,
+          invoke: (payload, options = {}) => value[methodName].call(value, payload, options),
+        }));
+      }
+    }
+  }
+
+  return {
+    availableGlobals,
+    playMethodCandidates,
+    targetCandidates,
+  };
+};
+
+export const scanSceneForReplayCandidates = (gameWindow) => {
+  const scene = gameWindow?.cc?.director?.getScene?.() || null;
+  const sceneNodeMatches = [];
+  const sceneComponentMatches = [];
+  const playMethodCandidates = [];
+  const targetCandidates = [];
+  const seenNodes = new Set();
+  const seenTargets = new Set();
+
+  if (!scene) {
+    return {
+      playMethodCandidates,
+      scene: null,
+      sceneComponentMatches,
+      sceneNodeMatches,
+      targetCandidates,
+    };
+  }
+
+  const queue = [{
+    node: scene,
+    path: scene?.name || GAME_SCENE_NAME,
+  }];
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    const node = current?.node || null;
+    if (!node || seenNodes.has(node)) {
+      continue;
+    }
+    seenNodes.add(node);
+
+    const nodeName = String(node?.name || "");
+    const nodePath = current?.path || nodeName || GAME_SCENE_NAME;
+
+    if (
+      matchesProductionReplayKeyword(nodeName)
+      && sceneNodeMatches.length < REPLAY_PRODUCTION_MATCH_LIMIT
+    ) {
+      sceneNodeMatches.push({
+        nodeName,
+        nodePath,
+      });
+    }
+
+    for (const component of getSceneNodeComponents(node)) {
+      if (!component) {
+        continue;
+      }
+
+      const componentName = getReplayObjectName(component) || "AnonymousComponent";
+      const componentNameMatched = matchesProductionReplayKeyword(componentName);
+      const { methodMatches, propertyMatches } = collectReplayMemberMatches(component);
+
+      if (!componentNameMatched && methodMatches.length === 0 && propertyMatches.length === 0) {
+        continue;
+      }
+
+      if (sceneComponentMatches.length < REPLAY_PRODUCTION_MATCH_LIMIT) {
+        sceneComponentMatches.push({
+          componentName,
+          componentNameMatched,
+          methodMatches,
+          nodeName,
+          nodePath,
+          propertyMatches,
+        });
+      }
+
+      for (const methodName of methodMatches) {
+        if (targetCandidates.length >= REPLAY_PRODUCTION_MATCH_LIMIT) {
+          break;
+        }
+
+        const method = component?.[methodName];
+        if (typeof method !== "function") {
+          continue;
+        }
+
+        const label = `${nodePath}#${componentName}.${methodName}`;
+        if (seenTargets.has(label)) {
+          continue;
+        }
+
+        seenTargets.add(label);
+        playMethodCandidates.push({
+          componentName,
+          label,
+          methodName,
+          nodeName,
+          nodePath,
+          source: "scene-component",
+        });
+        targetCandidates.push(createProductionReplayTargetCandidate({
+          componentName,
+          label,
+          methodName,
+          nodeName,
+          nodePath,
+          source: "scene-component",
+          invoke: (payload, options = {}) => component[methodName].call(component, payload, options),
+        }));
+      }
+    }
+
+    for (const child of getSceneNodeChildren(node)) {
+      const childName = String(child?.name || "(anonymous)");
+      queue.push({
+        node: child,
+        path: `${nodePath}/${childName}`,
+      });
+    }
+  }
+
+  return {
+    playMethodCandidates,
+    scene: scene?.name || null,
+    sceneComponentMatches,
+    sceneNodeMatches,
+    targetCandidates,
+  };
+};
+
+const isValidProductionReplayTarget = (target) =>
+  Boolean(target && typeof target.invoke === "function");
+
+export const resolveProductionReplayPlayTarget = (
+  gameWindow,
+  {
+    runtimeWindow = getRuntimeWindow(),
+  } = {},
+) => {
+  const state = getProductionReplayBridgeState(gameWindow, runtimeWindow);
+  const globalCandidates = collectReplayGlobalCandidates(gameWindow, { runtimeWindow });
+  const sceneCandidates = scanSceneForReplayCandidates(gameWindow);
+  const candidateTargets = [
+    ...globalCandidates.targetCandidates,
+    ...sceneCandidates.targetCandidates,
+  ];
+
+  let playTarget = isValidProductionReplayTarget(state.playTarget)
+    ? state.playTarget
+    : null;
+
+  if (!playTarget) {
+    playTarget = candidateTargets[0] || null;
+  }
+
+  state.playTarget = playTarget;
+
+  return {
+    availableGlobals: globalCandidates.availableGlobals,
+    bridgeStatus: playTarget ? "bridge-ready" : "bridge-exposed-but-play-target-missing",
+    playMethodCandidates: [
+      ...globalCandidates.playMethodCandidates,
+      ...sceneCandidates.playMethodCandidates,
+    ].slice(0, REPLAY_PRODUCTION_MATCH_LIMIT),
+    playTarget,
+    playTargetLabel: playTarget?.label || null,
+    playTargetSource: playTarget?.source || null,
+    scene: sceneCandidates.scene,
+    sceneComponentMatches: sceneCandidates.sceneComponentMatches,
+    sceneNodeMatches: sceneCandidates.sceneNodeMatches,
+  };
+};
+
+export const buildProductionReplayBridge = (
+  gameWindow,
+  {
+    gameWindowSource = null,
+    runtimeWindow = getRuntimeWindow(),
+  } = {},
+) => {
+  const loaderFamilyInfo = detectReplayLoaderFamily(gameWindow);
+  const state = getProductionReplayBridgeState(gameWindow, runtimeWindow);
+
+  const inspect = () => {
+    const resolution = resolveProductionReplayPlayTarget(gameWindow, { runtimeWindow });
+    const result = {
+      availableGlobals: resolution.availableGlobals,
+      bridgeStatus: resolution.bridgeStatus,
+      currentAssetPath: loaderFamilyInfo.suspectedBundlePath,
+      gameWindowSource,
+      incompatibleProbes:
+        loaderFamilyInfo.loaderFamily === REPLAY_LOADER_FAMILIES.PUBLIC
+          ? [...REPLAY_CANONICAL_MODULE_IDS]
+          : [],
+      loaderFamily: loaderFamilyInfo.loaderFamily,
+      loaderFamilyEvidence: loaderFamilyInfo.evidence,
+      playMethodCandidates: resolution.playMethodCandidates,
+      playTargetLabel: resolution.playTargetLabel,
+      playTargetSource: resolution.playTargetSource,
+      probeCompatibility: "compatible-probe",
+      probeFamily: REPLAY_PROBE_FAMILIES.PRODUCTION,
+      requireFingerprint: loaderFamilyInfo.requireFingerprint,
+      scene: resolution.scene,
+      sceneComponentMatches: resolution.sceneComponentMatches,
+      sceneNodeMatches: resolution.sceneNodeMatches,
+      scriptUrls: loaderFamilyInfo.scriptUrls,
+      sourceIdProbes: createSourceIdProbeMismatchMap(loaderFamilyInfo.loaderFamily),
+      suspectedBundlePath: loaderFamilyInfo.suspectedBundlePath,
+      performanceUrls: loaderFamilyInfo.performanceUrls,
+    };
+    state.lastInspect = result;
+    return result;
+  };
+
+  const play = (rawOrWrappedData = getReplaySource(gameWindow), options = {}) => {
+    const resolution = resolveProductionReplayPlayTarget(gameWindow, { runtimeWindow });
+    const prepared = unwrapProductionReplayPayload(rawOrWrappedData);
+
+    if (!resolution.playTarget) {
+      return {
+        ok: false,
+        status: "bridge-exposed-but-play-target-missing",
+        loaderFamily: loaderFamilyInfo.loaderFamily,
+        detail:
+          "The production replay bridge is exposed, but no stable play target was resolved from globals or the Game scene.",
+        playMethodCandidates: resolution.playMethodCandidates,
+        playTargetLabel: null,
+        playTargetSource: null,
+      };
+    }
+
+    try {
+      const result = resolution.playTarget.invoke(prepared, options);
+      return {
+        ok: true,
+        status: "played-via-production-bridge",
+        loaderFamily: loaderFamilyInfo.loaderFamily,
+        playTargetLabel: resolution.playTargetLabel,
+        playTargetSource: resolution.playTargetSource,
+        result,
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        status: "bridge-play-target-threw",
+        loaderFamily: loaderFamilyInfo.loaderFamily,
+        errorMessage: toErrorMessage(error, "Production replay bridge play target threw."),
+        playTargetLabel: resolution.playTargetLabel,
+        playTargetSource: resolution.playTargetSource,
+        stackTop: getReplayStackTop(error),
+      };
+    }
+  };
+
+  return {
+    __xyzwReplayBridgeReady: true,
+    inspect,
+    play,
+  };
 };
 const REPLAY_ENTRYPOINT_PROBE_CONFIGS = Object.freeze([
   {
@@ -3404,6 +4000,20 @@ const buildReplayProbeReport = ({
   const bundleState = inspectBundleStateShared(runtimeWindow, { probeFamily });
   const loaderInspection = inspectReplayLoaderFamily(runtimeWindow, { probeFamily });
   const bridgeInfo = findExposedReplayBridge(runtimeWindow, resolvedGameWindow);
+  const bridgeInspection = loaderFamilyInfo.loaderFamily === REPLAY_LOADER_FAMILIES.PUBLIC
+    && bridgeInfo.hasInspect
+    ? (() => {
+        try {
+          return bridgeInfo.bridge.inspect();
+        } catch (error) {
+          return {
+            bridgeStatus: "bridge-inspect-threw",
+            bridgeTargetError: toErrorMessage(error, "Production bridge inspect failed."),
+            bridgeTargetStackTop: getReplayStackTop(error),
+          };
+        }
+      })()
+    : null;
   const candidates = [];
   const requireDebug = [];
   const seenModuleIds = new Set();
@@ -3417,7 +4027,7 @@ const buildReplayProbeReport = ({
   diagnostics.probeFamily = probeFamily;
   diagnostics.probeCompatibility = runtimeLayerInfo.details?.probeCompatibility ?? loaderInspection.probeCompatibility ?? "compatible-probe";
   diagnostics.bridgeExposure = Boolean(bridgeInfo.bridge);
-  diagnostics.bridgeStatus = bridgeInfo.status;
+  diagnostics.bridgeStatus = bridgeInspection?.bridgeStatus || bridgeInfo.status;
   diagnostics.bridgeSource = bridgeInfo.source || null;
   diagnostics.runtimeLayer = runtimeLayerInfo.layer;
   diagnostics.runtimeStage = runtimeLayerInfo.layer;
@@ -3449,6 +4059,12 @@ const buildReplayProbeReport = ({
   diagnostics.fallbackEntrypointReason = null;
   diagnostics.enterOssAvailableButRejected = false;
   diagnostics.battleKitAvailableButRejected = false;
+  diagnostics.availableGlobals = bridgeInspection?.availableGlobals || [];
+  diagnostics.sceneNodeMatches = bridgeInspection?.sceneNodeMatches || [];
+  diagnostics.sceneComponentMatches = bridgeInspection?.sceneComponentMatches || [];
+  diagnostics.playMethodCandidates = bridgeInspection?.playMethodCandidates || [];
+  diagnostics.playTargetLabel = bridgeInspection?.playTargetLabel || null;
+  diagnostics.playTargetSource = bridgeInspection?.playTargetSource || null;
 
   const currentWindowLoaderStatus = typeof runtimeWindow?.__require === "function"
     ? "present"
@@ -3500,9 +4116,11 @@ const buildReplayProbeReport = ({
       label: bridgeInfo.source || "window.__xyzwReplayBridge",
       moduleId: null,
       source,
-      status: bridgeInfo.status,
+      status: bridgeInspection?.bridgeStatus || bridgeInfo.status,
       detail: bridgeInfo.hasPlay
-        ? "A production/public replay bridge is exposed."
+        ? bridgeInspection?.playTargetLabel
+          ? `A production/public replay bridge is exposed via ${bridgeInspection.playTargetLabel}.`
+          : "A production/public replay bridge is exposed, but a stable play target has not been resolved yet."
         : "No stable production/public replay bridge is currently exposed.",
       error: null,
       errorMessage: null,
@@ -3532,9 +4150,13 @@ const buildReplayProbeReport = ({
       label: bridgeInfo.source
         ? `${bridgeInfo.source}.play`
         : "window.__xyzwReplayBridge.play",
-      status: bridgeInfo.hasPlay ? "present" : "bridge-not-exposed",
+      status: bridgeInfo.hasPlay
+        ? bridgeInspection?.bridgeStatus || "present"
+        : "bridge-not-exposed",
       detail: bridgeInfo.hasPlay
-        ? "A production/public replay bridge was discovered."
+        ? bridgeInspection?.playTargetLabel
+          ? `A production/public replay bridge was discovered via ${bridgeInspection.playTargetLabel}.`
+          : "A production/public replay bridge was discovered, but it has not resolved a stable play target yet."
         : "The current loader family is public-xyzw-loader, but no stable replay bridge has been exposed yet.",
       found: bridgeInfo.hasPlay,
       stackTop: null,
@@ -3800,32 +4422,34 @@ const createReplayConsoleHelpers = (gameWindow, {
   };
 
   if (runtimeLayerInfo?.details?.loaderFamily === REPLAY_LOADER_FAMILIES.PUBLIC) {
+    const runtimeWindow = getRuntimeWindow();
+    const productionBridge = buildProductionReplayBridge(gameWindow, {
+      gameWindowSource: runtimeWindow === gameWindow ? "window" : "bound-window",
+      runtimeWindow,
+    });
     const helper = defineLiveRequireGetter({
       ...baseHelper,
       inspect() {
         const result = {
+          ...productionBridge.inspect(),
           bundleState: baseHelper.inspectBundleState(),
-          loaderFamily: baseHelper.inspectLoaderFamily(),
+          loaderInspection: baseHelper.inspectLoaderFamily(),
         };
         console.log("[xyzw replay] inspect", result);
         helper.result = result;
         return result;
       },
-      play(rawOrWrappedData = getReplaySource(gameWindow)) {
-        const bridgeInfo = findExposedReplayBridge(getRuntimeWindow(), gameWindow);
-        if (bridgeInfo.bridge && bridgeInfo.bridge !== helper && typeof bridgeInfo.bridge.play === "function") {
-          return bridgeInfo.bridge.play(rawOrWrappedData);
+      play(rawOrWrappedData = getReplaySource(gameWindow), options = {}) {
+        const result = productionBridge.play(rawOrWrappedData, options);
+        if (!result?.ok) {
+          console.warn("[xyzw replay] play via production bridge failed", result);
         }
-        const result = createBridgeNotExposedResult({
-          loaderFamily: runtimeLayerInfo?.details?.loaderFamily,
-          bridgeSource: bridgeInfo.source,
-        });
-        console.warn("[xyzw replay] play bridge-not-exposed", result);
+        helper.result = result;
         return result;
       },
     });
     helper.__xyzwReplayDiagnosticHelper = true;
-    helper.__xyzwReplayBridgeReady = false;
+    helper.__xyzwReplayBridgeReady = true;
     return helper;
   }
 
@@ -3982,16 +4606,51 @@ export const locateReplayEntrypoint = ({
   return entrypoint;
 };
 
+const buildReplayEntrypointFailureMessage = (entrypoint, result) => {
+  const detail = result?.detail || result?.errorMessage || result?.error || "";
+
+  if (result?.status === "bridge-exposed-but-play-target-missing") {
+    return detail
+      ? `production replay bridge 已暴露，但当前还没有解析到稳定的播放目标。${detail}`
+      : "production replay bridge 已暴露，但当前还没有解析到稳定的播放目标。";
+  }
+
+  if (result?.status === "bridge-play-target-threw") {
+    return detail
+      ? `production replay bridge 已解析到播放目标，但调用时抛出了运行时异常。${detail}`
+      : "production replay bridge 已解析到播放目标，但调用时抛出了运行时异常。";
+  }
+
+  return detail || `已定位回放入口 ${entrypoint?.label || "unknown"}，但调用失败。`;
+};
+
 const startReplayEntrypoint = async ({
   entrypoint,
   battleInput,
   diagnostics,
 } = {}) => {
   diagnostics.replayPayloadKeys = Object.keys(battleInput || {}).sort();
-  await Promise.resolve(entrypoint.invoke(battleInput));
+  const result = await Promise.resolve(entrypoint.invoke(battleInput));
+  diagnostics.replayEntrypointInvokeResult = result || null;
+
+  if (result && typeof result === "object" && result.ok === false) {
+    diagnostics.replayEntrypointInvokeStatus = result.status || null;
+    diagnostics.bridgeStatus = result.status || diagnostics.bridgeStatus;
+    diagnostics.playTargetLabel = result.playTargetLabel || diagnostics.playTargetLabel || null;
+    diagnostics.playTargetSource = result.playTargetSource || diagnostics.playTargetSource || null;
+    diagnostics.playMethodCandidates = result.playMethodCandidates || diagnostics.playMethodCandidates || [];
+    return {
+      ok: false,
+      entrypoint: entrypoint.label,
+      message: buildReplayEntrypointFailureMessage(entrypoint, result),
+      status: result.status || "entrypoint-invoke-failed",
+    };
+  }
+
   return {
     ok: true,
     entrypoint: entrypoint.label,
+    result,
   };
 };
 

@@ -24,16 +24,18 @@ test("fight pvp replay runtime probe identifies the production/public loader fam
       play: bridge.play(replayPayload),
     };
   }, createReplayPayload());
+  const bridgeType = await page.evaluate(() => typeof (window as any).__xyzwReplayBridge);
 
   expect(result.inspect.loaderFamily).toBe("public-xyzw-loader");
   expect(result.inspect.probeFamily).toBe("production-id-probes");
   expect(result.inspect.probeCompatibility).toBe("compatible-probe");
   expect(result.inspect.currentAssetPath).toBe("/xyzw/index.js");
+  expect(bridgeType).toBe("object");
   expect(result.inspect.incompatibleProbes).toContain("BattleUIManager");
   expect(result.inspect.incompatibleProbes).toContain("enter-oss");
   expect(result.inspect.incompatibleProbes).toContain("BattleKitCrossSite");
   expect(result.play.ok).toBeFalsy();
-  expect(result.play.status).toBe("bridge-not-exposed");
+  expect(result.play.status).toBe("bridge-exposed-but-play-target-missing");
 });
 
 test("fight pvp replay runtime probe does not treat source-era probes as production bridge signals", async ({
@@ -47,6 +49,7 @@ test("fight pvp replay runtime probe does not treat source-era probes as product
   });
 
   expect(inspect.loaderFamilyEvidence.publicEvidence).toContain("document:/xyzw/index.js");
+  expect(inspect.bridgeStatus).toBe("bridge-exposed-but-play-target-missing");
   expect(inspect.sourceIdProbes.BattleUIManager.status).toBe("module-id-family-mismatch");
   expect(inspect.sourceIdProbes["enter-oss"].status).toBe("module-id-family-mismatch");
   expect(inspect.sourceIdProbes.BattleKitCrossSite.status).toBe("module-id-family-mismatch");

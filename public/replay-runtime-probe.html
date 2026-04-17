@@ -9,18 +9,100 @@
       body {
         margin: 0;
         min-height: 100%;
-        background: #111827;
+        font-family: "SFMono-Regular", "JetBrains Mono", "Fira Code", monospace;
+        background:
+          radial-gradient(circle at top, rgba(56, 189, 248, 0.18), transparent 36%),
+          linear-gradient(180deg, #0f172a 0%, #111827 100%);
+        color: #e5eefc;
       }
 
       #runtime-probe-host {
-        width: 960px;
+        width: min(1080px, calc(100vw - 32px));
         min-height: 540px;
         margin: 24px auto;
+        display: grid;
+        gap: 16px;
+      }
+
+      .runtime-probe-hero {
+        padding: 20px 24px;
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        border-radius: 18px;
+        background: rgba(15, 23, 42, 0.78);
+        box-shadow: 0 18px 44px rgba(15, 23, 42, 0.28);
+      }
+
+      .runtime-probe-hero h1 {
+        margin: 0 0 8px;
+        font-size: 24px;
+      }
+
+      .runtime-probe-hero p {
+        margin: 0;
+        line-height: 1.6;
+        color: #c7d6ef;
+      }
+
+      .runtime-probe-panel {
+        padding: 20px 24px;
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        border-radius: 18px;
+        background: rgba(15, 23, 42, 0.72);
+        box-shadow: 0 18px 44px rgba(15, 23, 42, 0.22);
+      }
+
+      .runtime-probe-actions {
+        display: flex;
+        gap: 12px;
+        margin-bottom: 16px;
+      }
+
+      .runtime-probe-actions button {
+        border: 0;
+        border-radius: 999px;
+        padding: 10px 16px;
+        font: inherit;
+        cursor: pointer;
+        color: #0f172a;
+        background: linear-gradient(135deg, #f8fafc, #38bdf8);
+      }
+
+      .runtime-probe-output {
+        margin: 0;
+        min-height: 320px;
+        overflow: auto;
+        padding: 16px;
+        border-radius: 14px;
+        background: rgba(2, 6, 23, 0.82);
+        color: #dbeafe;
+        line-height: 1.5;
+      }
+
+      .runtime-probe-console {
+        display: grid;
+        gap: 8px;
+        margin-top: 16px;
+        color: #c7d6ef;
+      }
+
+      .runtime-probe-console code {
+        padding: 10px 12px;
+        border-radius: 12px;
+        background: rgba(30, 41, 59, 0.82);
       }
     </style>
   </head>
   <body>
-    <div id="runtime-probe-host"></div>
+    <div id="runtime-probe-host">
+      <section class="runtime-probe-hero">
+        <h1>FightPvp Replay Production Bridge Probe</h1>
+        <p>
+          该页面会直接加载 production/public runtime，并显式暴露
+          <code>window.__xyzwReplayBridge</code>。页面加载后会自动打印
+          <code>inspect()</code>，并保留最小按钮来触发 inspect/play。
+        </p>
+      </section>
+    </div>
     <script type="module" src="/replay-runtime-probe.js"></script>
   </body>
   </html>

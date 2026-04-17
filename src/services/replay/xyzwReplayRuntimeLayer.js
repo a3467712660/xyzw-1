@@ -778,6 +778,17 @@ const deriveRuntimeStage = ({
   return "launcher-ready";
 };
 
+const isReadyReplayBridge = (value) =>
+  Boolean(
+    value
+    && value.__xyzwReplayBridgeReady === true
+    && (typeof value.inspect === "function" || typeof value.play === "function"),
+  );
+
+const hasReadyReplayBridge = (candidateWindow) =>
+  isReadyReplayBridge(candidateWindow?.__xyzwReplayBridge)
+  || isReadyReplayBridge(candidateWindow?.__xyzwReplay);
+
 const inspectSingleWindowBundleState = (
   candidateWindow,
   windowLabel = "window",
@@ -873,14 +884,19 @@ const inspectSingleWindowBundleState = (
     canonicalModuleChecks,
   });
   const loaderFamily = loaderFamilyInfo.loaderFamily;
-  const battleModulesReady = gameSceneRunning
+  const bridgeExposed = hasReadyReplayBridge(candidateWindow);
+  const productionBridgeReady = loaderFamily === XYZW_PUBLIC_LOADER_FAMILY
+    && probeFamily === XYZW_PRODUCTION_PROBE_FAMILY
+    && bridgeExposed;
+  const battleModulesReady = productionBridgeReady || (
+    gameSceneRunning
     && loaderFamily === XYZW_SRC_LOADER_FAMILY
-    && canonicalModuleChecks.BattleUIManager?.status === "present";
+    && canonicalModuleChecks.BattleUIManager?.status === "present"
+  );
   const firstRequireExecError = XYZW_CANONICAL_REPLAY_MODULE_IDS.find((moduleId) =>
     canonicalModuleChecks[moduleId]?.status === "require-threw",
   ) || null;
   const requireExecError = !battleModulesReady && Boolean(firstRequireExecError);
-  const bridgeExposed = Boolean(candidateWindow?.__xyzwReplayBridge || candidateWindow?.__xyzwReplay);
   const incompatibleProbes = loaderFamily === XYZW_PUBLIC_LOADER_FAMILY
     ? [...XYZW_CANONICAL_REPLAY_MODULE_IDS]
     : [];
@@ -916,6 +932,7 @@ const inspectSingleWindowBundleState = (
       incompatibleProbes,
       probeCompatibility,
       probeFamily,
+      productionBridgeReady,
       requireExecError,
       requireFunctionName,
       requireSwap: hasRequireSwap,
@@ -1137,7 +1154,12 @@ const buildBattleModulesReadySource = (details) => {
     return null;
   }
   if (details.loaderFamily === XYZW_PUBLIC_LOADER_FAMILY) {
-    return "loader-family-mismatch";
+    if (details.bridgeExposed) {
+      return "window.__xyzwReplayBridge";
+    }
+    return details.probeFamily === XYZW_PRODUCTION_PROBE_FAMILY
+      ? "bridge-not-exposed"
+      : "loader-family-mismatch";
   }
   if (details.battleModulesReady) {
     return "BattleUIManager";

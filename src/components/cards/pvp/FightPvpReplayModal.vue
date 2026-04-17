@@ -540,6 +540,19 @@ const buildReplayFailureMessage = ({
 
   if (
     failureState === "replay-start-failed"
+    && (
+      diagnostics?.replayEntrypointInvokeStatus === "bridge-exposed-but-play-target-missing"
+      || diagnostics?.bridgeStatus === "bridge-exposed-but-play-target-missing"
+    )
+  ) {
+    return appendTechnicalMessage(
+      props.t("fightPvpCard.replay.bridgePlayTargetMissingDescription"),
+      detail,
+    );
+  }
+
+  if (
+    failureState === "replay-start-failed"
     && diagnostics?.runtimeStage === "loader-family-mismatch"
   ) {
     return appendTechnicalMessage(
