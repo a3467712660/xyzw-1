@@ -3,16 +3,13 @@ import path from "node:path";
 import crypto from "node:crypto";
 import Database from "better-sqlite3";
 import { env } from "../config/env.js";
+import {
+  ensureSqliteFileSecure,
+  ensureSqliteRuntimePathsSecure,
+} from "./runtimeSecurity.js";
 
 let db;
 let currentDbPath = "";
-
-const ensureDir = (filePath) => {
-  const dir = path.dirname(filePath);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-};
 
 export const initDatabase = () => {
   const nextDbPath = path.resolve(env.dbPath);
@@ -25,7 +22,12 @@ export const initDatabase = () => {
     db.close();
   }
 
-  ensureDir(nextDbPath);
+  ensureSqliteRuntimePathsSecure({
+    dbPath: nextDbPath,
+    binStoragePath: env.binStoragePath,
+    appDbBackupEnabled: env.appDbBackupEnabled,
+    nodeEnv: env.nodeEnv,
+  });
 
   // better-sqlite3 如果文件不存在会自动创建
   db = new Database(nextDbPath);
@@ -33,8 +35,14 @@ export const initDatabase = () => {
   db.pragma("foreign_keys = ON");
 
   // 性能优化设置
+  db.pragma("busy_timeout = 5000");
   db.pragma("journal_mode = WAL");
   db.pragma("synchronous = NORMAL");
+  ensureSqliteFileSecure({
+    targetPath: nextDbPath,
+    label: "SQLite 数据库文件",
+    nodeEnv: env.nodeEnv,
+  });
 
   createSchema();
   db.pragma("foreign_keys = ON");

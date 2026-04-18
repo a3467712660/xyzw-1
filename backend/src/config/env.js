@@ -141,6 +141,17 @@ const parseFileMode = (input, fallback) => {
   return parsed;
 };
 
+const ensureOwnerOnlyDirAtStartup = (targetPath, mode = 0o700) => {
+  fs.mkdirSync(targetPath, { recursive: true, mode });
+  if (process.platform === "win32") {
+    return;
+  }
+  const currentMode = fs.statSync(targetPath).mode & 0o777;
+  if (currentMode !== mode) {
+    fs.chmodSync(targetPath, mode);
+  }
+};
+
 const parseSameSite = (input) => {
   const normalized = String(input || "")
     .trim()
@@ -738,7 +749,7 @@ if (!fs.existsSync(env.dbPath)) {
 }
 
 if (!fs.existsSync(env.binStoragePath)) {
-  fs.mkdirSync(env.binStoragePath, { recursive: true });
+  ensureOwnerOnlyDirAtStartup(env.binStoragePath, 0o700);
   // eslint-disable-next-line no-console
   console.log(
     `[startup-check] BIN_STORAGE_PATH created: ${env.binStoragePath}`,

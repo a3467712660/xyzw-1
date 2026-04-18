@@ -81,6 +81,10 @@ VITE_DEV_ALLOWED_HOSTS=preview.example.com,.preview.example.com
 - `AES_KEY` 为空或仍是占位值 -> 直接报错退出
 - `DB_PATH` 指向的文件不存在 -> 输出明确提示（首次启动会自动初始化该数据库文件）
 - `BIN_STORAGE_PATH` 目录不存在 -> 自动创建
+- Linux/macOS 下，`DB_PATH` 所在目录、`BIN_STORAGE_PATH`、`dirname(DB_PATH)/backups` 目录应为 owner-only（建议 `chmod 700`）
+- Linux/macOS 下，SQLite 数据库文件和备份文件应为 owner-only（建议 `chmod 600`）
+- 非生产环境会自动收紧过宽权限；生产环境会直接拒绝启动
+- PostgreSQL 迁移设计与 SQLite 备份/回滚说明见 [docs/database-postgresql-migration.md](/Users/qian/Downloads/xyzw-web-qian-acon-ui-refactor/docs/database-postgresql-migration.md)
 
 ## 5. 官方唯一开发命令
 

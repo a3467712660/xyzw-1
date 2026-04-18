@@ -234,9 +234,6 @@ export default defineConfig(async ({ command, mode }) => {
               if (id.includes("/crypto-js/")) {
                 return "vendor-crypto";
               }
-              if (id.includes("/moment/")) {
-                return "vendor-moment";
-              }
               if (id.includes("/lodash-es/")) {
                 return "vendor-lodash";
               }
