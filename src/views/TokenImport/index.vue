@@ -185,13 +185,63 @@
             </NButton>
           </div>
         </template>
-        <n-data-table
-          size="small"
-          :columns="binFileColumns"
-          :data="binFiles"
-          :loading="binFilesLoading"
-          :pagination="{ pageSize: 5 }"
-        ></n-data-table>
+        <n-spin :show="binFilesLoading">
+          <div v-if="isMobile" class="bin-files-mobile-list">
+            <article
+              v-for="row in binFiles"
+              :key="row.tokenId"
+              class="bin-file-card"
+            >
+              <div class="bin-file-card__head">
+                <strong>{{ row.fileName }}</strong>
+                <span>{{ row.tokenId }}</span>
+              </div>
+              <div class="bin-file-card__meta">
+                <div>
+                  <span>大小</span>
+                  <strong>{{ row.sizeLabel || row.size || "-" }}</strong>
+                </div>
+                <div>
+                  <span>更新时间</span>
+                  <strong>{{ formatTime(row.updatedAt || row.createdAt) }}</strong>
+                </div>
+              </div>
+              <div class="bin-file-card__actions">
+                <NButton
+                  secondary
+                  size="small"
+                  :disabled="!remoteBinDownloadEnabled"
+                  :loading="!!binDownloading[row.tokenId]"
+                  @click="downloadSavedBinFile(row)"
+                >
+                  {{ t("tokenImport.actions.download") }}
+                </NButton>
+                <NButton
+                  secondary
+                  size="small"
+                  type="error"
+                  :loading="!!binDeleting[row.tokenId]"
+                  @click="deleteSavedBinFile(row)"
+                >
+                  {{ t("tokenImport.actions.delete") }}
+                </NButton>
+              </div>
+            </article>
+            <n-empty
+              v-if="!binFiles.length"
+              class="bin-files-mobile-empty"
+              description="暂无已保存 BIN 文件"
+            ></n-empty>
+          </div>
+          <n-data-table
+            v-else
+            size="small"
+            :columns="binFileColumns"
+            :data="binFiles"
+            :loading="binFilesLoading"
+            :pagination="{ pageSize: 5 }"
+          ></n-data-table>
+        </n-spin>
       </n-card>
 
       <!-- Token列表 -->
@@ -205,7 +255,7 @@
                 })
               }}
             </h2>
-            <n-radio-group size="small" v-model:value="viewMode">
+            <n-radio-group v-if="!isMobile" size="small" v-model:value="viewMode">
               <n-radio-button value="list">{{
                 t("tokenImport.viewModes.list")
               }}</n-radio-button>
@@ -283,7 +333,7 @@
           </div>
         </div>
 
-        <div v-if="viewMode === 'card'" class="tokens-grid">
+        <div v-if="activeViewMode === 'card'" class="tokens-grid">
           <a-card
             v-for="(token, index) in sortedTokens"
             :key="token.id"
@@ -849,6 +899,7 @@ import {
   fetchTokenPayloadFromUrl,
   isTrustedTokenImportUrl,
 } from "@/services/tokenImport/tokenRemoteSource";
+import { useResponsive } from "@/composables/useResponsive";
 import { maskToken } from "@/utils/securitySanitizer";
 // 接收路由参数
 const props = defineProps({
@@ -863,6 +914,7 @@ const dialog = useDialog();
 const { locale, t } = useI18n();
 const tokenStore = useTokenStore();
 const authStore = useAuthStore();
+const { isMobile } = useResponsive();
 
 // 响应式数据
 const showImportForm = ref(false);
@@ -908,31 +960,28 @@ const tokenHeroDescription = computed(() => {
   return `${username} · ${t("tokenImport.header.accountIsolation")}`;
 });
 
+const activeViewMode = computed(() => (isMobile.value ? "card" : viewMode.value));
+
 const tokenSummaryCards = computed(() => [
   {
-    label: "当前选择",
+    label: "当前角色",
     value: tokenStore.selectedToken?.name || "未选择",
     meta: tokenStore.selectedToken?.server || "先在列表里选择一个角色",
   },
   {
-    label: "视图模式",
+    label: "工作模式",
     value:
-      viewMode.value === "card"
+      activeViewMode.value === "card"
         ? t("tokenImport.viewModes.card")
         : t("tokenImport.viewModes.list"),
-    meta: "移动端默认更适合卡片流式查看",
+    meta: isMobile.value
+      ? "手机端自动切换为卡片操作"
+      : "桌面端可在列表与卡片间切换",
   },
   {
-    label: "长效凭证",
-    value: String(persistentTokenCount.value),
-    meta: tokenStore.hasTokens
-      ? `共 ${tokenStore.gameTokens.length} 个角色`
-      : "导入后可长期复用",
-  },
-  {
-    label: "安全确认",
+    label: "安全与凭证",
     value: sensitiveConfirmRemainingText.value || "无需再次确认",
-    meta: "BIN 文件恢复与远程导入保持原逻辑",
+    meta: `${persistentTokenCount.value} 个长效凭证 · ${binFiles.value.length} 个 BIN 文件`,
   },
 ]);
 const {
@@ -991,11 +1040,16 @@ const formatTime = (timestamp) => {
 };
 
 const {
+  binDeleting,
+  binDownloading,
   binFileColumns,
   binFiles,
   binFilesLoading,
+  deleteSavedBinFile,
+  downloadSavedBinFile,
   loadBinFiles,
   loadRemoteBinDownloadPreference,
+  remoteBinDownloadEnabled,
   sensitiveConfirmRemainingText,
   tryRelinkBinSourceByRoleId,
   tryRestoreTokensFromSavedBins,
@@ -1375,6 +1429,10 @@ onMounted(async () => {
   align-items: flex-start;
 }
 
+.token-import-summary {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
 .page-header {
   text-align: center;
   margin-bottom: var(--spacing-2xl);
@@ -1611,6 +1669,67 @@ onMounted(async () => {
     color: var(--text-secondary);
     font-size: var(--font-size-sm);
   }
+}
+
+.bin-files-mobile-list {
+  display: grid;
+  gap: 12px;
+}
+
+.bin-file-card {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 18px;
+  border: 1px solid var(--surface-glass-border);
+  background:
+    linear-gradient(135deg, rgba(15, 107, 255, 0.06), transparent 78%),
+    var(--surface-glass-strong);
+}
+
+.bin-file-card__head {
+  display: grid;
+  gap: 4px;
+}
+
+.bin-file-card__head strong {
+  color: var(--text-primary);
+  word-break: break-word;
+}
+
+.bin-file-card__head span {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-family: var(--font-family-mono);
+  word-break: break-all;
+}
+
+.bin-file-card__meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.bin-file-card__meta span {
+  display: block;
+  color: var(--text-tertiary);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.bin-file-card__meta strong {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-primary);
+  font-size: 13px;
+  word-break: break-word;
+}
+
+.bin-file-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .tokens-section {
@@ -2023,6 +2142,12 @@ onMounted(async () => {
     align-items: stretch;
   }
 
+  .token-import-page__actions,
+  .header-actions {
+    width: 100%;
+    align-items: stretch;
+  }
+
   .header-tools {
     width: 100%;
     justify-content: space-between;
@@ -2046,6 +2171,11 @@ onMounted(async () => {
     align-items: stretch;
   }
 
+  .section-header :deep(.n-space) {
+    width: 100%;
+    justify-content: space-between;
+  }
+
   .token-timestamps {
     flex-direction: column;
   }
@@ -2053,6 +2183,10 @@ onMounted(async () => {
   .storage-info {
     flex-direction: column;
     gap: var(--spacing-sm);
+  }
+
+  .bin-file-card__meta {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 

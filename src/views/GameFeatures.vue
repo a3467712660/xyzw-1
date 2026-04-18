@@ -136,6 +136,7 @@ import {
   GAME_STATUS_MODULE_IDS,
 } from "@/components/game-status/moduleMeta";
 import GameCommandBar from "@/components/game-workbench-v2/GameCommandBar.vue";
+import GameWorkbenchLoadingState from "@/components/game-workbench-v2/GameWorkbenchLoadingState.vue";
 import GameModuleRail from "@/components/game-workbench-v2/GameModuleRail.vue";
 import GameStage from "@/components/game-workbench-v2/GameStage.vue";
 import { useGameFeatureActions } from "@/composables/useGameFeatureActions";
@@ -144,10 +145,18 @@ import { useAuthStore } from "@/stores/auth";
 import { useTokenStore } from "@/stores/tokenStore";
 import { hasGameFeatureAccess } from "@/utils/accessScope";
 
-const GameStatus = defineAsyncComponent(() => import("@/components/GameStatus.vue"));
-const GameInspector = defineAsyncComponent(
-  () => import("@/components/game-workbench-v2/GameInspector.vue"),
-);
+const GameStatus = defineAsyncComponent({
+  loader: () => import("@/components/GameStatus.vue"),
+  loadingComponent: GameWorkbenchLoadingState,
+  delay: 0,
+  suspensible: false,
+});
+const GameInspector = defineAsyncComponent({
+  loader: () => import("@/components/game-workbench-v2/GameInspector.vue"),
+  loadingComponent: GameWorkbenchLoadingState,
+  delay: 0,
+  suspensible: false,
+});
 
 const GROUP_ICONS = Object.freeze({
   operations: markRaw(Speedometer),
@@ -166,7 +175,7 @@ const { isMobile } = useResponsive();
 const activeModule = ref(GAME_STATUS_MODULE_IDS.daily);
 const lastActivity = ref(null);
 const showInspectorDrawer = ref(false);
-const showDesktopInspector = computed(() => !isMobile.value);
+const showDesktopInspector = computed(() => false);
 
 const canAccessRestrictedGameSections = computed(() =>
   hasGameFeatureAccess(authStore.user),
@@ -266,8 +275,11 @@ const summaryCards = computed(() => [
 
 const commandSignals = computed(() => [
   summaryCards.value[0],
-  summaryCards.value[1],
-  summaryCards.value[2],
+  {
+    label: "当前分组",
+    value: activeGroup.value?.label || t("gameFeatures.workbench.values.pending"),
+    meta: activeModuleMeta.value?.description || "先选定工作区，再进入对应功能模块。",
+  },
   {
     label: t("gameFeatures.workbench.signals.lastActivity"),
     value: lastActivity.value || t("gameFeatures.workbench.values.none"),

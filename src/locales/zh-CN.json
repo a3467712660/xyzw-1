@@ -1214,7 +1214,8 @@
       "basic": "基本信息",
       "password": "密码修改",
       "preferences": "系统偏好",
-      "security": "账户安全"
+      "security": "账户安全",
+      "danger": "危险操作"
     },
     "fields": {
       "username": "用户名",
@@ -1389,7 +1390,9 @@
       "cancel": "取消"
     },
     "common": {
-      "unknownUser": "未知用户"
+      "unknownUser": "未知用户",
+      "enabled": "已开启",
+      "disabled": "已关闭"
     }
   },
   "tokenManager": {

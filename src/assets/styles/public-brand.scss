@@ -2,7 +2,7 @@
   position: relative;
   min-height: 100dvh;
   color: var(--text-primary);
-  overflow: clip;
+  overflow: hidden;
   isolation: isolate;
 }
 
@@ -14,10 +14,11 @@
 }
 
 .public-brand-bg {
-  position: fixed;
+  position: absolute;
   inset: 0;
   pointer-events: none;
   z-index: 0;
+  overflow: hidden;
 }
 
 .public-brand-stack {
@@ -28,8 +29,9 @@
 .public-brand-orb {
   position: absolute;
   border-radius: 999px;
-  filter: blur(80px);
-  opacity: 0.72;
+  filter: blur(52px);
+  opacity: 0.54;
+  transform: translateZ(0);
 }
 
 .public-brand-orb--a {
@@ -78,7 +80,8 @@
   position: relative;
   overflow: hidden;
   border: 1px solid var(--surface-glass-border);
-  backdrop-filter: blur(18px);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .public-brand-glass-card {

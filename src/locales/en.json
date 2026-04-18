@@ -1238,7 +1238,8 @@
       "basic": "Basic Information",
       "password": "Password",
       "preferences": "Preferences",
-      "security": "Security"
+      "security": "Security",
+      "danger": "Danger Zone"
     },
     "fields": {
       "username": "Username",
@@ -1413,7 +1414,9 @@
       "cancel": "Cancel"
     },
     "common": {
-      "unknownUser": "Unknown user"
+      "unknownUser": "Unknown user",
+      "enabled": "Enabled",
+      "disabled": "Disabled"
     }
   },
   "tokenManager": {

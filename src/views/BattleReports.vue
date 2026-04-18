@@ -174,30 +174,39 @@ import { useMessage } from "naive-ui/es";
 import { useI18n } from "vue-i18n";
 import { DocumentText } from "@vicons/ionicons5";
 import GameCommandBar from "@/components/game-workbench-v2/GameCommandBar.vue";
+import GameWorkbenchLoadingState from "@/components/game-workbench-v2/GameWorkbenchLoadingState.vue";
 import GameModuleRail from "@/components/game-workbench-v2/GameModuleRail.vue";
 import GameStage from "@/components/game-workbench-v2/GameStage.vue";
 import { useGameFeatureActions } from "@/composables/useGameFeatureActions";
 import { useTokenStore } from "@/stores/tokenStore";
 
-const ClubWarrank = defineAsyncComponent(
+const createReportAsyncComponent = (loader) =>
+  defineAsyncComponent({
+    loader,
+    loadingComponent: GameWorkbenchLoadingState,
+    delay: 0,
+    suspensible: false,
+  });
+
+const ClubWarrank = createReportAsyncComponent(
   () => import("@/components/Club/ClubWarrank.vue"),
 );
-const ClubMonthBattleRecords = defineAsyncComponent(
+const ClubMonthBattleRecords = createReportAsyncComponent(
   () => import("@/components/Club/ClubMonthBattleRecords.vue"),
 );
-const ClubBattleRecords = defineAsyncComponent(
+const ClubBattleRecords = createReportAsyncComponent(
   () => import("@/components/Club/ClubBattleRecords.vue"),
 );
-const PeachBattleRecords = defineAsyncComponent(
+const PeachBattleRecords = createReportAsyncComponent(
   () => import("@/components/Club/PeachBattleRecords.vue"),
 );
-const PeachInfo = defineAsyncComponent(
+const PeachInfo = createReportAsyncComponent(
   () => import("@/components/Club/PeachInfo.vue"),
 );
-const LegionWarMap = defineAsyncComponent(
+const LegionWarMap = createReportAsyncComponent(
   () => import("@/components/Club/LegionWarMap.vue"),
 );
-const LegionWarStatistics = defineAsyncComponent(
+const LegionWarStatistics = createReportAsyncComponent(
   () => import("@/components/Club/LegionWarStatistics.vue"),
 );
 
@@ -369,19 +378,14 @@ const commandSignals = computed(() => [
     value: tokenStore.selectedToken?.name || "未选择",
   },
   {
-    label: "连接状态",
-    meta: isConnected.value ? "战报组件可直接使用当前连接" : "先恢复连接再查看实时内容",
-    value: connectionStatusText.value,
-  },
-  {
     label: "当前模块",
     meta: activeModuleMeta.value?.description || "选择盐场或蟠桃园",
     value: activeModuleMeta.value?.label || "战报功能",
   },
   {
-    label: "当前页签",
-    meta: "已从游戏功能独立迁移到战报功能",
-    value: currentSubTabLabel.value,
+    label: "最近活动",
+    meta: "切换模块、页签或连接动作后，这里的时间会更新。",
+    value: lastActivity.value || "未记录",
   },
 ]);
 
@@ -402,11 +406,6 @@ const stageCards = computed(() => [
     label: "连接状态",
     value: connectionStatusText.value,
     meta: isConnected.value ? "实时内容会复用当前连接。" : "建议先恢复连接再查看实时态势。",
-  },
-  {
-    label: "最近活动",
-    value: lastActivity.value || "未记录",
-    meta: "切换模块、页签或连接动作后，这里的时间会更新。",
   },
 ]);
 

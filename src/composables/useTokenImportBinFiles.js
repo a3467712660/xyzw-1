@@ -796,6 +796,8 @@ export function useTokenImportBinFiles({
     binFileColumns,
     binFiles,
     binFilesLoading,
+    deleteSavedBinFile,
+    downloadSavedBinFile,
     loadBinFiles,
     loadRemoteBinDownloadPreference,
     remoteBinDownloadEnabled,

@@ -21,12 +21,6 @@
           </div>
         </button>
 
-        <div v-if="!isSiderCollapsed" class="app-shell__context-card">
-          <span class="app-shell__context-label">当前角色</span>
-          <strong>{{ selectedToken?.name || "未选择 Token" }}</strong>
-          <span class="app-shell__context-meta">{{ selectedToken?.server || "导入角色后即可开始" }}</span>
-        </div>
-
         <n-menu
           class="app-shell__menu"
           :collapsed="isSiderCollapsed"
@@ -38,11 +32,18 @@
           @update:value="handleMenuSelect"
         ></n-menu>
 
-        <div v-if="!isSiderCollapsed" class="app-shell__sider-footer">
-          <span class="app-shell__status-title">连接状态</span>
-          <div class="app-shell__status-row">
-            <span class="app-shell__status-dot" :class="`is-${selectedTokenStatus}`"></span>
-            <span>{{ selectedTokenStatusText }}</span>
+        <div v-if="!isSiderCollapsed" class="app-shell__sider-summary">
+          <div class="app-shell__summary-main">
+            <span class="app-shell__context-label">当前角色</span>
+            <strong>{{ selectedTokenPrimaryText }}</strong>
+            <span class="app-shell__context-meta">{{ selectedTokenSecondaryText }}</span>
+          </div>
+          <div class="app-shell__summary-row">
+            <span class="app-shell__status-title">连接状态</span>
+            <div class="app-shell__status-row">
+              <span class="app-shell__status-dot" :class="`is-${selectedTokenStatus}`"></span>
+              <span>{{ selectedTokenStatusText }}</span>
+            </div>
           </div>
           <div class="app-shell__version-list">
             <div class="app-shell__version-row">
@@ -79,15 +80,13 @@
             <span class="app-shell__page-kicker">{{ currentPageGroup }}</span>
             <strong>{{ currentPageTitle }}</strong>
             <span class="app-shell__page-meta">{{ currentPageMeta }}</span>
+            <span class="app-shell__page-status" :class="`is-${selectedTokenStatus}`">
+              {{ headerStatusText }}
+            </span>
           </div>
         </div>
 
         <div class="app-shell__header-right">
-          <div class="app-shell__token-pill" :class="`is-${selectedTokenStatus}`">
-            <span class="app-shell__token-pill-label">{{ selectedTokenStatusText }}</span>
-            <strong>{{ selectedToken?.name || "未选择角色" }}</strong>
-          </div>
-
           <n-popover placement="bottom-end" trigger="click" @update:show="handleNotifyPopover">
             <template #trigger>
               <button class="notify-trigger" type="button" @click="fetchNotifications">
@@ -184,7 +183,12 @@
 
       <div class="app-shell__drawer-token">
         <span>当前角色</span>
-        <strong>{{ selectedToken?.name || "未选择 Token" }}</strong>
+        <strong>{{ selectedTokenPrimaryText }}</strong>
+        <p class="app-shell__drawer-token-meta">{{ selectedTokenSecondaryText }}</p>
+        <div class="app-shell__status-row">
+          <span class="app-shell__status-dot" :class="`is-${selectedTokenStatus}`"></span>
+          <span>{{ selectedTokenStatusText }}</span>
+        </div>
       </div>
 
       <n-menu
@@ -385,13 +389,16 @@ const activeMenuItem = computed(() => {
 });
 const currentPageTitle = computed(() => String(route.meta?.title || activeMenuItem.value?.label || "工作台"));
 const currentPageGroup = computed(() => String(activeMenuItem.value?.groupLabel || "工作区"));
-const currentPageMeta = computed(() => {
-  const pieces = [authStore.user?.username || "未登录"];
-  if (selectedToken.value?.name) {
-    pieces.push(`当前角色：${selectedToken.value.name}`);
-  }
-  return pieces.join(" · ");
-});
+const currentPageMeta = computed(() => authStore.user?.username || "未登录");
+const selectedTokenPrimaryText = computed(() => selectedToken.value?.name || "未选择 Token");
+const selectedTokenSecondaryText = computed(() =>
+  selectedToken.value?.server || "导入角色后即可开始",
+);
+const headerStatusText = computed(() =>
+  selectedToken.value?.name
+    ? `${selectedTokenStatusText.value} · ${selectedToken.value.name}`
+    : selectedTokenStatusText.value,
+);
 
 const userMenuOptions = [
   {
@@ -723,7 +730,7 @@ onUnmounted(() => {
   margin: 0;
 }
 
-.app-shell__context-card {
+.app-shell__sider-summary {
   padding: 16px 18px;
   border-radius: 20px;
   background:
@@ -731,9 +738,22 @@ onUnmounted(() => {
     var(--surface-glass-strong);
   border: 1px solid var(--surface-glass-border);
   box-shadow: var(--shadow-light);
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  gap: 10px;
+}
+
+.app-shell__summary-main {
+  display: grid;
   gap: 6px;
+}
+
+.app-shell__summary-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--console-divider);
 }
 
 .app-shell__context-label,
@@ -746,7 +766,7 @@ onUnmounted(() => {
   font-weight: 600;
 }
 
-.app-shell__context-card strong {
+.app-shell__summary-main strong {
   color: var(--text-primary);
   font-size: 15px;
 }
@@ -759,18 +779,6 @@ onUnmounted(() => {
 .app-shell__menu {
   flex: 1;
   min-height: 0;
-}
-
-.app-shell__sider-footer {
-  padding: 16px 18px;
-  border-radius: 20px;
-  background:
-    linear-gradient(135deg, rgba(15, 107, 255, 0.1), transparent 78%),
-    rgba(15, 107, 255, 0.04);
-  border: 1px solid rgba(15, 107, 255, 0.16);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
 }
 
 .app-shell__status-row {
@@ -892,9 +900,21 @@ onUnmounted(() => {
   color: var(--text-secondary);
   font-size: 14px;
   line-height: 1.5;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+}
+
+.app-shell__page-status {
+  display: none;
+  width: fit-content;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 107, 255, 0.14);
+  background: rgba(15, 107, 255, 0.08);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .app-shell__content-layout {
@@ -1092,6 +1112,13 @@ onUnmounted(() => {
   color: var(--text-primary);
 }
 
+.app-shell__drawer-token-meta {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 @media (max-width: 1279px) {
   .app-shell__token-pill {
     display: none;
@@ -1113,6 +1140,10 @@ onUnmounted(() => {
 
   .user-info {
     padding: 6px;
+  }
+
+  .app-shell__page-status {
+    display: inline-flex;
   }
 
   .app-shell__page-copy strong {

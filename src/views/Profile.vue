@@ -7,8 +7,8 @@
         <p class="app-page__description">{{ t("profile.subtitle") }}</p>
         <div class="app-chip-row">
           <span class="app-inline-stat">
-            <strong>{{ userInfo.username || authStore.user?.username || "未登录" }}</strong>
-            当前账号
+            <strong>{{ userInfo.accountDisplayId || "待生成" }}</strong>
+            账号 ID
           </span>
           <span class="app-inline-stat">
             <strong>{{ getThemeModeLabel(preferences.theme) }}</strong>
@@ -31,235 +31,301 @@
     </div>
 
     <div class="container profile-page__content">
-      <h2>{{ t("profile.sections.basic") }}</h2>
-      <a-card>
-        <a-form label-placement="left" label-width="80px" :model="userInfo">
-          <a-form-item :label="t('profile.fields.username')">
-            <a-input readonly v-model:value="userInfo.username"></a-input>
-          </a-form-item>
-          <a-form-item :label="t('profile.fields.accountDisplayId')">
-            <a-input readonly v-model:value="userInfo.accountDisplayId"></a-input>
-          </a-form-item>
-          <a-form-item :label="t('profile.fields.email')">
-            <a-input v-model:value="userInfo.email"></a-input>
-          </a-form-item>
-          <a-form-item :label="t('profile.fields.nickname')">
-            <a-input
-              v-model:value="userInfo.nickname"
-              :placeholder="t('profile.placeholders.nickname')"
-            ></a-input>
-          </a-form-item>
-          <a-form-item :label="t('profile.fields.phone')">
-            <a-input
-              v-model:value="userInfo.phone"
-              :placeholder="t('profile.placeholders.phone')"
-            ></a-input>
-          </a-form-item>
-        </a-form>
-
-        <template #actions>
-          <a-button
-            type="primary"
-            :loading="isProfileSaving"
-            @click="saveProfile"
-          >
-            {{ t("profile.actions.saveProfile") }}
-          </a-button>
-        </template>
-      </a-card>
-
-      <h2>{{ t("profile.sections.password") }}</h2>
-      <a-card>
-        <a-form
-          label-placement="left"
-          label-width="100px"
-          :model="passwordForm"
-        >
-          <a-form-item prop="currentPassword" :label="t('profile.fields.currentPassword')">
-            <a-input
-              type="password"
-              v-model="passwordForm.currentPassword"
-              :placeholder="t('profile.placeholders.currentPassword')"
-            ></a-input>
-          </a-form-item>
-          <a-form-item prop="newPassword" :label="t('profile.fields.newPassword')">
-            <a-input
-              type="password"
-              v-model="passwordForm.newPassword"
-              :placeholder="t('profile.placeholders.newPassword')"
-            ></a-input>
-          </a-form-item>
-          <a-form-item prop="confirmPassword" :label="t('profile.fields.confirmPassword')">
-            <a-input
-              type="password"
-              v-model="passwordForm.confirmPassword"
-              :placeholder="t('profile.placeholders.confirmPassword')"
-            ></a-input>
-          </a-form-item>
-        </a-form>
-        <template #actions>
-          <a-button
-            type="primary"
-            :loading="isPasswordSaving"
-            @click="changePassword"
-          >
-            {{ t("profile.actions.changePassword") }}
-          </a-button>
-        </template>
-      </a-card>
-
-      <h2>{{ t("profile.sections.preferences") }}</h2>
-      <a-card>
-        <a-form>
-          <a-form-item :label="t('profile.fields.theme')">
-            <n-select
-              v-model:value="preferences.theme"
-              :options="themeOptions"
-              @update:value="
-                (value) => {
-                  updateTheme(value);
-                  savePreferences();
-                }
-              "
-            ></n-select>
-            <template #extra>{{ t("profile.extra.theme") }}</template>
-          </a-form-item>
-          <a-form-item :label="t('profile.fields.language')">
-            <n-select
-              v-model:value="preferences.language"
-              :options="languageOptions"
-              @update:value="savePreferences"
-            ></n-select>
-            <template #extra>{{ t("profile.extra.language") }}</template>
-          </a-form-item>
-          <a-form-item :label="t('profile.fields.notifications')">
-            <n-switch
-              v-model:value="preferences.notifications"
-              @update:value="savePreferences"
-            ></n-switch>
-            <template #extra>{{ t("profile.extra.notifications") }}</template>
-          </a-form-item>
-          <a-form-item :label="t('profile.fields.autoExecute')">
-            <n-switch
-              v-model:value="preferences.autoExecute"
-              @update:value="savePreferences"
-            ></n-switch>
-            <template #extra>{{ t("profile.extra.autoExecute") }}</template>
-          </a-form-item>
-        </a-form>
-      </a-card>
-
-      <h2>{{ t("profile.sections.security") }}</h2>
-      <a-card>
-        <div class="security-items">
-          <div class="security-item">
-            <div class="security-info">
-              <h3>{{ t("profile.security.twoFactor.title") }}</h3>
-              <p>{{ t("profile.security.twoFactor.desc") }}</p>
-            </div>
-            <n-button @click="handleTwoFactorAction">
-              {{
-                isTwoFactorEnabled && !authStore.user?.isAdmin
-                  ? t("profile.actions.requestReset")
-                  : isTwoFactorEnabled
-                    ? t("profile.actions.reset")
-                    : t("profile.actions.setup")
-              }}
-            </n-button>
+      <section class="profile-section-card app-section-card">
+        <div class="profile-section-head">
+          <div class="profile-section-head__copy">
+            <p class="profile-section-head__eyebrow">Account Profile</p>
+            <h2>{{ t("profile.sections.basic") }}</h2>
           </div>
-
-          <div class="security-item">
-            <div class="security-info">
-              <h3>{{ t("profile.security.loginHistory.title") }}</h3>
-              <p>{{ t("profile.security.loginHistory.desc") }}</p>
-            </div>
-            <n-button @click="viewLoginHistory"> {{ t("profile.actions.view") }} </n-button>
-          </div>
-
-          <div class="security-item">
-            <div class="security-info">
-              <h3>{{ t("profile.security.exportData.title") }}</h3>
-              <p>{{ t("profile.security.exportData.desc") }}</p>
-            </div>
-            <n-button @click="exportData"> {{ t("profile.actions.export") }} </n-button>
-          </div>
-
-          <div class="security-item">
-            <div class="security-info">
-              <h3>{{ t("profile.security.refreshSecondVerify.title") }}</h3>
-              <p>
-                {{
-                  authStore.user?.isAdmin
-                    ? t("profile.security.refreshSecondVerify.adminDesc")
-                    : t("profile.security.refreshSecondVerify.userDesc")
-                }}
-              </p>
-            </div>
-            <template v-if="authStore.user?.isAdmin">
-              <n-button @click="goToAdminUsersForRefreshVerify">
-                {{ t("profile.actions.goAdminManage") }}
-              </n-button>
-            </template>
-            <template v-else>
-              <n-space align="center" :size="10">
-                <n-tag :type="securityPreferences.refreshSecondVerifyEnabled ? 'success' : 'warning'">
-                  {{
-                    securityPreferences.refreshSecondVerifyEnabled
-                      ? t("profile.messages.refreshSecondVerifyEnabled")
-                      : t("profile.messages.refreshSecondVerifyDisabled")
-                  }}
-                </n-tag>
-                <n-button
-                  :disabled="!securityPreferences.refreshSecondVerifyEnabled"
-                  :loading="isRefreshSecondVerifySaving"
-                  @click="submitDisableRefreshSecondVerifyRequest"
-                >
-                  {{ t("profile.actions.requestDisable") }}
-                </n-button>
-              </n-space>
-            </template>
-          </div>
-
-          <div class="security-item">
-            <div class="security-info">
-              <h3>{{ t("profile.security.remoteBin.title") }}</h3>
-              <p>{{ t("profile.security.remoteBin.desc") }}</p>
-            </div>
-            <n-switch
-              :loading="isRemoteBinDownloadSaving"
-              :value="securityPreferences.remoteBinDownloadEnabled"
-              @update:value="updateRemoteBinDownloadPreference"
-            ></n-switch>
-          </div>
-
-          <div class="security-item">
-            <div class="security-info">
-              <h3>{{ t("profile.security.safeMode.title") }}</h3>
-              <p>{{ t("profile.security.safeMode.desc") }}</p>
-            </div>
-            <n-switch
-              :value="safeModeEnabled"
-              @update:value="updateSafeModePreference"
-            ></n-switch>
-          </div>
-
-          <div class="security-item">
-            <div class="security-info">
-              <h3>{{ t("profile.security.logout.title") }}</h3>
-              <p>{{ t("profile.security.logout.desc") }}</p>
-            </div>
-            <n-button type="warning" @click="logoutAccount"> {{ t("profile.actions.logout") }} </n-button>
-          </div>
-
-          <div class="security-item danger">
-            <div class="security-info">
-              <h3>{{ t("profile.security.deleteAccount.title") }}</h3>
-              <p>{{ t("profile.security.deleteAccount.desc") }}</p>
-            </div>
-            <n-button type="error" @click="deleteAccount"> {{ t("profile.actions.delete") }} </n-button>
-          </div>
+          <span class="profile-section-head__badge">
+            {{ userInfo.accountDisplayId || "账号 ID 待生成" }}
+          </span>
         </div>
-      </a-card>
+
+        <div class="profile-section-grid profile-section-grid--single">
+          <a-card class="profile-pane-card">
+            <a-form label-placement="left" label-width="80px" :model="userInfo">
+              <a-form-item :label="t('profile.fields.username')">
+                <a-input readonly v-model:value="userInfo.username"></a-input>
+              </a-form-item>
+              <a-form-item :label="t('profile.fields.accountDisplayId')">
+                <a-input readonly v-model:value="userInfo.accountDisplayId"></a-input>
+              </a-form-item>
+              <a-form-item :label="t('profile.fields.email')">
+                <a-input v-model:value="userInfo.email"></a-input>
+              </a-form-item>
+              <a-form-item :label="t('profile.fields.nickname')">
+                <a-input
+                  v-model:value="userInfo.nickname"
+                  :placeholder="t('profile.placeholders.nickname')"
+                ></a-input>
+              </a-form-item>
+              <a-form-item :label="t('profile.fields.phone')">
+                <a-input
+                  v-model:value="userInfo.phone"
+                  :placeholder="t('profile.placeholders.phone')"
+                ></a-input>
+              </a-form-item>
+            </a-form>
+
+            <template #actions>
+              <a-button
+                type="primary"
+                :loading="isProfileSaving"
+                @click="saveProfile"
+              >
+                {{ t("profile.actions.saveProfile") }}
+              </a-button>
+            </template>
+          </a-card>
+        </div>
+      </section>
+
+      <section class="profile-section-card app-section-card">
+        <div class="profile-section-head">
+          <div class="profile-section-head__copy">
+            <p class="profile-section-head__eyebrow">Security Center</p>
+            <h2>{{ t("profile.sections.security") }}</h2>
+          </div>
+          <span class="profile-section-head__badge">
+            {{ isTwoFactorEnabled ? t("profile.common.enabled") : t("profile.common.disabled") }}
+          </span>
+        </div>
+
+        <div class="profile-section-grid profile-section-grid--split">
+          <a-card class="profile-pane-card">
+            <div class="profile-pane-card__head">
+              <h3>{{ t("profile.sections.password") }}</h3>
+              <p>密码修改与账户登录安全在同一处完成。</p>
+            </div>
+            <a-form
+              label-placement="left"
+              label-width="100px"
+              :model="passwordForm"
+            >
+              <a-form-item prop="currentPassword" :label="t('profile.fields.currentPassword')">
+                <a-input
+                  type="password"
+                  v-model="passwordForm.currentPassword"
+                  :placeholder="t('profile.placeholders.currentPassword')"
+                ></a-input>
+              </a-form-item>
+              <a-form-item prop="newPassword" :label="t('profile.fields.newPassword')">
+                <a-input
+                  type="password"
+                  v-model="passwordForm.newPassword"
+                  :placeholder="t('profile.placeholders.newPassword')"
+                ></a-input>
+              </a-form-item>
+              <a-form-item prop="confirmPassword" :label="t('profile.fields.confirmPassword')">
+                <a-input
+                  type="password"
+                  v-model="passwordForm.confirmPassword"
+                  :placeholder="t('profile.placeholders.confirmPassword')"
+                ></a-input>
+              </a-form-item>
+            </a-form>
+            <template #actions>
+              <a-button
+                type="primary"
+                :loading="isPasswordSaving"
+                @click="changePassword"
+              >
+                {{ t("profile.actions.changePassword") }}
+              </a-button>
+            </template>
+          </a-card>
+
+          <a-card class="profile-pane-card">
+            <div class="profile-pane-card__head">
+              <h3>安全开关与记录</h3>
+              <p>把二次验证、高风险开关和登录记录放在统一阅读顺序里。</p>
+            </div>
+            <div class="security-items">
+              <div class="security-item">
+                <div class="security-info">
+                  <h3>{{ t("profile.security.twoFactor.title") }}</h3>
+                  <p>{{ t("profile.security.twoFactor.desc") }}</p>
+                </div>
+                <n-button @click="handleTwoFactorAction">
+                  {{
+                    isTwoFactorEnabled && !authStore.user?.isAdmin
+                      ? t("profile.actions.requestReset")
+                      : isTwoFactorEnabled
+                        ? t("profile.actions.reset")
+                        : t("profile.actions.setup")
+                  }}
+                </n-button>
+              </div>
+
+              <div class="security-item">
+                <div class="security-info">
+                  <h3>{{ t("profile.security.loginHistory.title") }}</h3>
+                  <p>{{ t("profile.security.loginHistory.desc") }}</p>
+                </div>
+                <n-button @click="viewLoginHistory"> {{ t("profile.actions.view") }} </n-button>
+              </div>
+
+              <div class="security-item">
+                <div class="security-info">
+                  <h3>{{ t("profile.security.exportData.title") }}</h3>
+                  <p>{{ t("profile.security.exportData.desc") }}</p>
+                </div>
+                <n-button @click="exportData"> {{ t("profile.actions.export") }} </n-button>
+              </div>
+
+              <div class="security-item">
+                <div class="security-info">
+                  <h3>{{ t("profile.security.refreshSecondVerify.title") }}</h3>
+                  <p>
+                    {{
+                      authStore.user?.isAdmin
+                        ? t("profile.security.refreshSecondVerify.adminDesc")
+                        : t("profile.security.refreshSecondVerify.userDesc")
+                    }}
+                  </p>
+                </div>
+                <template v-if="authStore.user?.isAdmin">
+                  <n-button @click="goToAdminUsersForRefreshVerify">
+                    {{ t("profile.actions.goAdminManage") }}
+                  </n-button>
+                </template>
+                <template v-else>
+                  <n-space vertical class="security-item__actions" :size="8">
+                    <n-tag :type="securityPreferences.refreshSecondVerifyEnabled ? 'success' : 'warning'">
+                      {{
+                        securityPreferences.refreshSecondVerifyEnabled
+                          ? t("profile.messages.refreshSecondVerifyEnabled")
+                          : t("profile.messages.refreshSecondVerifyDisabled")
+                      }}
+                    </n-tag>
+                    <n-button
+                      :disabled="!securityPreferences.refreshSecondVerifyEnabled"
+                      :loading="isRefreshSecondVerifySaving"
+                      @click="submitDisableRefreshSecondVerifyRequest"
+                    >
+                      {{ t("profile.actions.requestDisable") }}
+                    </n-button>
+                  </n-space>
+                </template>
+              </div>
+
+              <div class="security-item">
+                <div class="security-info">
+                  <h3>{{ t("profile.security.remoteBin.title") }}</h3>
+                  <p>{{ t("profile.security.remoteBin.desc") }}</p>
+                </div>
+                <n-switch
+                  :loading="isRemoteBinDownloadSaving"
+                  :value="securityPreferences.remoteBinDownloadEnabled"
+                  @update:value="updateRemoteBinDownloadPreference"
+                ></n-switch>
+              </div>
+
+              <div class="security-item">
+                <div class="security-info">
+                  <h3>{{ t("profile.security.safeMode.title") }}</h3>
+                  <p>{{ t("profile.security.safeMode.desc") }}</p>
+                </div>
+                <n-switch
+                  :value="safeModeEnabled"
+                  @update:value="updateSafeModePreference"
+                ></n-switch>
+              </div>
+            </div>
+          </a-card>
+        </div>
+      </section>
+
+      <section class="profile-section-card app-section-card">
+        <div class="profile-section-head">
+          <div class="profile-section-head__copy">
+            <p class="profile-section-head__eyebrow">Workspace Preferences</p>
+            <h2>{{ t("profile.sections.preferences") }}</h2>
+          </div>
+          <span class="profile-section-head__badge">{{ getThemeModeLabel(preferences.theme) }}</span>
+        </div>
+
+        <div class="profile-section-grid profile-section-grid--single">
+          <a-card class="profile-pane-card">
+            <a-form>
+              <a-form-item :label="t('profile.fields.theme')">
+                <n-select
+                  v-model:value="preferences.theme"
+                  :options="themeOptions"
+                  @update:value="
+                    (value) => {
+                      updateTheme(value);
+                      savePreferences();
+                    }
+                  "
+                ></n-select>
+                <template #extra>{{ t("profile.extra.theme") }}</template>
+              </a-form-item>
+              <a-form-item :label="t('profile.fields.language')">
+                <n-select
+                  v-model:value="preferences.language"
+                  :options="languageOptions"
+                  @update:value="savePreferences"
+                ></n-select>
+                <template #extra>{{ t("profile.extra.language") }}</template>
+              </a-form-item>
+              <a-form-item :label="t('profile.fields.notifications')">
+                <n-switch
+                  v-model:value="preferences.notifications"
+                  @update:value="savePreferences"
+                ></n-switch>
+                <template #extra>{{ t("profile.extra.notifications") }}</template>
+              </a-form-item>
+              <a-form-item :label="t('profile.fields.autoExecute')">
+                <n-switch
+                  v-model:value="preferences.autoExecute"
+                  @update:value="savePreferences"
+                ></n-switch>
+                <template #extra>{{ t("profile.extra.autoExecute") }}</template>
+              </a-form-item>
+            </a-form>
+          </a-card>
+        </div>
+      </section>
+
+      <section class="profile-section-card profile-section-card--danger app-section-card">
+        <div class="profile-section-head">
+          <div class="profile-section-head__copy">
+            <p class="profile-section-head__eyebrow">Danger Zone</p>
+            <h2>{{ t("profile.sections.danger") }}</h2>
+          </div>
+          <span class="profile-section-head__badge profile-section-head__badge--danger">
+            请谨慎操作
+          </span>
+        </div>
+
+        <div class="profile-section-grid profile-section-grid--single">
+          <a-card class="profile-pane-card profile-pane-card--danger">
+            <div class="security-items security-items--danger">
+              <div class="security-item">
+                <div class="security-info">
+                  <h3>{{ t("profile.security.logout.title") }}</h3>
+                  <p>{{ t("profile.security.logout.desc") }}</p>
+                </div>
+                <n-button type="warning" @click="logoutAccount">
+                  {{ t("profile.actions.logout") }}
+                </n-button>
+              </div>
+
+              <div class="security-item danger">
+                <div class="security-info">
+                  <h3>{{ t("profile.security.deleteAccount.title") }}</h3>
+                  <p>{{ t("profile.security.deleteAccount.desc") }}</p>
+                </div>
+                <n-button type="error" @click="deleteAccount">
+                  {{ t("profile.actions.delete") }}
+                </n-button>
+              </div>
+            </div>
+          </a-card>
+        </div>
+      </section>
     </div>
 
     <n-modal
@@ -471,31 +537,30 @@ const getThemeModeLabel = (mode) => {
   }
 };
 
+const getStatusText = (value) =>
+  value ? t("profile.common.enabled") : t("profile.common.disabled");
+
 const profileSummaryCards = computed(() => [
   {
-    label: "主题模式",
-    value: getThemeModeLabel(preferences.theme),
-    meta: "主题状态已经统一收口到全局主题管理",
+    label: t("profile.fields.username"),
+    value: userInfo.username || authStore.user?.username || "未登录",
+    meta: userInfo.accountDisplayId
+      ? `账号 ID ${userInfo.accountDisplayId}`
+      : "账号 ID 待生成",
   },
   {
-    label: "通知",
-    value: preferences.notifications ? "已开启" : "已关闭",
-    meta: "保留原有用户偏好保存逻辑",
+    label: t("profile.security.twoFactor.title"),
+    value: getStatusText(isTwoFactorEnabled.value),
+    meta: securityPreferences.refreshSecondVerifyEnabled
+      ? t("profile.messages.refreshSecondVerifyEnabled")
+      : t("profile.messages.refreshSecondVerifyDisabled"),
   },
   {
-    label: "账号 ID",
-    value: userInfo.accountDisplayId || "未生成",
-    meta: "随机生成的展示账号编号",
-  },
-  {
-    label: "二次验证",
-    value: securityPreferences.refreshSecondVerifyEnabled ? "已开启" : "已关闭",
-    meta: "刷新敏感操作仍需按原规则确认",
-  },
-  {
-    label: "安全模式",
-    value: safeModeEnabled.value ? "已开启" : "已关闭",
-    meta: safeModeEnabled.value ? "本地凭证保护已启用" : "可按需开启本地保护",
+    label: t("profile.security.safeMode.title"),
+    value: getStatusText(safeModeEnabled.value),
+    meta: securityPreferences.remoteBinDownloadEnabled
+      ? t("profile.messages.remoteBinEnabled")
+      : t("profile.messages.remoteBinDisabled"),
   },
 ]);
 
@@ -1201,7 +1266,7 @@ onMounted(async () => {
 }
 
 .container {
-  max-width: 920px;
+  max-width: 1080px;
   margin: 0 auto;
   padding: 0 var(--spacing-lg);
   width: 100%;
@@ -1210,49 +1275,76 @@ onMounted(async () => {
 .profile-page__content {
   width: 100%;
   display: grid;
-  gap: var(--spacing-md);
+  gap: var(--spacing-lg);
 }
 
-.page-header {
-  text-align: center;
-  margin-bottom: var(--spacing-xl);
-  background: var(--surface-glass);
-  border: 1px solid var(--surface-glass-border);
-  border-radius: var(--border-radius-xl);
-  box-shadow: var(--shadow-light);
-  backdrop-filter: blur(10px);
-  padding: var(--spacing-xl);
-
-  h1 {
-    font-size: var(--font-size-3xl);
-    font-weight: var(--font-weight-bold);
-    color: var(--text-primary);
-    margin-bottom: var(--spacing-sm);
-  }
-
-  p {
-    color: var(--text-secondary);
-    font-size: var(--font-size-lg);
-    margin: 0;
-  }
+.profile-section-card {
+  padding: clamp(18px, 2vw, 26px);
 }
 
-[data-theme="dark"] .page-header {
-  background: rgba(18, 32, 58, 0.72);
+.profile-section-card--danger {
+  border-color: rgba(208, 48, 80, 0.18);
 }
 
-h2 {
-  font-size: var(--font-size-xl);
-  font-weight: var(--font-weight-semibold);
+.profile-section-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.profile-section-head__copy {
+  min-width: 0;
+}
+
+.profile-section-head__eyebrow {
+  margin: 0 0 8px;
+  color: var(--text-tertiary);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.profile-section-head h2 {
+  margin: 0;
   color: var(--text-primary);
-  margin: var(--spacing-lg) 0 0;
-  padding-left: 12px;
-  border-left: 3px solid var(--primary-color);
-  letter-spacing: 0.01em;
+  font-size: clamp(22px, 2.2vw, 28px);
+  line-height: 1.1;
 }
 
-.profile-section {
-  margin-bottom: var(--spacing-2xl);
+.profile-section-head__badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 107, 255, 0.14);
+  background: rgba(15, 107, 255, 0.08);
+  color: var(--primary-color);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.profile-section-head__badge--danger {
+  border-color: rgba(208, 48, 80, 0.2);
+  background: rgba(208, 48, 80, 0.08);
+  color: var(--error-color);
+}
+
+.profile-section-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.profile-section-grid--split {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.profile-section-grid--single {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 :deep(.arco-card) {
@@ -1278,51 +1370,86 @@ h2 {
   margin-bottom: var(--spacing-md);
 }
 
+.profile-pane-card__head {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 18px;
+}
+
+.profile-pane-card__head h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 18px;
+}
+
+.profile-pane-card__head p {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.profile-pane-card--danger {
+  border-color: rgba(208, 48, 80, 0.18);
+}
+
 .security-items {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.security-items--danger {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.security-item {
   display: flex;
-  gap: var(--spacing-lg);
-  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  min-height: 112px;
+  padding: var(--spacing-lg);
+  border: 1px solid var(--surface-glass-border);
+  border-radius: 18px;
+  transition: all var(--transition-fast);
+  background:
+    linear-gradient(135deg, rgba(15, 107, 255, 0.08), transparent 76%),
+    var(--console-panel);
+}
 
-  .security-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: var(--spacing-lg);
-    border: 1px solid var(--surface-glass-border);
-    border-radius: 18px;
-    transition: all var(--transition-fast);
-    background:
-      linear-gradient(135deg, rgba(15, 107, 255, 0.08), transparent 76%),
-      var(--console-panel);
+.security-item:hover {
+  box-shadow: var(--shadow-light);
+  border-color: rgba(15, 107, 255, 0.28);
+  transform: translateY(-1px);
+}
 
-    &:hover {
-      box-shadow: var(--shadow-light);
-      border-color: rgba(15, 107, 255, 0.28);
-      transform: translateY(-1px);
-    }
+.security-item.danger {
+  border-color: rgba(208, 48, 80, 0.22);
+  background:
+    linear-gradient(135deg, rgba(208, 48, 80, 0.08), transparent 76%),
+    rgba(208, 48, 80, 0.04);
+}
 
-    &.danger {
-      border-color: var(--error-color);
-      background: rgba(208, 48, 80, 0.05);
-    }
+.security-item__actions {
+  align-items: flex-end;
+}
 
-    .security-info {
-      flex: 1;
+.security-info {
+  flex: 1;
+}
 
-      h3 {
-        font-size: var(--font-size-md);
-        font-weight: var(--font-weight-medium);
-        color: var(--text-primary);
-        margin-bottom: var(--spacing-xs);
-      }
+.security-info h3 {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+  margin: 0 0 var(--spacing-xs);
+}
 
-      p {
-        color: var(--text-secondary);
-        font-size: var(--font-size-sm);
-        margin: 0;
-      }
-    }
-  }
+.security-info p {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  margin: 0;
+  line-height: 1.6;
 }
 
 .mfa-setup-modal {
@@ -1372,7 +1499,7 @@ h2 {
 @media (max-width: 768px) {
   .profile-page :deep(.n-button),
   .profile-page :deep(.arco-btn) {
-    min-height: 40px;
+    min-height: 44px;
     padding-left: 12px;
     padding-right: 12px;
   }
@@ -1381,23 +1508,43 @@ h2 {
     padding: 0 var(--spacing-md);
   }
 
-  .page-header {
-    padding: var(--spacing-lg);
+  .profile-section-card {
+    padding: 16px;
   }
 
-  .info-card {
-    padding: var(--spacing-lg);
+  .profile-section-head {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
   }
 
-  .preference-item,
+  .profile-section-head__badge {
+    width: fit-content;
+    max-width: 100%;
+  }
+
+  .profile-section-grid--split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .security-items {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .security-item {
     flex-direction: column;
     align-items: flex-start;
     gap: var(--spacing-md);
+    min-height: 0;
   }
 
-  .preference-item .n-select,
-  .preference-item .n-switch {
+  .security-item__actions {
+    width: 100%;
+    align-items: stretch;
+  }
+
+  .security-item :deep(.n-button),
+  .security-item :deep(.n-switch) {
     width: 100%;
   }
 }

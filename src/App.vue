@@ -20,7 +20,6 @@
               <main id="app-main" class="app-content" tabindex="-1">
                 <router-view v-slot="{ Component, route }">
                   <transition
-                    appear
                     mode="out-in"
                     :name="getShellTransitionName(route)"
                   >
@@ -255,7 +254,7 @@ html[data-theme="dark"] {
 }
 
 #app {
-  min-height: 100vh;
+  min-height: 100dvh;
   position: relative;
   overflow-x: hidden;
   color: var(--text-primary);
@@ -290,12 +289,13 @@ html[data-theme="dark"] {
 }
 
 .app-flow-bg {
-  position: fixed;
+  position: absolute;
   inset: 0;
   z-index: 0;
   pointer-events: none;
   overflow: hidden;
   background: var(--bg-gradient);
+  isolation: isolate;
 }
 
 .app-flow-bg::before {
@@ -303,16 +303,17 @@ html[data-theme="dark"] {
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(circle at 18% 12%, rgba(15, 107, 255, 0.08), transparent 24%),
-    radial-gradient(circle at 84% 18%, rgba(20, 184, 166, 0.08), transparent 24%),
-    radial-gradient(circle at 50% 100%, rgba(249, 115, 22, 0.1), transparent 32%);
+    radial-gradient(circle at 18% 12%, rgba(15, 107, 255, 0.06), transparent 22%),
+    radial-gradient(circle at 84% 18%, rgba(20, 184, 166, 0.07), transparent 22%),
+    radial-gradient(circle at 50% 100%, rgba(249, 115, 22, 0.08), transparent 28%);
 }
 
 .flow-orb {
   position: absolute;
   border-radius: 999px;
-  filter: blur(64px);
-  opacity: 0.62;
+  filter: blur(44px);
+  opacity: 0.44;
+  transform: translateZ(0);
 }
 
 .flow-orb--a {
@@ -345,7 +346,7 @@ html[data-theme="dark"] {
 .flow-grain {
   position: absolute;
   inset: 0;
-  opacity: 0.14;
+  opacity: 0.1;
   background-image: radial-gradient(var(--flow-grain) 0.6px, transparent 0.6px);
   background-size: 3px 3px;
   mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.34), transparent 74%);
@@ -355,7 +356,7 @@ html[data-theme="dark"] {
 .flow-scanline {
   position: absolute;
   inset: 0;
-  opacity: 0.1;
+  opacity: 0.06;
   background:
     linear-gradient(
       180deg,

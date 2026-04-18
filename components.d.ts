@@ -81,6 +81,7 @@ declare module 'vue' {
     GameStatusIntelPanel: typeof import('./src/components/game-status/GameStatusIntelPanel.vue')['default']
     GameStatusModuleRail: typeof import('./src/components/game-status/GameStatusModuleRail.vue')['default']
     GameStatusModuleStage: typeof import('./src/components/game-status/GameStatusModuleStage.vue')['default']
+    GameWorkbenchLoadingState: typeof import('./src/components/game-workbench-v2/GameWorkbenchLoadingState.vue')['default']
     GoldFishCalculator: typeof import('./src/components/cards/GoldFishCalculator.vue')['default']
     GoldRankListPageCard: typeof import('./src/components/cards/GoldRankListPageCard.vue')['default']
     GreatRouteRankListPageCard: typeof import('./src/components/Club/GreatRouteRankListPageCard.vue')['default']

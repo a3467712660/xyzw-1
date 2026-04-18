@@ -1494,7 +1494,6 @@ const getActionOptions = (row) => [
     disabled: !row.mfaEnabled,
   },
   { label: t("adminUsers.actions.shortCode"), key: "shortCode" },
-  { label: t("adminUsers.actions.resetPassword"), key: "resetPassword" },
   {
     label: t("adminUsers.actions.deleteUser"),
     key: "deleteUser",
@@ -1506,7 +1505,7 @@ const columns = computed(() => [
   {
     title: t("adminUsers.columns.account"),
     key: "username",
-    minWidth: 220,
+    minWidth: 260,
     ellipsis: { tooltip: true },
     render: (row) =>
       h("div", { class: "account-cell" }, [
@@ -1532,58 +1531,53 @@ const columns = computed(() => [
           { class: "account-meta" },
           row.email || t("adminUsers.common.noEmail"),
         ),
+        h("div", { class: "account-stats" }, [
+          h("span", null, `角色 ${roleCountFor(row)}`),
+          h("span", null, `邀请码 ${row.inviteCount}`),
+        ]),
       ]),
   },
   {
-    title: t("adminUsers.columns.roleCount"),
-    key: "roleCount",
-    width: 76,
-    render: (row) => roleCountFor(row),
-  },
-  {
-    title: t("adminUsers.columns.inviteCount"),
-    key: "inviteCount",
-    width: 76,
-  },
-  {
-    title: t("adminUsers.columns.accountType"),
+    title: "账号与额度",
     key: "accessScope",
-    width: 150,
+    width: 220,
     render: (row) =>
-      h(NSelect, {
-        size: "small",
-        consistentMenuWidth: false,
-        options: accountTypeOptions.value,
-        value: accountTypeValueFor(row),
-        onUpdateValue: (value) => handleAccessScopeChange(row, value),
-      }),
+      h("div", { class: "scope-cell" }, [
+        h(NSelect, {
+          size: "small",
+          consistentMenuWidth: false,
+          options: accountTypeOptions.value,
+          value: accountTypeValueFor(row),
+          onUpdateValue: (value) => handleAccessScopeChange(row, value),
+        }),
+        h("div", { class: "scope-cell__meta" }, [
+          h("span", null, `Token 上限 ${row.tokenBindLimit}`),
+        ]),
+      ]),
   },
   {
-    title: t("adminUsers.columns.tokenBindLimit"),
-    key: "tokenBindLimit",
-    width: 86,
-  },
-  {
-    title: t("adminUsers.columns.refreshSecondVerify"),
-    key: "refreshSecondVerifyEnabled",
-    width: 120,
+    title: "权限",
+    key: "permissions",
+    width: 180,
     render: (row) =>
-      h(NSwitch, {
-        disabled: !!refreshSecondVerifyUpdating.value[row.id],
-        value: row.refreshSecondVerifyEnabled !== false,
-        onUpdateValue: (value) => handleRefreshSecondVerifyChange(row, value),
-      }),
-  },
-  {
-    title: t("adminUsers.columns.admin"),
-    key: "isAdmin",
-    width: 84,
-    render: (row) =>
-      h(NSwitch, {
-        value: row.isAdmin,
-        disabled: row.isCurrentUser,
-        onUpdateValue: (value) => handleAdminToggle(row, value),
-      }),
+      h("div", { class: "permission-cell" }, [
+        h("div", { class: "permission-cell__row" }, [
+          h("span", { class: "permission-cell__label" }, "刷新二验"),
+          h(NSwitch, {
+            disabled: !!refreshSecondVerifyUpdating.value[row.id],
+            value: row.refreshSecondVerifyEnabled !== false,
+            onUpdateValue: (value) => handleRefreshSecondVerifyChange(row, value),
+          }),
+        ]),
+        h("div", { class: "permission-cell__row" }, [
+          h("span", { class: "permission-cell__label" }, "管理员"),
+          h(NSwitch, {
+            value: row.isAdmin,
+            disabled: row.isCurrentUser,
+            onUpdateValue: (value) => handleAdminToggle(row, value),
+          }),
+        ]),
+      ]),
   },
   {
     title: t("adminUsers.columns.timeSummary"),
@@ -1616,28 +1610,39 @@ const columns = computed(() => [
   {
     title: t("adminUsers.columns.actions"),
     key: "actions",
-    width: 96,
+    width: 188,
     render: (row) =>
-      h(
-        NDropdown,
-        {
-          trigger: "click",
-          options: getActionOptions(row),
-          onSelect: (key) => handleActionSelect(key, row),
-        },
-        {
-          default: () =>
-            h(
-              NButton,
-              {
-                size: "small",
-                tertiary: true,
-                class: "actions-dropdown-trigger",
-              },
-              { default: () => t("adminUsers.actions.more") },
-            ),
-        },
-      ),
+      h("div", { class: "actions-cell" }, [
+        h(
+          NButton,
+          {
+            size: "small",
+            tertiary: true,
+            onClick: () => openPasswordModal(row),
+          },
+          { default: () => t("adminUsers.actions.resetPassword") },
+        ),
+        h(
+          NDropdown,
+          {
+            trigger: "click",
+            options: getActionOptions(row),
+            onSelect: (key) => handleActionSelect(key, row),
+          },
+          {
+            default: () =>
+              h(
+                NButton,
+                {
+                  size: "small",
+                  tertiary: true,
+                  class: "actions-dropdown-trigger",
+                },
+                { default: () => t("adminUsers.actions.more") },
+              ),
+          },
+        ),
+      ]),
   },
 ]);
 
@@ -1868,6 +1873,50 @@ onUnmounted(() => {
   word-break: break-all;
 }
 
+.account-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin-top: 4px;
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+
+.scope-cell {
+  display: grid;
+  gap: 8px;
+}
+
+.scope-cell__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+
+.permission-cell {
+  display: grid;
+  gap: 10px;
+}
+
+.permission-cell__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 36px;
+  padding: 8px 10px;
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.03);
+}
+
+.permission-cell__label {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .time-summary-cell {
   display: flex;
   flex-direction: column;
@@ -2096,10 +2145,25 @@ onUnmounted(() => {
   color: #e2e8f0;
 }
 
+[data-theme="dark"] .account-name {
+  color: #e2e8f0;
+}
+
+[data-theme="dark"] .account-meta,
+[data-theme="dark"] .account-stats,
+[data-theme="dark"] .scope-cell__meta,
+[data-theme="dark"] .permission-cell__label {
+  color: #94a3b8;
+}
+
 [data-theme="dark"] .mobile-user-card__switch,
 [data-theme="dark"] .mobile-user-card__scope,
 [data-theme="dark"] .info-block {
   background: rgba(15, 23, 42, 0.78);
+}
+
+[data-theme="dark"] .permission-cell__row {
+  background: rgba(15, 23, 42, 0.68);
 }
 
 @keyframes admin-users-fade-in {

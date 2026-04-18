@@ -1073,17 +1073,19 @@ body {
 .public-support-page {
   min-height: 100dvh;
   position: relative;
-  overflow: clip;
+  overflow: hidden;
   padding: 24px 0 40px;
+  isolation: isolate;
 }
 
 .public-support-page__backdrop {
-  position: fixed;
+  position: absolute;
   inset: 0;
+  z-index: 0;
   pointer-events: none;
   background:
-    radial-gradient(circle at 12% 16%, rgba(15, 107, 255, 0.16), transparent 36%),
-    radial-gradient(circle at 84% 78%, rgba(0, 163, 137, 0.14), transparent 34%),
+    radial-gradient(circle at 12% 16%, rgba(15, 107, 255, 0.12), transparent 28%),
+    radial-gradient(circle at 84% 78%, rgba(0, 163, 137, 0.1), transparent 28%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0));
 }
 
@@ -1096,7 +1098,7 @@ body {
     linear-gradient(90deg, var(--console-grid-line) 1px, transparent 1px);
   background-size: 34px 34px;
   mask-image: radial-gradient(circle at center, black 24%, transparent 84%);
-  opacity: 0.36;
+  opacity: 0.24;
 }
 
 .public-support-container {
