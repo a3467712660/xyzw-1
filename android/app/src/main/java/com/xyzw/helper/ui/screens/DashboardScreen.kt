@@ -39,6 +39,7 @@ fun DashboardScreen(
         Text("当前用户", style = MaterialTheme.typography.titleMedium)
         Text(uiState.user?.username ?: "未登录")
         Text(uiState.user?.email ?: "未提供邮箱")
+        Text(if (uiState.wsConnected) "WebSocket：已连接" else "WebSocket：未连接")
       }
     }
     Card(modifier = Modifier.fillMaxWidth()) {

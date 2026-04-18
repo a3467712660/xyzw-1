@@ -15,21 +15,28 @@ import com.xyzw.helper.data.network.NetworkFactory
 import com.xyzw.helper.data.network.NotificationApi
 import com.xyzw.helper.data.network.SystemApi
 import com.xyzw.helper.data.network.TaskControlApi
+import com.xyzw.helper.data.network.TokenManagementApi
 import com.xyzw.helper.data.network.UserApi
 import com.xyzw.helper.data.repository.AdminRepository
+import com.xyzw.helper.data.repository.AdminFeedbackRepository
 import com.xyzw.helper.data.repository.AuthRepository
 import com.xyzw.helper.data.repository.DailyTaskRepository
-import com.xyzw.helper.data.repository.FeedbackRepository
+import com.xyzw.helper.data.repository.FeedbackUserRepository
 import com.xyzw.helper.data.repository.GameRoleRepository
 import com.xyzw.helper.data.repository.NotificationRepository
+import com.xyzw.helper.data.repository.ProfileRepository
+import com.xyzw.helper.data.repository.ReferralRepository
 import com.xyzw.helper.data.repository.SystemRepository
 import com.xyzw.helper.data.repository.TaskControlRepository
+import com.xyzw.helper.data.repository.TokenManagementRepository
 import com.xyzw.helper.data.repository.UserRepository
 import com.xyzw.helper.data.session.EncryptedCookieStore
 import com.xyzw.helper.data.session.SecureCookieJar
 import com.xyzw.helper.data.session.SessionManager
+import com.xyzw.helper.data.session.UserSensitiveActionSession
 import com.xyzw.helper.data.storage.AppPreferences
 import com.xyzw.helper.data.storage.AppPreferencesStore
+import com.xyzw.helper.data.storage.SecureTokenWorkspaceStore
 import com.xyzw.helper.ui.screens.AdminActivationCodesViewModel
 import com.xyzw.helper.ui.screens.AdminChangelogBroadcastViewModel
 import com.xyzw.helper.ui.screens.AdminFeedbackTicketsViewModel
@@ -40,9 +47,15 @@ import com.xyzw.helper.ui.screens.AdminUsersViewModel
 import com.xyzw.helper.ui.screens.AdminWechatContactsViewModel
 import com.xyzw.helper.ui.screens.AuthViewModel
 import com.xyzw.helper.ui.screens.DashboardViewModel
+import com.xyzw.helper.ui.screens.DailyTasksViewModel
+import com.xyzw.helper.ui.screens.FeedbackViewModel
 import com.xyzw.helper.ui.screens.NotificationsViewModel
-import com.xyzw.helper.ui.screens.RolesViewModel
+import com.xyzw.helper.ui.screens.ProfileSettingsViewModel
+import com.xyzw.helper.ui.screens.ReferralViewModel
+import com.xyzw.helper.ui.screens.RoleManagementViewModel
 import com.xyzw.helper.ui.screens.SplashViewModel
+import com.xyzw.helper.ui.screens.TaskControlViewModel
+import com.xyzw.helper.ui.screens.TokenManagementViewModel
 import com.xyzw.helper.websocket.WsSessionManager
 import kotlinx.coroutines.runBlocking
 import okhttp3.HttpUrl.Companion.toHttpUrl
@@ -57,6 +70,8 @@ class AppContainer(
   }
   val sessionManager = SessionManager()
   val cookieJar = SecureCookieJar(EncryptedCookieStore(context))
+  val sensitiveActionSession = UserSensitiveActionSession()
+  val tokenWorkspaceStore = SecureTokenWorkspaceStore(context)
   val parser = ApiResultParser()
 
   val serverBaseUrl: String = validateServerBaseUrl(initialPreferences.apiBaseUrl)
@@ -80,6 +95,17 @@ class AppContainer(
   private val notificationApi = retrofit.create<NotificationApi>()
   private val feedbackApi = retrofit.create<FeedbackApi>()
   private val adminApi = retrofit.create<AdminApi>()
+  private val tokenManagementApi = retrofit.create<TokenManagementApi>()
+  val wsSessionManager = WsSessionManager(mainClient, serverBaseUrl, BuildConfig.DEFAULT_WS_PATH)
+  val realtimeCoordinator = RealtimeCoordinator(
+    sessionManager = sessionManager,
+    wsSessionManager = wsSessionManager,
+  )
+  val localSessionController = LocalSessionController(
+    cookieJar = cookieJar,
+    sessionManager = sessionManager,
+    sensitiveActionSession = sensitiveActionSession,
+  )
 
   val authRepository = AuthRepository(
     authApi = authApi,
@@ -93,9 +119,21 @@ class AppContainer(
   val dailyTaskRepository = DailyTaskRepository(dailyTaskApi, parser)
   val taskControlRepository = TaskControlRepository(taskControlApi, parser)
   val notificationRepository = NotificationRepository(notificationApi, parser)
-  val feedbackRepository = FeedbackRepository(feedbackApi, parser)
+  val feedbackUserRepository = FeedbackUserRepository(feedbackApi, parser)
+  val adminFeedbackRepository = AdminFeedbackRepository(feedbackApi, parser)
+  val profileRepository = ProfileRepository(
+    api = userApi,
+    parser = parser,
+    sensitiveActionSession = sensitiveActionSession,
+  )
+  val referralRepository = ReferralRepository(userApi, parser)
+  val tokenManagementRepository = TokenManagementRepository(
+    api = tokenManagementApi,
+    parser = parser,
+    store = tokenWorkspaceStore,
+    sensitiveActionSession = sensitiveActionSession,
+  )
   val adminRepository = AdminRepository(adminApi, parser)
-  val wsSessionManager = WsSessionManager(mainClient, serverBaseUrl, BuildConfig.DEFAULT_WS_PATH)
 
   val viewModelFactory: ViewModelProvider.Factory = AppViewModelFactory(this)
 
@@ -125,19 +163,52 @@ class AppViewModelFactory(
 
       modelClass.isAssignableFrom(AuthViewModel::class.java) -> AuthViewModel(
         authRepository = container.authRepository,
+        sessionManager = container.sessionManager,
+        localSessionController = container.localSessionController,
       ) as T
 
       modelClass.isAssignableFrom(DashboardViewModel::class.java) -> DashboardViewModel(
         sessionManager = container.sessionManager,
         systemRepository = container.systemRepository,
+        realtimeCoordinator = container.realtimeCoordinator,
       ) as T
 
-      modelClass.isAssignableFrom(RolesViewModel::class.java) -> RolesViewModel(
+      modelClass.isAssignableFrom(RoleManagementViewModel::class.java) -> RoleManagementViewModel(
         repository = container.gameRoleRepository,
       ) as T
 
       modelClass.isAssignableFrom(NotificationsViewModel::class.java) -> NotificationsViewModel(
         repository = container.notificationRepository,
+        realtimeCoordinator = container.realtimeCoordinator,
+      ) as T
+
+      modelClass.isAssignableFrom(TokenManagementViewModel::class.java) -> TokenManagementViewModel(
+        repository = container.tokenManagementRepository,
+        profileRepository = container.profileRepository,
+      ) as T
+
+      modelClass.isAssignableFrom(DailyTasksViewModel::class.java) -> DailyTasksViewModel(
+        roleRepository = container.gameRoleRepository,
+        dailyTaskRepository = container.dailyTaskRepository,
+      ) as T
+
+      modelClass.isAssignableFrom(TaskControlViewModel::class.java) -> TaskControlViewModel(
+        repository = container.taskControlRepository,
+        realtimeCoordinator = container.realtimeCoordinator,
+      ) as T
+
+      modelClass.isAssignableFrom(FeedbackViewModel::class.java) -> FeedbackViewModel(
+        repository = container.feedbackUserRepository,
+      ) as T
+
+      modelClass.isAssignableFrom(ProfileSettingsViewModel::class.java) -> ProfileSettingsViewModel(
+        repository = container.profileRepository,
+        preferencesStore = container.preferencesStore,
+        localSessionController = container.localSessionController,
+      ) as T
+
+      modelClass.isAssignableFrom(ReferralViewModel::class.java) -> ReferralViewModel(
+        repository = container.referralRepository,
       ) as T
 
       modelClass.isAssignableFrom(AdminUsersViewModel::class.java) -> AdminUsersViewModel(
@@ -153,7 +224,7 @@ class AppViewModelFactory(
       ) as T
 
       modelClass.isAssignableFrom(AdminFeedbackTicketsViewModel::class.java) -> AdminFeedbackTicketsViewModel(
-        feedbackRepository = container.feedbackRepository,
+        feedbackRepository = container.adminFeedbackRepository,
       ) as T
 
       modelClass.isAssignableFrom(AdminTaskControlLogsViewModel::class.java) -> AdminTaskControlLogsViewModel(

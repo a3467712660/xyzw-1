@@ -40,7 +40,6 @@ android {
       versionNameSuffix = "-debug"
       buildConfigField("String", "DEFAULT_API_BASE_URL", "\"$debugApiBaseUrl\"")
       buildConfigField("String", "DEFAULT_WS_PATH", "\"/ws\"")
-      manifestPlaceholders["appLabel"] = "XYZW Helper"
     }
     release {
       isMinifyEnabled = false
@@ -50,7 +49,6 @@ android {
       )
       buildConfigField("String", "DEFAULT_API_BASE_URL", "\"$releaseApiBaseUrl\"")
       buildConfigField("String", "DEFAULT_WS_PATH", "\"/ws\"")
-      manifestPlaceholders["appLabel"] = "XYZW Helper"
     }
   }
 
@@ -79,6 +77,7 @@ android {
 
   testOptions {
     unitTests.isReturnDefaultValues = true
+    unitTests.isIncludeAndroidResources = true
   }
 }
 
@@ -108,8 +107,13 @@ dependencies {
 
   debugImplementation(platform(libs.androidx.compose.bom))
   debugImplementation(libs.androidx.compose.ui.tooling)
+  debugImplementation(libs.androidx.compose.ui.test.manifest)
 
+  testImplementation(platform(libs.androidx.compose.bom))
+  testImplementation(libs.androidx.compose.ui.test.junit4)
+  testImplementation(libs.androidx.test.core.ktx)
   testImplementation(libs.junit4)
   testImplementation(libs.kotlinx.coroutines.test)
   testImplementation(libs.okhttp.mockwebserver)
+  testImplementation(libs.robolectric)
 }

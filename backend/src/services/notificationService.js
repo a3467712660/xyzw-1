@@ -1,6 +1,7 @@
 import { nowIso, randomId } from "../db/sql.js";
 import { serializeNotificationRowForClient } from "../lib/notificationRowSerializer.js";
 import { notificationRepository } from "../repositories/notificationRepository.js";
+import { broadcastToUser } from "./wsHub.js";
 
 const asJson = (value) => {
   try {
@@ -30,6 +31,19 @@ export const createUserNotification = ({
     content,
     payloadJson: asJson(payload),
     createdAt: nowIso(),
+  });
+
+  broadcastToUser(userId, {
+    type: "notification:new",
+    notification: {
+      id,
+      type,
+      title,
+      content,
+      isRead: false,
+      readAt: null,
+      createdAt: nowIso(),
+    },
   });
 
   return id;

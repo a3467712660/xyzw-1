@@ -25,4 +25,7 @@ class NotificationRepository(
 
   suspend fun markAllRead(): ApiResult<Unit> =
     parser.parseUnit(api.markAllRead())
+
+  suspend fun clearAll(): ApiResult<Unit> =
+    parser.parseUnit(api.clearAll())
 }

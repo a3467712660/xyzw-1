@@ -1,6 +1,7 @@
 package com.xyzw.helper.ui.navigation
 
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ViewList
 import androidx.compose.material.icons.outlined.AccountCircle
@@ -47,22 +48,33 @@ import com.xyzw.helper.ui.screens.AdminWechatContactsScreen
 import com.xyzw.helper.ui.screens.AdminWechatContactsViewModel
 import com.xyzw.helper.ui.screens.DashboardScreen
 import com.xyzw.helper.ui.screens.DashboardViewModel
+import com.xyzw.helper.ui.screens.DailyTasksScreen
+import com.xyzw.helper.ui.screens.DailyTasksViewModel
+import com.xyzw.helper.ui.screens.FeedbackScreen
+import com.xyzw.helper.ui.screens.FeedbackViewModel
+import com.xyzw.helper.ui.screens.OpsHubScreen
 import com.xyzw.helper.ui.screens.ForgotPasswordScreen
 import com.xyzw.helper.ui.screens.LoginScreen
 import com.xyzw.helper.ui.screens.MfaVerifyScreen
 import com.xyzw.helper.ui.screens.NotificationsScreen
 import com.xyzw.helper.ui.screens.NotificationsViewModel
-import com.xyzw.helper.ui.screens.PlaceholderScreen
-import com.xyzw.helper.ui.screens.ProfileScreen
+import com.xyzw.helper.ui.screens.ProfileSettingsScreen
+import com.xyzw.helper.ui.screens.ProfileSettingsViewModel
+import com.xyzw.helper.ui.screens.ReferralScreen
+import com.xyzw.helper.ui.screens.ReferralViewModel
 import com.xyzw.helper.ui.screens.RegisterScreen
-import com.xyzw.helper.ui.screens.RolesScreen
-import com.xyzw.helper.ui.screens.RolesViewModel
+import com.xyzw.helper.ui.screens.RoleManagementScreen
+import com.xyzw.helper.ui.screens.RoleManagementViewModel
 import com.xyzw.helper.ui.screens.SplashDestination
 import com.xyzw.helper.ui.screens.SplashScreen
 import com.xyzw.helper.ui.screens.SplashViewModel
+import com.xyzw.helper.ui.screens.TaskControlScreen
+import com.xyzw.helper.ui.screens.TaskControlViewModel
+import com.xyzw.helper.ui.screens.TokenManagementScreen
+import com.xyzw.helper.ui.screens.TokenManagementViewModel
+import com.xyzw.helper.ui.screens.WorkspaceHubScreen
 import com.xyzw.helper.ui.screens.buildAdminEntrySpec
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.launch
 
 @Composable
 fun XyzwHelperApp(
@@ -170,46 +182,33 @@ fun XyzwHelperApp(
 }
 
 @Composable
-private fun MainShell(
+fun MainShell(
   container: AppContainer,
   authViewModel: AuthViewModel,
 ) {
   val shellNavController = rememberNavController()
   val dashboardViewModel: DashboardViewModel = viewModel(factory = container.viewModelFactory)
-  val rolesViewModel: RolesViewModel = viewModel(factory = container.viewModelFactory)
   val notificationsViewModel: NotificationsViewModel = viewModel(factory = container.viewModelFactory)
   val dashboardState by dashboardViewModel.uiState.collectAsStateWithLifecycle()
-  val rolesState by rolesViewModel.uiState.collectAsStateWithLifecycle()
   val notificationsState by notificationsViewModel.uiState.collectAsStateWithLifecycle()
   val currentUser = dashboardState.user
   val showAdminEntry = buildAdminEntrySpec(currentUser).showEntry
   val shellBackStackEntry by shellNavController.currentBackStackEntryAsState()
-  val scope = rememberCoroutineScope()
   val preferences by container.preferencesStore.preferences.collectAsStateWithLifecycle(
     initialValue = container.initialPreferences,
   )
 
-  val items = listOf(
-    ShellDestination(AppRoute.Dashboard, "控制台", Icons.Outlined.Dashboard),
-    ShellDestination(AppRoute.Roles, "角色", Icons.AutoMirrored.Outlined.ViewList),
-    ShellDestination(AppRoute.Tasks, "任务", Icons.Outlined.TaskAlt),
-    ShellDestination(AppRoute.Notifications, "通知", Icons.Outlined.Notifications),
-    ShellDestination(AppRoute.Profile, "我的", Icons.Outlined.AccountCircle),
-  )
+  val items = defaultShellDestinations()
 
   Scaffold(
     bottomBar = {
-      NavigationBar {
-        items.forEach { item ->
-          val selected = shellBackStackEntry?.destination?.hierarchy?.any { it.route == item.route.route } == true
-          NavigationBarItem(
-            selected = selected,
-            onClick = { shellNavController.navigate(item.route.route) },
-            icon = { Icon(item.icon, contentDescription = item.label) },
-            label = { Text(item.label) },
-          )
-        }
-      }
+      MainShellBottomBar(
+        items = items,
+        currentRoute = shellBackStackEntry?.destination?.route,
+        onNavigate = { route ->
+          shellNavController.navigate(route.route)
+        },
+      )
     },
   ) { innerPadding ->
     NavHost(
@@ -306,15 +305,49 @@ private fun MainShell(
         )
       }
       composable(AppRoute.Roles.route) {
-        RolesScreen(
-          uiState = rolesState,
-          onRefresh = rolesViewModel::refresh,
+        val tokenManagementViewModel: TokenManagementViewModel = viewModel(factory = container.viewModelFactory)
+        val roleManagementViewModel: RoleManagementViewModel = viewModel(factory = container.viewModelFactory)
+        val tokenState by tokenManagementViewModel.uiState.collectAsStateWithLifecycle()
+        val roleState by roleManagementViewModel.uiState.collectAsStateWithLifecycle()
+        WorkspaceHubScreen(
+          tokenCount = tokenState.tokens.size,
+          roleCount = roleState.roles.size,
+          onOpenTokens = { shellNavController.navigate(AppRoute.TokenManagement.route) },
+          onOpenRoles = { shellNavController.navigate(AppRoute.RoleManagement.route) },
+        )
+      }
+      composable(AppRoute.TokenManagement.route) {
+        val tokenManagementViewModel: TokenManagementViewModel = viewModel(factory = container.viewModelFactory)
+        TokenManagementScreen(
+          viewModel = tokenManagementViewModel,
+          onBack = { shellNavController.popBackStack() },
+        )
+      }
+      composable(AppRoute.RoleManagement.route) {
+        val roleManagementViewModel: RoleManagementViewModel = viewModel(factory = container.viewModelFactory)
+        RoleManagementScreen(
+          viewModel = roleManagementViewModel,
+          onBack = { shellNavController.popBackStack() },
         )
       }
       composable(AppRoute.Tasks.route) {
-        PlaceholderScreen(
-          title = "任务",
-          description = "首轮只预留导航结构。DailyTask / TaskControl repository 已接好，可在下一轮补完整原生页面。",
+        OpsHubScreen(
+          onOpenDailyTasks = { shellNavController.navigate(AppRoute.DailyTasks.route) },
+          onOpenTaskControl = { shellNavController.navigate(AppRoute.TaskControl.route) },
+        )
+      }
+      composable(AppRoute.DailyTasks.route) {
+        val dailyTasksViewModel: DailyTasksViewModel = viewModel(factory = container.viewModelFactory)
+        DailyTasksScreen(
+          viewModel = dailyTasksViewModel,
+          onBack = { shellNavController.popBackStack() },
+        )
+      }
+      composable(AppRoute.TaskControl.route) {
+        val taskControlViewModel: TaskControlViewModel = viewModel(factory = container.viewModelFactory)
+        TaskControlScreen(
+          viewModel = taskControlViewModel,
+          onBack = { shellNavController.popBackStack() },
         )
       }
       composable(AppRoute.Notifications.route) {
@@ -323,25 +356,68 @@ private fun MainShell(
           onRefresh = notificationsViewModel::refresh,
           onMarkRead = notificationsViewModel::markRead,
           onMarkAllRead = notificationsViewModel::markAllRead,
+          onClearAll = notificationsViewModel::clearAll,
         )
       }
       composable(AppRoute.Profile.route) {
-        ProfileScreen(
-          currentUsername = dashboardState.user?.username ?: "未登录",
-          isAdmin = showAdminEntry,
+        val profileSettingsViewModel: ProfileSettingsViewModel = viewModel(factory = container.viewModelFactory)
+        ProfileSettingsScreen(
+          viewModel = profileSettingsViewModel,
           preferences = preferences,
-          onThemeChange = { mode ->
-            scope.launch { container.preferencesStore.setThemeMode(mode) }
-          },
+          isAdmin = showAdminEntry,
           onOpenAdminHub = { shellNavController.navigate(AppRoute.AdminHub.route) },
+          onOpenReferral = { shellNavController.navigate(AppRoute.Referral.route) },
+          onOpenFeedback = { shellNavController.navigate(AppRoute.Feedback.route) },
           onLogout = authViewModel::logout,
+        )
+      }
+      composable(AppRoute.Referral.route) {
+        val referralViewModel: ReferralViewModel = viewModel(factory = container.viewModelFactory)
+        ReferralScreen(
+          viewModel = referralViewModel,
+          onBack = { shellNavController.popBackStack() },
+        )
+      }
+      composable(AppRoute.Feedback.route) {
+        val feedbackViewModel: FeedbackViewModel = viewModel(factory = container.viewModelFactory)
+        FeedbackScreen(
+          viewModel = feedbackViewModel,
+          onBack = { shellNavController.popBackStack() },
         )
       }
     }
   }
 }
 
-private data class ShellDestination(
+@Composable
+internal fun MainShellBottomBar(
+  items: List<ShellDestination>,
+  currentRoute: String?,
+  onNavigate: (AppRoute) -> Unit,
+) {
+  NavigationBar {
+    items.forEach { item ->
+      val selected = currentRoute == item.route.route
+      NavigationBarItem(
+        selected = selected,
+        onClick = { onNavigate(item.route) },
+        icon = { Icon(item.icon, contentDescription = item.label) },
+        label = { Text(item.label) },
+      )
+    }
+  }
+}
+
+internal fun defaultShellDestinations(): List<ShellDestination> =
+  listOf(
+    ShellDestination(AppRoute.Dashboard, "控制台", Icons.Outlined.Dashboard),
+    ShellDestination(AppRoute.Roles, "工作台", Icons.AutoMirrored.Outlined.ViewList),
+    ShellDestination(AppRoute.Tasks, "任务", Icons.Outlined.TaskAlt),
+    ShellDestination(AppRoute.Notifications, "通知", Icons.Outlined.Notifications),
+    ShellDestination(AppRoute.Profile, "我的", Icons.Outlined.AccountCircle),
+  )
+
+internal data class ShellDestination(
   val route: AppRoute,
   val label: String,
   val icon: androidx.compose.ui.graphics.vector.ImageVector,

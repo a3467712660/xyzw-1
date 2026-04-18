@@ -8,6 +8,7 @@ import {
   markAllNotificationsRead,
   markNotificationRead,
 } from "../services/notificationService.js";
+import { broadcastToUser } from "../services/wsHub.js";
 
 const router = Router();
 const notificationsQuerySchema = z.object({
@@ -42,12 +43,20 @@ router.patch("/notifications/:id/read", validateRequest({ params: notificationId
 
 router.patch("/notifications/read-all", (req, res) => {
   markAllNotificationsRead({ userId: req.auth.user.id });
+  broadcastToUser(req.auth.user.id, {
+    type: "notification:read_all",
+    at: new Date().toISOString(),
+  });
 
   return res.json({ success: true, message: "全部通知已标记为已读" });
 });
 
 router.delete("/notifications", (req, res) => {
   const deleted = deleteAllNotifications({ userId: req.auth.user.id });
+  broadcastToUser(req.auth.user.id, {
+    type: "notification:cleared",
+    at: new Date().toISOString(),
+  });
   return res.json({
     success: true,
     message: deleted > 0 ? "历史通知已清除" : "当前没有可清除的通知",

@@ -2,6 +2,7 @@ package com.xyzw.helper.data.network
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
 
 @Serializable
 data class ApiEnvelope<T>(
@@ -51,6 +52,7 @@ sealed interface ApiResult<out T> {
 
 const val SKIP_REFRESH_HEADER = "X-XYZW-Skip-Refresh"
 const val SKIP_REFRESH_HEADER_LINE = "$SKIP_REFRESH_HEADER: 1"
+const val USER_CONFIRM_HEADER = "x-user-confirm-token"
 
 @Serializable
 data class LoginRequest(
@@ -80,6 +82,68 @@ data class ResetPasswordRequest(
   val identity: String,
   val shortCode: String,
   val newPassword: String,
+)
+
+@Serializable
+data class UserSensitiveConfirmRequest(
+  val password: String? = null,
+  val totpCode: String? = null,
+  val recoveryCode: String? = null,
+)
+
+@Serializable
+data class ProfileUpdateRequest(
+  val email: String = "",
+  val nickname: String = "",
+  val phone: String = "",
+)
+
+@Serializable
+data class UpdatePasswordRequest(
+  val currentPassword: String,
+  val newPassword: String,
+)
+
+@Serializable
+data class PreferenceValueRequest(
+  val value: JsonElement? = null,
+)
+
+@Serializable
+data class GameRoleUpsertRequest(
+  val name: String,
+  val server: String,
+  val profession: String,
+  val level: Int = 1,
+  val account: String = "",
+  val note: String = "",
+  val avatar: String = "/icons/xiaoyugan.png",
+  val isActive: Boolean? = null,
+  val exp: Int? = null,
+  val gold: Long? = null,
+  val vip: Boolean? = null,
+)
+
+@Serializable
+data class DailyTaskUpdateRequest(
+  val roleId: String,
+  val enabled: Boolean? = null,
+  val autoExecute: Boolean? = null,
+  val delay: Int? = null,
+  val notification: Boolean? = null,
+  val cronExpr: String? = null,
+)
+
+@Serializable
+data class FeedbackCreateRequest(
+  val type: String,
+  val title: String,
+  val content: String,
+)
+
+@Serializable
+data class TokenImportProxyRequest(
+  val url: String,
 )
 
 @Serializable

@@ -2,6 +2,8 @@ package com.xyzw.helper.ui.screens
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.xyzw.helper.app.LocalSessionController
+import com.xyzw.helper.app.RealtimeCoordinator
 import com.xyzw.helper.data.model.AuthUser
 import com.xyzw.helper.data.model.BuildInfo
 import com.xyzw.helper.data.model.GameRole
@@ -15,6 +17,7 @@ import com.xyzw.helper.data.repository.NotificationRepository
 import com.xyzw.helper.data.repository.SystemRepository
 import com.xyzw.helper.data.session.SessionManager
 import com.xyzw.helper.data.session.SessionState
+import com.xyzw.helper.websocket.WsEvent
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -64,12 +67,24 @@ sealed interface AuthEvent {
 
 class AuthViewModel(
   private val authRepository: AuthRepository,
+  sessionManager: SessionManager,
+  private val localSessionController: LocalSessionController,
 ) : ViewModel() {
   private val mutableState = MutableStateFlow(AuthUiState())
   val uiState: StateFlow<AuthUiState> = mutableState.asStateFlow()
 
   private val mutableEvents = MutableSharedFlow<AuthEvent>()
   val events: SharedFlow<AuthEvent> = mutableEvents.asSharedFlow()
+
+  init {
+    viewModelScope.launch {
+      sessionManager.state.collect { state ->
+        if (state is SessionState.Unauthenticated) {
+          mutableEvents.emit(AuthEvent.NavigateLogin)
+        }
+      }
+    }
+  }
 
   fun login(username: String, password: String, rememberMe: Boolean) {
     viewModelScope.launch {
@@ -176,6 +191,7 @@ class AuthViewModel(
   fun logout() {
     viewModelScope.launch {
       authRepository.logout()
+      localSessionController.clearLocalSession()
       mutableState.value = AuthUiState()
       mutableEvents.emit(AuthEvent.NavigateLogin)
     }
@@ -199,11 +215,13 @@ data class DashboardUiState(
   val versionInfo: BuildInfo? = null,
   val isLoading: Boolean = true,
   val errorMessage: String? = null,
+  val wsConnected: Boolean = false,
 )
 
 class DashboardViewModel(
   sessionManager: SessionManager,
   private val systemRepository: SystemRepository,
+  realtimeCoordinator: RealtimeCoordinator,
 ) : ViewModel() {
   private val mutableState = MutableStateFlow(DashboardUiState())
   val uiState: StateFlow<DashboardUiState> = mutableState.asStateFlow()
@@ -216,6 +234,11 @@ class DashboardViewModel(
           else -> null
         }
         mutableState.value = mutableState.value.copy(user = user)
+      }
+    }
+    viewModelScope.launch {
+      realtimeCoordinator.connectionState.collect { state ->
+        mutableState.value = mutableState.value.copy(wsConnected = state.isConnected)
       }
     }
     refresh()
@@ -290,12 +313,34 @@ data class NotificationsUiState(
 
 class NotificationsViewModel(
   private val repository: NotificationRepository,
+  realtimeCoordinator: RealtimeCoordinator,
 ) : ViewModel() {
   private val mutableState = MutableStateFlow(NotificationsUiState())
   val uiState: StateFlow<NotificationsUiState> = mutableState.asStateFlow()
 
   init {
     refresh()
+    viewModelScope.launch {
+      realtimeCoordinator.events.collect { event ->
+        when (event) {
+          is WsEvent.NotificationNew -> {
+            mutableState.value = mutableState.value.copy(
+              notifications = listOf(event.notification) + mutableState.value.notifications
+                .filterNot { it.id == event.notification.id },
+            )
+          }
+          is WsEvent.NotificationReadAll -> {
+            mutableState.value = mutableState.value.copy(
+              notifications = mutableState.value.notifications.map { it.copy(isRead = true) },
+            )
+          }
+          is WsEvent.NotificationCleared -> {
+            mutableState.value = mutableState.value.copy(notifications = emptyList())
+          }
+          else -> Unit
+        }
+      }
+    }
   }
 
   fun refresh() {
@@ -345,6 +390,17 @@ class NotificationsViewModel(
           )
         }
 
+        is ApiResult.Failure -> Unit
+      }
+    }
+  }
+
+  fun clearAll() {
+    viewModelScope.launch {
+      when (repository.clearAll()) {
+        is ApiResult.Success -> {
+          mutableState.value = mutableState.value.copy(notifications = emptyList())
+        }
         is ApiResult.Failure -> Unit
       }
     }

@@ -19,8 +19,8 @@ import com.xyzw.helper.data.model.WechatContactAdminItem
 import com.xyzw.helper.data.network.AdminChangelogBroadcastRequest
 import com.xyzw.helper.data.network.AdminWechatContactRequest
 import com.xyzw.helper.data.network.ApiResult
+import com.xyzw.helper.data.repository.AdminFeedbackRepository
 import com.xyzw.helper.data.repository.AdminRepository
-import com.xyzw.helper.data.repository.FeedbackRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -306,7 +306,7 @@ data class AdminFeedbackTicketsUiState(
 )
 
 class AdminFeedbackTicketsViewModel(
-  private val feedbackRepository: FeedbackRepository,
+  private val feedbackRepository: AdminFeedbackRepository,
 ) : ViewModel() {
   private val mutableState = MutableStateFlow(AdminFeedbackTicketsUiState())
   val uiState: StateFlow<AdminFeedbackTicketsUiState> = mutableState.asStateFlow()
@@ -340,7 +340,7 @@ class AdminFeedbackTicketsViewModel(
     status: String,
     adminNote: String,
   ): ApiResult<FeedbackItem> =
-    when (val result = feedbackRepository.updateByAdmin(id, status, adminNote)) {
+    when (val result = feedbackRepository.updateTicket(id, status, adminNote)) {
       is ApiResult.Success -> {
         refresh(mutableState.value.currentStatus)
         result

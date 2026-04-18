@@ -6,6 +6,7 @@ import { validateRequest } from "../middleware/validate.js";
 import { nowIso, randomId } from "../db/sql.js";
 import { taskControlRepository } from "../repositories/taskControlRepository.js";
 import { redactUrl, sanitizeForLog } from "../lib/logRedactor.js";
+import { broadcastToUser } from "../services/wsHub.js";
 import {
   parseTaskControlRowsFromPayload,
   taskControlStateBodySchema,
@@ -125,6 +126,10 @@ router.put(
     userId: req.auth.user.id,
     payloadJson,
     createdAt: ts,
+    updatedAt: ts,
+  });
+  broadcastToUser(req.auth.user.id, {
+    type: "task-control:state-updated",
     updatedAt: ts,
   });
 

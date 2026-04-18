@@ -11,17 +11,33 @@ import com.xyzw.helper.data.model.AuthLoginPayload
 import com.xyzw.helper.data.model.AuthUser
 import com.xyzw.helper.data.model.BuildInfo
 import com.xyzw.helper.data.model.CsrfPayload
-import com.xyzw.helper.data.model.DailyTaskItem
+import com.xyzw.helper.data.model.DailyTaskEntry
+import com.xyzw.helper.data.model.DailyTaskHistoryItem
+import com.xyzw.helper.data.model.DailyTaskStatusSummary
 import com.xyzw.helper.data.model.FeedbackItem
 import com.xyzw.helper.data.model.GameRole
 import com.xyzw.helper.data.model.InviteCodeItem
 import com.xyzw.helper.data.model.NotificationItem
 import com.xyzw.helper.data.model.ReferralAttributionItem
 import com.xyzw.helper.data.model.ReferralConversionItem
+import com.xyzw.helper.data.model.ReferralOverview
+import com.xyzw.helper.data.model.ReferralProfile
 import com.xyzw.helper.data.model.RefreshPayload
 import com.xyzw.helper.data.model.RegisterResultPayload
-import com.xyzw.helper.data.model.TaskControlStatePayload
+import com.xyzw.helper.data.model.TaskControlLogItem
+import com.xyzw.helper.data.model.TaskControlStateSnapshot
+import com.xyzw.helper.data.model.UserPreferenceItem
+import com.xyzw.helper.data.model.UserSecurityEventItem
+import com.xyzw.helper.data.model.UserSensitiveConfirmResult
+import com.xyzw.helper.data.model.UserTokenActivationBinding
 import com.xyzw.helper.data.model.WechatContactAdminItem
+import com.xyzw.helper.data.model.BinDownloadTicket
+import com.xyzw.helper.data.model.BinFileItem
+import com.xyzw.helper.data.model.BinFileUploadResult
+import com.xyzw.helper.data.model.TokenActivationStatus
+import kotlinx.serialization.json.JsonElement
+import okhttp3.RequestBody
+import okhttp3.ResponseBody
 import kotlinx.serialization.Serializable
 import retrofit2.Response
 import retrofit2.http.Body
@@ -83,6 +99,55 @@ interface AuthApi {
 interface UserApi {
   @GET("user/profile")
   suspend fun getProfile(): Response<ApiEnvelope<AuthUser>>
+
+  @PUT("user/profile")
+  suspend fun updateProfile(
+    @Body request: ProfileUpdateRequest,
+  ): Response<ApiEnvelope<AuthUser>>
+
+  @PUT("user/password")
+  suspend fun changePassword(
+    @Body request: UpdatePasswordRequest,
+  ): Response<ApiEnvelope<Unit>>
+
+  @POST("user/confirm-password")
+  suspend fun confirmSensitiveAction(
+    @Body request: UserSensitiveConfirmRequest,
+  ): Response<ApiEnvelope<UserSensitiveConfirmResult>>
+
+  @GET("user/preferences/{key}")
+  suspend fun getPreference(
+    @Path("key") key: String,
+  ): Response<ApiEnvelope<UserPreferenceItem>>
+
+  @PUT("user/preferences/{key}")
+  suspend fun setPreference(
+    @Path("key") key: String,
+    @Header(USER_CONFIRM_HEADER) confirmToken: String? = null,
+    @Body request: PreferenceValueRequest,
+  ): Response<ApiEnvelope<UserPreferenceItem>>
+
+  @GET("user/security-events")
+  suspend fun getSecurityEvents(
+    @Query("limit") limit: Int = 50,
+    @Query("eventType") eventType: String? = null,
+  ): Response<ApiEnvelope<List<UserSecurityEventItem>>>
+
+  @GET("user/referral-profile")
+  suspend fun getReferralProfile(): Response<ApiEnvelope<ReferralProfile?>>
+
+  @POST("user/referral-profile/generate")
+  suspend fun generateReferralProfile(
+    @Body request: EmptyRequest = EmptyRequest(),
+  ): Response<ApiEnvelope<ReferralProfile>>
+
+  @GET("user/referral-overview")
+  suspend fun getReferralOverview(): Response<ApiEnvelope<ReferralOverview>>
+
+  @GET("user/referral-conversions")
+  suspend fun getReferralConversions(
+    @Query("limit") limit: Int = 200,
+  ): Response<ApiEnvelope<List<ReferralConversionItem>>>
 }
 
 interface SystemApi {
@@ -93,23 +158,71 @@ interface SystemApi {
 interface GameRoleApi {
   @GET("gamerole_list")
   suspend fun listRoles(): Response<ApiEnvelope<List<GameRole>>>
+
+  @POST("gameroles")
+  suspend fun createRole(
+    @Body request: GameRoleUpsertRequest,
+  ): Response<ApiEnvelope<GameRole>>
+
+  @GET("gameroles/{roleId}")
+  suspend fun getRoleDetail(
+    @Path("roleId") roleId: String,
+  ): Response<ApiEnvelope<GameRole>>
+
+  @PUT("gameroles/{roleId}")
+  suspend fun updateRole(
+    @Path("roleId") roleId: String,
+    @Body request: GameRoleUpsertRequest,
+  ): Response<ApiEnvelope<GameRole>>
+
+  @DELETE("gameroles/{roleId}")
+  suspend fun deleteRole(
+    @Path("roleId") roleId: String,
+  ): Response<ApiEnvelope<Unit>>
 }
 
 interface DailyTaskApi {
   @GET("daily-tasks")
   suspend fun listTasks(
     @Query("roleId") roleId: String? = null,
-  ): Response<ApiEnvelope<List<DailyTaskItem>>>
+  ): Response<ApiEnvelope<List<DailyTaskEntry>>>
+
+  @GET("daily-tasks/status")
+  suspend fun getStatus(
+    @Query("roleId") roleId: String,
+  ): Response<ApiEnvelope<DailyTaskStatusSummary>>
+
+  @POST("daily-tasks/{taskId}/complete")
+  suspend fun completeTask(
+    @Path("taskId") taskId: String,
+    @Body request: Map<String, String>,
+  ): Response<ApiEnvelope<Unit>>
+
+  @PUT("daily-tasks/{taskId}")
+  suspend fun updateTask(
+    @Path("taskId") taskId: String,
+    @Body request: DailyTaskUpdateRequest,
+  ): Response<ApiEnvelope<Unit>>
+
+  @GET("daily-tasks/history")
+  suspend fun getHistory(
+    @Query("roleId") roleId: String,
+    @Query("page") page: Int = 1,
+    @Query("limit") limit: Int = 20,
+  ): Response<ApiEnvelope<List<DailyTaskHistoryItem>>>
 }
 
 interface TaskControlApi {
   @GET("task-control/state")
-  suspend fun getState(): Response<ApiEnvelope<TaskControlStatePayload>>
+  suspend fun getState(): Response<ApiEnvelope<TaskControlStateSnapshot>>
 
   @GET("task-control/logs")
   suspend fun getLogs(
     @Query("limit") limit: Int = 100,
-  ): Response<ApiEnvelope<List<TaskControlStatePayload>>>
+  ): Response<ApiEnvelope<List<TaskControlLogItem>>>
+
+  @DELETE("task-control/logs")
+  suspend fun clearLogs(): Response<ApiEnvelope<Unit>>
 }
 
 interface NotificationApi {
@@ -140,11 +253,58 @@ interface FeedbackApi {
     @Query("status") status: String? = null,
   ): Response<ApiEnvelope<List<FeedbackItem>>>
 
+  @POST("feedbacks")
+  suspend fun createFeedback(
+    @Body request: FeedbackCreateRequest,
+  ): Response<ApiEnvelope<Unit>>
+
   @PATCH("feedbacks/{id}")
   suspend fun updateByAdmin(
     @Path("id") id: String,
     @Body request: AdminFeedbackUpdateRequest,
   ): Response<ApiEnvelope<FeedbackItem>>
+}
+
+interface TokenManagementApi {
+  @POST("token-import/proxy")
+  suspend fun proxyFetch(
+    @Body request: TokenImportProxyRequest,
+  ): Response<JsonElement>
+
+  @GET("bin-files")
+  suspend fun listBinFiles(): Response<ApiEnvelope<List<BinFileItem>>>
+
+  @PUT("bin-files/{tokenId}")
+  suspend fun uploadBinFile(
+    @Path("tokenId") tokenId: String,
+    @Body requestBody: RequestBody,
+  ): Response<ApiEnvelope<BinFileUploadResult>>
+
+  @POST("bin-files/{tokenId}/download-ticket")
+  suspend fun createDownloadTicket(
+    @Path("tokenId") tokenId: String,
+    @Header(USER_CONFIRM_HEADER) confirmToken: String? = null,
+    @Body request: EmptyRequest = EmptyRequest(),
+  ): Response<ApiEnvelope<BinDownloadTicket>>
+
+  @POST("bin-files/{tokenId}/download")
+  suspend fun downloadBinFile(
+    @Path("tokenId") tokenId: String,
+    @Body request: Map<String, String>,
+  ): Response<ResponseBody>
+
+  @DELETE("bin-files/{tokenId}")
+  suspend fun deleteBinFile(
+    @Path("tokenId") tokenId: String,
+  ): Response<ApiEnvelope<Unit>>
+
+  @POST("token-activations/status")
+  suspend fun getActivationStatus(
+    @Body request: Map<String, String>,
+  ): Response<ApiEnvelope<TokenActivationStatus>>
+
+  @GET("token-activations/my")
+  suspend fun listActivationBindings(): Response<ApiEnvelope<List<UserTokenActivationBinding>>>
 }
 
 interface AdminApi {

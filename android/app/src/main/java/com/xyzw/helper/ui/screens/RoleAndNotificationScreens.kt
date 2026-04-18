@@ -63,6 +63,7 @@ fun NotificationsScreen(
   onRefresh: () -> Unit,
   onMarkRead: (String) -> Unit,
   onMarkAllRead: () -> Unit,
+  onClearAll: () -> Unit,
 ) {
   Column(
     modifier = Modifier
@@ -77,15 +78,20 @@ fun NotificationsScreen(
       Text("通知中心", style = MaterialTheme.typography.headlineSmall)
       Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedButton(onClick = onMarkAllRead) { Text("全部已读") }
+        OutlinedButton(onClick = onClearAll) { Text("清空") }
         OutlinedButton(onClick = onRefresh) { Text(if (uiState.isLoading) "刷新中…" else "刷新") }
       }
     }
     if (!uiState.errorMessage.isNullOrBlank()) {
       Text(uiState.errorMessage, color = MaterialTheme.colorScheme.error)
     }
-    LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-      items(uiState.notifications, key = { it.id }) { notification ->
-        NotificationCard(notification = notification, onMarkRead = onMarkRead)
+    if (uiState.notifications.isEmpty() && !uiState.isLoading) {
+      Text("暂无通知", color = MaterialTheme.colorScheme.onSurfaceVariant)
+    } else {
+      LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        items(uiState.notifications, key = { it.id }) { notification ->
+          NotificationCard(notification = notification, onMarkRead = onMarkRead)
+        }
       }
     }
   }

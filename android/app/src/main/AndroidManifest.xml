@@ -7,10 +7,10 @@
     android:name=".app.XyzwHelperApplication"
     android:allowBackup="false"
     android:icon="@mipmap/ic_launcher"
-    android:label="${appLabel}"
+    android:label="@string/app_name"
     android:roundIcon="@mipmap/ic_launcher_round"
     android:supportsRtl="true"
-    android:theme="@style/Theme.XYZWHelper">
+    android:theme="@style/Theme.XyzwHelper">
     <activity
       android:name=".MainActivity"
       android:exported="true">
