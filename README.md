@@ -332,6 +332,7 @@ TASK_DAEMON_PASSWORD=your_password \
 - 历史 Worker 代码已归档到 `deploy/legacy/worker.js`，默认不启用。
 - 如需重启 Worker 方案，建议基于归档文件建立新的部署目录，并单独维护环境变量与 CORS 策略。
 - `docker/` 目录默认用于本地演示/快速验收；若要作为生产入口，请先按 `docker/README.md` 完成 TLS、反代上游、安全头与缓存策略核对。
+- 生产容器基线使用根目录 `Dockerfile.backend`、`Dockerfile.frontend` 与 `docker-compose.prod.example.yml`；它们默认保持前后端分离、非 root 运行，并继续阻断 legacy Flask 进入生产链路。
 
 ### 可选 Python 服务（历史兼容）
 

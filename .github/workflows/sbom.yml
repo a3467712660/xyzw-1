@@ -1,7 +1,6 @@
-name: CI
+name: SBOM
 
 on:
-  pull_request:
   push:
     branches:
       - main
@@ -12,9 +11,9 @@ permissions:
   contents: read
 
 jobs:
-  build-and-test:
+  generate-sbom:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
 
     steps:
       - name: Checkout
@@ -38,26 +37,12 @@ jobs:
       - name: Guard legacy exclusion
         run: npm run guard:legacy
 
-      - name: Enforce exact dependencies
-        run: npm run security:no-floating-deps
+      - name: Generate SBOM
+        run: npm run sbom:generate
 
-      - name: Audit high-severity issues
-        run: npm audit --audit-level=high
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Typecheck
-        run: npm run typecheck
-
-      - name: Check generated contracts
-        run: npm run openapi:check
-
-      - name: Build
-        run: npm run build
-
-      - name: Test
-        run: npm test
-
-      - name: Backend test
-        run: npm --prefix backend test
+      - name: Upload SBOM artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: cyclonedx-sbom
+          path: artifacts/sbom/*.json
+          if-no-files-found: error

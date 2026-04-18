@@ -11,7 +11,8 @@
     "test:token": "npm run test:legacy:token",
     "test:frontend": "node --test ./test/frontend/*.test.js",
     "test:daemon": "node --test ./test/taskControlDaemonSecurity.test.js",
-    "test": "npm run test:frontend && npm run test:daemon && npm --prefix backend test",
+    "test:ops": "node --test ./test/ops/*.test.js",
+    "test": "npm run test:frontend && npm run test:daemon && npm run test:ops && npm --prefix backend test",
     "dev": "vite --mode development",
     "dev:debug": "VITE_DEV_EXPOSE_HOST=true VITE_DEV_DEBUG_PROXY=true VITE_DEV_OPEN=true vite --mode debug",
     "dev:all": "bash ./start-dev.sh",
@@ -29,6 +30,7 @@
     "typecheck": "vue-tsc --noEmit -p tsconfig.typecheck.json && tsc --project backend/tsconfig.json --noEmit",
     "openapi:generate": "node ./scripts/contracts/generate-hardening-artifacts.mjs",
     "openapi:check": "node ./scripts/contracts/generate-hardening-artifacts.mjs --check",
+    "sbom:generate": "rm -rf artifacts/sbom && mkdir -p artifacts/sbom && ./node_modules/.bin/cyclonedx-npm --package-lock-only --output-format JSON --spec-version 1.6 --output-file artifacts/sbom/root.cdx.json && (cd backend && ../node_modules/.bin/cyclonedx-npm --package-lock-only --output-format JSON --spec-version 1.6 --output-file ../artifacts/sbom/backend.cdx.json)",
     "security:no-floating-deps": "node ./scripts/security/no-floating-deps.js",
     "security:lockfiles": "node ./scripts/security/check-lockfiles.mjs",
     "security:build-mode": "node ./scripts/security/check-build-mode.mjs",
@@ -84,7 +86,8 @@
     "unplugin-vue-components": "28.8.0",
     "unplugin-vue-router": "0.8.8",
     "vite": "8.0.8",
-    "vue-tsc": "3.2.6"
+    "vue-tsc": "3.2.6",
+    "@cyclonedx/cyclonedx-npm": "4.2.1"
   },
   "overrides": {
     "axios": "1.15.0",

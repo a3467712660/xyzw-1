@@ -14,6 +14,8 @@ docker/**/*.tgz
 # Production builds
 dist/
 build/
+artifacts/
+artifacts/sbom/
 
 # Environment variables
 .env
@@ -92,6 +94,9 @@ server/__pycache__/
 .github/workflows/*
 !.github/workflows/security-sca.yml
 !.github/workflows/ci.yml
+!.github/workflows/codeql.yml
+!.github/workflows/dependency-review.yml
+!.github/workflows/sbom.yml
 *.bat
 *.exe
 node_modules/

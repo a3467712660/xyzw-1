@@ -1,4 +1,4 @@
-name: CI
+name: CodeQL
 
 on:
   pull_request:
@@ -9,12 +9,19 @@ on:
   workflow_dispatch:
 
 permissions:
+  actions: read
   contents: read
+  security-events: write
 
 jobs:
-  build-and-test:
+  analyze:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        language:
+          - javascript-typescript
 
     steps:
       - name: Checkout
@@ -29,6 +36,12 @@ jobs:
             package-lock.json
             backend/package-lock.json
 
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@95e58e9a2cdfd71adc6e0353d5c52f41a045d225
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-and-quality
+
       - name: Install root deps
         run: npm ci
 
@@ -38,26 +51,8 @@ jobs:
       - name: Guard legacy exclusion
         run: npm run guard:legacy
 
-      - name: Enforce exact dependencies
-        run: npm run security:no-floating-deps
-
-      - name: Audit high-severity issues
-        run: npm audit --audit-level=high
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Typecheck
-        run: npm run typecheck
-
-      - name: Check generated contracts
-        run: npm run openapi:check
-
       - name: Build
         run: npm run build
 
-      - name: Test
-        run: npm test
-
-      - name: Backend test
-        run: npm --prefix backend test
+      - name: Analyze
+        uses: github/codeql-action/analyze@95e58e9a2cdfd71adc6e0353d5c52f41a045d225

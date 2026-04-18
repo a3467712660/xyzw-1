@@ -1,6 +1,11 @@
 # Docker 目录说明
 
 本目录默认用于本地演示/快速验收，不应直接视为“开箱即用生产配置”。
+生产镜像与编排示例已迁到仓库根目录：
+
+- `Dockerfile.backend`
+- `Dockerfile.frontend`
+- `docker-compose.prod.example.yml`
 
 ## 当前内容
 
