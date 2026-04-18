@@ -949,6 +949,10 @@ onUnmounted(() => {
 </script>
 
 <style scoped lang="scss">
+.legion-war-page {
+  gap: 16px;
+}
+
 .legion-war-page__hero-toolbar {
   width: 100%;
 }

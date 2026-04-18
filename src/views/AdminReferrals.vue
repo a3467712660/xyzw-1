@@ -1,5 +1,5 @@
 <template>
-  <div v-if="canAccess" class="admin-referrals-page">
+  <div v-if="canAccess" class="admin-referrals-page admin-surface-page">
     <div class="container admin-referrals-page__container">
       <div class="page-header">
         <div>
@@ -535,6 +535,23 @@ onMounted(() => {
 </script>
 
 <style scoped lang="scss">
+.admin-referrals-page.admin-surface-page {
+  padding: clamp(18px, 2vw, 28px) 0 28px;
+
+  .admin-referrals-page__container {
+    gap: 16px;
+  }
+
+  .page-header {
+    gap: 18px;
+  }
+
+  .list-card {
+    gap: 16px;
+    border-radius: 24px;
+  }
+}
+
 .admin-referrals-page {
   padding: var(--spacing-lg);
 }

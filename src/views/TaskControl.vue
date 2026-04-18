@@ -107,7 +107,8 @@ onMounted(() => {
   position: relative;
   isolation: isolate;
   display: grid;
-  gap: 12px;
+  gap: 16px;
+  padding: clamp(8px, 1vw, 12px);
   min-height: calc(100dvh - 72px);
   animation: tc-fade-in 0.36s ease;
 }

@@ -120,6 +120,24 @@ defineEmits([
 
 <style scoped lang="scss">
 .batch-header {
+  position: relative;
+  overflow: hidden;
+}
+
+.batch-header::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(var(--console-grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--console-grid-line) 1px, transparent 1px);
+  background-size: 26px 26px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.18), transparent 64%);
+  opacity: 0.18;
+}
+
+.batch-header {
   display: grid;
   gap: 18px;
   padding: clamp(18px, 2vw, 24px);
@@ -134,7 +152,9 @@ defineEmits([
 
 .batch-header__main {
   display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, auto);
   gap: 18px;
+  align-items: start;
 }
 
 .batch-header__copy {
@@ -166,7 +186,7 @@ defineEmits([
 
 .batch-header__stats {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(140px, 1fr));
   gap: 12px;
 }
 
@@ -176,7 +196,9 @@ defineEmits([
   padding: 14px 16px;
   border: 1px solid rgba(63, 119, 173, 0.14);
   border-radius: 20px;
-  background: rgba(255, 255, 255, 0.32);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.14), transparent 84%),
+    rgba(255, 255, 255, 0.32);
 }
 
 .batch-header__stat--wide {
@@ -220,10 +242,17 @@ defineEmits([
   padding: 14px 16px;
   border: 1px solid var(--surface-glass-border);
   border-radius: 20px;
-  background: var(--surface-glass);
+  background:
+    linear-gradient(135deg, rgba(63, 119, 173, 0.08), transparent 82%),
+    var(--surface-glass);
+  justify-content: flex-end;
 }
 
 @media (max-width: 960px) {
+  .batch-header__main {
+    grid-template-columns: 1fr;
+  }
+
   .batch-header__stats {
     grid-template-columns: 1fr;
   }

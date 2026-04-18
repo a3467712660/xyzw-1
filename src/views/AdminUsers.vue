@@ -1,5 +1,5 @@
 <template>
-  <div v-if="canAccess" class="admin-users-page">
+  <div v-if="canAccess" class="admin-users-page admin-surface-page">
     <div class="container">
       <div class="page-header">
         <div class="page-header__main">
@@ -1665,6 +1665,72 @@ onUnmounted(() => {
 </script>
 
 <style scoped lang="scss">
+.admin-users-page.admin-surface-page {
+  .container {
+    max-width: 1480px;
+    padding: 0 18px;
+    display: grid;
+    gap: 16px;
+  }
+
+  .page-header {
+    margin-bottom: 0;
+    padding: clamp(22px, 2vw, 30px);
+    border-radius: 28px;
+    background:
+      linear-gradient(135deg, rgba(15, 107, 255, 0.1), transparent 74%),
+      var(--surface-glass-strong);
+  }
+
+  .page-header__main h1 {
+    font-size: clamp(30px, 3vw, 42px);
+    line-height: 1;
+    letter-spacing: -0.02em;
+  }
+
+  .page-header__main p {
+    margin-top: 10px;
+    line-height: 1.7;
+  }
+
+  .page-header__actions {
+    gap: 12px;
+  }
+
+  .page-header__search {
+    width: min(360px, 100%);
+  }
+
+  .page-overview {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+    margin-bottom: 0;
+  }
+
+  .overview-card {
+    padding: 18px;
+    border-radius: 22px;
+  }
+
+  .desktop-table-card {
+    border-radius: 24px;
+  }
+
+  .desktop-table-card__header {
+    padding-bottom: 14px;
+    margin-bottom: 14px;
+    border-bottom: 1px solid var(--console-divider);
+  }
+
+  .mobile-user-list__content {
+    gap: 14px;
+  }
+
+  .mobile-user-card {
+    border-radius: 22px;
+  }
+}
+
 .admin-users-page {
   min-height: 100dvh;
   padding: 24px 0;

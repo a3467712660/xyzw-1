@@ -1,10 +1,16 @@
 <template>
-  <div class="status-card ten-hall-card">
+  <div class="status-card main-card ten-hall-card">
     <div class="card-header">
       <img class="status-icon" src="/icons/1733492491706148.png" :alt="t('tenHallTeamBattleCard.iconAlt')">
       <div class="status-info">
+        <span class="card-header__eyebrow">十殿争锋</span>
         <h3>{{ t("tenHallTeamBattleCard.title") }}</h3>
         <p>{{ t("tenHallTeamBattleCard.subtitle") }}</p>
+      </div>
+      <div class="status-badge" :class="{ active: isConnected }">
+        <span>
+          {{ isConnected ? t("tenHallTeamBattleCard.status.connected") : t("tenHallTeamBattleCard.status.disconnected") }}
+        </span>
       </div>
     </div>
 
@@ -1362,6 +1368,10 @@ watch(
 </script>
 
 <style scoped lang="scss">
+.ten-hall-card.main-card {
+  gap: 14px;
+}
+
 .ten-hall-card {
   width: 100%;
   display: flex;

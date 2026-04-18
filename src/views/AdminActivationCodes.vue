@@ -1,5 +1,5 @@
 <template>
-  <div v-if="canAccess" class="admin-activation-codes-page">
+  <div v-if="canAccess" class="admin-activation-codes-page admin-surface-page">
     <div class="container">
       <div class="page-header">
         <div class="page-header__main">
@@ -736,6 +736,56 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.admin-activation-codes-page.admin-surface-page .container {
+  max-width: 1260px;
+  gap: 16px;
+  padding: 0 16px;
+}
+
+.admin-activation-codes-page.admin-surface-page .page-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(340px, auto);
+  gap: 18px;
+  padding: clamp(20px, 2vw, 28px);
+  border-radius: 28px;
+  border: 1px solid var(--surface-glass-border);
+  background:
+    linear-gradient(135deg, rgba(15, 107, 255, 0.1), transparent 74%),
+    var(--surface-glass-strong);
+  box-shadow: var(--shadow-light);
+  backdrop-filter: blur(14px);
+}
+
+.admin-activation-codes-page.admin-surface-page .page-overview {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.admin-activation-codes-page.admin-surface-page .overview-card {
+  padding: 16px 18px;
+  border-radius: 20px;
+  border: 1px solid var(--surface-glass-border);
+  background:
+    linear-gradient(135deg, rgba(15, 107, 255, 0.08), transparent 76%),
+    var(--surface-glass-strong);
+  box-shadow: var(--shadow-light);
+}
+
+.admin-activation-codes-page.admin-surface-page .desktop-table-card {
+  border-radius: 24px;
+}
+
+.admin-activation-codes-page.admin-surface-page .desktop-table-card__header {
+  padding-bottom: 14px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--console-divider);
+}
+
+.admin-activation-codes-page.admin-surface-page .mobile-code-card {
+  border-radius: 22px;
+}
+
 .admin-activation-codes-page {
   padding: 20px;
 }
@@ -929,8 +979,10 @@ onBeforeUnmount(() => {
     padding: 12px;
   }
 
-  .page-header {
+  .page-header,
+  .admin-activation-codes-page.admin-surface-page .page-header {
     flex-direction: column;
+    grid-template-columns: 1fr;
     align-items: stretch;
   }
 

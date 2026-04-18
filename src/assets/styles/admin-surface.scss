@@ -1,0 +1,367 @@
+.admin-surface-page {
+  position: relative;
+  min-height: 100dvh;
+  padding: clamp(18px, 2vw, 28px) 0 32px;
+  overflow: clip;
+  isolation: isolate;
+}
+
+.admin-surface-page::before,
+.admin-surface-page::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.admin-surface-page::before {
+  background:
+    radial-gradient(circle at 8% 10%, rgba(15, 107, 255, 0.12), transparent 24%),
+    radial-gradient(circle at 92% 14%, rgba(0, 163, 137, 0.1), transparent 22%),
+    radial-gradient(circle at 50% 100%, rgba(249, 115, 22, 0.06), transparent 28%);
+  opacity: 0.94;
+}
+
+.admin-surface-page::after {
+  background-image:
+    linear-gradient(var(--console-grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--console-grid-line) 1px, transparent 1px);
+  background-size: 30px 30px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.22), transparent 58%);
+  opacity: 0.22;
+}
+
+.admin-surface-page > .container,
+.admin-surface-page .admin-referrals-page__container,
+.admin-surface-page .admin-wechat-page__container,
+.admin-surface-page .referral-center-page__container,
+.admin-surface-page .broadcast-container {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 16px;
+  width: min(1360px, calc(100% - 24px));
+  margin: 0 auto;
+}
+
+.admin-surface-page .container > .page-header,
+.admin-surface-page .page-overview,
+.admin-surface-page .overview-card,
+.admin-surface-page :is(.desktop-table-card, .list-card, .submit-card, .notify-card, .share-card),
+.admin-surface-page :is(.mobile-code-card, .mobile-invite-card, .mobile-user-card, .contact-card, .ticket-item, .feedback-item),
+.admin-surface-page :is(.toolbar, .list-toolbar, .status-list, .broadcast-preview__card) {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--surface-glass-border);
+  background:
+    linear-gradient(135deg, rgba(15, 107, 255, 0.08), transparent 74%),
+    var(--surface-glass-strong);
+  box-shadow:
+    var(--shadow-light),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(14px);
+}
+
+.admin-surface-page .container > .page-header::before,
+.admin-surface-page .overview-card::before,
+.admin-surface-page :is(.desktop-table-card, .list-card, .submit-card, .notify-card, .share-card)::before,
+.admin-surface-page :is(.mobile-code-card, .mobile-invite-card, .mobile-user-card, .contact-card, .ticket-item, .feedback-item)::before,
+.admin-surface-page :is(.toolbar, .list-toolbar, .status-list, .broadcast-preview__card)::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(var(--console-grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--console-grid-line) 1px, transparent 1px);
+  background-size: 28px 28px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.22), transparent 60%);
+  opacity: 0.18;
+}
+
+.admin-surface-page .container > .page-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, auto);
+  gap: 18px;
+  align-items: start;
+  padding: clamp(20px, 2vw, 28px);
+  border-radius: 28px;
+}
+
+.admin-surface-page .page-header__main,
+.admin-surface-page .page-header > div:first-child {
+  min-width: 0;
+}
+
+.admin-surface-page .container > .page-header h1 {
+  margin: 0;
+  font-size: clamp(28px, 3vw, 42px);
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.admin-surface-page .container > .page-header p {
+  margin: 10px 0 0;
+  max-width: 70ch;
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
+.admin-surface-page :is(.page-header__actions, .activation-creator, .invite-creator) {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 12px;
+  min-width: min(100%, 520px);
+  margin-left: auto;
+}
+
+.admin-surface-page :is(.activation-creator, .invite-creator) {
+  align-items: stretch;
+  padding: 14px;
+  border-radius: 22px;
+  border: 1px solid rgba(15, 107, 255, 0.12);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.16), transparent 84%),
+    rgba(255, 255, 255, 0.34);
+}
+
+.admin-surface-page .invite-creator--second-line {
+  margin-top: 0;
+}
+
+.admin-surface-page :is(.activation-creator__field, .invite-creator__field) {
+  flex: 1 1 132px;
+  min-width: 132px;
+  display: grid;
+  gap: 6px;
+}
+
+.admin-surface-page :is(.activation-creator__label, .invite-creator__label, .toolbar__label) {
+  color: var(--text-tertiary);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-family: var(--font-family-mono);
+}
+
+.admin-surface-page :is(.page-header__search, .toolbar__field, .list-toolbar__filter) {
+  min-width: min(100%, 220px);
+}
+
+.admin-surface-page .page-overview,
+.admin-surface-page .summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.admin-surface-page .overview-card,
+.admin-surface-page .summary-card {
+  display: grid;
+  gap: 8px;
+  padding: 18px;
+  border-radius: 22px;
+}
+
+.admin-surface-page .overview-label,
+.admin-surface-page .summary-card > span {
+  color: var(--text-tertiary);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-family: var(--font-family-mono);
+}
+
+.admin-surface-page .overview-value,
+.admin-surface-page .summary-card strong {
+  color: var(--text-primary);
+  font-size: clamp(26px, 2.4vw, 34px);
+  line-height: 1.08;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-surface-page :is(.desktop-table-card, .list-card, .submit-card, .notify-card, .share-card) {
+  border-radius: 24px !important;
+}
+
+.admin-surface-page :is(.desktop-table-card, .list-card) .n-card__content,
+.admin-surface-page :is(.submit-card, .notify-card, .share-card) .n-card__content {
+  display: grid;
+  gap: 16px;
+}
+
+.admin-surface-page :is(.desktop-table-card__header, .list-card__head, .notify-card__head, .share-card__head) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 2px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--console-divider);
+}
+
+.admin-surface-page :is(.desktop-table-card__header, .list-card__head, .notify-card__head, .share-card__head) :is(h2, h3) {
+  margin: 0;
+}
+
+.admin-surface-page :is(.toolbar, .status-list, .list-toolbar) {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 20px;
+}
+
+.admin-surface-page .toolbar--logs {
+  align-items: end;
+}
+
+.admin-surface-page .toolbar__field {
+  flex: 1 1 180px;
+  display: grid;
+  gap: 6px;
+}
+
+.admin-surface-page .toolbar__field--compact {
+  flex-basis: 140px;
+}
+
+.admin-surface-page .toolbar__field--wide {
+  flex-basis: 220px;
+}
+
+.admin-surface-page .list-toolbar__count,
+.admin-surface-page :is(.desktop-table-count, .desktop-table-hint) {
+  color: var(--text-secondary);
+}
+
+.admin-surface-page .status-list__item {
+  min-width: 180px;
+  flex: 1 1 180px;
+}
+
+.admin-surface-page :is(.mobile-code-card, .mobile-invite-card, .mobile-user-card, .contact-card, .ticket-item, .feedback-item) {
+  border-radius: 22px !important;
+}
+
+.admin-surface-page :is(.mobile-code-card, .mobile-invite-card, .mobile-user-card, .contact-card, .ticket-item, .feedback-item) .n-card__content {
+  display: grid;
+  gap: 14px;
+}
+
+.admin-surface-page :is(.contact-card__meta, .mobile-meta-grid, .mobile-user-card__stats) {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.admin-surface-page :is(.info-label, .meta-label, .meta-item > span) {
+  color: var(--text-tertiary);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-family: var(--font-family-mono);
+}
+
+.admin-surface-page :is(.chip, .status-chip, .type-chip, .slug-chip) {
+  min-height: 30px;
+}
+
+.admin-surface-page :is(.ticket-item__actions, .contact-card__actions, .mobile-actions, .mobile-user-card__actions, .feedback-item__actions, .admin-actions, .broadcast-preview__footer) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.admin-surface-page :is(.ticket-item__button-row, .contact-card__toggles, .mobile-user-card__switch, .mobile-user-card__scope) {
+  display: grid;
+  gap: 12px;
+}
+
+.admin-surface-page :is(.submit-card__actions, .created-codes-modal__actions, .wechat-form__footer) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.admin-surface-page :is(.share-card__value, .broadcast-preview__title, .broadcast-preview__content, .ticket-item__title, .feedback-item__title) {
+  word-break: break-word;
+}
+
+.admin-surface-page :is(.n-button, .arco-btn) {
+  min-height: 44px;
+}
+
+.admin-surface-page :is(.n-input, .n-input-number, .n-base-selection, .arco-input-wrapper, .arco-select-view) {
+  min-height: 44px;
+}
+
+.admin-surface-page :is(.n-data-table, .arco-table) {
+  border-radius: 18px;
+  overflow: hidden;
+}
+
+.admin-surface-page :is(.n-data-table .n-data-table-th, .arco-table-th) {
+  background: rgba(15, 107, 255, 0.08);
+}
+
+.admin-surface-page :is(.password-modal, .token-activation-modal, .created-codes-modal, .wechat-form-modal) .n-card,
+.admin-surface-page .modal-w-500 .n-card {
+  border-radius: 24px !important;
+  border: 1px solid var(--surface-glass-border) !important;
+  background:
+    linear-gradient(135deg, rgba(15, 107, 255, 0.08), transparent 76%),
+    var(--surface-glass-strong) !important;
+  box-shadow: var(--shadow-medium) !important;
+  backdrop-filter: blur(18px);
+}
+
+@media (max-width: 959px) {
+  .admin-surface-page .container > .page-header {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-surface-page :is(.page-header__actions, .activation-creator, .invite-creator) {
+    justify-content: flex-start;
+    margin-left: 0;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .admin-surface-page {
+    padding-top: 14px;
+    padding-bottom: 24px;
+  }
+
+  .admin-surface-page > .container,
+  .admin-surface-page .admin-referrals-page__container,
+  .admin-surface-page .admin-wechat-page__container,
+  .admin-surface-page .referral-center-page__container,
+  .admin-surface-page .broadcast-container {
+    width: calc(100% - 20px);
+  }
+
+  .admin-surface-page .container > .page-header,
+  .admin-surface-page .overview-card,
+  .admin-surface-page :is(.desktop-table-card, .list-card, .submit-card, .notify-card, .share-card),
+  .admin-surface-page :is(.mobile-code-card, .mobile-invite-card, .mobile-user-card, .contact-card, .ticket-item, .feedback-item),
+  .admin-surface-page :is(.toolbar, .status-list, .list-toolbar) {
+    border-radius: 18px;
+  }
+
+  .admin-surface-page :is(.toolbar, .status-list, .list-toolbar, .submit-card__actions, .ticket-item__actions, .contact-card__actions, .mobile-actions, .mobile-user-card__actions, .feedback-item__actions, .admin-actions) {
+    align-items: stretch;
+  }
+
+  .admin-surface-page :is(.toolbar__field, .toolbar__field--compact, .toolbar__field--wide) {
+    flex-basis: 100%;
+  }
+}

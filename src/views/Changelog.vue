@@ -306,6 +306,18 @@ onMounted(() => {
 </script>
 
 <style scoped lang="scss">
+.changelog-page.public-support-page {
+  .changelog-page__hero,
+  .changelog-page__list-panel,
+  .changelog-page__subscribe {
+    border-radius: 30px;
+  }
+
+  .changelog-page__summary-card {
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  }
+}
+
 .changelog-page__hero {
   gap: 22px;
 }

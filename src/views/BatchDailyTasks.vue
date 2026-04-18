@@ -1,5 +1,5 @@
 <template>
-  <div class="batch-daily-tasks">
+  <div class="batch-daily-tasks app-page batch-console-page">
     <section class="batch-console-hero">
       <div class="batch-console-hero__copy">
         <span class="batch-console-hero__eyebrow">批量执行控制台</span>
@@ -1152,6 +1152,45 @@ defineExpose({
 </script>
 
 <style scoped lang="scss">
+.batch-daily-tasks.batch-console-page {
+  gap: 16px;
+  padding: clamp(16px, 1.8vw, 24px);
+}
+
+.batch-daily-tasks.batch-console-page .batch-console-hero {
+  grid-template-columns: minmax(0, 1fr) minmax(280px, auto);
+  gap: 18px;
+  border-radius: 30px;
+}
+
+.batch-daily-tasks.batch-console-page .batch-console-overview__card,
+.batch-daily-tasks.batch-console-page .batch-console-status-strip__item,
+.batch-daily-tasks.batch-console-page .batch-console-zone__head {
+  border-radius: 24px;
+}
+
+.batch-daily-tasks.batch-console-page .batch-console-overview__card {
+  min-height: 150px;
+  align-content: start;
+}
+
+.batch-daily-tasks.batch-console-page .batch-console-status-strip__item {
+  padding: 16px 18px;
+}
+
+.batch-daily-tasks.batch-console-page .main-layout {
+  grid-template-columns: minmax(0, 1fr) minmax(340px, 410px);
+  gap: clamp(16px, 1.8vw, 22px);
+}
+
+.batch-daily-tasks.batch-console-page .batch-console-zone__head {
+  padding: 18px 20px;
+}
+
+.batch-daily-tasks.batch-console-page :deep(.n-card) {
+  border-radius: 26px;
+}
+
 .batch-daily-tasks {
   position: relative;
   display: grid;
@@ -1457,6 +1496,10 @@ defineExpose({
 }
 
 @media (max-width: 992px) {
+  .batch-daily-tasks.batch-console-page .batch-console-hero {
+    grid-template-columns: 1fr;
+  }
+
   .batch-daily-tasks {
     height: auto;
     overflow: visible;
@@ -1480,6 +1523,14 @@ defineExpose({
 }
 
 @media (max-width: 768px) {
+  .batch-daily-tasks.batch-console-page .batch-console-hero,
+  .batch-daily-tasks.batch-console-page .batch-console-overview__card,
+  .batch-daily-tasks.batch-console-page .batch-console-status-strip__item,
+  .batch-daily-tasks.batch-console-page .batch-console-zone__head,
+  .batch-daily-tasks.batch-console-page :deep(.n-card) {
+    border-radius: 20px;
+  }
+
   .batch-daily-tasks :deep(.n-button) {
     min-height: 40px;
   }

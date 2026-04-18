@@ -157,6 +157,12 @@ onMounted(() => {
 </script>
 
 <style scoped lang="scss">
+.mfa-reset-page.public-support-page {
+  .public-support-panel {
+    border-radius: 30px;
+  }
+}
+
 .mfa-reset-page__actions {
   justify-content: flex-end;
 }

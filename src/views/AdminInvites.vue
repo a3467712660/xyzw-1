@@ -1,5 +1,5 @@
 <template>
-  <div v-if="canAccess" class="admin-invites-page">
+  <div v-if="canAccess" class="admin-invites-page admin-surface-page">
     <div class="container">
       <div class="page-header">
         <div class="page-header__main">
@@ -689,6 +689,61 @@ onMounted(async () => {
 </script>
 
 <style scoped lang="scss">
+.admin-invites-page.admin-surface-page {
+  .container {
+    max-width: 1260px;
+    padding: 0 16px;
+    display: grid;
+    gap: 16px;
+  }
+
+  .page-header {
+    margin-bottom: 0;
+    padding: clamp(20px, 2vw, 28px);
+    border-radius: 28px;
+    background:
+      linear-gradient(135deg, rgba(15, 107, 255, 0.1), transparent 74%),
+      var(--surface-glass-strong);
+  }
+
+  .invite-creator {
+    gap: 12px;
+  }
+
+  .invite-creator__field {
+    gap: 6px;
+  }
+
+  .page-overview {
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    margin-bottom: 0;
+  }
+
+  .overview-card {
+    padding: 16px 18px;
+    border-radius: 20px;
+  }
+
+  .status-list {
+    margin-bottom: 0;
+  }
+
+  .desktop-table-card {
+    border-radius: 24px;
+  }
+
+  .desktop-table-card__header {
+    padding-bottom: 14px;
+    margin-bottom: 14px;
+    border-bottom: 1px solid var(--console-divider);
+  }
+
+  .mobile-invite-card {
+    border-radius: 22px;
+  }
+}
+
 .admin-invites-page {
   min-height: 100dvh;
   padding: 16px 0;

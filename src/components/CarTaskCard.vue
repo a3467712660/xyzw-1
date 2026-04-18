@@ -1,20 +1,36 @@
 <template>
   <!-- 俱乐部赛车 -->
-  <div class="status-card legion-match">
+  <div class="status-card main-card legion-match">
     <div class="card-header">
       <img class="status-icon" src="/Car.png" :alt="t('carTaskCard.alt')">
       <div class="status-info">
+        <span class="card-header__eyebrow">俱乐部赛车</span>
         <h3>{{ t("carTaskCard.title") }}</h3>
+        <p>统一查看当前车票库存、待领车辆和大奖命中情况。</p>
       </div>
-      <div class="status-count">
+      <div class="status-badge" :class="{ active: claimableCarsCount > 0 }">
         <span>{{ t("carTaskCard.ticketsRemaining", { count: MyItem }) }}</span>
       </div>
     </div>
     <div class="card-content">
-      <div v-if="CarList.length === 0" class="no-data">
+      <div v-if="CarList.length === 0" class="no-data empty-state">
         <p>{{ t("carTaskCard.empty") }}</p>
       </div>
-      <div class="car-grid">
+      <div v-else class="summary-grid car-summary-grid">
+        <div class="summary-item">
+          <span class="label">当前车辆</span>
+          <span class="value">{{ CarList.length }}</span>
+        </div>
+        <div class="summary-item">
+          <span class="label">待领取</span>
+          <span class="value">{{ claimableCarsCount }}</span>
+        </div>
+        <div class="summary-item">
+          <span class="label">大奖车辆</span>
+          <span class="value">{{ bigPrizeCarsCount }}</span>
+        </div>
+      </div>
+      <div v-if="CarList.length > 0" class="car-grid">
         <div
           v-for="car in sortedCarList"
           :key="car.id"
@@ -237,6 +253,19 @@ const CarList = ref([]);
 const sortedCarList = computed(() => {
   return [...CarList.value].sort((a, b) => a.slot - b.slot);
 });
+
+const claimableCarsCount = computed(() =>
+  CarList.value.filter((car) => {
+    const sendAt = Number(car?.sendAt || 0);
+    const claimAt = Number(car?.claimAt || 0);
+    const rewards = Array.isArray(car?.rewards) ? car.rewards : [];
+    return sendAt > 0 && claimAt === 0 && rewards.length > 0;
+  }).length,
+);
+
+const bigPrizeCarsCount = computed(() =>
+  CarList.value.filter((car) => isBigPrize(car?.rewards || [])).length,
+);
 
 // 刷新车辆方法
 const refreshCar = async (carId) => {
@@ -656,6 +685,14 @@ watch(wsStatus, async (newStatus) => {
 </script>
 
 <style scoped lang="scss">
+.status-card.legion-match.main-card {
+  gap: 16px;
+}
+
+.car-summary-grid {
+  margin-bottom: 12px;
+}
+
 .car-item-width-reset {
   width: 0;
 }

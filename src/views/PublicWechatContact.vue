@@ -324,6 +324,23 @@ onMounted(() => {
 </script>
 
 <style scoped lang="scss">
+.wechat-contact-page.public-support-page {
+  .wechat-contact-page__panel,
+  .wechat-contact-page__state-panel {
+    border-radius: 30px;
+  }
+
+  .wechat-contact-page__state-panel {
+    min-height: 280px;
+    align-content: center;
+  }
+
+  .wechat-contact-page__qr-shell {
+    padding: 18px;
+    border-radius: 28px;
+  }
+}
+
 .wechat-contact-page__panel,
 .wechat-contact-page__state-panel {
   gap: 18px;

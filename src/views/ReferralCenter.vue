@@ -1,5 +1,5 @@
 <template>
-  <div class="referral-center-page">
+  <div class="referral-center-page admin-surface-page">
     <div class="container referral-center-page__container">
       <div class="page-header">
         <div>
@@ -269,6 +269,33 @@ onMounted(() => {
 </script>
 
 <style scoped lang="scss">
+.referral-center-page.admin-surface-page {
+  padding: clamp(18px, 2vw, 28px) 0 28px;
+
+  .referral-center-page__container {
+    gap: 16px;
+  }
+
+  .page-header,
+  .share-card,
+  .list-card {
+    gap: 16px;
+  }
+
+  .summary-grid {
+    gap: 12px;
+  }
+
+  .summary-card {
+    border-radius: 22px;
+  }
+
+  .share-card__value {
+    padding: 16px 18px;
+    border-radius: 18px;
+  }
+}
+
 .referral-center-page {
   padding: var(--spacing-lg);
 }

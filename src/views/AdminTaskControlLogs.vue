@@ -1,5 +1,5 @@
 <template>
-  <div v-if="canAccess" class="admin-task-logs-page">
+  <div v-if="canAccess" class="admin-task-logs-page admin-surface-page">
     <div class="container">
       <div class="page-header">
         <div class="page-header__main">
@@ -367,6 +367,42 @@ onUnmounted(() => {
 </script>
 
 <style scoped lang="scss">
+.admin-task-logs-page.admin-surface-page {
+  .container {
+    max-width: 1480px;
+    padding: 0 16px;
+    display: grid;
+    gap: 16px;
+  }
+
+  .page-header {
+    margin-bottom: 0;
+  }
+
+  .toolbar--logs {
+    padding: 16px;
+    border-radius: 22px;
+  }
+
+  .desktop-table-card {
+    border-radius: 24px;
+  }
+
+  .desktop-table-card__header {
+    padding-bottom: 14px;
+    margin-bottom: 14px;
+    border-bottom: 1px solid var(--console-divider);
+  }
+
+  .mobile-log-list {
+    gap: 14px;
+  }
+
+  .mobile-log-card {
+    border-radius: 22px;
+  }
+}
+
 .admin-task-logs-page {
   min-height: 100dvh;
   padding: 16px 0;

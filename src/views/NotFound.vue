@@ -70,6 +70,12 @@ const handleBack = () => {
 </script>
 
 <style scoped lang="scss">
+.not-found-page.public-support-page {
+  .public-support-panel {
+    border-radius: 30px;
+  }
+}
+
 .not-found-page__panel {
   text-align: center;
   justify-items: center;

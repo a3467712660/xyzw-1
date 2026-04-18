@@ -1,5 +1,5 @@
 <template>
-  <div v-if="canAccess" class="admin-wechat-page">
+  <div v-if="canAccess" class="admin-wechat-page admin-surface-page">
     <div class="container admin-wechat-page__container">
       <div class="page-header">
         <div class="page-header__main">
@@ -773,6 +773,37 @@ onMounted(async () => {
 </script>
 
 <style scoped lang="scss">
+.admin-wechat-page.admin-surface-page {
+  padding: clamp(18px, 2vw, 28px) 0 28px;
+
+  .admin-wechat-page__container {
+    gap: 16px;
+  }
+
+  .page-header {
+    gap: 18px;
+  }
+
+  .contact-list {
+    gap: 16px;
+  }
+
+  .contact-card {
+    gap: 18px;
+    border-radius: 24px;
+  }
+
+  .contact-card__preview {
+    width: 132px;
+    height: 132px;
+    border-radius: 20px;
+  }
+
+  .wechat-form {
+    gap: 20px;
+  }
+}
+
 .admin-wechat-page {
   min-height: 100dvh;
   padding: var(--spacing-lg);

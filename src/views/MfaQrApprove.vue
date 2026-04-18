@@ -258,6 +258,16 @@ onMounted(() => {
 </script>
 
 <style scoped lang="scss">
+.mfa-qr-page.public-support-page {
+  .public-support-panel {
+    border-radius: 30px;
+  }
+
+  .public-support-meta-grid {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  }
+}
+
 .mfa-qr-page__form {
   display: grid;
   gap: 8px;

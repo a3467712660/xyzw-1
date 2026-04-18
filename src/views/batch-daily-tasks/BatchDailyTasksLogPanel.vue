@@ -118,6 +118,10 @@ const filterErrorsOnlyModel = computed({
 </script>
 
 <style scoped lang="scss">
+.log-card {
+  border-radius: 26px;
+}
+
 .batch-log-panel {
   display: flex;
   flex-direction: column;
@@ -176,6 +180,7 @@ const filterErrorsOnlyModel = computed({
   flex: 1;
   flex-direction: column;
   overflow: hidden;
+  gap: 12px;
 }
 
 .log-container {
@@ -194,6 +199,7 @@ const filterErrorsOnlyModel = computed({
     var(--surface-glass);
   font-family: var(--font-family-mono);
   font-variant-numeric: tabular-nums;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 
 .log-empty {
@@ -212,6 +218,14 @@ const filterErrorsOnlyModel = computed({
   border-radius: 14px;
   border: 1px solid transparent;
   background: rgba(255, 255, 255, 0.18);
+  transition:
+    transform 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.log-item:hover {
+  transform: translateY(-1px);
+  border-color: rgba(63, 119, 173, 0.18);
 }
 
 .log-item--success {
@@ -252,6 +266,10 @@ const filterErrorsOnlyModel = computed({
 }
 
 @media (max-width: 768px) {
+  .log-card {
+    border-radius: 20px;
+  }
+
   .batch-log-panel__header {
     flex-direction: column;
   }

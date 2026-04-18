@@ -1,5 +1,5 @@
 <template>
-  <div v-if="canAccess" class="admin-feedback-page">
+  <div v-if="canAccess" class="admin-feedback-page admin-surface-page">
     <div class="container">
       <div class="page-header">
         <div>
@@ -227,6 +227,53 @@ onMounted(async () => {
 </script>
 
 <style scoped lang="scss">
+.admin-feedback-page.admin-surface-page {
+  .container {
+    max-width: 1140px;
+    padding: 0 16px;
+    display: grid;
+    gap: 16px;
+  }
+
+  .page-header {
+    margin-bottom: 0;
+    padding: clamp(20px, 2vw, 28px);
+    border-radius: 28px;
+  }
+
+  .toolbar {
+    margin-bottom: 0;
+    padding: 14px 16px;
+    border-radius: 20px;
+    border: 1px solid var(--surface-glass-border);
+    background:
+      linear-gradient(135deg, rgba(15, 107, 255, 0.08), transparent 80%),
+      var(--surface-glass);
+    box-shadow: var(--shadow-light);
+  }
+
+  .ticket-list {
+    gap: 14px;
+  }
+
+  .ticket-item {
+    border-radius: 22px;
+  }
+
+  .ticket-item__head {
+    gap: 12px;
+  }
+
+  .ticket-item__title {
+    margin-top: 12px;
+    font-size: 18px;
+  }
+
+  .ticket-item__actions {
+    gap: 12px;
+  }
+}
+
 .admin-feedback-page {
   min-height: 100dvh;
   padding: 16px 0;

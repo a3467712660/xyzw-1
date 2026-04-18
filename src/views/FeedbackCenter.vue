@@ -1,5 +1,5 @@
 <template>
-  <div v-if="canAccess" class="feedback-page">
+  <div v-if="canAccess" class="feedback-page admin-surface-page">
     <div class="container">
       <div class="page-header">
         <div>
@@ -350,6 +350,45 @@ onMounted(async () => {
 </script>
 
 <style scoped lang="scss">
+.feedback-page.admin-surface-page {
+  .container {
+    max-width: 1140px;
+    padding: 0 16px;
+    display: grid;
+    gap: 16px;
+  }
+
+  .page-header {
+    margin-bottom: 0;
+    padding: clamp(20px, 2vw, 28px);
+    border-radius: 28px;
+  }
+
+  .submit-card,
+  .notify-card {
+    margin-bottom: 0;
+    border-radius: 24px;
+  }
+
+  .notify-list,
+  .feedback-list {
+    gap: 12px;
+  }
+
+  .notify-item,
+  .feedback-item {
+    border-radius: 20px;
+  }
+
+  .list-toolbar {
+    margin-bottom: 0;
+  }
+
+  .admin-note {
+    border-radius: 16px;
+  }
+}
+
 .feedback-page {
   min-height: 100dvh;
   padding: 16px 0;

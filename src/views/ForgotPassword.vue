@@ -360,6 +360,26 @@ onMounted(() => {
 </script>
 
 <style scoped lang="scss">
+.support-recovery-page.public-support-page {
+  .public-support-shell {
+    gap: 18px;
+  }
+
+  .public-support-side,
+  .public-support-panel {
+    border-radius: 30px;
+  }
+
+  .support-recovery-page__panel-head {
+    gap: 10px;
+  }
+
+  .support-recovery-page__footer {
+    padding-top: 6px;
+    border-top: 1px solid var(--console-divider);
+  }
+}
+
 .support-recovery-page__brand-sub {
   color: var(--text-tertiary);
   font-size: 13px;

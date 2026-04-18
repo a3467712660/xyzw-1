@@ -1,5 +1,5 @@
 <template>
-  <div class="broadcast-page">
+  <div class="broadcast-page admin-surface-page">
     <div class="container broadcast-container">
       <div class="page-header">
         <div class="page-header__main">
@@ -172,6 +172,26 @@ const handleSend = async () => {
 </script>
 
 <style scoped lang="scss">
+.broadcast-page.admin-surface-page {
+  .broadcast-container {
+    max-width: 1240px;
+    padding: 0 16px;
+    gap: 16px;
+  }
+
+  .broadcast-grid {
+    gap: 16px;
+  }
+
+  .list-card {
+    border-radius: 24px;
+  }
+
+  .broadcast-preview__card {
+    border-radius: 20px;
+  }
+}
+
 .broadcast-page {
   min-height: 100dvh;
   padding: 16px 0;

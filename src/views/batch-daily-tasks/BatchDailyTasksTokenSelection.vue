@@ -232,6 +232,15 @@ const tokenListColumns = computed(
 </script>
 
 <style scoped lang="scss">
+.batch-token-panel {
+  border-radius: 26px;
+}
+
+.batch-token-panel :deep(.n-card__content) {
+  display: grid;
+  gap: 16px;
+}
+
 .batch-token-panel__header {
   display: flex;
   justify-content: space-between;
@@ -393,6 +402,16 @@ const tokenListColumns = computed(
     linear-gradient(135deg, rgba(63, 119, 173, 0.08), transparent 78%),
     var(--surface-glass);
   box-shadow: var(--shadow-light);
+  transition:
+    transform 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.token-row:hover {
+  transform: translateY(-1px);
+  border-color: rgba(63, 119, 173, 0.24);
+  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.08);
 }
 
 .token-checkbox-main {
@@ -416,6 +435,20 @@ const tokenListColumns = computed(
   font-size: 15px;
   font-weight: 700;
   color: var(--text-primary);
+}
+
+@media (max-width: 768px) {
+  .batch-token-panel {
+    border-radius: 20px;
+  }
+
+  .batch-token-panel__header,
+  .batch-token-panel__selection-bar,
+  .group-selection-header,
+  .group-manage-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }
 
 .token-item__meta {
