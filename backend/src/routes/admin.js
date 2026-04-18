@@ -44,6 +44,9 @@ import {
   ACCESS_SCOPE_TASK_CONTROL_ONLY,
   normalizeAccessScope,
 } from "../constants/accessScope.js";
+import {
+  confirmPasswordBodySchema,
+} from "../contracts/hardeningSchemas.js";
 
 const router = Router();
 const INVITE_AUTO_DISABLE_HOURS = 48;
@@ -64,11 +67,6 @@ const sensitiveActionRequired = adminSensitiveAction.required;
 const userIdParamSchema = z.object({
   id: z.string().trim().min(1).max(64),
 });
-const confirmPasswordBodySchema = z.object({
-  password: z.string().trim().max(128).optional(),
-  totpCode: z.string().trim().max(32).optional(),
-  recoveryCode: z.string().trim().max(64).optional(),
-}).strict();
 const updateAdminFlagBodySchema = z.object({
   isAdmin: z.boolean(),
 }).strict();

@@ -38,6 +38,19 @@ import {
 import { disconnectUserSockets } from "../services/wsHub.js";
 import { redactUrl } from "../lib/logRedactor.js";
 import {
+  loginBodySchema,
+  mfaDisableBodySchema,
+  mfaEnableBodySchema,
+  mfaQrApproveBodySchema,
+  mfaQrSessionCreateBodySchema,
+  mfaQrSessionIdBodySchema,
+  mfaResetLinkBodySchema,
+  mfaSetupBodySchema,
+  mfaVerifyBodySchema,
+  passwordResetBodySchema,
+  registerBodySchema,
+} from "../contracts/hardeningSchemas.js";
+import {
   createMfaSetupPayload,
   decryptMfaSecret,
   encryptMfaSecret,
@@ -102,6 +115,13 @@ const mfaQrPollLimiter = createRateLimiter({
   keyGenerator: (req) =>
     `${req.ip || "anonymous"}:${String(req.body?.sessionId || "").slice(0, 32)}`,
 });
+const refreshLimiter = createRateLimiter({
+  scope: "auth_refresh",
+  windowMs: 5 * 60 * 1000,
+  max: 20,
+  blockMs: 10 * 60 * 1000,
+  keyGenerator: (req) => req.ip || "anonymous",
+});
 const INVITE_AUTO_DISABLE_HOURS = 48;
 const TEMP_ACCOUNT_DAYS = 7;
 const PASSWORD_RESET_GENERIC_MESSAGE = "如果信息正确，密码已重置，请使用新密码登录";
@@ -113,55 +133,6 @@ const MFA_CHALLENGE_TTL_SECONDS = 5 * 60;
 const MFA_CHALLENGE_PURPOSE = "auth-mfa-challenge";
 const MFA_RESET_LINK_TTL_SECONDS = 60 * 60;
 const MFA_RESET_LINK_PURPOSE = "auth-mfa-reset-link";
-const registerBodySchema = z.object({
-  username: z.string().trim().min(1).max(64),
-  email: z.union([z.string().trim().email(), z.literal(""), z.null()]).optional(),
-  password: z.string().min(1).max(128),
-  inviteCode: z.string().trim().min(1).max(64),
-  referralCode: z.string().trim().max(32).optional().default(""),
-}).strict();
-const loginBodySchema = z.object({
-  username: z.string().trim().min(1).max(128),
-  password: z.string().min(1).max(128),
-  rememberMe: z.boolean().optional().default(false),
-}).strict();
-const passwordResetBodySchema = z.object({
-  identity: z.string().trim().min(1).max(128),
-  shortCode: z.string().trim().min(1).max(64),
-  newPassword: z.string().min(1).max(128),
-}).strict();
-const mfaVerifyBodySchema = z.object({
-  mfaChallengeToken: z.string().trim().min(1).max(2048),
-  totpCode: z.string().trim().max(32).optional(),
-  recoveryCode: z.string().trim().max(64).optional(),
-}).strict();
-const mfaQrSessionCreateBodySchema = z.object({
-  mfaChallengeToken: z.string().trim().min(1).max(2048),
-}).strict();
-const mfaQrSessionIdBodySchema = z.object({
-  sessionId: z.string().trim().min(1).max(128),
-}).strict();
-const mfaQrApproveBodySchema = z.object({
-  sessionId: z.string().trim().min(1).max(128),
-  totpCode: z.string().trim().max(32).optional(),
-  recoveryCode: z.string().trim().max(64).optional(),
-}).strict();
-const mfaSetupBodySchema = z.object({
-  password: z.string().min(1).max(128),
-}).strict();
-const mfaEnableBodySchema = z.object({
-  password: z.string().min(1).max(128),
-  secret: z.string().trim().min(8).max(512),
-  totpCode: z.string().trim().min(4).max(32),
-}).strict();
-const mfaDisableBodySchema = z.object({
-  password: z.string().min(1).max(128),
-  totpCode: z.string().trim().max(32).optional(),
-  recoveryCode: z.string().trim().max(64).optional(),
-}).strict();
-const mfaResetLinkBodySchema = z.object({
-  token: z.string().trim().min(1).max(4096),
-}).strict();
 const wechatLoginStartBodySchema = z.object({
   rememberMe: z.boolean().optional().default(false),
 }).strict();
@@ -1882,7 +1853,7 @@ router.post("/password-reset", resetPasswordLimiter, validateRequest({ body: pas
   return res.json({ success: true, message: PASSWORD_RESET_GENERIC_MESSAGE });
 });
 
-router.post("/refresh", (req, res) => {
+router.post("/refresh", refreshLimiter, (req, res) => {
   try {
     const refreshTokenRaw = readRefreshTokenFromRequest(req);
     if (!refreshTokenRaw) {

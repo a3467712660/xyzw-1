@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { env } from "../config/env.js";
+import { logHttpError } from "../lib/logger.js";
 
 const BACKEND_ERROR_LOG_PATH = env.backendErrorLogPath;
 const BACKEND_ERROR_LOG_MAX_BYTES = env.backendErrorLogMaxBytes;
@@ -58,8 +59,8 @@ const appendBackendErrorLog = (line) => {
   fs.appendFileSync(BACKEND_ERROR_LOG_PATH, line, "utf8");
 };
 
-export function registerErrorHandler(app) {
-  app.use((err, _req, res, _next) => {
+export function registerErrorHandler(app, { logger } = {}) {
+  app.use((err, req, res, _next) => {
     const isJsonParseError = (
       err instanceof SyntaxError
       && err?.status === 400
@@ -86,8 +87,15 @@ export function registerErrorHandler(app) {
         .json({ success: false, message: "CORS origin not allowed" });
     }
 
-    // eslint-disable-next-line no-console
-    console.error(err);
+    logHttpError({
+      logger,
+      req,
+      res: {
+        ...res,
+        statusCode: Number(res.statusCode || 500) >= 400 ? res.statusCode : 500,
+      },
+      error: err,
+    });
     res.status(500).json({ success: false, message: "服务器内部错误" });
   });
 }

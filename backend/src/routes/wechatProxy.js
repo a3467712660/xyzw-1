@@ -1,6 +1,9 @@
 import express, { Router } from "express";
-import { z } from "zod";
 import { env } from "../config/env.js";
+import {
+  HORTOR_DEVICE_UNIQUE_ID_PATTERN,
+  QR_STATUS_BODY_SCHEMA,
+} from "../contracts/hardeningSchemas.js";
 import { isAllowedHttpOrigin, normalizeHttpOrigin } from "../lib/origin.js";
 import {
   ProxySafetyError,
@@ -13,7 +16,6 @@ import { validateRequest } from "../middleware/validate.js";
 const router = Router();
 const HORTOR_LOGIN_BODY_LIMIT = "64kb";
 const HORTOR_DEVICE_UNIQUE_ID_HEADER = "x-xyzw-device-unique-id";
-const HORTOR_DEVICE_UNIQUE_ID_PATTERN = /^[\w.:-]{1,128}$/;
 const WECHAT_PROXY_ALLOWED_HOSTS = [
   "open.weixin.qq.com",
   "long.open.weixin.qq.com",
@@ -22,9 +24,6 @@ const WECHAT_PROXY_ALLOWED_HOSTS = [
 const QRCONNECT_RESPONSE_MAX_BYTES = 256 * 1024;
 const QRSTATUS_RESPONSE_MAX_BYTES = 64 * 1024;
 const HORTOR_LOGIN_RESPONSE_MAX_BYTES = 256 * 1024;
-const QR_STATUS_BODY_SCHEMA = z.object({
-  uuid: z.string().trim().min(1).max(256),
-});
 
 const qrConnectLimiter = createRateLimiter({
   scope: "wechat_proxy_qrconnect",

@@ -6,7 +6,7 @@ import { isAllowedHttpOrigin } from "../lib/origin.js";
 import { requestLogger } from "../middleware/requestLogger.js";
 import { csrfProtection } from "../middleware/csrf.js";
 
-export function registerMiddleware(app) {
+export function registerMiddleware(app, { logger, metrics } = {}) {
   app.set("trust proxy", env.trustProxy);
 
   const corsOriginSet = new Set(env.corsOrigins);
@@ -38,7 +38,8 @@ export function registerMiddleware(app) {
 
   app.use(cors(corsOptionsDelegate));
   app.options("/{*any}", cors(corsOptionsDelegate));
-  app.use(requestLogger);
+  app.use(requestLogger({ logger }));
+  app.use(metrics?.middleware || ((_req, _res, next) => next()));
   app.use(
     helmet({
       xContentTypeOptions: true,

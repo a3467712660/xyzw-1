@@ -1,23 +1,25 @@
-import { env } from "../config/env.js";
-import { redactUrl } from "../lib/logRedactor.js";
+import {
+  createAppLogger,
+  createRequestContextMiddleware,
+  createStructuredRequestLogger,
+} from "../lib/logger.js";
 
-export const requestLogger = (req, res, next) => {
-  if (!env.logRequests) {
-    return next();
-  }
-
-  if (req.path === "/health") {
-    return next();
-  }
-
-  const startedAt = Date.now();
-  res.on("finish", () => {
-    const ms = Date.now() - startedAt;
-    // eslint-disable-next-line no-console
-    console.log(
-      `[${new Date().toISOString()}] ${req.method} ${redactUrl(req.originalUrl)} ${res.statusCode} ${ms}ms`,
-    );
+export const requestLogger = ({ logger }) => {
+  const activeLogger = logger || createAppLogger();
+  const requestContextMiddleware = createRequestContextMiddleware({
+    logger: activeLogger,
+  });
+  const structuredRequestLogger = createStructuredRequestLogger({
+    logger: activeLogger,
   });
 
-  return next();
+  return (req, res, next) => {
+    requestContextMiddleware(req, res, (contextError) => {
+      if (contextError) {
+        next(contextError);
+        return;
+      }
+      structuredRequestLogger(req, res, next);
+    });
+  };
 };

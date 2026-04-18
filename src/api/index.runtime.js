@@ -332,6 +332,30 @@ const api = {
       ),
   },
 
+  wechatProxy: {
+    qrConnect: (query = {}) =>
+      request.get("/wechat-proxy/qrconnect", {
+        params: query,
+        responseType: "text",
+        skipAuthHandling: true,
+      }),
+    qrStatus: (payload) =>
+      request.post("/wechat-proxy/qrstatus", payload, {
+        responseType: "text",
+        skipAuthHandling: true,
+      }),
+    hortorLogin: ({ body = "", deviceUniqueId = "", query = {} } = {}) =>
+      request.post("/wechat-proxy/hortor-login", String(body || ""), {
+        params: query,
+        responseType: "text",
+        skipAuthHandling: true,
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8",
+          "X-XYZW-Device-Unique-Id": String(deviceUniqueId || ""),
+        },
+      }),
+  },
+
   publicReferral: {
     resolve: (code) =>
       request.get(`/public/referrals/${encodeURIComponent(code)}`, {

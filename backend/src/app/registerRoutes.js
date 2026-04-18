@@ -18,7 +18,7 @@ import adminReferralsRoutes from "../routes/adminReferrals.js";
 import { publicBuildInfo } from "../lib/buildInfo.js";
 import { createUserRoutes } from "./userRoutes.js";
 
-export function registerRoutes(app) {
+export function registerRoutes(app, { metrics } = {}) {
   app.get("/health", (_req, res) => {
     res.json({
       success: true,
@@ -42,6 +42,17 @@ export function registerRoutes(app) {
       success: true,
       data: publicBuildInfo,
     });
+  });
+
+  app.get("/metrics", async (_req, res) => {
+    if (!metrics?.enabled) {
+      return res.status(404).json({
+        success: false,
+        message: "Not Found",
+      });
+    }
+    res.setHeader("content-type", metrics.contentType);
+    return res.status(200).send(await metrics.render());
   });
 
   app.use("/api/v1/auth", authRoutes);

@@ -6,6 +6,7 @@ import { validateRequest } from "../middleware/validate.js";
 import { createPassword, verifyPassword } from "../lib/crypto.js";
 import { validatePasswordStrengthAsync } from "../lib/passwordPolicy.js";
 import { nowIso } from "../db/sql.js";
+import { confirmPasswordBodySchema } from "../contracts/hardeningSchemas.js";
 import { referralAttributionRepository } from "../repositories/referralAttributionRepository.js";
 import { referralConversionRepository } from "../repositories/referralConversionRepository.js";
 import { referralProfileRepository } from "../repositories/referralProfileRepository.js";
@@ -43,11 +44,6 @@ const updateProfileBodySchema = z.object({
 const updatePasswordBodySchema = z.object({
   currentPassword: z.string().min(1).max(128),
   newPassword: z.string().min(1).max(128),
-}).strict();
-const confirmPasswordBodySchema = z.object({
-  password: z.string().trim().max(128).optional(),
-  totpCode: z.string().trim().max(32).optional(),
-  recoveryCode: z.string().trim().max(64).optional(),
 }).strict();
 const securityEventsQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(200).optional().default(50),

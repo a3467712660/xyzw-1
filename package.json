@@ -27,6 +27,8 @@
     "lint:check": "npm run lint",
     "lint:fix": "eslint src --ext .vue,.js,.ts --fix",
     "typecheck": "vue-tsc --noEmit -p tsconfig.typecheck.json && tsc --project backend/tsconfig.json --noEmit",
+    "openapi:generate": "node ./scripts/contracts/generate-hardening-artifacts.mjs",
+    "openapi:check": "node ./scripts/contracts/generate-hardening-artifacts.mjs --check",
     "security:no-floating-deps": "node ./scripts/security/no-floating-deps.js",
     "security:lockfiles": "node ./scripts/security/check-lockfiles.mjs",
     "security:build-mode": "node ./scripts/security/check-build-mode.mjs",

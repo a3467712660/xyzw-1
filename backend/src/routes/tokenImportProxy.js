@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { z } from "zod";
 import { env } from "../config/env.js";
+import { tokenImportProxyBodySchema } from "../contracts/hardeningSchemas.js";
 import { errorResponse } from "../lib/httpResponse.js";
 import {
   ProxySafetyError,
@@ -20,11 +20,6 @@ const tokenImportProxyLimiter = createRateLimiter({
   keyGenerator: (req) =>
     `${req.auth?.user?.id || "anonymous"}:${req.ip || "anonymous"}`,
 });
-const tokenImportProxyBodySchema = z
-  .object({
-    url: z.string().trim().min(1).max(2048),
-  })
-  .strict();
 
 router.use(authRequired);
 
