@@ -435,6 +435,10 @@ export const env = {
     process.env.ACCESS_TOKEN_EXPOSE_IN_BODY,
     false,
   ),
+  allowBearerAuthLegacy: parseProductionDefaultFalse(
+    process.env.ALLOW_BEARER_AUTH_LEGACY,
+    true,
+  ),
   accessCookieName,
   accessCookiePath,
   accessCookieDomain,

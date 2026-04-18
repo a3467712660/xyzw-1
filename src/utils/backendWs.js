@@ -41,8 +41,8 @@ const scheduleReconnect = () => {
   }, delay);
 };
 
-export const connectBackendWs = (token = null) => {
-  const normalizedToken = token ? String(token) : null;
+export const connectBackendWs = (_token = null) => {
+  const normalizedToken = null;
   const sameUserOpen
     = socket
       && currentToken === normalizedToken

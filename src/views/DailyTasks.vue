@@ -597,7 +597,7 @@ onMounted(async () => {
     return;
   }
 
-  connectBackendWs(authStore.token || null);
+  connectBackendWs();
   unsubscribeBackendWs = subscribeBackendWs(applyTaskDoneEvent);
 
   if (gameRolesStore.gameRoles.length === 0) {

@@ -1,8 +1,7 @@
 import {
   assertValidAccessToken,
-  readBearerTokenFromHeaders,
+  readAccessTokenFromRequest,
 } from "../middleware/auth.js";
-import { parseCookies } from "../lib/cookies.js";
 import { env } from "../config/env.js";
 
 const socketsByUserId = new Map();
@@ -107,7 +106,7 @@ export const attachWsHub = (wss) => {
       globalSocketCount = Math.max(0, globalSocketCount - 1);
     };
 
-    const acceptToken = (token, { allowReauth = false } = {}) => {
+    const acceptToken = (token, { allowReauth = false, source = "cookie" } = {}) => {
       if (!token) {
         ws.close(1008, "Missing token");
         return false;
@@ -124,6 +123,12 @@ export const attachWsHub = (wss) => {
         }
 
         userId = subject;
+        if (source === "legacy-bearer") {
+          // eslint-disable-next-line no-console
+          console.warn(
+            `[auth] legacy bearer allowed=true context=ws method=${allowReauth ? "REAUTH" : "AUTH"} route=/ws userId=${userId}`,
+          );
+        }
       } catch (error) {
         ws.close(1008, mapAuthErrorToWsReason(error));
         return false;
@@ -180,11 +185,18 @@ export const attachWsHub = (wss) => {
       return true;
     };
 
-    const bearer = readBearerTokenFromHeaders(req.headers);
-    const accessTokenFromCookie = String(parseCookies(req.headers?.cookie || "")[env.accessCookieName] || "").trim();
-    const handshakeToken = bearer || accessTokenFromCookie;
-    if (handshakeToken) {
-      acceptToken(handshakeToken);
+    const handshakeTokenState = readAccessTokenFromRequest(req, {
+      context: "ws-handshake",
+    });
+    if (handshakeTokenState.token) {
+      acceptToken(handshakeTokenState.token, {
+        source:
+          handshakeTokenState.source === "legacy-bearer"
+            ? "legacy-bearer"
+            : "cookie",
+      });
+    } else if (handshakeTokenState.rejected) {
+      ws.close(1008, "Invalid token");
     } else {
       authTimer = setTimeout(() => {
         if (!authenticated && ws.readyState === ws.OPEN) {
@@ -208,7 +220,15 @@ export const attachWsHub = (wss) => {
       if (type === "auth") {
         if (authenticated) return;
         const token = String(payload?.token || "").trim();
-        acceptToken(token);
+        if (!env.allowBearerAuthLegacy) {
+          // eslint-disable-next-line no-console
+          console.warn(
+            "[auth] legacy bearer allowed=false context=ws method=AUTH route=/ws userId=unknown",
+          );
+          ws.close(1008, "Invalid token");
+          return;
+        }
+        acceptToken(token, { source: "legacy-bearer" });
         return;
       }
 
@@ -218,7 +238,15 @@ export const attachWsHub = (wss) => {
           return;
         }
         const token = String(payload?.token || "").trim();
-        acceptToken(token, { allowReauth: true });
+        if (!env.allowBearerAuthLegacy) {
+          // eslint-disable-next-line no-console
+          console.warn(
+            `[auth] legacy bearer allowed=false context=ws method=REAUTH route=/ws userId=${userId || "unknown"}`,
+          );
+          ws.close(1008, "Invalid token");
+          return;
+        }
+        acceptToken(token, { allowReauth: true, source: "legacy-bearer" });
         return;
       }
 

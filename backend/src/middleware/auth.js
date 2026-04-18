@@ -6,6 +6,7 @@ import { env } from "../config/env.js";
 import { redactUrl } from "../lib/logRedactor.js";
 
 const AUTH_PREFIX = "Bearer ";
+const LEGACY_BEARER_LOG_PREFIX = "[auth] legacy bearer";
 
 export const readBearerTokenFromHeaders = (headers = {}) => {
   const auth = String(headers.authorization || "").trim();
@@ -20,10 +21,57 @@ const readAccessTokenFromCookies = (headers = {}) => {
   return String(cookies[env.accessCookieName] || "").trim();
 };
 
-const readAccessTokenFromRequest = (req) => {
+const logLegacyBearerUsage = ({
+  allowed,
+  context = "http",
+  method = "",
+  route = "",
+  userId = "",
+}) => {
+  // eslint-disable-next-line no-console
+  console.warn(
+    `${LEGACY_BEARER_LOG_PREFIX} allowed=${allowed ? "true" : "false"} context=${String(context || "").trim() || "http"} method=${String(method || "").toUpperCase() || "GET"} route=${redactUrl(route || "")} userId=${String(userId || "").trim() || "unknown"}`,
+  );
+};
+
+export const readAccessTokenFromRequest = (req, { context = "http" } = {}) => {
+  const cookieToken = readAccessTokenFromCookies(req.headers);
+  if (cookieToken) {
+    return {
+      token: cookieToken,
+      source: "cookie",
+      rejected: false,
+    };
+  }
+
   const bearer = readBearerTokenFromHeaders(req.headers);
-  if (bearer) return bearer;
-  return readAccessTokenFromCookies(req.headers);
+  if (!bearer) {
+    return {
+      token: "",
+      source: "missing",
+      rejected: false,
+    };
+  }
+
+  if (!env.allowBearerAuthLegacy) {
+    logLegacyBearerUsage({
+      allowed: false,
+      context,
+      method: req.method,
+      route: req.originalUrl || req.url || "",
+    });
+    return {
+      token: "",
+      source: "legacy-bearer-rejected",
+      rejected: true,
+    };
+  }
+
+  return {
+    token: bearer,
+    source: "legacy-bearer",
+    rejected: false,
+  };
 };
 
 export const loadUserByToken = (token) => {
@@ -96,10 +144,29 @@ export const assertValidAccessToken = (token) => {
 };
 
 export const authRequired = (req, res, next) => {
-  const token = readAccessTokenFromRequest(req);
+  const tokenState = readAccessTokenFromRequest(req, { context: "http" });
+
+  if (tokenState.rejected) {
+    return errorResponse(
+      res,
+      401,
+      "AUTH_INVALID_TOKEN",
+      "登录状态无效或已过期",
+    );
+  }
 
   try {
-    const { payload, user } = assertValidAccessToken(token);
+    const { payload, user } = assertValidAccessToken(tokenState.token);
+
+    if (tokenState.source === "legacy-bearer") {
+      logLegacyBearerUsage({
+        allowed: true,
+        context: "http",
+        method: req.method,
+        route: req.originalUrl || req.url || "",
+        userId: user.id,
+      });
+    }
 
     req.auth = {
       user,
@@ -130,13 +197,22 @@ export const authRequired = (req, res, next) => {
 };
 
 export const authOptional = (req, _res, next) => {
-  const token = readAccessTokenFromRequest(req);
-  if (!token) {
+  const tokenState = readAccessTokenFromRequest(req, { context: "http" });
+  if (!tokenState.token || tokenState.rejected) {
     return next();
   }
 
   try {
-    const { payload, user } = assertValidAccessToken(token);
+    const { payload, user } = assertValidAccessToken(tokenState.token);
+    if (tokenState.source === "legacy-bearer") {
+      logLegacyBearerUsage({
+        allowed: true,
+        context: "http",
+        method: req.method,
+        route: req.originalUrl || req.url || "",
+        userId: user.id,
+      });
+    }
     req.auth = {
       user,
       tokenPayload: payload,
