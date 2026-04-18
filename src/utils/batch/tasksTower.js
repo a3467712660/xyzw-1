@@ -3,6 +3,13 @@
  * 包含: climbTower, climbWeirdTower, batchClaimFreeEnergy
  */
 
+import {
+  claimWeirdTowerChapterReward as claimWeirdTowerChapterRewardFlow,
+  isWeirdTowerRewardClaimRetryable,
+  resolveWeirdTowerChapterReward,
+  resolveWeirdTowerPendingRewardChapter,
+} from "@/utils/weirdTowerRewards";
+
 /**
  * 创建爬塔类任务执行器
  * @param {object} deps - 依赖项
@@ -26,6 +33,49 @@ export function createTasksTower(deps) {
     currentSettings,
     loadSettings,
   } = deps;
+
+  const fetchWeirdTowerInfo = (tokenId) =>
+    tokenStore.sendMessageWithPromise(
+      tokenId,
+      "evotower_getinfo",
+      {},
+      5000,
+    );
+
+  const claimWeirdTowerChapterReward = async ({
+    chapter,
+    tokenId,
+  }) => {
+    return claimWeirdTowerChapterRewardFlow({
+      chapter,
+      getTowerInfo: () => fetchWeirdTowerInfo(tokenId),
+      claimReward: () =>
+        tokenStore.sendMessageWithPromise(
+          tokenId,
+          "evotower_claimreward",
+          {},
+          5000,
+        ),
+    });
+  };
+
+  const recoverPendingWeirdTowerReward = async (tokenId) => {
+    const latestTowerInfo = await fetchWeirdTowerInfo(tokenId).catch(() => null);
+    const pendingChapter = resolveWeirdTowerPendingRewardChapter(
+      latestTowerInfo?.evoTower || {},
+    );
+
+    if (pendingChapter == null) {
+      return null;
+    }
+
+    const chapter = await claimWeirdTowerChapterReward({
+      chapter: pendingChapter,
+      tokenId,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    return chapter;
+  };
 
   /**
    * 爬塔
@@ -353,14 +403,10 @@ export function createTasksTower(deps) {
         }
 
         // 获取怪异塔信息
-        const evotowerinfo1 = await tokenStore.sendMessageWithPromise(
-          tokenId,
-          "evotower_getinfo",
-          {},
-          5000,
-        );
+        const evotowerinfo1 = await fetchWeirdTowerInfo(tokenId);
 
-        let currentEnergy = evotowerinfo1?.evoTower?.energy;
+        let currentTowerInfo = evotowerinfo1?.evoTower || null;
+        let currentEnergy = currentTowerInfo?.energy || 0;
 
         addLog({
           time: new Date().toLocaleTimeString(),
@@ -374,6 +420,8 @@ export function createTasksTower(deps) {
 
         while (currentEnergy > 0 && count < MAX_CLIMB && !shouldStop.value) {
           try {
+            const preFightTowerId = currentTowerInfo?.towerId || 0;
+
             await tokenStore.sendMessageWithPromise(
               tokenId,
               "evotower_readyfight",
@@ -401,12 +449,25 @@ export function createTasksTower(deps) {
 
             await new Promise((r) => setTimeout(r, 500));
 
-            const evotowerinfo2 = await tokenStore.sendMessageWithPromise(
-              tokenId,
-              "evotower_getinfo",
-              {},
-              5000,
-            );
+            const rewardContext = resolveWeirdTowerChapterReward({
+              fightResult,
+              preFightTowerId,
+            });
+            if (rewardContext.shouldClaim) {
+              const chapter = await claimWeirdTowerChapterReward({
+                chapter: rewardContext.chapter,
+                tokenId,
+              });
+              addLog({
+                time: new Date().toLocaleTimeString(),
+                message: `${token.name} 成功领取第${chapter}章通关奖励！`,
+                type: "success",
+              });
+              await new Promise((r) => setTimeout(r, 300));
+            }
+
+            const evotowerinfo2 = await fetchWeirdTowerInfo(tokenId);
+            currentTowerInfo = evotowerinfo2?.evoTower || null;
 
             // 检查并领取每日任务奖励
             if (
@@ -446,43 +507,37 @@ export function createTasksTower(deps) {
               }
             }
 
-            // 检查是否刚通关10层
-            const towerId = evotowerinfo2?.evoTower?.towerId || 0;
-            const floor = (towerId % 10) + 1;
-            if (
-              fightResult
-              && fightResult.winList
-              && fightResult.winList[0] === true
-              && floor === 1
-            ) {
-              await tokenStore.sendMessageWithPromise(
-                tokenId,
-                "evotower_claimreward",
-                {},
-                5000,
-              );
-              addLog({
-                time: new Date().toLocaleTimeString(),
-                message: `${token.name} 成功领取第${Math.floor(towerId / 10)}章通关奖励！`,
-                type: "success",
-              });
-              await new Promise((r) => setTimeout(r, 1000));
-            }
-
             // 刷新能量
             try {
               const evotowerinfoRefresh1
-                = await tokenStore.sendMessageWithPromise(
-                  tokenId,
-                  "evotower_getinfo",
-                  {},
-                  5000,
-                );
-              currentEnergy = evotowerinfoRefresh1?.evoTower?.energy || 0;
+                = await fetchWeirdTowerInfo(tokenId);
+              currentTowerInfo = evotowerinfoRefresh1?.evoTower || currentTowerInfo;
+              currentEnergy = currentTowerInfo?.energy || 0;
             } catch (e) {
               // 忽略刷新失败
             }
           } catch (err) {
+            if (isWeirdTowerRewardClaimRetryable(err)) {
+              const recoveredChapter = await recoverPendingWeirdTowerReward(tokenId).catch(() => null);
+              if (recoveredChapter != null) {
+                addLog({
+                  time: new Date().toLocaleTimeString(),
+                  message: `${token.name} 补领第${recoveredChapter}章通关奖励后继续执行`,
+                  type: "success",
+                });
+                consecutiveFailures = 0;
+
+                try {
+                  const evotowerinfoRecovered = await fetchWeirdTowerInfo(tokenId);
+                  currentTowerInfo = evotowerinfoRecovered?.evoTower || currentTowerInfo;
+                  currentEnergy = currentTowerInfo?.energy || 0;
+                } catch (e) {
+                  // 忽略刷新失败
+                }
+                continue;
+              }
+            }
+
             consecutiveFailures++;
             addLog({
               time: new Date().toLocaleTimeString(),
@@ -503,13 +558,9 @@ export function createTasksTower(deps) {
 
             try {
               const evotowerinfoRefresh2
-                = await tokenStore.sendMessageWithPromise(
-                  tokenId,
-                  "evotower_getinfo",
-                  {},
-                  5000,
-                );
-              currentEnergy = evotowerinfoRefresh2?.evoTower?.energy || 0;
+                = await fetchWeirdTowerInfo(tokenId);
+              currentTowerInfo = evotowerinfoRefresh2?.evoTower || currentTowerInfo;
+              currentEnergy = currentTowerInfo?.energy || 0;
             } catch (e) {
               // 忽略刷新失败
             }

@@ -1,3 +1,8 @@
+import {
+  getThreeWeekActivityCycle,
+  isWeirdTowerActivityOpen,
+} from "../../utils/activityWindows.js";
+
 export const TASK_GROUP_DEFINITIONS = [
   {
     name: "daily",
@@ -64,8 +69,6 @@ export const TASK_GROUP_DEFINITIONS = [
 ];
 
 const BATCH_ACTIVITY_WEEK_START = new Date("2025-12-12T12:00:00");
-const BATCH_ACTIVITY_WEEK_DURATION = 7 * 24 * 60 * 60 * 1000;
-const BATCH_ACTIVITY_CYCLE_DURATION = 3 * BATCH_ACTIVITY_WEEK_DURATION;
 
 export const groupAvailableTasks = (
   availableTasks = [],
@@ -115,37 +118,12 @@ export const isBatchArenaActivityOpen = (now = new Date()) => {
 export const getBatchCurrentActivityWeek = (
   now = new Date(),
   start = BATCH_ACTIVITY_WEEK_START,
-) => {
-  const elapsed = now.getTime() - start.getTime();
-  if (elapsed < 0) {
-    return null;
-  }
-
-  const cyclePosition = elapsed % BATCH_ACTIVITY_CYCLE_DURATION;
-  if (cyclePosition < BATCH_ACTIVITY_WEEK_DURATION) {
-    return "黑市周";
-  }
-  if (cyclePosition < 2 * BATCH_ACTIVITY_WEEK_DURATION) {
-    return "招募周";
-  }
-  return "宝箱周";
-};
+) => getThreeWeekActivityCycle(now, start);
 
 export const isBatchWeirdTowerActivityOpen = (
   now = new Date(),
   currentActivityWeek = getBatchCurrentActivityWeek(now),
-) => {
-  if (currentActivityWeek !== "黑市周") {
-    return false;
-  }
-
-  const day = now.getDay();
-  const hour = now.getHours();
-  if (day === 5) {
-    return hour >= 12;
-  }
-  return true;
-};
+) => isWeirdTowerActivityOpen(now, currentActivityWeek);
 
 export const getBatchFourthSundayOfMonth = (now = new Date()) => {
   const year = now.getFullYear();

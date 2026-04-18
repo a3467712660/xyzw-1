@@ -73,6 +73,7 @@
           v-if="!isClimbing && !isUsingItems && !isMerging"
           class="climb-button"
           type="primary"
+          :disabled="!canManageItems"
           @click="startUseItems"
         >
           {{ t("weirdTowerStatus.actions.useItems") }}
@@ -90,6 +91,7 @@
           v-if="!isClimbing && !isUsingItems && !isMerging"
           class="climb-button"
           type="primary"
+          :disabled="!canManageItems"
           @click="autoMergeItems"
         >
           {{ isMerging ? t("weirdTowerStatus.actions.merging") : t("weirdTowerStatus.actions.autoMerge") }}
@@ -102,7 +104,19 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref, toRef, watch } from "vue";
 import { useGameCardPanelActive } from "@/composables/gameCards/useGameCardPanelActive";
+import { useGameCardTicker } from "@/composables/gameCards/useGameCardTicker";
 import { useTokenStore } from "@/stores/tokenStore";
+import {
+  getThreeWeekActivityCycle,
+  isWeirdTowerActivityOpen as isWeirdTowerActivityWindowOpen,
+} from "@/utils/activityWindows";
+import {
+  claimWeirdTowerChapterReward as claimWeirdTowerChapterRewardFlow,
+  isWeirdTowerRewardClaimRetryable,
+  resolveWeirdTowerChapterReward,
+  resolveWeirdTowerPendingRewardChapter,
+} from "@/utils/weirdTowerRewards";
+import { createWeirdTowerClimbWatchdog } from "@/utils/weirdTowerClimbWatchdog";
 import { useMessage } from "naive-ui/es";
 import { useI18n } from "vue-i18n";
 
@@ -121,7 +135,7 @@ const pendingTowerInfoRefresh = ref(false);
 
 const stopClimbing = () => {
   stopFlag = true;
-  clearTimer(climbTimeout);
+  clearClimbWatchdog();
   isClimbing.value = false;
   runtime.activeMode = "idle";
   runtime.statusText = t("weirdTowerStatus.messages.manuallyStoppedClimb");
@@ -141,6 +155,7 @@ const tokenStore = useTokenStore();
 const message = useMessage();
 const { t } = useI18n();
 const { panelActive } = useGameCardPanelActive(toRef(props, "panelActive"));
+const { now } = useGameCardTicker({ panelActive });
 
 const isClimbing = ref(false);
 const isUsingItems = ref(false);
@@ -159,6 +174,21 @@ const clearTimer = (timerRef) => {
     clearTimeout(timerRef.value);
     timerRef.value = null;
   }
+};
+
+const clearClimbWatchdog = () => {
+  climbWatchdog.clear();
+  climbTimeout.value = null;
+};
+
+const refreshClimbWatchdog = () => {
+  climbTimeout.value = climbWatchdog.refresh();
+};
+
+const runClimbStep = async (step) => {
+  const result = await step();
+  refreshClimbWatchdog();
+  return result;
 };
 
 const activeModeLabel = computed(() => {
@@ -184,6 +214,66 @@ const notifyIfVisible = (type, text) => {
   if (panelActive.value) {
     message[type](text);
   }
+};
+
+const climbWatchdog = createWeirdTowerClimbWatchdog({
+  onTimeout: () => {
+    isClimbing.value = false;
+    stopFlag = true;
+    runtime.activeMode = "idle";
+    setRuntimeStatus(t("weirdTowerStatus.messages.climbTimeout"), runtime.progressCount);
+    notifyIfVisible("info", t("weirdTowerStatus.messages.climbTimeout"));
+  },
+});
+
+const fetchTowerInfoByTokenId = (tokenId) =>
+  tokenStore.sendMessageWithPromise(
+    tokenId,
+    "evotower_getinfo",
+    {},
+    5000,
+  );
+
+const claimChapterRewardAfterFinalFloor = async ({
+  chapter,
+  tokenId,
+}) => {
+  const claimedChapter = await claimWeirdTowerChapterRewardFlow({
+    chapter,
+    getTowerInfo: () => runClimbStep(() => fetchTowerInfoByTokenId(tokenId)),
+    claimReward: () =>
+      runClimbStep(() =>
+        tokenStore.sendMessageWithPromise(
+          tokenId,
+          "evotower_claimreward",
+          {},
+          5000,
+        )),
+  });
+
+  setRuntimeStatus(
+    t("weirdTowerStatus.messages.chapterRewardClaimed", { chapter: claimedChapter }),
+    runtime.progressCount,
+  );
+  return claimedChapter;
+};
+
+const recoverPendingWeirdTowerReward = async (tokenId) => {
+  const latestTowerInfo = await runClimbStep(() => fetchTowerInfoByTokenId(tokenId)).catch(() => null);
+  const pendingChapter = resolveWeirdTowerPendingRewardChapter(
+    latestTowerInfo?.evoTower || {},
+  );
+
+  if (pendingChapter == null) {
+    return null;
+  }
+
+  const claimedChapter = await claimChapterRewardAfterFinalFloor({
+    chapter: pendingChapter,
+    tokenId,
+  });
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  return claimedChapter;
 };
 
 // 计算属性 - 从gameData中获取塔相关信息
@@ -222,38 +312,32 @@ const towerEnergy = computed(() => {
   return weirdTowerData.value?.energy || 0;
 });
 
+const currentActivityWeek = computed(() =>
+  getThreeWeekActivityCycle(new Date(now.value)),
+);
+
+const isWeirdTowerActivityOpen = computed(() =>
+  isWeirdTowerActivityWindowOpen(
+    new Date(now.value),
+    currentActivityWeek.value,
+  ),
+);
+
 const canClimb = computed(() => {
+  const activityOpen = isWeirdTowerActivityOpen.value;
   const hasEnergy = towerEnergy.value > 0;
   const notClimbing = !isClimbing.value;
   const notUsingItems = !isUsingItems.value;
   const notMerging = !isMerging.value;
-  return hasEnergy && notClimbing && notUsingItems && notMerging;
+  return activityOpen && hasEnergy && notClimbing && notUsingItems && notMerging;
 });
 
-const getCurrentActivityWeek = computed(() => {
-  const now = new Date();
-  const start = new Date("2025-12-12T12:00:00"); // 起始时间：黑市周开始
-  const weekDuration = 7 * 24 * 60 * 60 * 1000; // 一周毫秒数
-  const cycleDuration = 3 * weekDuration; // 三周期毫秒数
-
-  const elapsed = now - start;
-  if (elapsed < 0)
-    return null; // 活动开始前
-
-  const cyclePosition = elapsed % cycleDuration;
-
-  if (cyclePosition < weekDuration) {
-    return "blackMarket";
-  } else if (cyclePosition < 2 * weekDuration) {
-    return "recruit";
-  } else {
-    return "chest";
-  }
-});
-
-const isWeirdTowerActivityOpen = computed(() => {
-  return getCurrentActivityWeek.value === "blackMarket";
-});
+const canManageItems = computed(() =>
+  isWeirdTowerActivityOpen.value
+  && !isClimbing.value
+  && !isUsingItems.value
+  && !isMerging.value,
+);
 
 const scheduleTowerInfoRefresh = async ({ forceUi = false } = {}) => {
   if (!tokenStore.selectedToken) {
@@ -271,6 +355,11 @@ const scheduleTowerInfoRefresh = async ({ forceUi = false } = {}) => {
 const startUseItems = async () => {
   if (!tokenStore.selectedToken) {
     message.warning(t("weirdTowerStatus.messages.selectTokenFirst"));
+    return;
+  }
+
+  if (!isWeirdTowerActivityOpen.value) {
+    message.warning(t("weirdTowerStatus.messages.activityClosed"));
     return;
   }
 
@@ -403,6 +492,11 @@ const startUseItems = async () => {
 const autoMergeItems = async () => {
   if (!tokenStore.selectedToken) {
     message.warning(t("weirdTowerStatus.messages.selectTokenFirst"));
+    return;
+  }
+
+  if (!isWeirdTowerActivityOpen.value) {
+    message.warning(t("weirdTowerStatus.messages.activityClosed"));
     return;
   }
 
@@ -591,7 +685,7 @@ const startTowerClimb = async () => {
     return;
   }
 
-  clearTimer(climbTimeout);
+  clearClimbWatchdog();
 
   isClimbing.value = true;
   stopFlag = false;
@@ -599,114 +693,113 @@ const startTowerClimb = async () => {
   setRuntimeStatus("正在准备战斗", 0);
   let climbCount = 0;
   const maxClimb = 100;
-  climbTimeout.value = setTimeout(() => {
-    isClimbing.value = false;
-    clearTimer(climbTimeout);
-    stopFlag = true;
-    runtime.activeMode = "idle";
-    setRuntimeStatus(t("weirdTowerStatus.messages.climbTimeout"), climbCount);
-    notifyIfVisible("info", t("weirdTowerStatus.messages.climbTimeout"));
-  }, 60000);
+  refreshClimbWatchdog();
 
   try {
     const tokenId = tokenStore.selectedToken.id;
     for (let i = 0; i < maxClimb; i++) {
       if (stopFlag)
         break;
+      try {
+        const towerInfoBeforeFight = await runClimbStep(() => fetchTowerInfoByTokenId(tokenId));
+        const currentEnergy = towerInfoBeforeFight?.evoTower?.energy || 0;
+        const preFightTowerId = towerInfoBeforeFight?.evoTower?.towerId || 0;
+        if (currentEnergy <= 0)
+          break;
+        setRuntimeStatus(`正在执行第 ${climbCount + 1} 次挑战`, climbCount);
 
-      await getTowerInfo();
-      const currentEnergy = towerEnergy.value;
-      if (currentEnergy <= 0)
-        break;
-      setRuntimeStatus(`正在执行第 ${climbCount + 1} 次挑战`, climbCount);
+        await runClimbStep(() =>
+          tokenStore.sendMessageWithPromise(
+            tokenId,
+            "evotower_readyfight",
+            {},
+            5000,
+          ));
 
-      await tokenStore.sendMessageWithPromise(
-        tokenId,
-        "evotower_readyfight",
-        {},
-        5000,
-      );
+        const fightResult = await runClimbStep(() =>
+          tokenStore.sendMessageWithPromise(
+            tokenId,
+            "evotower_fight",
+            {
+              battleNum: 1,
+              winNum: 1,
+            },
+            10000,
+          ));
 
-      const fightResult = await tokenStore.sendMessageWithPromise(
-        tokenId,
-        "evotower_fight",
-        {
-          battleNum: 1,
-          winNum: 1,
-        },
-        10000,
-      );
+        climbCount++;
+        setRuntimeStatus(`已完成 ${climbCount} 次挑战`, climbCount);
 
-      climbCount++;
-      setRuntimeStatus(`已完成 ${climbCount} 次挑战`, climbCount);
-
-      await getTowerInfo();
-
-      const towerData = evoTowerInfo.value?.evoTower;
-      if (towerData && towerData.taskClaimMap) {
-        const now = new Date();
-        const year = now.getFullYear().toString().slice(2);
-        const month = (now.getMonth() + 1).toString().padStart(2, "0");
-        const day = now.getDate().toString().padStart(2, "0");
-        const dateKey = `${year}${month}${day}`;
-
-        const dailyTasks = towerData.taskClaimMap[dateKey] || {};
-        const taskIds = [1, 2, 3];
-
-        for (const taskId of taskIds) {
-          if (!dailyTasks[taskId]) {
-            await tokenStore.sendMessageWithPromise(
+        const rewardContext = resolveWeirdTowerChapterReward({
+          fightResult,
+          preFightTowerId,
+        });
+        if (rewardContext.shouldClaim) {
+          await claimChapterRewardAfterFinalFloor(
+            {
+              chapter: rewardContext.chapter,
               tokenId,
-              "evotower_claimtask",
-              { taskId },
-              2000,
-            ).catch(() => {});
-            await new Promise((r) => setTimeout(r, 200));
+            },
+          );
+          await new Promise((resolve) => setTimeout(resolve, 300));
+        }
+
+        const towerInfoAfterFight = await runClimbStep(() => fetchTowerInfoByTokenId(tokenId));
+        const towerData = towerInfoAfterFight?.evoTower;
+        if (towerData && towerData.taskClaimMap) {
+          const now = new Date();
+          const year = now.getFullYear().toString().slice(2);
+          const month = (now.getMonth() + 1).toString().padStart(2, "0");
+          const day = now.getDate().toString().padStart(2, "0");
+          const dateKey = `${year}${month}${day}`;
+
+          const dailyTasks = towerData.taskClaimMap[dateKey] || {};
+          const taskIds = [1, 2, 3];
+
+          for (const taskId of taskIds) {
+            if (!dailyTasks[taskId]) {
+              await runClimbStep(() =>
+                tokenStore.sendMessageWithPromise(
+                  tokenId,
+                  "evotower_claimtask",
+                  { taskId },
+                  2000,
+                )).catch(() => {});
+              await new Promise((r) => setTimeout(r, 200));
+            }
           }
         }
-      }
 
-      const towerId = currentTowerId.value;
-      const floor = (towerId % 10) + 1;
-      if (
-        fightResult
-        && fightResult.winList
-        && fightResult.winList[0] === true
-        && floor === 1
-      ) {
-        await tokenStore.sendMessageWithPromise(
-          tokenId,
-          "evotower_claimreward",
-          {},
-          5000,
-        );
-        setRuntimeStatus(
-          t("weirdTowerStatus.messages.chapterRewardClaimed", {
-            chapter: Math.floor(towerId / 10),
-          }),
-          climbCount,
-        );
+        await new Promise((res) => setTimeout(res, 400));
+      } catch (error) {
+        if (isWeirdTowerRewardClaimRetryable(error)) {
+          const recoveredChapter = await recoverPendingWeirdTowerReward(tokenId).catch(() => null);
+          if (recoveredChapter != null) {
+            continue;
+          }
+        }
+        throw error;
       }
-
-      await new Promise((res) => setTimeout(res, 400));
     }
-    const freeEnergyResult = await tokenStore.sendMessageWithPromise(
-      tokenId,
-      "mergebox_getinfo",
-      {
-        actType: 1,
-      },
-      5000,
-    );
-    if (freeEnergyResult && freeEnergyResult.mergeBox.freeEnergy > 0) {
-      await tokenStore.sendMessageWithPromise(
+    const freeEnergyResult = await runClimbStep(() =>
+      tokenStore.sendMessageWithPromise(
         tokenId,
-        "mergebox_claimfreeenergy",
+        "mergebox_getinfo",
         {
           actType: 1,
         },
         5000,
-      );
+      ));
+    if (freeEnergyResult && freeEnergyResult.mergeBox.freeEnergy > 0) {
+      await runClimbStep(() =>
+        tokenStore.sendMessageWithPromise(
+          tokenId,
+          "mergebox_claimfreeenergy",
+          {
+            actType: 1,
+          },
+          5000,
+        ));
       setRuntimeStatus(
         t("weirdTowerStatus.messages.freeItemsClaimed", {
           count: freeEnergyResult.mergeBox.freeEnergy,
@@ -733,7 +826,7 @@ const startTowerClimb = async () => {
     );
   }
 
-  clearTimer(climbTimeout);
+  clearClimbWatchdog();
   isClimbing.value = false;
   runtime.activeMode = "idle";
 };
@@ -794,6 +887,12 @@ watch(
   },
 );
 
+watch(isWeirdTowerActivityOpen, (open, previousOpen) => {
+  if (open && !previousOpen) {
+    scheduleTowerInfoRefresh();
+  }
+});
+
 watch(
   panelActive,
   (active) => {
@@ -818,7 +917,7 @@ onBeforeUnmount(() => {
     connectRefreshHandle = null;
   }
   if (!isBusy.value) {
-    clearTimer(climbTimeout);
+    clearClimbWatchdog();
     clearTimer(itemTimeout);
     clearTimer(mergeTimeout);
   }
