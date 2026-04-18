@@ -32,16 +32,26 @@
           class="game-status-container"
           :class="{
             'activity-mode': activeSection === 'activity',
+            'analysis-mode':
+              activeSection === 'rankGroup'
+              || activeSection === 'resourceChanges'
+              || activeSection === 'goldFishCalc'
+              || activeSection === 'tenHall',
+            'daily-mode': activeSection === 'daily',
             'full-grid':
               activeSection === 'fightPvp'
               || activeSection === 'arenaPvp'
               || activeSection === 'resourceChanges'
               || activeSection === 'goldFishCalc'
               || activeSection === 'tenHall',
-          'full-page-mode': activeSection === 'rankGroup',
-          'club-mode': activeSection === 'club',
-        }"
-      >
+            'full-page-mode': activeSection === 'rankGroup',
+            'club-mode': activeSection === 'club',
+            'pvp-mode':
+              activeSection === 'fightPvp'
+              || activeSection === 'arenaPvp',
+            'tools-mode': activeSection === 'tools',
+          }"
+        >
         <TeamFormation
           v-show="activeSection === 'daily'"
           :panel-active="activeSection === 'daily'"
@@ -782,8 +792,8 @@ onUnmounted(() => {
 .game-status-container {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--spacing-lg);
-  padding: var(--spacing-lg);
+  gap: clamp(14px, 1.6vw, 18px);
+  padding: clamp(14px, 1.6vw, 18px);
   overflow-x: hidden;
   align-items: start;
 
@@ -796,6 +806,25 @@ onUnmounted(() => {
     padding: var(--spacing-sm);
     gap: var(--spacing-md);
   }
+}
+
+.game-status-container > * {
+  min-width: 0;
+}
+
+.game-status-container.daily-mode,
+.game-status-container.tools-mode {
+  align-items: stretch;
+}
+
+.game-status-container.daily-mode :deep(.team-formation-card),
+.game-status-container.daily-mode :deep(.daily-task) {
+  height: 100%;
+}
+
+.game-status-container.analysis-mode,
+.game-status-container.pvp-mode {
+  padding: 12px;
 }
 
 .full-grid {
@@ -838,6 +867,10 @@ onUnmounted(() => {
 }
 
 @media (min-width: 1360px) {
+  .game-status-container.tools-mode {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
   .game-status-container.activity-mode {
     grid-template-columns: repeat(12, minmax(0, 1fr));
   }
@@ -891,6 +924,7 @@ onUnmounted(() => {
   width: 100%;
   display: flex;
   flex-direction: column;
+  gap: 14px;
 }
 
 .monthly-tasks .description.muted {
@@ -999,6 +1033,13 @@ onUnmounted(() => {
     justify-content: flex-start;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
+  }
+
+  .game-status-container.daily-mode,
+  .game-status-container.tools-mode,
+  .game-status-container.analysis-mode,
+  .game-status-container.pvp-mode {
+    padding: 10px;
   }
 
   .legion-card__metric {

@@ -17,6 +17,14 @@
           </div>
         </div>
         <div class="gwb2-mini-card__toolbar-side team-formation-card__controls">
+          <div
+            class="gwb2-mini-card__chip team-formation-card__status-chip"
+            :class="{ 'team-formation-card__status-chip--connected': wsStatus === 'connected' }"
+          >
+            <div class="gwb2-mini-card__chip-dot"></div>
+            <span>{{ wsStatus === "connected" ? "阵容已同步" : "等待连接" }}</span>
+          </div>
+
           <div class="gwb2-mini-card__segmented team-selector">
             <button
               v-for="teamId in availableTeams"
@@ -473,6 +481,10 @@ onBeforeUnmount(() => {
   gap: 12px;
 }
 
+.team-formation-card__status-chip--connected {
+  color: var(--success-color);
+}
+
 .team-selector {
   flex-wrap: wrap;
 }
@@ -607,6 +619,11 @@ onBeforeUnmount(() => {
   .team-selector {
     width: 100%;
     gap: 6px;
+  }
+
+  .team-formation-card__controls {
+    width: 100%;
+    justify-content: space-between;
   }
 
   .heroes-container {

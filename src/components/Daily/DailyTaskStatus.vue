@@ -14,6 +14,14 @@
           </div>
         </div>
         <div class="gwb2-mini-card__toolbar-side header-right">
+          <div
+            class="gwb2-mini-card__chip daily-task__status-chip"
+            :class="{ 'daily-task__status-chip--connected': isConnected, 'daily-task__status-chip--completed': isFull }"
+          >
+            <div class="gwb2-mini-card__chip-dot" :class="{ completed: isFull }"></div>
+            <span>{{ !isConnected ? "等待连接" : isFull ? "今日已满" : busy ? "执行中" : "可执行" }}</span>
+          </div>
+
           <button
             class="gwb2-mini-card__chip detail-chip"
             type="button"
@@ -50,6 +58,7 @@
       <!-- 卡片内容区域（自适应填充高度，居中展示） -->
       <div class="gwb2-mini-card__body daily-task__body">
         <!-- 进度条 -->
+        <p class="gwb2-mini-card__section-title">任务进度</p>
         <div class="gwb2-mini-card__metric progress-container">
           <div class="progress-copy">
             <span class="progress-label">当前完成率</span>
@@ -66,6 +75,7 @@
         </div>
 
         <!-- 提示信息 -->
+        <p class="gwb2-mini-card__section-title">运行提示</p>
         <div class="gwb2-mini-card__list info-container">右上角小齿轮有惊喜</div>
       </div>
 
@@ -877,6 +887,16 @@ onBeforeUnmount(() => {
 
 .header-right {
   justify-content: flex-end;
+}
+
+.daily-task__status-chip--connected {
+  color: var(--success-color);
+}
+
+.daily-task__status-chip--completed {
+  color: var(--success-color);
+  border-color: rgba(34, 197, 94, 0.26);
+  background: rgba(34, 197, 94, 0.12);
 }
 
 .detail-chip {

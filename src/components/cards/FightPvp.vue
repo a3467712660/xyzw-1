@@ -4,14 +4,30 @@
     <div class="status-card main-card">
       <!-- 卡片头部 -->
       <div class="card-header">
-        <img
-          class="status-icon"
-          src="/icons/Ob7pyorzmHiJcbab2c25af264d0758b527bc1b61cc3b.png"
-          :alt="t('fightPvpCard.iconAlt')"
-        >
-        <div class="status-info">
-          <h3>{{ t("fightPvpCard.title") }}</h3>
-          <p>{{ t("fightPvpCard.subtitle") }}</p>
+        <div class="card-header__main">
+          <img
+            class="status-icon"
+            src="/icons/Ob7pyorzmHiJcbab2c25af264d0758b527bc1b61cc3b.png"
+            :alt="t('fightPvpCard.iconAlt')"
+          >
+          <div class="status-info">
+            <span class="card-header__eyebrow">PVP 实时战斗</span>
+            <h3>{{ t("fightPvpCard.title") }}</h3>
+            <p>{{ t("fightPvpCard.subtitle") }}</p>
+          </div>
+        </div>
+
+        <div class="card-header__side">
+          <span
+            class="status-badge"
+            :class="{ active: fightStatusTone === 'active', warning: fightStatusTone === 'warning' }"
+          >
+            <span class="status-dot"></span>
+            {{ fightStatusLabel }}
+          </span>
+          <span class="card-header__meta">
+            {{ currentBattleVersion ? `战斗版本 ${currentBattleVersion}` : "等待生成战斗版本" }}
+          </span>
         </div>
       </div>
 
@@ -65,7 +81,7 @@
       </div>
 
       <!-- 对手信息卡片 -->
-      <div ref="exportDom" v-else-if="memberData" class="content-section">
+      <div ref="exportDom" v-else-if="memberData" class="card-content content-section">
         <FightPvpTargetPanel
           :member-data="memberData"
           :t="t"
@@ -1209,6 +1225,22 @@ const currentTabRecords = computed(() => {
 const currentBattleVersion = computed(() => {
   const version = Number(tokenStore.getBattleVersion?.());
   return Number.isFinite(version) && version > 0 ? version : null;
+});
+
+const fightStatusLabel = computed(() => {
+  if (loading1.value)
+    return loadingText.value || "同步中";
+  if (memberData.value)
+    return "目标已载入";
+  return "待查询";
+});
+
+const fightStatusTone = computed(() => {
+  if (loading1.value)
+    return "warning";
+  if (memberData.value)
+    return "active";
+  return "default";
 });
 
 const getReplayStorageUserId = () =>

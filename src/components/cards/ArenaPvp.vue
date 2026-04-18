@@ -2,14 +2,28 @@
   <div class="arena-pvp-container">
     <div class="status-card main-card">
       <div class="card-header">
-        <img
-          class="status-icon"
-          src="/icons/1736425783912140.png"
-          :alt="t('arenaPvpCard.iconAlt')"
-        >
-        <div class="status-info">
-          <h3>{{ t("arenaPvpCard.title") }}</h3>
-          <p>{{ t("arenaPvpCard.subtitle") }}</p>
+        <div class="card-header__main">
+          <img
+            class="status-icon"
+            src="/icons/1736425783912140.png"
+            :alt="t('arenaPvpCard.iconAlt')"
+          >
+          <div class="status-info">
+            <span class="card-header__eyebrow">PVP 自动对战</span>
+            <h3>{{ t("arenaPvpCard.title") }}</h3>
+            <p>{{ t("arenaPvpCard.subtitle") }}</p>
+          </div>
+        </div>
+
+        <div class="card-header__side">
+          <span
+            class="status-badge"
+            :class="{ active: arenaStatusTone === 'active', warning: arenaStatusTone === 'warning', error: arenaStatusTone === 'error' }"
+          >
+            <span class="status-dot"></span>
+            {{ arenaStatusLabel }}
+          </span>
+          <span class="card-header__meta">{{ lastUpdatedLabel || "等待刷新竞技场数据" }}</span>
         </div>
       </div>
 
@@ -292,6 +306,24 @@ const lastUpdatedLabel = computed(() => {
   if (!lastUpdatedAt.value)
     return "";
   return new Date(lastUpdatedAt.value).toLocaleString(locale.value);
+});
+
+const arenaStatusLabel = computed(() => {
+  if (running.value)
+    return "执行中";
+  if (loading.value)
+    return "同步中";
+  if (isConnected.value)
+    return "待命";
+  return "未连接";
+});
+
+const arenaStatusTone = computed(() => {
+  if (running.value || loading.value)
+    return "warning";
+  if (isConnected.value)
+    return "active";
+  return "error";
 });
 const skipLineupOptions = computed(() => {
   const fromManual = Object.values(manualLineupMap.value || {}).filter(Boolean);

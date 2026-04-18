@@ -17,9 +17,14 @@
           <NButton size="small" @click="refreshClub">刷新</NButton>
         </div>
       </div>
-      <div v-else>
-        <div class="toolbar">
-          <NSpace size="small">
+      <div v-else class="club-info__shell">
+        <div class="toolbar club-info__toolbar">
+          <div class="club-info__toolbar-copy">
+            <span class="club-info__eyebrow">俱乐部工作区</span>
+            <strong>{{ club?.name || "俱乐部信息" }}</strong>
+            <span>{{ memberCount }} 名成员，统一查看概览、成员、历史战绩、怪异塔和赛车积分。</span>
+          </div>
+          <NSpace class="club-info__toolbar-actions" size="small">
             <!-- 申请列表按钮 -->
             <NButton
 v-if="canKick"
@@ -41,7 +46,7 @@ size="small"
           @reject-all="rejectAll"
         ></ClubApplyListModal>
 
-        <n-tabs animated type="line" v-model:value="activeTab">
+        <n-tabs animated class="club-info__tabs" type="line" v-model:value="activeTab">
           <n-tab-pane display-directive="show:lazy" name="overview" tab="概览">
             <div class="overview">
               <ClubInfoSummaryPanel
@@ -57,7 +62,11 @@ size="small"
           </n-tab-pane>
 
           <n-tab-pane display-directive="show:lazy" name="members" tab="成员">
-            <div ref="exportDom" class="members" :class="{ 'is-exporting-image': isExporting }">
+            <div
+              ref="exportDom"
+              class="members club-info__members"
+              :class="{ 'is-exporting-image': isExporting }"
+            >
               <ClubMemberListPanel
                 flex-height
                 show-index
@@ -1092,6 +1101,57 @@ const handleClubMemberAction = ({ raw }) => {
     margin-bottom: var(--spacing-sm);
   }
 
+  .club-info__shell {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .club-info__toolbar {
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 14px 16px;
+    margin-bottom: 0;
+    border: 1px solid rgba(78, 94, 116, 0.12);
+    border-radius: 16px;
+    background: rgba(214, 223, 232, 0.24);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  }
+
+  .club-info__toolbar-copy {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .club-info__eyebrow {
+    color: var(--text-tertiary);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+
+  .club-info__toolbar-copy strong {
+    color: var(--text-primary);
+    font-size: 18px;
+    line-height: 1.25;
+  }
+
+  .club-info__toolbar-copy span:last-child {
+    color: var(--text-secondary);
+    line-height: 1.6;
+  }
+
+  .club-info__tabs {
+    min-width: 0;
+  }
+
+  .club-info__members {
+    border-radius: 16px;
+  }
+
   .overview {
     /* No specific styles needed for grid layout */
   }
@@ -1244,6 +1304,12 @@ const handleClubMemberAction = ({ raw }) => {
   }
 
   .empty-club {
+    display: grid;
+    gap: 12px;
+    padding: 16px;
+    border: 1px dashed rgba(78, 94, 116, 0.16);
+    border-radius: 16px;
+    background: rgba(214, 223, 232, 0.18);
     text-align: center;
   }
 
@@ -1475,6 +1541,11 @@ const handleClubMemberAction = ({ raw }) => {
 
     .toolbar {
       width: 100%;
+    }
+
+    .club-info__toolbar {
+      flex-direction: column;
+      padding: 12px;
     }
 
     .toolbar :deep(.n-space) {
