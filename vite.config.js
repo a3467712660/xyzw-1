@@ -30,16 +30,32 @@ async function safeImport(moduleName, humanName) {
 }
 
 export default defineConfig(async ({ command, mode }) => {
-  let basicSsl;
-  try {
-    ({ default: basicSsl } = await import("@vitejs/plugin-basic-ssl"));
-  } catch (error) {
-    if (error?.code !== "ERR_MODULE_NOT_FOUND") {
-      throw error;
+  const isDebugMode = mode === "debug";
+  const enableHttpsDev = command === "serve" && parseBoolEnv(
+    process.env.VITE_DEV_HTTPS,
+    false,
+  );
+  const enableVueDevTools = command === "serve" && parseBoolEnv(
+    process.env.VITE_DEVTOOLS,
+    false,
+  );
+  const enableBuildAnalyze = command === "build" && parseBoolEnv(
+    process.env.VITE_BUILD_ANALYZE,
+    false,
+  );
+
+  let basicSsl = null;
+  if (enableHttpsDev) {
+    try {
+      ({ default: basicSsl } = await import("@vitejs/plugin-basic-ssl"));
+    } catch (error) {
+      if (error?.code !== "ERR_MODULE_NOT_FOUND") {
+        throw error;
+      }
+      console.warn(
+        "[vite] '@vitejs/plugin-basic-ssl' not found, but VITE_DEV_HTTPS=true requested HTTPS development.",
+      );
     }
-    console.warn(
-      "[vite] '@vitejs/plugin-basic-ssl' not found, starting without HTTPS support.",
-    );
   }
 
   const autoImportModule = await safeImport(
@@ -57,14 +73,20 @@ export default defineConfig(async ({ command, mode }) => {
       )
     : null;
   const unoCssModule = await safeImport("unocss/vite", "UnoCSS");
-  const vueDevToolsModule = await safeImport(
-    "vite-plugin-vue-devtools",
-    "Vue DevTools",
-  );
   const vueI18nModule = await safeImport(
     "@intlify/unplugin-vue-i18n/vite",
     "Vue I18n pre-compiler",
   );
+  let vueDevToolsModule = null;
+  if (enableVueDevTools) {
+    vueDevToolsModule = await safeImport(
+      "vite-plugin-vue-devtools",
+      "Vue DevTools",
+    );
+  }
+  const visualizerModule = enableBuildAnalyze
+    ? await import("rollup-plugin-visualizer")
+    : null;
 
   const autoImportPlugin = autoImportModule?.default?.({
     imports: ["vue", "vue-router", "vue-i18n"],
@@ -89,6 +111,28 @@ export default defineConfig(async ({ command, mode }) => {
     module: "vue-i18n",
     include: path.resolve(__dirname, "./src/locales/**"),
   });
+  const buildAnalyzePlugins = enableBuildAnalyze
+    ? [
+        visualizerModule.visualizer({
+          filename: path.resolve(
+            __dirname,
+            "artifacts/build-analysis/treemap.html",
+          ),
+          template: "treemap",
+          gzipSize: true,
+          brotliSize: true,
+        }),
+        visualizerModule.visualizer({
+          filename: path.resolve(
+            __dirname,
+            "artifacts/build-analysis/stats.json",
+          ),
+          template: "raw-data",
+          gzipSize: true,
+          brotliSize: true,
+        }),
+      ]
+    : [];
 
   const coreDevProxy = {
     "/api/v1": {
@@ -154,8 +198,8 @@ export default defineConfig(async ({ command, mode }) => {
     autoImportPlugin,
     componentsPlugin,
     vueI18nPlugin,
+    ...buildAnalyzePlugins,
   ].filter(Boolean);
-  const isDebugMode = mode === "debug";
   const exposeHost = parseBoolEnv(
     process.env.VITE_DEV_EXPOSE_HOST,
     isDebugMode,
@@ -198,14 +242,14 @@ export default defineConfig(async ({ command, mode }) => {
               if (id.includes("/exceljs/")) {
                 return;
               }
+              if (id.includes("/naive-ui/")) {
+                return "vendor-naive";
+              }
               if (id.includes("/vue/")) {
                 return "vendor-vue";
               }
               if (id.includes("/vue-router/") || id.includes("/pinia/")) {
                 return "vendor-state";
-              }
-              if (id.includes("/naive-ui/")) {
-                return "vendor-vue";
               }
               if (id.includes("/vue-i18n/") || id.includes("/@intlify/")) {
                 return "vendor-i18n";
@@ -298,12 +342,11 @@ export default defineConfig(async ({ command, mode }) => {
               id.includes("/src/composables/useTokenTaskSettings") ||
               id.includes("/src/composables/useWarGuessManager") ||
               id.includes("/src/composables/useLegacyGiftManager") ||
-              id.includes("/src/composables/createBatchTaskDeps") ||
-              id.includes("/src/utils/batch/") ||
-              id.includes("/src/utils/dailyTaskRunner")
+              id.includes("/src/composables/createBatchTaskDeps")
             ) {
               return "task-control-runner";
             }
+
           },
         },
       },

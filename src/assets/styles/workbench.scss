@@ -207,22 +207,22 @@
   min-height: 44px;
 }
 
-.workbench-page-hero :deep(.app-inline-stat) {
+.workbench-page-hero .app-inline-stat {
   min-height: 40px;
   padding-inline: 16px;
   border-radius: 999px;
 }
 
-.workbench-page-hero :deep(.app-inline-stat strong) {
+.workbench-page-hero .app-inline-stat strong {
   font-family: var(--font-family-mono);
   font-variant-numeric: tabular-nums;
 }
 
-.workbench-page-toolbar :deep(.n-radio-group) {
+.workbench-page-toolbar .n-radio-group {
   max-width: 100%;
 }
 
-.workbench-page-toolbar :deep(.n-radio-button) {
+.workbench-page-toolbar .n-radio-button {
   min-height: 44px;
 }
 
