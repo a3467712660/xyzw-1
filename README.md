@@ -106,7 +106,7 @@ ENABLE_LEGACY_FLASK=1 bash ./start-safe.sh
 
 ### 1. 环境要求
 
-- Node.js `>= 20`
+- Node.js `>=20.19 <23`（推荐 Node 22.x）
 - npm `>= 10`
 - 包管理器统一为 `npm`（以根目录 `package-lock.json` 为准）
 

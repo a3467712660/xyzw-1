@@ -1,15 +1,22 @@
 import assert from "node:assert/strict";
+import * as dns from "node:dns";
 import http from "node:http";
 import test from "node:test";
-import * as dns from "node:dns";
 import express from "express";
-import { initDatabase } from "../src/db/database.js";
 import { run } from "../src/db/client.js";
-import { createPassword, signJwt } from "../src/lib/crypto.js";
-import { nowIso } from "../src/db/sql.js";
+import { initDatabase } from "../src/db/database.js";
 import { env } from "../src/config/env.js";
-import { inviteCodeRepository } from "../src/repositories/inviteCodeRepository.js";
+import { createPassword, signJwt } from "../src/lib/crypto.js";
+import {
+  fetchProxyResource,
+  ProxySafetyError,
+} from "../src/lib/proxySafety.js";
 import tokenImportProxyRoutes from "../src/routes/tokenImportProxy.js";
+import { nowIso } from "../src/db/sql.js";
+import {
+  callLookup,
+  mockHttpsRequest,
+} from "./proxy-safety-test-helpers.js";
 
 const makeBaseUrl = (server) => {
   const address = server.address();
@@ -90,6 +97,203 @@ const authHeaders = ({ userId, username }) => {
   };
 };
 
+test("fetchProxyResource pins transport lookup to validated public addresses", async () => {
+  const upstream = await fetchProxyResource({
+    route: "/api/v1/token-import/proxy",
+    url: "https://api.example.com/import.json",
+    method: "GET",
+    headers: {
+      Accept: "application/json",
+    },
+    allowedHosts: ["api.example.com"],
+    allowedContentTypes: ["application/json", "application/*+json"],
+    timeoutMs: 50,
+    maxResponseBytes: 1024,
+    lookup: async () => [{ address: "93.184.216.34", family: 4 }],
+    requestImpl: async ({ url, lookup, resolvedAddresses }) => {
+      assert.equal(url.toString(), "https://api.example.com/import.json");
+      assert.deepEqual(resolvedAddresses, [
+        { address: "93.184.216.34", family: 4 },
+      ]);
+
+      const pinned = await callLookup(lookup, url.hostname, { family: 4 });
+      assert.deepEqual(pinned, {
+        address: "93.184.216.34",
+        family: 4,
+      });
+
+      return {
+        status: 200,
+        headers: {
+          "content-type": "application/json; charset=utf-8",
+        },
+        bodyBuffer: Buffer.from('{"ok":true}', "utf8"),
+        connectedAddress: "93.184.216.34",
+      };
+    },
+  });
+
+  assert.equal(upstream.status, 200);
+  assert.deepEqual(JSON.parse(upstream.bodyBuffer.toString("utf8")), { ok: true });
+});
+
+test("fetchProxyResource blocks DNS rebinding when connected address drifts after public precheck", async () => {
+  let upstreamCalled = false;
+
+  await assert.rejects(
+    fetchProxyResource({
+      route: "/api/v1/token-import/proxy",
+      url: "https://api.example.com/import.json",
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+      },
+      allowedHosts: ["api.example.com"],
+      allowedContentTypes: ["application/json", "application/*+json"],
+      timeoutMs: 50,
+      maxResponseBytes: 1024,
+      lookup: async () => [{ address: "93.184.216.34", family: 4 }],
+      requestImpl: async ({ url, lookup, resolvedAddresses }) => {
+        assert.equal(url.hostname, "api.example.com");
+        assert.deepEqual(resolvedAddresses, [
+          { address: "93.184.216.34", family: 4 },
+        ]);
+
+        const pinned = await callLookup(lookup, url.hostname, { family: 4 });
+        assert.deepEqual(pinned, {
+          address: "93.184.216.34",
+          family: 4,
+        });
+
+        return {
+          status: 200,
+          headers: {
+            "content-type": "application/json; charset=utf-8",
+          },
+          bodyBuffer: Buffer.from('{"ok":true}', "utf8"),
+          connectedAddress: "127.0.0.1",
+        };
+      },
+    }),
+    (error) => {
+      assert.equal(error instanceof ProxySafetyError, true);
+      assert.equal(error.reason, "PRIVATE_IP_BLOCKED");
+      return true;
+    },
+  );
+
+  assert.equal(upstreamCalled, false);
+});
+
+test("fetchProxyResource repins DNS on each allowlisted redirect hop", async () => {
+  let requestCount = 0;
+
+  const upstream = await fetchProxyResource({
+    route: "/api/v1/token-import/proxy",
+    url: "https://api.example.com/import.json",
+    method: "GET",
+    headers: {
+      Accept: "application/json",
+    },
+    allowedHosts: ["api.example.com", "cdn.example.com"],
+    allowedContentTypes: ["application/json", "application/*+json"],
+    timeoutMs: 50,
+    maxResponseBytes: 1024,
+    lookup: async (hostname) => {
+      if (String(hostname) === "cdn.example.com") {
+        return [{ address: "93.184.216.35", family: 4 }];
+      }
+      return [{ address: "93.184.216.34", family: 4 }];
+    },
+    requestImpl: async ({ url, lookup, resolvedAddresses }) => {
+      requestCount += 1;
+      const pinned = await callLookup(lookup, url.hostname, { family: 4 });
+
+      if (requestCount === 1) {
+        assert.equal(url.hostname, "api.example.com");
+        assert.deepEqual(resolvedAddresses, [
+          { address: "93.184.216.34", family: 4 },
+        ]);
+        assert.deepEqual(pinned, {
+          address: "93.184.216.34",
+          family: 4,
+        });
+        return {
+          status: 302,
+          headers: {
+            location: "https://cdn.example.com/next.json",
+          },
+          bodyBuffer: Buffer.alloc(0),
+          connectedAddress: "93.184.216.34",
+        };
+      }
+
+      assert.equal(url.hostname, "cdn.example.com");
+      assert.deepEqual(resolvedAddresses, [
+        { address: "93.184.216.35", family: 4 },
+      ]);
+      assert.deepEqual(pinned, {
+        address: "93.184.216.35",
+        family: 4,
+      });
+      return {
+        status: 200,
+        headers: {
+          "content-type": "application/json; charset=utf-8",
+        },
+        bodyBuffer: Buffer.from('{"ok":true}', "utf8"),
+        connectedAddress: "93.184.216.35",
+      };
+    },
+  });
+
+  assert.equal(requestCount, 2);
+  assert.deepEqual(JSON.parse(upstream.bodyBuffer.toString("utf8")), { ok: true });
+});
+
+test("fetchProxyResource blocks allowlisted redirects when the next hop resolves to loopback", async () => {
+  let requestCount = 0;
+
+  await assert.rejects(
+    fetchProxyResource({
+      route: "/api/v1/token-import/proxy",
+      url: "https://api.example.com/import.json",
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+      },
+      allowedHosts: ["api.example.com", "cdn.example.com"],
+      allowedContentTypes: ["application/json", "application/*+json"],
+      timeoutMs: 50,
+      maxResponseBytes: 1024,
+      lookup: async (hostname) => {
+        if (String(hostname) === "cdn.example.com") {
+          return [{ address: "127.0.0.1", family: 4 }];
+        }
+        return [{ address: "93.184.216.34", family: 4 }];
+      },
+      requestImpl: async () => {
+        requestCount += 1;
+        return {
+          status: 302,
+          headers: {
+            location: "https://cdn.example.com/next.json",
+          },
+          bodyBuffer: Buffer.alloc(0),
+          connectedAddress: "93.184.216.34",
+        };
+      },
+    }),
+    (error) => {
+      assert.equal(error instanceof ProxySafetyError, true);
+      assert.equal(error.reason, "PRIVATE_IP_BLOCKED");
+      return true;
+    },
+  );
+
+  assert.equal(requestCount, 1);
+});
+
 test("POST /token-import/proxy allows public JSON upstream on allowlisted host", async (t) => {
   await initDatabase();
 
@@ -108,16 +312,28 @@ test("POST /token-import/proxy allows public JSON upstream on allowlisted host",
     env.trustedImportApiHosts = originalTrustedHosts;
   });
 
-  const originalFetch = global.fetch;
-  global.fetch = async () =>
-    new Response('{"ok":true}', {
+  mockHttpsRequest(t, async ({ options, url, bodyBuffer }) => {
+    assert.equal(url.toString(), "https://api.example.com/import.json");
+    assert.equal(options.method, "GET");
+    assert.equal(bodyBuffer.length, 0);
+    assert.equal(options.servername, "api.example.com");
+
+    const pinned = await callLookup(options.lookup, options.hostname, {
+      family: 4,
+    });
+    assert.deepEqual(pinned, {
+      address: "93.184.216.34",
+      family: 4,
+    });
+
+    return {
       status: 200,
       headers: {
         "content-type": "application/json; charset=utf-8",
       },
-    });
-  t.after(() => {
-    global.fetch = originalFetch;
+      body: '{"ok":true}',
+      connectedAddress: "93.184.216.34",
+    };
   });
 
   const lookupMock = t.mock.method(dns.promises, "lookup", async () => [
@@ -162,14 +378,17 @@ test("POST /token-import/proxy blocks rebinding when resolved addresses mix publ
     env.trustedImportApiHosts = originalTrustedHosts;
   });
 
-  let fetchCalls = 0;
-  const originalFetch = global.fetch;
-  global.fetch = async () => {
-    fetchCalls += 1;
-    return new Response("unexpected");
-  };
-  t.after(() => {
-    global.fetch = originalFetch;
+  let upstreamCalls = 0;
+  mockHttpsRequest(t, async () => {
+    upstreamCalls += 1;
+    return {
+      status: 200,
+      headers: {
+        "content-type": "application/json; charset=utf-8",
+      },
+      body: '{"unexpected":true}',
+      connectedAddress: "93.184.216.34",
+    };
   });
 
   const lookupMock = t.mock.method(dns.promises, "lookup", async () => [
@@ -205,7 +424,7 @@ test("POST /token-import/proxy blocks rebinding when resolved addresses mix publ
   assert.equal(response.status, 403);
   const payload = JSON.parse(response.body);
   assert.equal(payload?.error?.code, "TOKEN_IMPORT_PROXY_PRIVATE_IP_BLOCKED");
-  assert.equal(fetchCalls, 0);
+  assert.equal(upstreamCalls, 0);
 
   const warnText = warnCalls.join("\n");
   assert.equal(warnText.includes("secret-token-123"), false);
@@ -213,6 +432,89 @@ test("POST /token-import/proxy blocks rebinding when resolved addresses mix publ
     warnText.includes("https://api.example.com/import.json?token=secret-token-123"),
     false,
   );
+});
+
+test("POST /token-import/proxy repins DNS for allowlisted redirect hops", async (t) => {
+  await initDatabase();
+
+  const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const userId = `proxy_redirect_allow_user_${suffix}`;
+  const username = `proxy_redirect_allow_user_${suffix}`;
+  run(`DELETE FROM users WHERE id = $id OR username = $username`, {
+    $id: userId,
+    $username: username,
+  });
+  createUser({ id: userId, username, password: "ProxyRedirectAllow123!Aa" });
+
+  const originalTrustedHosts = env.trustedImportApiHosts;
+  env.trustedImportApiHosts = ["api.example.com", "cdn.example.com"];
+  t.after(() => {
+    env.trustedImportApiHosts = originalTrustedHosts;
+  });
+
+  let requestCount = 0;
+  mockHttpsRequest(t, async ({ options, url }) => {
+    requestCount += 1;
+    const pinned = await callLookup(options.lookup, options.hostname, {
+      family: 4,
+    });
+
+    if (requestCount === 1) {
+      assert.equal(url.hostname, "api.example.com");
+      assert.deepEqual(pinned, {
+        address: "93.184.216.34",
+        family: 4,
+      });
+      return {
+        status: 302,
+        headers: {
+          location: "https://cdn.example.com/next.json",
+        },
+        connectedAddress: "93.184.216.34",
+      };
+    }
+
+    assert.equal(url.hostname, "cdn.example.com");
+    assert.deepEqual(pinned, {
+      address: "93.184.216.35",
+      family: 4,
+    });
+    return {
+      status: 200,
+      headers: {
+        "content-type": "application/json; charset=utf-8",
+      },
+      body: '{"ok":true}',
+      connectedAddress: "93.184.216.35",
+    };
+  });
+
+  const lookupMock = t.mock.method(dns.promises, "lookup", async (hostname) => {
+    if (String(hostname) === "cdn.example.com") {
+      return [{ address: "93.184.216.35", family: 4 }];
+    }
+    return [{ address: "93.184.216.34", family: 4 }];
+  });
+  t.after(() => lookupMock.mock.restore());
+
+  const server = await createServer();
+  t.after(async () => {
+    await new Promise((resolve) => server.close(resolve));
+    run(`DELETE FROM users WHERE id = $id`, { $id: userId });
+  });
+
+  const response = await requestLocal({
+    url: `${makeBaseUrl(server)}/api/v1/token-import/proxy`,
+    method: "POST",
+    headers: authHeaders({ userId, username }),
+    body: JSON.stringify({
+      url: "https://api.example.com/import.json",
+    }),
+  });
+
+  assert.equal(response.status, 200);
+  assert.equal(requestCount, 2);
+  assert.deepEqual(JSON.parse(response.body), { ok: true });
 });
 
 test("POST /token-import/proxy blocks redirects to non-allowlisted hosts", async (t) => {
@@ -233,17 +535,13 @@ test("POST /token-import/proxy blocks redirects to non-allowlisted hosts", async
     env.trustedImportApiHosts = originalTrustedHosts;
   });
 
-  const originalFetch = global.fetch;
-  global.fetch = async () =>
-    new Response("", {
-      status: 302,
-      headers: {
-        location: "https://evil.example.com/next",
-      },
-    });
-  t.after(() => {
-    global.fetch = originalFetch;
-  });
+  mockHttpsRequest(t, async () => ({
+    status: 302,
+    headers: {
+      location: "https://evil.example.com/next",
+    },
+    connectedAddress: "93.184.216.34",
+  }));
 
   const lookupMock = t.mock.method(dns.promises, "lookup", async () => [
     { address: "93.184.216.34", family: 4 },
@@ -288,17 +586,14 @@ test("POST /token-import/proxy rejects non-json upstream content type", async (t
     env.trustedImportApiHosts = originalTrustedHosts;
   });
 
-  const originalFetch = global.fetch;
-  global.fetch = async () =>
-    new Response("<html>not json</html>", {
-      status: 200,
-      headers: {
-        "content-type": "text/html; charset=utf-8",
-      },
-    });
-  t.after(() => {
-    global.fetch = originalFetch;
-  });
+  mockHttpsRequest(t, async () => ({
+    status: 200,
+    headers: {
+      "content-type": "text/html; charset=utf-8",
+    },
+    body: "<html>not json</html>",
+    connectedAddress: "93.184.216.34",
+  }));
 
   const lookupMock = t.mock.method(dns.promises, "lookup", async () => [
     { address: "93.184.216.34", family: 4 },
@@ -343,17 +638,14 @@ test("POST /token-import/proxy rejects oversized upstream responses", async (t) 
     env.trustedImportApiHosts = originalTrustedHosts;
   });
 
-  const originalFetch = global.fetch;
-  global.fetch = async () =>
-    new Response(`"${"x".repeat(1024 * 1024 + 8)}"`, {
-      status: 200,
-      headers: {
-        "content-type": "application/json; charset=utf-8",
-      },
-    });
-  t.after(() => {
-    global.fetch = originalFetch;
-  });
+  mockHttpsRequest(t, async () => ({
+    status: 200,
+    headers: {
+      "content-type": "application/json; charset=utf-8",
+    },
+    body: `"${"x".repeat(1024 * 1024 + 8)}"`,
+    connectedAddress: "93.184.216.34",
+  }));
 
   const lookupMock = t.mock.method(dns.promises, "lookup", async () => [
     { address: "93.184.216.34", family: 4 },

@@ -1,13 +1,17 @@
 import assert from "node:assert/strict";
+import * as dns from "node:dns";
 import http from "node:http";
 import test from "node:test";
-import * as dns from "node:dns";
 import { createApp } from "../src/app/createApp.js";
-import { initDatabase } from "../src/db/database.js";
 import { query, run } from "../src/db/client.js";
+import { initDatabase } from "../src/db/database.js";
+import { env } from "../src/config/env.js";
 import { createPassword, signJwt } from "../src/lib/crypto.js";
 import { nowIso } from "../src/db/sql.js";
-import { env } from "../src/config/env.js";
+import {
+  callLookup,
+  mockHttpsRequest,
+} from "./proxy-safety-test-helpers.js";
 
 const makeBaseUrl = (server) => {
   const address = server.address();
@@ -82,13 +86,16 @@ test("POST /wechat-proxy/hortor-login rejects requests without allowed Origin/Re
   run(`DELETE FROM security_rate_limits WHERE scope_key LIKE 'wechat_proxy_%'`);
 
   let upstreamCalls = 0;
-  const originalFetch = global.fetch;
-  global.fetch = async () => {
+  mockHttpsRequest(t, async () => {
     upstreamCalls += 1;
-    return new Response("ok", { status: 200 });
-  };
-  t.after(() => {
-    global.fetch = originalFetch;
+    return {
+      status: 200,
+      headers: {
+        "content-type": "text/plain; charset=utf-8",
+      },
+      body: "ok",
+      connectedAddress: "93.184.216.34",
+    };
   });
 
   const server = await createServer();
@@ -117,20 +124,28 @@ test("POST /wechat-proxy/hortor-login forwards header deviceUniqueId to upstream
   let upstreamUrl = "";
   let upstreamMethod = "";
   let upstreamBody = "";
-  const originalFetch = global.fetch;
-  global.fetch = async (url, options = {}) => {
-    upstreamUrl = String(url);
+  mockHttpsRequest(t, async ({ options, url, bodyBuffer }) => {
+    upstreamUrl = url.toString();
     upstreamMethod = String(options.method || "");
-    upstreamBody = String(options.body || "");
-    return new Response('{"meta":{"errCode":0},"data":{"combUser":{"id":"u1"}}}', {
+    upstreamBody = bodyBuffer.toString("utf8");
+    assert.equal(options.servername, "comb-platform.hortorgames.com");
+
+    const pinned = await callLookup(options.lookup, options.hostname, {
+      family: 4,
+    });
+    assert.deepEqual(pinned, {
+      address: "93.184.216.34",
+      family: 4,
+    });
+
+    return {
       status: 200,
       headers: {
         "content-type": "application/json; charset=utf-8",
       },
-    });
-  };
-  t.after(() => {
-    global.fetch = originalFetch;
+      body: '{"meta":{"errCode":0},"data":{"combUser":{"id":"u1"}}}',
+      connectedAddress: "93.184.216.34",
+    };
   });
 
   const lookupMock = t.mock.method(dns.promises, "lookup", async () => [
@@ -180,13 +195,16 @@ test("POST /wechat-proxy/hortor-login rejects query deviceUniqueId before upstre
   run(`DELETE FROM security_rate_limits WHERE scope_key LIKE 'wechat_proxy_%'`);
 
   let upstreamCalls = 0;
-  const originalFetch = global.fetch;
-  global.fetch = async () => {
+  mockHttpsRequest(t, async () => {
     upstreamCalls += 1;
-    return new Response("ok", { status: 200 });
-  };
-  t.after(() => {
-    global.fetch = originalFetch;
+    return {
+      status: 200,
+      headers: {
+        "content-type": "text/plain; charset=utf-8",
+      },
+      body: "ok",
+      connectedAddress: "93.184.216.34",
+    };
   });
 
   const server = await createServer();
@@ -228,10 +246,17 @@ test("POST /wechat-proxy/hortor-login can enforce guest-only mode", async (t) =>
     env.wechatProxyHortorLoginGuestOnly = prevGuestOnly;
   });
 
-  const originalFetch = global.fetch;
-  global.fetch = async () => new Response("ok", { status: 200 });
-  t.after(() => {
-    global.fetch = originalFetch;
+  let upstreamCalls = 0;
+  mockHttpsRequest(t, async () => {
+    upstreamCalls += 1;
+    return {
+      status: 200,
+      headers: {
+        "content-type": "text/plain; charset=utf-8",
+      },
+      body: "ok",
+      connectedAddress: "93.184.216.34",
+    };
   });
 
   const server = await createServer();
@@ -255,6 +280,7 @@ test("POST /wechat-proxy/hortor-login can enforce guest-only mode", async (t) =>
   });
 
   assert.equal(response.status, 403);
+  assert.equal(upstreamCalls, 0);
 });
 
 test("POST /wechat-proxy/qrstatus forwards body uuid to upstream", async (t) => {
@@ -262,18 +288,25 @@ test("POST /wechat-proxy/qrstatus forwards body uuid to upstream", async (t) => 
   run(`DELETE FROM security_rate_limits WHERE scope_key LIKE 'wechat_proxy_%'`);
 
   let upstreamUrl = "";
-  const originalFetch = global.fetch;
-  global.fetch = async (url) => {
-    upstreamUrl = String(url);
-    return new Response("ok", {
+  mockHttpsRequest(t, async ({ options, url }) => {
+    upstreamUrl = url.toString();
+
+    const pinned = await callLookup(options.lookup, options.hostname, {
+      family: 4,
+    });
+    assert.deepEqual(pinned, {
+      address: "93.184.216.34",
+      family: 4,
+    });
+
+    return {
       status: 200,
       headers: {
         "content-type": "text/plain; charset=utf-8",
       },
-    });
-  };
-  t.after(() => {
-    global.fetch = originalFetch;
+      body: "ok",
+      connectedAddress: "93.184.216.34",
+    };
   });
 
   const lookupMock = t.mock.method(dns.promises, "lookup", async () => [
@@ -308,13 +341,16 @@ test("POST /wechat-proxy/qrstatus rejects query uuid before upstream", async (t)
   run(`DELETE FROM security_rate_limits WHERE scope_key LIKE 'wechat_proxy_%'`);
 
   let upstreamCalls = 0;
-  const originalFetch = global.fetch;
-  global.fetch = async () => {
+  mockHttpsRequest(t, async () => {
     upstreamCalls += 1;
-    return new Response("ok", { status: 200 });
-  };
-  t.after(() => {
-    global.fetch = originalFetch;
+    return {
+      status: 200,
+      headers: {
+        "content-type": "text/plain; charset=utf-8",
+      },
+      body: "ok",
+      connectedAddress: "93.184.216.34",
+    };
   });
 
   const server = await createServer();
@@ -340,19 +376,14 @@ test("GET /wechat-proxy/qrconnect is rate limited", async (t) => {
   await initDatabase();
   run(`DELETE FROM security_rate_limits WHERE scope_key LIKE 'wechat_proxy_%'`);
 
-  const originalFetch = global.fetch;
-  global.fetch = async () => {
-    const html = "<html><body>ok</body></html>";
-    return new Response(html, {
-      status: 200,
-      headers: {
-        "content-type": "text/html; charset=utf-8",
-      },
-    });
-  };
-  t.after(() => {
-    global.fetch = originalFetch;
-  });
+  mockHttpsRequest(t, async () => ({
+    status: 200,
+    headers: {
+      "content-type": "text/html; charset=utf-8",
+    },
+    body: "<html><body>ok</body></html>",
+    connectedAddress: "93.184.216.34",
+  }));
 
   const lookupMock = t.mock.method(dns.promises, "lookup", async () => [
     { address: "93.184.216.34", family: 4 },
@@ -382,17 +413,14 @@ test("wechat proxy shared limiter blocks across route families", async (t) => {
   await initDatabase();
   run(`DELETE FROM security_rate_limits WHERE scope_key LIKE 'wechat_proxy_%'`);
 
-  const originalFetch = global.fetch;
-  global.fetch = async () =>
-    new Response("<html><body>ok</body></html>", {
-      status: 200,
-      headers: {
-        "content-type": "text/html; charset=utf-8",
-      },
-    });
-  t.after(() => {
-    global.fetch = originalFetch;
-  });
+  mockHttpsRequest(t, async () => ({
+    status: 200,
+    headers: {
+      "content-type": "text/html; charset=utf-8",
+    },
+    body: "<html><body>ok</body></html>",
+    connectedAddress: "93.184.216.34",
+  }));
 
   const lookupMock = t.mock.method(dns.promises, "lookup", async () => [
     { address: "93.184.216.34", family: 4 },
@@ -449,13 +477,16 @@ test("POST /wechat-proxy/qrstatus blocks fixed upstream host when DNS resolves t
   run(`DELETE FROM security_rate_limits WHERE scope_key LIKE 'wechat_proxy_%'`);
 
   let upstreamCalls = 0;
-  const originalFetch = global.fetch;
-  global.fetch = async () => {
+  mockHttpsRequest(t, async () => {
     upstreamCalls += 1;
-    return new Response("unexpected", { status: 200 });
-  };
-  t.after(() => {
-    global.fetch = originalFetch;
+    return {
+      status: 200,
+      headers: {
+        "content-type": "text/plain; charset=utf-8",
+      },
+      body: "unexpected",
+      connectedAddress: "93.184.216.34",
+    };
   });
 
   const lookupMock = t.mock.method(dns.promises, "lookup", async (hostname) => {
@@ -498,21 +529,124 @@ test("POST /wechat-proxy/qrstatus blocks fixed upstream host when DNS resolves t
   assert.equal(warnText.includes("wx-uuid-secret-123"), false);
 });
 
+test("GET /wechat-proxy/qrconnect repins DNS for allowlisted redirect hops", async (t) => {
+  await initDatabase();
+  run(`DELETE FROM security_rate_limits WHERE scope_key LIKE 'wechat_proxy_%'`);
+
+  let requestCount = 0;
+  mockHttpsRequest(t, async ({ options, url }) => {
+    requestCount += 1;
+    const pinned = await callLookup(options.lookup, options.hostname, {
+      family: 4,
+    });
+
+    if (requestCount === 1) {
+      assert.equal(url.hostname, "open.weixin.qq.com");
+      assert.deepEqual(pinned, {
+        address: "93.184.216.34",
+        family: 4,
+      });
+      return {
+        status: 302,
+        headers: {
+          location:
+            "https://long.open.weixin.qq.com/connect/l/qrconnect?uuid=next-hop&f=url",
+        },
+        connectedAddress: "93.184.216.34",
+      };
+    }
+
+    assert.equal(url.hostname, "long.open.weixin.qq.com");
+      assert.deepEqual(pinned, {
+        address: "93.184.216.35",
+        family: 4,
+      });
+      return {
+        status: 200,
+        headers: {
+          "content-type": "text/html; charset=utf-8",
+        },
+        body: "<html><body>ok</body></html>",
+        connectedAddress: "93.184.216.35",
+      };
+  });
+
+  const lookupMock = t.mock.method(dns.promises, "lookup", async (hostname) => {
+    if (String(hostname) === "long.open.weixin.qq.com") {
+      return [{ address: "93.184.216.35", family: 4 }];
+    }
+    return [{ address: "93.184.216.34", family: 4 }];
+  });
+  t.after(() => lookupMock.mock.restore());
+
+  const server = await createServer();
+  t.after(async () => {
+    await new Promise((resolve) => server.close(resolve));
+    run(`DELETE FROM security_rate_limits WHERE scope_key LIKE 'wechat_proxy_%'`);
+  });
+
+  const response = await requestLocal({
+    url: `${makeBaseUrl(server)}/api/v1/wechat-proxy/qrconnect?appid=test&state=redirect-allow`,
+    method: "GET",
+  });
+
+  assert.equal(response.status, 200);
+  assert.equal(requestCount, 2);
+  assert.equal(response.body.includes("ok"), true);
+});
+
+test("GET /wechat-proxy/qrconnect blocks allowlisted redirects when the next hop resolves to loopback", async (t) => {
+  await initDatabase();
+  run(`DELETE FROM security_rate_limits WHERE scope_key LIKE 'wechat_proxy_%'`);
+
+  let requestCount = 0;
+  mockHttpsRequest(t, async () => {
+    requestCount += 1;
+    return {
+      status: 302,
+      headers: {
+        location:
+          "https://long.open.weixin.qq.com/connect/l/qrconnect?uuid=blocked-hop&f=url",
+      },
+      connectedAddress: "93.184.216.34",
+    };
+  });
+
+  const lookupMock = t.mock.method(dns.promises, "lookup", async (hostname) => {
+    if (String(hostname) === "long.open.weixin.qq.com") {
+      return [{ address: "127.0.0.1", family: 4 }];
+    }
+    return [{ address: "93.184.216.34", family: 4 }];
+  });
+  t.after(() => lookupMock.mock.restore());
+
+  const server = await createServer();
+  t.after(async () => {
+    await new Promise((resolve) => server.close(resolve));
+    run(`DELETE FROM security_rate_limits WHERE scope_key LIKE 'wechat_proxy_%'`);
+  });
+
+  const response = await requestLocal({
+    url: `${makeBaseUrl(server)}/api/v1/wechat-proxy/qrconnect?appid=test&state=redirect-private`,
+    method: "GET",
+  });
+
+  assert.equal(response.status, 502);
+  assert.equal(requestCount, 1);
+  assert.equal(response.body.includes("不安全"), true);
+});
+
 test("GET /wechat-proxy/qrconnect blocks redirects to non-allowlisted hosts", async (t) => {
   await initDatabase();
   run(`DELETE FROM security_rate_limits WHERE scope_key LIKE 'wechat_proxy_%'`);
 
-  const originalFetch = global.fetch;
-  global.fetch = async () =>
-    new Response("", {
-      status: 302,
-      headers: {
-        location: "https://evil.example.com/next",
-      },
-    });
-  t.after(() => {
-    global.fetch = originalFetch;
-  });
+  mockHttpsRequest(t, async () => ({
+    status: 302,
+    headers: {
+      location: "https://evil.example.com/next",
+    },
+    connectedAddress: "93.184.216.34",
+  }));
 
   const lookupMock = t.mock.method(dns.promises, "lookup", async () => [
     { address: "93.184.216.34", family: 4 },
@@ -538,17 +672,14 @@ test("GET /wechat-proxy/qrconnect rejects oversized upstream html responses", as
   await initDatabase();
   run(`DELETE FROM security_rate_limits WHERE scope_key LIKE 'wechat_proxy_%'`);
 
-  const originalFetch = global.fetch;
-  global.fetch = async () =>
-    new Response("x".repeat(256 * 1024 + 32), {
-      status: 200,
-      headers: {
-        "content-type": "text/html; charset=utf-8",
-      },
-    });
-  t.after(() => {
-    global.fetch = originalFetch;
-  });
+  mockHttpsRequest(t, async () => ({
+    status: 200,
+    headers: {
+      "content-type": "text/html; charset=utf-8",
+    },
+    body: "x".repeat(256 * 1024 + 32),
+    connectedAddress: "93.184.216.34",
+  }));
 
   const lookupMock = t.mock.method(dns.promises, "lookup", async () => [
     { address: "93.184.216.34", family: 4 },
@@ -574,17 +705,14 @@ test("POST /wechat-proxy/hortor-login rejects upstream content types outside the
   await initDatabase();
   run(`DELETE FROM security_rate_limits WHERE scope_key LIKE 'wechat_proxy_%'`);
 
-  const originalFetch = global.fetch;
-  global.fetch = async () =>
-    new Response("<xml>invalid</xml>", {
-      status: 200,
-      headers: {
-        "content-type": "application/xml; charset=utf-8",
-      },
-    });
-  t.after(() => {
-    global.fetch = originalFetch;
-  });
+  mockHttpsRequest(t, async () => ({
+    status: 200,
+    headers: {
+      "content-type": "application/xml; charset=utf-8",
+    },
+    body: "<xml>invalid</xml>",
+    connectedAddress: "93.184.216.34",
+  }));
 
   const lookupMock = t.mock.method(dns.promises, "lookup", async () => [
     { address: "93.184.216.34", family: 4 },

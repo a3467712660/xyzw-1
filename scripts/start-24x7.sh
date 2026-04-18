@@ -6,6 +6,16 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 APP_NAME_BACKEND="xyzw-backend"
 APP_NAME_TASK_DAEMON="xyzw-task-daemon"
 ENABLE_TASK_DAEMON="${ENABLE_TASK_DAEMON:-0}"
+LOCAL_NODE22_BIN="$HOME/.local/opt/node22/bin"
+
+prefer_local_node22() {
+  if [[ -d "$LOCAL_NODE22_BIN" ]]; then
+    case ":$PATH:" in
+      *":$LOCAL_NODE22_BIN:"*) ;;
+      *) export PATH="$LOCAL_NODE22_BIN:$PATH" ;;
+    esac
+  fi
+}
 
 normalize_account_env_key() {
   local raw="$1"
@@ -225,6 +235,7 @@ USAGE
 }
 
 main() {
+  prefer_local_node22
   local cmd="${1:-}"
 
   case "$cmd" in

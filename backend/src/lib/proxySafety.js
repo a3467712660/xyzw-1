@@ -1,4 +1,6 @@
 import * as dns from "node:dns";
+import http from "node:http";
+import https from "node:https";
 import net from "node:net";
 import { isHostAllowed } from "./hostAllowlist.js";
 
@@ -29,11 +31,22 @@ const IPV6_BLOCKLIST_PREFIXES = [
   "ff00::/8",
 ];
 
-const stripIpv6Brackets = (value) => String(value || "").trim().replace(/^\[(.*)\]$/, "$1");
+const stripIpv6Brackets = (value) =>
+  String(value || "").trim().replace(/^\[(.*)\]$/, "$1");
 
 const normalizeIp = (value) => stripIpv6Brackets(value).toLowerCase();
 
 const normalizeHost = (value) => stripIpv6Brackets(value).trim().toLowerCase();
+
+const extractIpv4MappedIpv6 = (value) => {
+  const match = normalizeIp(value).match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/i);
+  return match?.[1] || "";
+};
+
+const toComparableIp = (value) => {
+  const normalized = normalizeIp(value);
+  return extractIpv4MappedIpv6(normalized) || normalized;
+};
 
 const mapIpv4ToInt = (value) =>
   value
@@ -42,7 +55,8 @@ const mapIpv4ToInt = (value) =>
     .reduce((acc, segment) => (acc << 8) + segment, 0) >>> 0;
 
 const ipv4CidrContains = (ip, cidrBase, prefixLength) => {
-  const mask = prefixLength === 0 ? 0 : (0xffffffff << (32 - prefixLength)) >>> 0;
+  const mask =
+    prefixLength === 0 ? 0 : (0xffffffff << (32 - prefixLength)) >>> 0;
   return (mapIpv4ToInt(ip) & mask) === (mapIpv4ToInt(cidrBase) & mask);
 };
 
@@ -62,18 +76,8 @@ const matchesIpv6BlockedPrefix = (ip) => {
   return /^fe[89ab]/i.test(ip);
 };
 
-const extractIpv4MappedIpv6 = (value) => {
-  const match = normalizeIp(value).match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/i);
-  return match?.[1] || "";
-};
-
 export const isBlockedIpAddress = (value) => {
-  const normalized = normalizeIp(value);
-  const mappedIpv4 = extractIpv4MappedIpv6(normalized);
-  if (mappedIpv4) {
-    return isBlockedIpAddress(mappedIpv4);
-  }
-
+  const normalized = toComparableIp(value);
   const family = net.isIP(normalized);
   if (family === 4) {
     return IPV4_BLOCKLIST.some(([cidrBase, prefixLength]) =>
@@ -82,7 +86,9 @@ export const isBlockedIpAddress = (value) => {
   }
 
   if (family === 6) {
-    return IPV6_BLOCKLIST_PREFIXES.some(() => matchesIpv6BlockedPrefix(normalized));
+    return IPV6_BLOCKLIST_PREFIXES.some(() =>
+      matchesIpv6BlockedPrefix(normalized),
+    );
   }
 
   return false;
@@ -110,12 +116,152 @@ const matchesContentType = (contentType, allowedContentTypes = []) => {
   });
 };
 
+const getHeaderValue = (headers, name) => {
+  if (!headers) {
+    return "";
+  }
+  if (typeof headers.get === "function") {
+    return String(headers.get(name) || "").trim();
+  }
+
+  const direct = headers[String(name).toLowerCase()] ?? headers[name];
+  if (Array.isArray(direct)) {
+    return direct.join(", ").trim();
+  }
+  return String(direct || "").trim();
+};
+
+const discardResponseBody = (response) => {
+  if (Buffer.isBuffer(response?.bodyBuffer)) {
+    return;
+  }
+
+  const source = response?.body ?? response;
+  if (!source) {
+    return;
+  }
+
+  if (typeof source.getReader === "function") {
+    source
+      .getReader()
+      .cancel()
+      .catch(() => {});
+    return;
+  }
+
+  if (typeof source.resume === "function") {
+    source.resume();
+    return;
+  }
+
+  if (typeof source.destroy === "function") {
+    source.destroy();
+  }
+};
+
+const readNodeResponseBodyWithinLimit = async (source, maxBytes) =>
+  new Promise((resolve, reject) => {
+    const chunks = [];
+    let total = 0;
+    let settled = false;
+
+    const cleanup = () => {
+      source.off("data", onData);
+      source.off("end", onEnd);
+      source.off("error", onError);
+    };
+
+    const finish = (error, buffer = null) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      cleanup();
+      if (error) {
+        reject(error);
+        return;
+      }
+      resolve(buffer || Buffer.alloc(0));
+    };
+
+    const onData = (value) => {
+      const chunk = Buffer.from(value);
+      total += chunk.length;
+      if (total > maxBytes) {
+        source.destroy?.();
+        finish(
+          new ProxySafetyError(
+            "RESPONSE_TOO_LARGE",
+            "upstream response exceeded max bytes",
+            { statusCode: 502 },
+          ),
+        );
+        return;
+      }
+      chunks.push(chunk);
+    };
+
+    const onEnd = () => {
+      finish(null, Buffer.concat(chunks, total));
+    };
+
+    const onError = (error) => {
+      finish(error);
+    };
+
+    source.on("data", onData);
+    source.on("end", onEnd);
+    source.on("error", onError);
+  });
+
 const readResponseBodyWithinLimit = async (response, maxBytes) => {
-  if (!response.body) {
+  if (Buffer.isBuffer(response?.bodyBuffer)) {
+    if (response.bodyBuffer.length > maxBytes) {
+      throw new ProxySafetyError(
+        "RESPONSE_TOO_LARGE",
+        "upstream response exceeded max bytes",
+        { statusCode: 502 },
+      );
+    }
+    return Buffer.from(response.bodyBuffer);
+  }
+
+  const source = response?.body ?? response;
+  if (!source) {
     return Buffer.alloc(0);
   }
 
-  if (typeof response.body.getReader !== "function") {
+  if (typeof source.getReader === "function") {
+    const reader = source.getReader();
+    const chunks = [];
+    let total = 0;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+      const chunk = Buffer.from(value);
+      total += chunk.length;
+      if (total > maxBytes) {
+        await reader.cancel();
+        throw new ProxySafetyError(
+          "RESPONSE_TOO_LARGE",
+          "upstream response exceeded max bytes",
+          { statusCode: 502 },
+        );
+      }
+      chunks.push(chunk);
+    }
+
+    return Buffer.concat(chunks, total);
+  }
+
+  if (typeof source.on === "function") {
+    return readNodeResponseBodyWithinLimit(source, maxBytes);
+  }
+
+  if (typeof response?.arrayBuffer === "function") {
     const buffer = Buffer.from(await response.arrayBuffer());
     if (buffer.length > maxBytes) {
       throw new ProxySafetyError(
@@ -127,34 +273,15 @@ const readResponseBodyWithinLimit = async (response, maxBytes) => {
     return buffer;
   }
 
-  const reader = response.body.getReader();
-  const chunks = [];
-  let total = 0;
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) {
-      break;
-    }
-    const chunk = Buffer.from(value);
-    total += chunk.length;
-    if (total > maxBytes) {
-      await reader.cancel();
-      throw new ProxySafetyError(
-        "RESPONSE_TOO_LARGE",
-        "upstream response exceeded max bytes",
-        { statusCode: 502 },
-      );
-    }
-    chunks.push(chunk);
-  }
-
-  return Buffer.concat(chunks, total);
+  return Buffer.alloc(0);
 };
 
 const buildRedirectRequestState = ({ status, method, headers, body }) => {
   const nextMethod = String(method || "GET").toUpperCase();
-  if (status === 303 || ((status === 301 || status === 302) && nextMethod === "POST")) {
+  if (
+    status === 303 ||
+    ((status === 301 || status === 302) && nextMethod === "POST")
+  ) {
     const nextHeaders = { ...(headers || {}) };
     delete nextHeaders["content-type"];
     delete nextHeaders["Content-Type"];
@@ -179,7 +306,8 @@ const sanitizeLookupResult = (result) => {
     return result
       .map((entry) => ({
         address: normalizeIp(entry?.address),
-        family: Number(entry?.family) || net.isIP(normalizeIp(entry?.address)),
+        family:
+          Number(entry?.family) || net.isIP(normalizeIp(entry?.address)),
       }))
       .filter((entry) => entry.address);
   }
@@ -225,8 +353,167 @@ const resolveAddressesForHost = async (hostname, lookup) => {
   return addresses;
 };
 
-const defaultLookup = (...args) => dns.promises.lookup(...args);
+const createPinnedLookup = (hostname, addresses) => {
+  const normalizedHost = normalizeHost(hostname);
+  const normalizedAddresses = addresses.map((entry) => ({
+    address: normalizeIp(entry.address),
+    family: Number(entry.family) || net.isIP(normalizeIp(entry.address)),
+  }));
 
+  return (lookupHostname, options, callback) => {
+    const normalizedLookupHost = normalizeHost(lookupHostname);
+    if (normalizedLookupHost !== normalizedHost) {
+      callback(
+        new Error(
+          `proxy pinned lookup host mismatch: ${normalizedLookupHost || "unknown"}`,
+        ),
+      );
+      return;
+    }
+
+    const nextOptions =
+      options && typeof options === "object" ? options : {};
+    const requestedFamily = Number(nextOptions.family) || 0;
+    const matches = normalizedAddresses.filter(
+      (entry) => requestedFamily === 0 || entry.family === requestedFamily,
+    );
+
+    if (matches.length === 0) {
+      callback(
+        new Error(
+          `proxy pinned lookup missing ${requestedFamily ? `IPv${requestedFamily}` : "address"} for ${normalizedHost}`,
+        ),
+      );
+      return;
+    }
+
+    if (nextOptions.all) {
+      callback(
+        null,
+        matches.map((entry) => ({
+          address: entry.address,
+          family: entry.family,
+        })),
+      );
+      return;
+    }
+
+    callback(null, matches[0].address, matches[0].family);
+  };
+};
+
+const assertConnectedAddressAllowed = (connectedAddress, addresses) => {
+  const comparableConnectedAddress = toComparableIp(connectedAddress);
+  if (!comparableConnectedAddress) {
+    return;
+  }
+
+  const allowedAddresses = new Set(
+    addresses.map((entry) => toComparableIp(entry.address)),
+  );
+  if (
+    isBlockedIpAddress(comparableConnectedAddress) ||
+    !allowedAddresses.has(comparableConnectedAddress)
+  ) {
+    throw new ProxySafetyError(
+      "PRIVATE_IP_BLOCKED",
+      "connected address is private or drifted outside validated dns results",
+      {
+        statusCode: 403,
+        details: {
+          connectedAddress: comparableConnectedAddress,
+          addressCount: addresses.length,
+        },
+      },
+    );
+  }
+};
+
+const createFetchRequestImpl = (fetchImpl) => async ({
+  url,
+  method,
+  headers,
+  body,
+  timeoutMs,
+}) => {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetchImpl(url.toString(), {
+      method,
+      headers,
+      body,
+      redirect: "manual",
+      signal: controller.signal,
+    });
+    return {
+      status: response.status,
+      headers: response.headers,
+      body: response.body,
+      arrayBuffer: () => response.arrayBuffer(),
+      connectedAddress: "",
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
+const performPinnedNodeRequest = async ({
+  url,
+  method,
+  headers,
+  body,
+  timeoutMs,
+  lookup,
+}) =>
+  new Promise((resolve, reject) => {
+    const isHttps = url.protocol === "https:";
+    const transport = isHttps ? https : http;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+    const request = transport.request(
+      {
+        protocol: url.protocol,
+        hostname: url.hostname,
+        port: url.port || undefined,
+        path: `${url.pathname}${url.search}`,
+        method,
+        headers,
+        lookup,
+        signal: controller.signal,
+        ...(isHttps && !net.isIP(url.hostname)
+          ? { servername: url.hostname }
+          : {}),
+      },
+      (response) => {
+        clearTimeout(timer);
+        resolve({
+          status: response.statusCode || 0,
+          headers: response.headers || {},
+          body: response,
+          connectedAddress:
+            response.socket?.remoteAddress ||
+            request.socket?.remoteAddress ||
+            "",
+        });
+      },
+    );
+
+    request.on("error", (error) => {
+      clearTimeout(timer);
+      reject(error);
+    });
+
+    if (body === undefined || body === null) {
+      request.end();
+      return;
+    }
+    request.end(body);
+  });
+
+const defaultLookup = (...args) => dns.promises.lookup(...args);
 const defaultFetch = (...args) => global.fetch(...args);
 
 const defaultLogProxySafetyEvent = ({
@@ -244,7 +531,11 @@ const defaultLogProxySafetyEvent = ({
 };
 
 export class ProxySafetyError extends Error {
-  constructor(reason, message, { statusCode = 502, details = null, cause = null } = {}) {
+  constructor(
+    reason,
+    message,
+    { statusCode = 502, details = null, cause = null } = {},
+  ) {
     super(message);
     this.name = "ProxySafetyError";
     this.reason = String(reason || "FETCH_FAILED");
@@ -267,9 +558,16 @@ export const fetchProxyResource = async ({
   maxResponseBytes,
   maxRedirects = DEFAULT_MAX_REDIRECTS,
   lookup = defaultLookup,
+  requestImpl = null,
   fetchImpl = defaultFetch,
   logEvent = defaultLogProxySafetyEvent,
 }) => {
+  const effectiveRequestImpl =
+    requestImpl ||
+    (fetchImpl !== defaultFetch
+      ? createFetchRequestImpl(fetchImpl)
+      : performPinnedNodeRequest);
+
   let currentUrl = new URL(url);
   let currentRequestState = {
     method: String(method || "GET").toUpperCase(),
@@ -294,42 +592,51 @@ export const fetchProxyResource = async ({
       );
     }
 
-    if (!isHostAllowed(currentUrl.hostname, allowedHosts, fallbackAllowedHosts)) {
+    if (
+      !isHostAllowed(currentUrl.hostname, allowedHosts, fallbackAllowedHosts)
+    ) {
       throw new ProxySafetyError(
         hop > 0 ? "REDIRECT_BLOCKED" : "HOST_NOT_ALLOWED",
-        hop > 0 ? "redirect target host is not allowlisted" : "upstream host is not allowlisted",
+        hop > 0
+          ? "redirect target host is not allowlisted"
+          : "upstream host is not allowlisted",
         { statusCode: hop > 0 ? 502 : 403 },
       );
     }
 
     const addresses = await resolveAddressesForHost(currentUrl.hostname, lookup);
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const pinnedLookup = createPinnedLookup(currentUrl.hostname, addresses);
 
     let response;
     try {
-      response = await fetchImpl(currentUrl.toString(), {
+      response = await effectiveRequestImpl({
+        url: currentUrl,
         method: currentRequestState.method,
         headers: currentRequestState.headers,
         body: currentRequestState.body,
-        redirect: "manual",
-        signal: controller.signal,
+        timeoutMs,
+        lookup: pinnedLookup,
+        resolvedAddresses: addresses,
       });
+      assertConnectedAddressAllowed(response?.connectedAddress, addresses);
     } catch (error) {
       const isTimeout =
-        String(error?.name || "").toLowerCase() === "aborterror";
+        String(error?.name || "").toLowerCase() === "aborterror" ||
+        String(error?.code || "").toUpperCase() === "ABORT_ERR";
+      if (error instanceof ProxySafetyError) {
+        throw error;
+      }
       throw new ProxySafetyError(
         isTimeout ? "TIMEOUT" : "FETCH_FAILED",
         error?.message || "upstream fetch failed",
         { statusCode: 502, cause: error, details: { addressCount: addresses.length } },
       );
-    } finally {
-      clearTimeout(timer);
     }
 
     if (REDIRECT_STATUS_CODES.has(response.status)) {
-      const location = String(response.headers.get("location") || "").trim();
+      const location = getHeaderValue(response.headers, "location");
       if (!location) {
+        discardResponseBody(response);
         logEvent({
           route,
           host: currentUrl.hostname,
@@ -345,6 +652,7 @@ export const fetchProxyResource = async ({
         );
       }
       if (hop >= maxRedirects) {
+        discardResponseBody(response);
         logEvent({
           route,
           host: currentUrl.hostname,
@@ -361,6 +669,7 @@ export const fetchProxyResource = async ({
       }
 
       const nextUrl = new URL(location, currentUrl);
+      discardResponseBody(response);
       logEvent({
         route,
         host: currentUrl.hostname,
@@ -379,8 +688,9 @@ export const fetchProxyResource = async ({
       continue;
     }
 
-    const contentType = String(response.headers.get("content-type") || "").trim();
+    const contentType = getHeaderValue(response.headers, "content-type");
     if (!matchesContentType(contentType, allowedContentTypes)) {
+      discardResponseBody(response);
       logEvent({
         route,
         host: currentUrl.hostname,
@@ -406,7 +716,11 @@ export const fetchProxyResource = async ({
     };
   }
 
-  throw new ProxySafetyError("REDIRECT_BLOCKED", "redirect resolution failed", {
-    statusCode: 502,
-  });
+  throw new ProxySafetyError(
+    "REDIRECT_BLOCKED",
+    "redirect resolution failed",
+    {
+      statusCode: 502,
+    },
+  );
 };

@@ -7,6 +7,12 @@ const configPath = path.resolve(process.cwd(), "staticwebapp.config.json");
 const nginxConfigPaths = [
   path.resolve(process.cwd(), "docker", "nginx.conf"),
   path.resolve(process.cwd(), "deploy", "nginx", "xyzw-xq5007.conf"),
+  path.resolve(
+    process.cwd(),
+    "deploy",
+    "nginx",
+    "xyzw-container-frontend.conf",
+  ),
 ];
 
 const requiredAdminRoutes = new Set([

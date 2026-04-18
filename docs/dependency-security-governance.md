@@ -20,6 +20,8 @@
 2. `npm --prefix backend ci`
 3. `npm run security:sca`
 
+分支保护必须要求 `CI`、`Security SCA`、`CodeQL`、`Dependency Review` 全部通过。
+
 `security:sca` 包含：
 
 - `security:lockfiles`

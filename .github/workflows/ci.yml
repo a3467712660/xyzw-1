@@ -38,11 +38,8 @@ jobs:
       - name: Guard legacy exclusion
         run: npm run guard:legacy
 
-      - name: Enforce exact dependencies
-        run: npm run security:no-floating-deps
-
-      - name: Audit high-severity issues
-        run: npm audit --audit-level=high
+      - name: Run security SCA gate
+        run: npm run security:sca
 
       - name: Lint
         run: npm run lint

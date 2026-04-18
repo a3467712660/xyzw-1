@@ -8,6 +8,16 @@ TARGET_NGINX_CONF="/opt/homebrew/etc/nginx/servers/xyzw-xq5007.conf"
 NGINX_BIN="/opt/homebrew/bin/nginx"
 NGINX_PID_FILE="/opt/homebrew/var/run/nginx.pid"
 DIST_ROOT="$ROOT_DIR/dist"
+LOCAL_NODE22_BIN="$HOME/.local/opt/node22/bin"
+
+prefer_local_node22() {
+  if [[ -d "$LOCAL_NODE22_BIN" ]]; then
+    case ":$PATH:" in
+      *":$LOCAL_NODE22_BIN:"*) ;;
+      *) export PATH="$LOCAL_NODE22_BIN:$PATH" ;;
+    esac
+  fi
+}
 
 require_file() {
   local file="$1"
@@ -149,6 +159,7 @@ USAGE
 }
 
 main() {
+  prefer_local_node22
   ensure_nginx_installed
   resolve_build_metadata
 
