@@ -52,7 +52,7 @@
       </div>
 
       <n-card class="desktop-only desktop-table-card">
-        <div class="desktop-table-head">
+        <div class="desktop-table-card__header">
           <div class="desktop-table-meta">
             <span class="desktop-table-count">
               {{
@@ -1753,7 +1753,7 @@ onUnmounted(() => {
   border-radius: 16px;
 }
 
-.desktop-table-head {
+.desktop-table-card__header {
   display: flex;
   align-items: center;
   justify-content: space-between;

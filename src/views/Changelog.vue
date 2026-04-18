@@ -1,122 +1,151 @@
 <template>
-  <div class="changelog-page">
-    <div class="changelog-container">
-      <!-- 页面头部 -->
-      <div class="page-header">
-        <div class="back-row">
-          <button class="back-btn" type="button" @click="handleBack">
-            ← {{ t("notFound.actions.back") }}
-          </button>
-        </div>
-        <div class="header-content">
-          <h1 class="page-title">
-            <i class="icon-history">📜</i>
-            {{ t("changelog.title") }}
-          </h1>
-          <p class="page-description">{{ t("changelog.description") }}</p>
-          <div v-if="isAdmin" class="admin-actions">
-            <button
-              class="broadcast-btn"
-              type="button"
-              :disabled="isBroadcasting"
+  <div class="public-support-page changelog-page">
+    <div aria-hidden="true" class="public-support-page__backdrop"></div>
+
+    <div class="public-support-container">
+      <section class="public-support-panel changelog-page__hero">
+        <div class="changelog-page__hero-top">
+          <div class="changelog-page__hero-copy">
+            <span class="public-support-eyebrow">更新记录</span>
+            <h1 class="public-support-title">{{ t("changelog.title") }}</h1>
+            <p class="public-support-description">{{ t("changelog.description") }}</p>
+          </div>
+
+          <div class="public-support-actions changelog-page__hero-actions">
+            <n-button secondary @click="handleBack">
+              <template #icon>
+                <n-icon><ChevronBackOutline></ChevronBackOutline></n-icon>
+              </template>
+              {{ t("notFound.actions.back") }}
+            </n-button>
+            <n-button
+              v-if="isAdmin"
+              type="primary"
+              :loading="isBroadcasting"
               @click="notifyAllUsers"
             >
+              <template #icon>
+                <n-icon><MegaphoneOutline></MegaphoneOutline></n-icon>
+              </template>
               {{
                 isBroadcasting
                   ? t("changelog.actions.broadcasting")
                   : t("changelog.actions.broadcastAll")
               }}
-            </button>
+            </n-button>
           </div>
         </div>
 
-        <!-- 筛选器 -->
-        <div class="filter-section">
-          <div class="filter-group">
-            <label>{{ t("changelog.filters.versionType") }}</label>
-            <div class="filter-buttons">
-              <button
-                v-for="type in versionTypes"
-                :key="type.value"
-                class="filter-btn"
-                :class="[{ active: selectedType === type.value }]"
-                @click="selectedType = type.value"
-              >
-                {{ type.label }}
-              </button>
+        <div class="changelog-page__summary">
+          <article
+            v-for="item in summaryCards"
+            :key="item.label"
+            class="changelog-page__summary-card"
+          >
+            <div class="changelog-page__summary-icon">
+              <n-icon size="18">
+                <component :is="item.icon"></component>
+              </n-icon>
+            </div>
+            <div>
+              <span class="changelog-page__summary-label">{{ item.label }}</span>
+              <strong class="changelog-page__summary-value">{{ item.value }}</strong>
+            </div>
+          </article>
+        </div>
+
+        <div class="changelog-page__filter-wrap">
+          <label class="changelog-page__filter-label">
+            {{ t("changelog.filters.versionType") }}
+          </label>
+          <div class="changelog-page__filters" role="tablist">
+            <n-button
+              v-for="type in versionTypes"
+              :key="type.value"
+              class="changelog-page__filter-btn"
+              role="tab"
+              :secondary="selectedType !== type.value"
+              :type="selectedType === type.value ? 'primary' : 'default'"
+              @click="selectedType = type.value"
+            >
+              {{ type.label }}
+            </n-button>
+          </div>
+        </div>
+      </section>
+
+      <div class="changelog-page__layout">
+        <section class="public-support-surface changelog-page__list-panel">
+          <header class="changelog-page__list-head">
+            <div>
+              <h2>版本列表</h2>
+              <p>按类型筛选查看功能、新增、修复和重大变更。</p>
+            </div>
+            <span>{{ filteredChangelogs.length }} 条记录</span>
+          </header>
+
+          <transition-group class="changelog-page__list" name="changelog-fade" tag="div">
+            <ChangelogCard
+              v-for="entry in filteredChangelogs"
+              :key="entry.version"
+              :entry="entry"
+            ></ChangelogCard>
+          </transition-group>
+
+          <n-empty
+            v-if="filteredChangelogs.length === 0"
+            class="changelog-page__empty"
+            :description="t('changelog.empty')"
+          >
+            <template #icon>
+              <n-icon size="48">
+                <DocumentTextOutline></DocumentTextOutline>
+              </n-icon>
+            </template>
+            <template #extra>
+              <n-button type="primary" @click="selectedType = 'all'">
+                {{ t("changelog.actions.resetFilter") }}
+              </n-button>
+            </template>
+          </n-empty>
+        </section>
+
+        <aside class="public-support-surface changelog-page__subscribe">
+          <div class="changelog-page__subscribe-head">
+            <span class="public-support-eyebrow">订阅更新</span>
+            <h2>{{ t("changelog.subscribe.title") }}</h2>
+            <p>{{ t("changelog.subscribe.description") }}</p>
+          </div>
+
+          <div class="public-support-meta-grid">
+            <div class="public-support-meta-card">
+              <span>订阅状态</span>
+              <strong>{{ isSubscribed ? "已订阅" : "未订阅" }}</strong>
+            </div>
+            <div class="public-support-meta-card">
+              <span>最新版本</span>
+              <strong>{{ latestVersionLabel }}</strong>
             </div>
           </div>
-        </div>
-      </div>
 
-      <!-- 统计信息 -->
-      <div class="stats-grid">
-        <div class="stat-card">
-          <div class="stat-icon">🚀</div>
-          <div class="stat-content">
-            <div class="stat-value">{{ stats.totalVersions }}</div>
-            <div class="stat-label">{{ t("changelog.stats.totalVersions") }}</div>
+          <div class="public-support-note">
+            <strong>说明：</strong>
+            订阅状态仅保存在当前浏览器，用于提醒你关注新的版本变更。
           </div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon">✨</div>
-          <div class="stat-content">
-            <div class="stat-value">{{ stats.totalFeatures }}</div>
-            <div class="stat-label">{{ t("changelog.stats.totalFeatures") }}</div>
-          </div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon">🐛</div>
-          <div class="stat-content">
-            <div class="stat-value">{{ stats.totalFixes }}</div>
-            <div class="stat-label">{{ t("changelog.stats.totalFixes") }}</div>
-          </div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon">⬆️</div>
-          <div class="stat-content">
-            <div class="stat-value">{{ stats.totalImprovements }}</div>
-            <div class="stat-label">{{ t("changelog.stats.totalImprovements") }}</div>
-          </div>
-        </div>
-      </div>
 
-      <!-- 更新日志列表 -->
-      <div class="changelog-list">
-        <transition-group name="changelog-fade">
-          <ChangelogCard
-            v-for="entry in filteredChangelogs"
-            :key="entry.version"
-            :entry="entry"
-          ></ChangelogCard>
-        </transition-group>
-
-        <!-- 空状态 -->
-        <div v-if="filteredChangelogs.length === 0" class="empty-state">
-          <div class="empty-icon">📭</div>
-          <p class="empty-text">{{ t("changelog.empty") }}</p>
-          <button class="reset-filter-btn" @click="selectedType = 'all'">
-            {{ t("changelog.actions.resetFilter") }}
-          </button>
-        </div>
-      </div>
-
-      <!-- 订阅更新 -->
-      <div class="subscribe-section">
-        <div class="subscribe-card">
-          <div class="subscribe-icon">🔔</div>
-        <div class="subscribe-content">
-            <h3 class="subscribe-title">{{ t("changelog.subscribe.title") }}</h3>
-            <p class="subscribe-desc">{{ t("changelog.subscribe.description") }}</p>
+          <div class="public-support-actions">
+            <n-button type="primary" @click="handleSubscribe">
+              <template #icon>
+                <n-icon><NotificationsOutline></NotificationsOutline></n-icon>
+              </template>
+              {{
+                isSubscribed
+                  ? t("changelog.actions.subscribed")
+                  : t("changelog.actions.subscribe")
+              }}
+            </n-button>
           </div>
-          <button class="subscribe-btn" @click="handleSubscribe">
-            {{
-              isSubscribed
-                ? t("changelog.actions.subscribed")
-                : t("changelog.actions.subscribe")
-            }}
-          </button>
-        </div>
+        </aside>
       </div>
     </div>
   </div>
@@ -127,6 +156,16 @@ import { computed, onMounted, ref } from "vue";
 import { useMessage } from "naive-ui/es";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
+import {
+  BugOutline,
+  CalendarOutline,
+  ChevronBackOutline,
+  DocumentTextOutline,
+  MegaphoneOutline,
+  NotificationsOutline,
+  SparklesOutline,
+  TrendingUpOutline,
+} from "@vicons/ionicons5";
 import ChangelogCard from "@/components/ChangelogCard.vue";
 import { useChangelogStore } from "@/stores/changelogStore";
 import { useAuthStore } from "@/stores/auth";
@@ -175,6 +214,33 @@ const stats = computed(() => ({
     0,
   ),
 }));
+
+const latestVersionLabel = computed(
+  () => changelogStore.latestVersion?.version || "暂无版本",
+);
+
+const summaryCards = computed(() => [
+  {
+    label: t("changelog.stats.totalVersions"),
+    value: stats.value.totalVersions,
+    icon: CalendarOutline,
+  },
+  {
+    label: t("changelog.stats.totalFeatures"),
+    value: stats.value.totalFeatures,
+    icon: SparklesOutline,
+  },
+  {
+    label: t("changelog.stats.totalFixes"),
+    value: stats.value.totalFixes,
+    icon: BugOutline,
+  },
+  {
+    label: t("changelog.stats.totalImprovements"),
+    value: stats.value.totalImprovements,
+    icon: TrendingUpOutline,
+  },
+]);
 
 const handleSubscribe = () => {
   isSubscribed.value = !isSubscribed.value;
@@ -240,358 +306,197 @@ onMounted(() => {
 </script>
 
 <style scoped lang="scss">
-.changelog-page {
-  min-height: 100dvh;
-  background: transparent;
-  padding: 24px var(--spacing-md);
-  padding-bottom: calc(var(--spacing-md) + env(safe-area-inset-bottom));
-  animation: changelog-fade-in 0.4s ease;
+.changelog-page__hero {
+  gap: 22px;
 }
 
-.changelog-container {
-  max-width: 980px;
-  margin: 0 auto;
+.changelog-page__hero-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
 }
 
-/* 页面头部 */
-.page-header {
-  margin-bottom: var(--spacing-xl);
-  background: var(--surface-glass);
+.changelog-page__hero-copy {
+  display: grid;
+  gap: 10px;
+}
+
+.changelog-page__hero-actions {
+  justify-content: flex-end;
+}
+
+.changelog-page__summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.changelog-page__summary-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+  align-items: center;
+  padding: 16px;
+  border-radius: 18px;
   border: 1px solid var(--surface-glass-border);
-  border-radius: var(--border-radius-xl);
-  box-shadow: var(--shadow-light);
-  backdrop-filter: blur(10px);
-  padding: var(--spacing-lg);
+  background: var(--console-panel);
 }
 
-[data-theme="dark"] .page-header {
-  background: rgba(18, 32, 58, 0.72);
-}
-
-.back-row {
-  margin-bottom: var(--spacing-sm);
-}
-
-.back-btn {
-  min-height: 40px;
-  padding: 8px 14px;
-  border-radius: var(--border-radius-medium);
-  border: 1px solid var(--border-light);
-  background: var(--bg-elevated);
-  color: var(--text-primary);
-  cursor: pointer;
-  font-size: var(--font-size-sm);
-  transition: all var(--transition-fast);
-}
-
-.back-btn:hover {
-  border-color: var(--primary-color);
+.changelog-page__summary-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+  background: rgba(15, 107, 255, 0.1);
   color: var(--primary-color);
 }
 
-.header-content {
-  text-align: center;
-  margin-bottom: var(--spacing-lg);
-}
-
-.admin-actions {
-  margin-top: var(--spacing-md);
-}
-
-.broadcast-btn {
-  min-height: 44px;
-  padding: 10px 22px;
-  border: none;
-  border-radius: var(--border-radius-medium);
-  background: linear-gradient(135deg, #0a9153, #2bb673);
-  color: #fff;
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-semibold);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-
-.broadcast-btn:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 10px 18px rgba(10, 145, 83, 0.28);
-}
-
-.broadcast-btn:disabled {
-  opacity: 0.72;
-  cursor: not-allowed;
-}
-
-.page-title {
-  font-size: var(--font-size-3xl);
-  font-weight: var(--font-weight-bold);
-  color: var(--text-primary);
-  margin: 0 0 var(--spacing-sm) 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--spacing-sm);
-}
-
-.icon-history {
-  font-size: 32px;
-}
-
-.page-description {
-  font-size: var(--font-size-md);
-  color: var(--text-secondary);
-  margin: 0;
-}
-
-/* 筛选器 */
-.filter-section {
-  background: var(--surface-glass-strong);
-  border-radius: var(--border-radius-large);
-  padding: var(--spacing-md);
-  border: 1px solid var(--surface-glass-border);
-}
-
-.filter-group label {
+.changelog-page__summary-label {
   display: block;
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-semibold);
-  color: var(--text-primary);
-  margin-bottom: var(--spacing-sm);
+  color: var(--text-secondary);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-family: var(--font-family-mono);
 }
 
-.filter-buttons {
+.changelog-page__summary-value {
+  display: block;
+  margin-top: 6px;
+  color: var(--text-primary);
+  font-size: clamp(24px, 2.4vw, 32px);
+  line-height: 1;
+  font-weight: 800;
+}
+
+.changelog-page__filter-wrap {
+  display: grid;
+  gap: 10px;
+}
+
+.changelog-page__filter-label {
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.changelog-page__filters {
   display: flex;
-  gap: var(--spacing-xs);
+  gap: 10px;
   flex-wrap: wrap;
 }
 
-.filter-btn {
-  min-height: 44px;
-  padding: 10px 14px;
-  border: 1px solid var(--border-light);
-  background: var(--bg-elevated);
-  color: var(--text-secondary);
-  border-radius: var(--border-radius-medium);
-  cursor: pointer;
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-medium);
-  transition: all var(--transition-fast);
-}
-
-.filter-btn:hover {
-  background: var(--bg-tertiary);
-  border-color: var(--primary-color);
-}
-
-.filter-btn.active {
-  background: var(--primary-color);
-  color: white;
-  border-color: var(--primary-color);
-  box-shadow: 0 8px 18px rgba(15, 107, 255, 0.28);
-}
-
-/* 统计卡片 */
-.stats-grid {
+.changelog-page__layout {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: var(--spacing-md);
-  margin-bottom: var(--spacing-lg);
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 320px);
+  gap: 16px;
+  align-items: start;
 }
 
-.stat-card {
-  background: var(--surface-glass-strong);
+.changelog-page__list-panel,
+.changelog-page__subscribe {
+  padding: 22px;
+  border-radius: 28px;
   border: 1px solid var(--surface-glass-border);
-  border-radius: var(--border-radius-large);
-  padding: var(--spacing-lg);
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-md);
-  box-shadow: var(--shadow-light);
-  transition: all var(--transition-normal);
-}
-
-.stat-card:hover {
-  transform: translateY(-3px);
-  box-shadow: var(--shadow-medium);
-  border-color: rgba(15, 107, 255, 0.24);
-}
-
-.stat-icon {
-  font-size: 28px;
-}
-
-.stat-content {
-  flex: 1;
-}
-
-.stat-value {
-  font-size: var(--font-size-2xl);
-  font-weight: var(--font-weight-bold);
-  color: var(--text-primary);
-  margin-bottom: 2px;
-}
-
-.stat-label {
-  font-size: var(--font-size-xs);
-  color: var(--text-secondary);
-}
-
-/* 更新日志列表 */
-.changelog-list {
-  margin-bottom: var(--spacing-xl);
-}
-
-/* 空状态 */
-.empty-state {
-  text-align: center;
-  padding: 52px var(--spacing-lg);
-  background: var(--surface-glass-strong);
-  border: 1px solid var(--surface-glass-border);
-  border-radius: var(--border-radius-large);
-  box-shadow: var(--shadow-light);
-}
-
-.empty-icon {
-  font-size: 56px;
-  margin-bottom: var(--spacing-sm);
-}
-
-.empty-text {
-  color: var(--text-secondary);
-  font-size: var(--font-size-md);
-  margin: 0 0 var(--spacing-md) 0;
-}
-
-.reset-filter-btn {
-  min-height: 44px;
-  padding: 10px 20px;
-  background: var(--primary-color);
-  color: white;
-  border: none;
-  border-radius: var(--border-radius-medium);
-  font-size: var(--font-size-sm);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-
-.reset-filter-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 10px 18px rgba(15, 107, 255, 0.28);
-}
-
-/* 订阅部分 */
-.subscribe-section {
-  margin-top: var(--spacing-xl);
-}
-
-.subscribe-card {
   background:
-    radial-gradient(
-      circle at 84% 24%,
-      rgba(255, 255, 255, 0.24),
-      transparent 40%
-    ),
-    linear-gradient(
-      135deg,
-      var(--primary-color) 0%,
-      var(--secondary-color) 100%
-    );
-  border-radius: var(--border-radius-large);
-  padding: 32px;
+    linear-gradient(135deg, rgba(15, 107, 255, 0.08), transparent 76%),
+    var(--surface-glass-strong);
+  box-shadow: var(--shadow-light);
+}
+
+.changelog-page__list-head {
   display: flex;
-  align-items: center;
-  gap: 20px;
-  box-shadow: var(--shadow-medium);
-  border: 1px solid rgba(255, 255, 255, 0.24);
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--console-divider);
 }
 
-.subscribe-icon {
-  font-size: 48px;
-}
-
-.subscribe-content {
-  flex: 1;
-}
-
-.subscribe-title {
-  font-size: var(--font-size-xl);
-  font-weight: var(--font-weight-bold);
-  color: white;
-  margin: 0 0 8px 0;
-}
-
-.subscribe-desc {
-  font-size: 14px;
-  color: rgba(255, 255, 255, 0.9);
+.changelog-page__list-head h2,
+.changelog-page__subscribe-head h2 {
   margin: 0;
+  color: var(--text-primary);
 }
 
-.subscribe-btn {
-  min-height: 44px;
-  padding: 12px 32px;
-  background: white;
-  color: var(--primary-color);
-  border: none;
-  border-radius: var(--border-radius-medium);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-semibold);
-  cursor: pointer;
-  transition: all var(--transition-fast);
+.changelog-page__list-head p,
+.changelog-page__subscribe-head p {
+  margin: 6px 0 0;
+  color: var(--text-secondary);
+  line-height: 1.6;
 }
 
-.subscribe-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+.changelog-page__list-head span {
+  color: var(--text-secondary);
+  font-size: 13px;
 }
 
-/* 过渡动画 */
+.changelog-page__list {
+  display: grid;
+  gap: 14px;
+}
+
+.changelog-page__empty {
+  padding: 28px 0 8px;
+}
+
+.changelog-page__subscribe {
+  display: grid;
+  gap: 18px;
+}
+
+.changelog-page__subscribe-head {
+  display: grid;
+  gap: 8px;
+}
+
 .changelog-fade-enter-active,
 .changelog-fade-leave-active {
-  transition: all var(--transition-normal);
+  transition:
+    opacity 0.24s ease,
+    transform 0.24s ease;
 }
 
-.changelog-fade-enter-from {
-  opacity: 0;
-  transform: translateY(20px);
-}
-
+.changelog-fade-enter-from,
 .changelog-fade-leave-to {
   opacity: 0;
-  transform: translateY(-20px);
+  transform: translateY(10px);
 }
 
-@keyframes changelog-fade-in {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
+@media (max-width: 960px) {
+  .changelog-page__layout {
+    grid-template-columns: 1fr;
   }
 }
 
-/* 响应式设计 */
 @media (max-width: 768px) {
-  .changelog-page {
-    padding: var(--spacing-md);
-  }
-
-  .page-title {
-    font-size: var(--font-size-2xl);
-  }
-
-  .stats-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .subscribe-card {
+  .changelog-page__hero-top,
+  .changelog-page__list-head {
     flex-direction: column;
-    text-align: center;
-    padding: var(--spacing-lg);
+    align-items: stretch;
   }
 
-  .filter-buttons {
-    justify-content: center;
+  .changelog-page__hero-actions {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 640px) {
+  .changelog-page__list-panel,
+  .changelog-page__subscribe {
+    padding: 18px;
+    border-radius: 22px;
+  }
+
+  .changelog-page__summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .changelog-page__filters :deep(.n-button) {
+    flex: 1 1 calc(50% - 10px);
   }
 }
 </style>

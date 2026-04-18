@@ -1,85 +1,66 @@
 <template>
-  <div class="changelog-card">
-    <div class="changelog-header">
-      <div class="version-badge" :class="`badge-${entry.type}`">
-        {{ entry.version }}
-      </div>
-      <div class="changelog-meta">
-        <span class="release-date">{{ formatDate(entry.date) }}</span>
-        <span class="type-tag" :class="`tag-${entry.type}`">
-          {{ getTypeLabel(entry.type) }}
+  <article class="changelog-card">
+    <header class="changelog-card__header">
+      <div class="changelog-card__version">
+        <span class="changelog-card__badge" :class="`changelog-card__badge--${entry.type}`">
+          {{ entry.version }}
         </span>
-      </div>
-    </div>
-
-    <div class="changelog-content">
-      <div v-if="entry.title" class="changelog-title">{{ entry.title }}</div>
-
-      <div
-        v-if="entry.features && entry.features.length"
-        class="change-section"
-      >
-        <h4 class="section-title">
-          <i class="icon-sparkles">✨</i>
-          新功能
-        </h4>
-        <ul class="change-list">
-          <li v-for="(item, idx) in entry.features" :key="`feature-${idx}`">
-            {{ item }}
-          </li>
-        </ul>
+        <div class="changelog-card__meta">
+          <div class="changelog-card__date">
+            <n-icon size="15">
+              <TimeOutline></TimeOutline>
+            </n-icon>
+            <span>{{ formatDate(entry.date) }}</span>
+          </div>
+          <span class="changelog-card__type" :class="`changelog-card__type--${entry.type}`">
+            {{ getTypeLabel(entry.type) }}
+          </span>
+        </div>
       </div>
 
-      <div
-        v-if="entry.improvements && entry.improvements.length"
-        class="change-section"
+      <div v-if="entry.title" class="changelog-card__headline">
+        <h3>{{ entry.title }}</h3>
+      </div>
+    </header>
+
+    <div class="changelog-card__content">
+      <section
+        v-for="section in sections"
+        :key="section.key"
+        class="changelog-card__section"
+        :class="{ 'changelog-card__section--breaking': section.key === 'breaking' }"
       >
-        <h4 class="section-title">
-          <i class="icon-arrow-up">⬆️</i>
-          改进优化
-        </h4>
-        <ul class="change-list">
+        <div class="changelog-card__section-title">
+          <n-icon size="17">
+            <component :is="section.icon"></component>
+          </n-icon>
+          <span>{{ section.label }}</span>
+        </div>
+
+        <ul class="changelog-card__list">
           <li
-            v-for="(item, idx) in entry.improvements"
-            :key="`improvement-${idx}`"
+            v-for="(item, idx) in section.items"
+            :key="`${section.key}-${idx}`"
           >
             {{ item }}
           </li>
         </ul>
-      </div>
-
-      <div v-if="entry.fixes && entry.fixes.length" class="change-section">
-        <h4 class="section-title">
-          <i class="icon-bug">🐛</i>
-          修复问题
-        </h4>
-        <ul class="change-list">
-          <li v-for="(item, idx) in entry.fixes" :key="`fix-${idx}`">
-            {{ item }}
-          </li>
-        </ul>
-      </div>
-
-      <div
-        v-if="entry.breaking && entry.breaking.length"
-        class="change-section breaking"
-      >
-        <h4 class="section-title">
-          <i class="icon-warning">⚠️</i>
-          重大变更
-        </h4>
-        <ul class="change-list">
-          <li v-for="(item, idx) in entry.breaking" :key="`breaking-${idx}`">
-            {{ item }}
-          </li>
-        </ul>
-      </div>
+      </section>
     </div>
-  </div>
+  </article>
 </template>
 
 <script setup>
-defineProps({
+import { computed } from "vue";
+import {
+  AlertCircleOutline,
+  BugOutline,
+  SparklesOutline,
+  TimeOutline,
+  TrendingUpOutline,
+} from "@vicons/ionicons5";
+
+const props = defineProps({
   entry: {
     type: Object,
     required: true,
@@ -87,6 +68,36 @@ defineProps({
       return value.version && value.date && value.type;
     },
   },
+});
+
+const sections = computed(() => {
+  const entry = props.entry || {};
+  return [
+    {
+      key: "features",
+      label: "新功能",
+      icon: SparklesOutline,
+      items: Array.isArray(entry.features) ? entry.features : [],
+    },
+    {
+      key: "improvements",
+      label: "改进优化",
+      icon: TrendingUpOutline,
+      items: Array.isArray(entry.improvements) ? entry.improvements : [],
+    },
+    {
+      key: "fixes",
+      label: "修复问题",
+      icon: BugOutline,
+      items: Array.isArray(entry.fixes) ? entry.fixes : [],
+    },
+    {
+      key: "breaking",
+      label: "重大变更",
+      icon: AlertCircleOutline,
+      items: Array.isArray(entry.breaking) ? entry.breaking : [],
+    },
+  ].filter((section) => section.items.length);
 });
 
 const formatDate = (dateString) => {
@@ -141,179 +152,168 @@ const getTypeLabel = (type) => {
 };
 </script>
 
-<style scoped>
+<style scoped lang="scss">
 .changelog-card {
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-light);
-  border-radius: var(--border-radius-large);
-  padding: var(--spacing-lg);
-  margin-bottom: var(--spacing-md);
+  display: grid;
+  gap: 18px;
+  padding: 22px;
+  border-radius: 24px;
+  border: 1px solid var(--surface-glass-border);
+  background:
+    linear-gradient(135deg, rgba(15, 107, 255, 0.08), transparent 78%),
+    var(--surface-glass-strong);
   box-shadow: var(--shadow-light);
-  transition: all var(--transition-normal);
 }
 
-.changelog-card:hover {
-  box-shadow: var(--shadow-medium);
-  transform: translateY(-3px);
-  border-color: rgba(15, 107, 255, 0.24);
+.changelog-card__header {
+  display: grid;
+  gap: 14px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--console-divider);
 }
 
-.changelog-header {
+.changelog-card__version {
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: var(--spacing-md);
-  padding-bottom: var(--spacing-md);
-  border-bottom: 1px solid var(--border-light);
-}
-
-.version-badge {
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-bold);
-  padding: 8px 16px;
-  border-radius: var(--border-radius-medium);
-  background: linear-gradient(
-    135deg,
-    var(--primary-color) 0%,
-    var(--secondary-color) 100%
-  );
-  color: white;
-  box-shadow: 0 8px 18px rgba(15, 107, 255, 0.25);
-}
-
-.version-badge.badge-major {
-  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-}
-
-.version-badge.badge-minor {
-  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-}
-
-.version-badge.badge-patch {
-  background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
-}
-
-.version-badge.badge-hotfix {
-  background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
-}
-
-.changelog-meta {
-  display: flex;
   gap: 12px;
+  flex-wrap: wrap;
+}
+
+.changelog-card__badge {
+  display: inline-flex;
   align-items: center;
-}
-
-.release-date {
-  color: var(--text-secondary);
-  font-size: var(--font-size-sm);
-}
-
-.type-tag {
-  padding: 4px 12px;
-  border-radius: var(--border-radius-full);
-  font-size: 12px;
-  font-weight: var(--font-weight-semibold);
-}
-
-.type-tag.tag-major {
-  background: rgba(245, 87, 108, 0.1);
-  color: #f5576c;
-}
-
-.type-tag.tag-minor {
-  background: rgba(79, 172, 254, 0.1);
-  color: #4facfe;
-}
-
-.type-tag.tag-patch {
-  background: rgba(67, 233, 123, 0.1);
-  color: #43e97b;
-}
-
-.type-tag.tag-hotfix {
-  background: rgba(250, 112, 154, 0.1);
-  color: #fa709a;
-}
-
-.changelog-content {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-sm);
-}
-
-.changelog-title {
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-semibold);
-  color: var(--text-primary);
-  margin-bottom: 8px;
-}
-
-.change-section {
-  padding: 12px;
-  border-radius: var(--border-radius-medium);
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-light);
-}
-
-.change-section.breaking {
-  background: rgba(245, 87, 108, 0.05);
-  border-left: 4px solid #f5576c;
-}
-
-.section-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-semibold);
-  color: var(--text-primary);
-  margin: 0 0 12px 0;
-}
-
-.change-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.change-list li {
-  padding-left: 24px;
-  position: relative;
-  color: var(--text-secondary);
-  line-height: 1.6;
-  font-size: var(--font-size-sm);
-}
-
-.change-list li::before {
-  content: "•";
-  position: absolute;
-  left: 8px;
+  justify-content: center;
+  min-height: 36px;
+  padding: 0 16px;
+  border-radius: 999px;
+  background: rgba(15, 107, 255, 0.12);
+  border: 1px solid rgba(15, 107, 255, 0.18);
   color: var(--primary-color);
-  font-weight: bold;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
 }
 
-/* 响应式设计 */
-@media (max-width: 768px) {
+.changelog-card__badge--major,
+.changelog-card__type--major {
+  background: rgba(220, 38, 38, 0.1);
+  border-color: rgba(220, 38, 38, 0.18);
+  color: #b91c1c;
+}
+
+.changelog-card__badge--minor,
+.changelog-card__type--minor {
+  background: rgba(15, 107, 255, 0.12);
+  border-color: rgba(15, 107, 255, 0.18);
+  color: var(--primary-color);
+}
+
+.changelog-card__badge--patch,
+.changelog-card__type--patch {
+  background: rgba(22, 163, 74, 0.12);
+  border-color: rgba(22, 163, 74, 0.2);
+  color: #166534;
+}
+
+.changelog-card__badge--hotfix,
+.changelog-card__type--hotfix {
+  background: rgba(249, 115, 22, 0.12);
+  border-color: rgba(249, 115, 22, 0.18);
+  color: #b45309;
+}
+
+.changelog-card__meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.changelog-card__date,
+.changelog-card__type {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: var(--console-panel);
+  border: 1px solid var(--surface-glass-border);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.changelog-card__headline h3 {
+  margin: 0;
+  font-size: 24px;
+  line-height: 1.3;
+  color: var(--text-primary);
+}
+
+.changelog-card__content {
+  display: grid;
+  gap: 12px;
+}
+
+.changelog-card__section {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 18px;
+  background: var(--console-panel);
+  border: 1px solid var(--surface-glass-border);
+}
+
+.changelog-card__section--breaking {
+  background: rgba(220, 38, 38, 0.05);
+  border-color: rgba(220, 38, 38, 0.14);
+}
+
+.changelog-card__section-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.changelog-card__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+
+.changelog-card__list li {
+  position: relative;
+  padding-left: 18px;
+  color: var(--text-secondary);
+  line-height: 1.65;
+}
+
+.changelog-card__list li::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 10px;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--primary-color);
+}
+
+@media (max-width: 640px) {
   .changelog-card {
-    padding: var(--spacing-md);
+    padding: 18px;
+    border-radius: 20px;
   }
 
-  .changelog-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
-  }
-
-  .version-badge {
-    font-size: 16px;
-    padding: 6px 12px;
-  }
-
-  .changelog-title {
-    font-size: 16px;
+  .changelog-card__headline h3 {
+    font-size: 20px;
   }
 }
 </style>

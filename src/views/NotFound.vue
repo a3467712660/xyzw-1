@@ -1,121 +1,116 @@
 <template>
-  <div class="not-found-page">
-    <div class="container">
-      <div class="error-content">
-        <div class="error-visual">
-          <div class="error-number">404</div>
-          <div class="error-icon">
-            <n-icon size="120">
-              <Search></Search>
-            </n-icon>
+  <div class="public-support-page not-found-page">
+    <div aria-hidden="true" class="public-support-page__backdrop"></div>
+
+    <div class="public-support-container public-support-container--narrow">
+      <div class="public-support-shell public-support-shell--single">
+        <section class="public-support-panel not-found-page__panel">
+          <div class="not-found-page__visual">
+            <div class="not-found-page__code">404</div>
+            <div class="not-found-page__icon">
+              <n-icon size="56">
+                <Search></Search>
+              </n-icon>
+            </div>
           </div>
-        </div>
 
-        <div class="error-text">
-          <h1>{{ t("notFound.title") }}</h1>
-          <p>{{ t("notFound.description") }}</p>
-        </div>
+          <span class="public-support-eyebrow">页面未找到</span>
+          <h1 class="public-support-title">{{ t("notFound.title") }}</h1>
+          <p class="public-support-description">{{ t("notFound.description") }}</p>
 
-        <div class="error-actions">
-          <n-button size="large" type="primary" @click="router.push('/')">
-            {{ t("notFound.actions.home") }}
-          </n-button>
-          <n-button size="large" @click="router.back()">
-            {{ t("notFound.actions.back") }}
-          </n-button>
-        </div>
+          <div class="public-support-meta-grid">
+            <div class="public-support-meta-card">
+              <span>请求路径</span>
+              <strong>{{ currentPath }}</strong>
+            </div>
+            <div class="public-support-meta-card">
+              <span>建议处理</span>
+              <strong>返回上一页或首页</strong>
+            </div>
+          </div>
+
+          <div class="public-support-note">
+            <strong>可能原因：</strong>
+            链接已失效、路径输入错误，或目标页面已经迁移。
+          </div>
+
+          <div class="public-support-actions not-found-page__actions">
+            <n-button size="large" type="primary" @click="router.push('/')">
+              {{ t("notFound.actions.home") }}
+            </n-button>
+            <n-button size="large" @click="handleBack">
+              {{ t("notFound.actions.back") }}
+            </n-button>
+          </div>
+        </section>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { useRouter } from "vue-router";
+import { computed } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { Search } from "@vicons/ionicons5";
 
+const route = useRoute();
 const router = useRouter();
 const { t } = useI18n();
+
+const currentPath = computed(() => String(route.fullPath || "/"));
+
+const handleBack = () => {
+  if (window.history.length > 1) {
+    router.back();
+    return;
+  }
+  router.push("/");
+};
 </script>
 
 <style scoped lang="scss">
-.not-found-page {
-  min-height: 100vh;
-  background:
-    radial-gradient(
-      circle at 14% 16%,
-      rgba(15, 107, 255, 0.28),
-      transparent 34%
-    ),
-    radial-gradient(circle at 86% 82%, rgba(0, 163, 137, 0.3), transparent 36%),
-    linear-gradient(135deg, #0f4fc2 0%, #0f6bff 52%, #00a389 100%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--spacing-lg);
-}
-
-/* 深色主题下背景 */
-[data-theme="dark"] .not-found-page {
-  background: linear-gradient(135deg, #0f172a 0%, #1f2937 100%);
-}
-
-.error-content {
+.not-found-page__panel {
   text-align: center;
-  color: white;
-  max-width: 600px;
+  justify-items: center;
 }
 
-.error-visual {
+.not-found-page__visual {
   position: relative;
-  margin-bottom: var(--spacing-xl);
+  display: grid;
+  place-items: center;
+  width: 100%;
 }
 
-.error-number {
-  font-size: 12rem;
-  font-weight: var(--font-weight-bold);
-  opacity: 0.1;
-  line-height: 1;
+.not-found-page__code {
+  font-size: clamp(96px, 16vw, 160px);
+  font-weight: 800;
+  line-height: 0.9;
+  color: rgba(15, 107, 255, 0.12);
+  letter-spacing: -0.06em;
 }
 
-.error-icon {
+.not-found-page__icon {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  opacity: 0.6;
+  display: grid;
+  place-items: center;
+  width: 88px;
+  height: 88px;
+  border-radius: 24px;
+  background: var(--console-panel);
+  border: 1px solid var(--surface-glass-border);
+  color: var(--primary-color);
+  box-shadow: var(--shadow-light);
 }
 
-.error-text {
-  margin-bottom: var(--spacing-2xl);
-
-  h1 {
-    font-size: var(--font-size-3xl);
-    font-weight: var(--font-weight-bold);
-    margin-bottom: var(--spacing-md);
-  }
-
-  p {
-    font-size: var(--font-size-lg);
-    opacity: 0.9;
-    margin: 0;
-  }
-}
-
-.error-actions {
-  display: flex;
-  gap: var(--spacing-md);
+.not-found-page__actions {
   justify-content: center;
 }
 
 @media (max-width: 640px) {
-  .error-number {
-    font-size: 8rem;
-  }
-
-  .error-actions {
+  .not-found-page__actions {
     flex-direction: column;
-    align-items: center;
+    align-items: stretch;
   }
 }
 </style>

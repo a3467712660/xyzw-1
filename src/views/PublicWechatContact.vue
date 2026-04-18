@@ -1,46 +1,95 @@
 <template>
-  <div class="wechat-contact-page">
-    <div aria-hidden="true" class="wechat-contact-page__bg"></div>
+  <div class="public-support-page wechat-contact-page">
+    <div aria-hidden="true" class="public-support-page__backdrop"></div>
 
-    <div class="container wechat-contact-page__container">
-      <button class="wechat-contact-page__back" type="button" @click="router.push('/pricing')">
+    <div class="public-support-container public-support-container--narrow">
+      <button class="public-support-back" type="button" @click="router.push('/pricing')">
         返回价格菜单
       </button>
 
       <n-spin :show="loading">
-        <section v-if="status === 'ready' && contact" class="wechat-contact-card">
-          <span class="wechat-contact-card__eyebrow">微信联系</span>
-          <h1>{{ contact.title }}</h1>
-          <p v-if="contact.subtitle" class="wechat-contact-card__subtitle">{{ contact.subtitle }}</p>
+        <section
+          v-if="status === 'ready' && contact"
+          class="public-support-panel wechat-contact-page__panel"
+        >
+          <div class="wechat-contact-page__head">
+            <div>
+              <span class="public-support-eyebrow">微信联系</span>
+              <h1 class="public-support-title">{{ contact.title }}</h1>
+              <p
+                v-if="contact.subtitle"
+                class="public-support-description"
+              >
+                {{ contact.subtitle }}
+              </p>
+            </div>
+
+            <div class="wechat-contact-page__chips">
+              <span class="support-chip">{{ contactTypeLabel }}</span>
+              <span v-if="targetHostname" class="support-chip support-chip--accent">
+                {{ targetHostname }}
+              </span>
+            </div>
+          </div>
 
           <template v-if="contact.contactType === 'landing_qr'">
-            <div class="wechat-contact-card__qr-shell">
-              <img alt="微信二维码" :src="contact.qrImageDataUrl">
-            </div>
-            <div class="wechat-contact-card__info">
-              <div class="info-row">
-                <span>微信号</span>
-                <strong>{{ contact.wechatId || "未提供" }}</strong>
+            <div class="wechat-contact-page__ready-grid">
+              <div class="wechat-contact-page__qr-shell">
+                <img
+                  :alt="`${contact.title || '微信联系'} 二维码`"
+                  :src="contact.qrImageDataUrl"
+                >
               </div>
-            </div>
-            <div class="wechat-contact-card__actions">
-              <n-button
-                type="primary"
-                :disabled="!contact.wechatId"
-                @click="copyWechatId"
-              >
-                复制微信号
-              </n-button>
-              <n-button @click="router.push('/pricing')">返回价格菜单</n-button>
+
+              <div class="wechat-contact-page__info">
+                <div class="public-support-meta-grid">
+                  <div class="public-support-meta-card">
+                    <span>联系类型</span>
+                    <strong>{{ contactTypeLabel }}</strong>
+                  </div>
+                  <div class="public-support-meta-card">
+                    <span>微信号</span>
+                    <strong>{{ contact.wechatId || "未提供" }}</strong>
+                  </div>
+                </div>
+
+                <div class="public-support-note">
+                  <strong>使用方式：</strong>
+                  保存二维码或复制微信号后，在微信中搜索并联系对应入口。
+                </div>
+
+                <div class="public-support-actions">
+                  <n-button
+                    type="primary"
+                    :disabled="!contact.wechatId"
+                    @click="copyWechatId"
+                  >
+                    复制微信号
+                  </n-button>
+                  <n-button @click="router.push('/pricing')">返回价格菜单</n-button>
+                </div>
+              </div>
             </div>
           </template>
 
           <template v-else-if="contact.contactType === 'external_url'">
-            <div class="wechat-contact-card__redirect">
-              <strong>即将离开本站</strong>
-              <p>目标站点：{{ targetHostname || "链接解析失败" }}</p>
+            <div class="public-support-note">
+              <strong>即将离开本站：</strong>
+              目标站点为 {{ targetHostname || "链接解析失败" }}。请确认这是你期望打开的联系入口。
             </div>
-            <div class="wechat-contact-card__actions">
+
+            <div class="public-support-meta-grid">
+              <div class="public-support-meta-card">
+                <span>链接类型</span>
+                <strong>{{ contactTypeLabel }}</strong>
+              </div>
+              <div class="public-support-meta-card">
+                <span>目标站点</span>
+                <strong>{{ targetHostname || "无效链接" }}</strong>
+              </div>
+            </div>
+
+            <div class="public-support-actions">
               <n-button
                 type="primary"
                 :disabled="!safeTargetUrl"
@@ -53,31 +102,66 @@
           </template>
 
           <template v-else>
-            <div class="wechat-contact-card__redirect">
-              <strong>正在跳转到联系入口...</strong>
-              <p>如果没有自动跳转，请点击下方按钮继续。</p>
+            <div class="public-support-note">
+              <strong>正在跳转：</strong>
+              当前入口会直接跳转到企业微信客服。如果没有自动打开，请使用下方按钮继续。
             </div>
-            <div class="wechat-contact-card__actions">
+
+            <div class="public-support-meta-grid">
+              <div class="public-support-meta-card">
+                <span>联系类型</span>
+                <strong>{{ contactTypeLabel }}</strong>
+              </div>
+              <div class="public-support-meta-card">
+                <span>目标站点</span>
+                <strong>{{ targetHostname || "企业微信客服" }}</strong>
+              </div>
+            </div>
+
+            <div class="public-support-actions">
               <n-button type="primary" @click="goToTarget">立即跳转</n-button>
               <n-button @click="router.push('/pricing')">返回价格菜单</n-button>
             </div>
           </template>
         </section>
 
-        <section v-else-if="status === 'missing'" class="wechat-contact-card">
-          <span class="wechat-contact-card__eyebrow">微信联系</span>
-          <h1>联系人不存在或已停用</h1>
-          <p class="wechat-contact-card__subtitle">这个联系入口可能已被下线，请返回价格菜单查看最新入口。</p>
-          <div class="wechat-contact-card__actions">
-            <n-button type="primary" @click="router.push('/pricing')">返回价格菜单</n-button>
+        <section
+          v-else-if="status === 'loading'"
+          class="public-support-panel wechat-contact-page__state-panel"
+        >
+          <span class="public-support-eyebrow">微信联系</span>
+          <h1 class="public-support-title">正在加载联系入口</h1>
+          <p class="public-support-description">
+            正在读取当前链接对应的公开联系信息，请稍候。
+          </p>
+        </section>
+
+        <section
+          v-else-if="status === 'missing'"
+          class="public-support-panel wechat-contact-page__state-panel"
+        >
+          <span class="public-support-eyebrow">微信联系</span>
+          <h1 class="public-support-title">联系人不存在或已停用</h1>
+          <p class="public-support-description">
+            这个联系入口可能已被下线，请返回价格菜单查看最新入口。
+          </p>
+          <div class="public-support-actions">
+            <n-button type="primary" @click="router.push('/pricing')">
+              返回价格菜单
+            </n-button>
           </div>
         </section>
 
-        <section v-else-if="status === 'error'" class="wechat-contact-card">
-          <span class="wechat-contact-card__eyebrow">微信联系</span>
-          <h1>联系人加载失败</h1>
-          <p class="wechat-contact-card__subtitle">{{ errorText || "请稍后再试" }}</p>
-          <div class="wechat-contact-card__actions">
+        <section
+          v-else-if="status === 'error'"
+          class="public-support-panel wechat-contact-page__state-panel"
+        >
+          <span class="public-support-eyebrow">微信联系</span>
+          <h1 class="public-support-title">联系人加载失败</h1>
+          <p class="public-support-description">
+            {{ errorText || "请稍后再试" }}
+          </p>
+          <div class="public-support-actions">
             <n-button type="primary" @click="loadContact">重试</n-button>
             <n-button @click="router.push('/pricing')">返回价格菜单</n-button>
           </div>
@@ -101,6 +185,16 @@ const loading = ref(false);
 const status = ref("loading");
 const errorText = ref("");
 const contact = ref(null);
+
+const contactTypeLabelMap = {
+  landing_qr: "二维码落地页",
+  external_url: "外部链接",
+  wecom_kf_link: "企业微信客服",
+};
+
+const contactTypeLabel = computed(
+  () => contactTypeLabelMap[contact.value?.contactType] || "公开联系入口",
+);
 
 const safeTargetUrl = computed(() => {
   const raw = String(contact.value?.targetUrl || "").trim();
@@ -173,6 +267,7 @@ const loadContact = async () => {
   }
 
   loading.value = true;
+  status.value = "loading";
   errorText.value = "";
   try {
     const res = await api.publicWechat.detail(slug);
@@ -229,132 +324,87 @@ onMounted(() => {
 </script>
 
 <style scoped lang="scss">
-.wechat-contact-page {
-  min-height: 100dvh;
-  position: relative;
-  overflow: clip;
-  padding: 32px 0;
-}
-
-.wechat-contact-page__bg {
-  position: fixed;
-  inset: 0;
-  background:
-    radial-gradient(circle at 12% 18%, rgba(15, 107, 255, 0.22), transparent 34%),
-    radial-gradient(circle at 88% 80%, rgba(0, 163, 137, 0.24), transparent 38%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0));
-  pointer-events: none;
-}
-
-.wechat-contact-page__container {
-  position: relative;
-  z-index: 1;
-  display: grid;
+.wechat-contact-page__panel,
+.wechat-contact-page__state-panel {
   gap: 18px;
 }
 
-.wechat-contact-page__back {
-  width: fit-content;
-  border: none;
-  background: transparent;
-  color: var(--primary-color);
-  font-weight: 700;
-  cursor: pointer;
-  padding: 0;
+.wechat-contact-page__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
 }
 
-.wechat-contact-card {
-  max-width: 720px;
-  margin: 0 auto;
-  width: 100%;
-  padding: 26px;
-  border-radius: 28px;
-  background: var(--surface-glass-strong);
-  border: 1px solid var(--surface-glass-border);
-  box-shadow: var(--shadow-light);
-  backdrop-filter: blur(12px);
+.wechat-contact-page__chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.wechat-contact-page__ready-grid {
   display: grid;
+  grid-template-columns: minmax(240px, 320px) minmax(0, 1fr);
   gap: 18px;
-  text-align: center;
+  align-items: center;
 }
 
-.wechat-contact-card__eyebrow {
-  display: inline-flex;
-  margin: 0 auto;
-  padding: 6px 10px;
-  border-radius: 999px;
-  background: rgba(15, 107, 255, 0.1);
-  color: var(--primary-color);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.wechat-contact-card h1 {
-  margin: 0;
-  font-size: clamp(28px, 4vw, 40px);
-}
-
-.wechat-contact-card__subtitle,
-.wechat-contact-card__redirect p {
-  margin: 0;
-  color: var(--text-secondary);
-  line-height: 1.7;
-}
-
-.wechat-contact-card__qr-shell {
-  width: min(320px, 72vw);
+.wechat-contact-page__qr-shell {
+  width: min(320px, 100%);
   margin: 0 auto;
   padding: 14px;
-  border-radius: 26px;
-  background: rgba(255, 255, 255, 0.97);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.98);
   box-shadow: 0 18px 34px rgba(15, 107, 255, 0.12);
 }
 
-.wechat-contact-card__qr-shell img {
+.wechat-contact-page__qr-shell img {
   width: 100%;
   display: block;
   object-fit: contain;
 }
 
-.wechat-contact-card__info {
+.wechat-contact-page__info {
   display: grid;
-  gap: 10px;
+  gap: 16px;
 }
 
-.info-row {
-  display: grid;
-  gap: 6px;
-}
-
-.info-row span {
-  font-size: 12px;
-  color: var(--text-tertiary);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-.info-row strong,
-.wechat-contact-card__redirect strong {
-  font-size: 18px;
-}
-
-.wechat-contact-card__actions {
-  display: flex;
+.support-chip {
+  display: inline-flex;
+  align-items: center;
   justify-content: center;
-  gap: 12px;
-  flex-wrap: wrap;
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 107, 255, 0.14);
+  background: rgba(15, 107, 255, 0.08);
+  color: var(--primary-color);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.support-chip--accent {
+  background: rgba(20, 184, 166, 0.1);
+  border-color: rgba(20, 184, 166, 0.18);
+  color: var(--secondary-color);
 }
 
 @media (max-width: 768px) {
-  .wechat-contact-page {
-    padding: 18px 0 28px;
+  .wechat-contact-page__head,
+  .wechat-contact-page__ready-grid {
+    grid-template-columns: 1fr;
   }
 
-  .wechat-contact-card {
-    padding: 20px;
-    border-radius: 22px;
+  .wechat-contact-page__chips {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 640px) {
+  .wechat-contact-page__panel :deep(.n-button),
+  .wechat-contact-page__state-panel :deep(.n-button) {
+    width: 100%;
   }
 }
 </style>
