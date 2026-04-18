@@ -17,7 +17,7 @@
     "npm": ">=10"
   },
   "dependencies": {
-    "better-sqlite3": "12.8.0",
+    "better-sqlite3": "12.9.0",
     "cors": "2.8.6",
     "dotenv": "16.6.1",
     "express": "5.2.1",
@@ -25,7 +25,7 @@
     "node-cron": "4.2.1",
     "otplib": "13.3.0",
     "ws": "8.20.0",
-    "zod": "3.25.76"
+    "zod": "4.1.13"
   },
   "overrides": {
     "axios": "1.15.0",
@@ -37,8 +37,8 @@
     "ws": "8.20.0",
     "express": "5.2.1",
     "helmet": "8.1.0",
-    "zod": "3.25.76",
-    "better-sqlite3": "12.8.0"
+    "zod": "4.1.13",
+    "better-sqlite3": "12.9.0"
   },
   "packageManager": "npm@10.9.8"
 }
