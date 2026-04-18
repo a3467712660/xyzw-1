@@ -2,15 +2,26 @@ import express, { Router } from "express";
 import { z } from "zod";
 import { env } from "../config/env.js";
 import { isAllowedHttpOrigin, normalizeHttpOrigin } from "../lib/origin.js";
+import {
+  ProxySafetyError,
+  fetchProxyResource,
+} from "../lib/proxySafety.js";
 import { authOptional } from "../middleware/auth.js";
 import { createRateLimiter } from "../middleware/rateLimit.js";
 import { validateRequest } from "../middleware/validate.js";
 
 const router = Router();
-const PROXY_TIMEOUT_MS = 15000;
 const HORTOR_LOGIN_BODY_LIMIT = "64kb";
 const HORTOR_DEVICE_UNIQUE_ID_HEADER = "x-xyzw-device-unique-id";
 const HORTOR_DEVICE_UNIQUE_ID_PATTERN = /^[\w.:-]{1,128}$/;
+const WECHAT_PROXY_ALLOWED_HOSTS = [
+  "open.weixin.qq.com",
+  "long.open.weixin.qq.com",
+  "comb-platform.hortorgames.com",
+];
+const QRCONNECT_RESPONSE_MAX_BYTES = 256 * 1024;
+const QRSTATUS_RESPONSE_MAX_BYTES = 64 * 1024;
+const HORTOR_LOGIN_RESPONSE_MAX_BYTES = 256 * 1024;
 const QR_STATUS_BODY_SCHEMA = z.object({
   uuid: z.string().trim().min(1).max(256),
 });
@@ -100,35 +111,55 @@ const hasNonEmptyQueryValue = (value) => {
   return Boolean(String(value ?? "").trim());
 };
 
-const proxyText = async ({ res, url, method = "GET", body = undefined, headers = {} }) => {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), PROXY_TIMEOUT_MS);
+const proxyText = async ({
+  res,
+  route,
+  url,
+  method = "GET",
+  body = undefined,
+  headers = {},
+  allowedContentTypes = [],
+  maxResponseBytes = env.wechatProxyResponseMaxBytes,
+}) => {
   try {
-    const upstream = await fetch(url, {
+    const upstream = await fetchProxyResource({
+      route,
+      url,
       method,
       body,
       headers,
-      signal: controller.signal,
-      redirect: "follow",
+      allowedHosts: WECHAT_PROXY_ALLOWED_HOSTS,
+      fallbackAllowedHosts: [],
+      allowedContentTypes,
+      timeoutMs: env.wechatProxyTimeoutMs,
+      maxResponseBytes: Math.min(
+        Number(maxResponseBytes) || env.wechatProxyResponseMaxBytes,
+        env.wechatProxyResponseMaxBytes,
+      ),
     });
-    const contentType = upstream.headers.get("content-type");
-    const contentLength = upstream.headers.get("content-length");
-    if (contentType) {
-      res.set("content-type", contentType);
+    if (upstream.contentType) {
+      res.set("content-type", upstream.contentType);
     }
-    if (contentLength) {
-      res.set("content-length", contentLength);
-    }
-    const text = await upstream.text();
-    return res.status(upstream.status).send(text);
+    res.set("content-length", String(upstream.bodyBuffer.length));
+    return res.status(upstream.status).send(upstream.bodyBuffer.toString("utf8"));
   } catch (error) {
-    const isTimeout = String(error?.name || "").toLowerCase() === "aborterror";
+    const reasonToMessage = {
+      HOST_NOT_ALLOWED: "上游地址不安全，已拒绝请求",
+      DNS_RESOLUTION_FAILED: "上游地址解析失败",
+      PRIVATE_IP_BLOCKED: "上游地址不安全，已拒绝请求",
+      REDIRECT_BLOCKED: "上游跳转目标不安全，已拒绝请求",
+      RESPONSE_TOO_LARGE: "上游响应体超过安全大小限制",
+      CONTENT_TYPE_NOT_ALLOWED: "上游响应类型不被允许",
+      TIMEOUT: "上游请求超时",
+      FETCH_FAILED: "上游请求失败",
+    };
     return res.status(502).json({
       success: false,
-      message: isTimeout ? "上游请求超时" : `上游请求失败: ${error?.message || "unknown error"}`,
+      message:
+        error instanceof ProxySafetyError
+          ? reasonToMessage[error.reason] || "上游请求失败"
+          : `上游请求失败: ${error?.message || "unknown error"}`,
     });
-  } finally {
-    clearTimeout(timer);
   }
 };
 
@@ -137,7 +168,10 @@ router.get("/wechat-proxy/qrconnect", qrConnectLimiter, async (req, res) => {
   appendQuery(target, req.query);
   return proxyText({
     res,
+    route: "/api/v1/wechat-proxy/qrconnect",
     url: target.toString(),
+    allowedContentTypes: ["text/html", "application/xhtml+xml"],
+    maxResponseBytes: QRCONNECT_RESPONSE_MAX_BYTES,
     headers: {
       "User-Agent":
         "Mozilla/5.0 (Linux; Android 7.0; Mi-4c Build/NRD90M; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/53.0.2785.49 Mobile MQQBrowser/6.2 TBS/043632 Safari/537.36 MicroMessenger/6.6.1.1220(0x26060135) NetType/WIFI Language/zh_CN",
@@ -165,7 +199,10 @@ router.post(
     target.searchParams.set("_", String(Date.now()));
     return proxyText({
       res,
+      route: "/api/v1/wechat-proxy/qrstatus",
       url: target.toString(),
+      allowedContentTypes: ["text/plain", "text/html"],
+      maxResponseBytes: QRSTATUS_RESPONSE_MAX_BYTES,
       headers: {
         "User-Agent":
           "Mozilla/5.0 (Linux; Android 7.0; Mi-4c Build/NRD90M; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/53.0.2785.49 Mobile MQQBrowser/6.2 TBS/043632 Safari/537.36 MicroMessenger/6.6.1.1220(0x26060135) NetType/WIFI Language/zh_CN",
@@ -207,9 +244,16 @@ router.post(
     target.searchParams.set("deviceUniqueId", rawDeviceUniqueId);
     return proxyText({
       res,
+      route: "/api/v1/wechat-proxy/hortor-login",
       url: target.toString(),
       method: "POST",
       body: String(req.body || ""),
+      allowedContentTypes: [
+        "application/json",
+        "application/*+json",
+        "text/plain",
+      ],
+      maxResponseBytes: HORTOR_LOGIN_RESPONSE_MAX_BYTES,
       headers: {
         "User-Agent":
           "Mozilla/5.0 (Linux; Android 12; 23117RK66C Build/V417IR; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/95.0.4638.74 Mobile Safari/537.36",

@@ -1,14 +1,17 @@
 import { Router } from "express";
 import { z } from "zod";
 import { env } from "../config/env.js";
-import { isHostAllowed } from "../lib/hostAllowlist.js";
 import { errorResponse } from "../lib/httpResponse.js";
+import {
+  ProxySafetyError,
+  fetchProxyResource,
+} from "../lib/proxySafety.js";
 import { authRequired } from "../middleware/auth.js";
 import { createRateLimiter } from "../middleware/rateLimit.js";
 import { validateRequest } from "../middleware/validate.js";
 
 const router = Router();
-const PROXY_TIMEOUT_MS = 15_000;
+const TOKEN_IMPORT_PROXY_ROUTE = "/api/v1/token-import/proxy";
 const tokenImportProxyLimiter = createRateLimiter({
   scope: "token_import_proxy",
   windowMs: 60 * 1000,
@@ -60,29 +63,21 @@ router.post(
       );
     }
 
-    if (!isHostAllowed(target.hostname, env.trustedImportApiHosts, [])) {
-      return errorResponse(
-        res,
-        403,
-        "TOKEN_IMPORT_PROXY_HOST_NOT_ALLOWED",
-        "目标地址未在受信任白名单中",
-      );
-    }
-
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), PROXY_TIMEOUT_MS);
-
     try {
-      const upstream = await fetch(target.toString(), {
+      const upstream = await fetchProxyResource({
+        route: TOKEN_IMPORT_PROXY_ROUTE,
+        url: target.toString(),
         method: "GET",
         headers: {
           Accept: "application/json",
         },
-        redirect: "error",
-        signal: controller.signal,
+        allowedHosts: env.trustedImportApiHosts,
+        fallbackAllowedHosts: [],
+        allowedContentTypes: ["application/json", "application/*+json"],
+        timeoutMs: env.tokenImportProxyTimeoutMs,
+        maxResponseBytes: env.tokenImportProxyResponseMaxBytes,
       });
-
-      if (!upstream.ok) {
+      if (upstream.status < 200 || upstream.status >= 300) {
         return errorResponse(
           res,
           502,
@@ -93,7 +88,7 @@ router.post(
 
       let payload;
       try {
-        payload = await upstream.json();
+        payload = JSON.parse(upstream.bodyBuffer.toString("utf8"));
       } catch {
         return errorResponse(
           res,
@@ -105,18 +100,31 @@ router.post(
 
       return res.status(upstream.status).json(payload);
     } catch (error) {
-      const isTimeout =
-        String(error?.name || "").toLowerCase() === "aborterror";
+      if (error instanceof ProxySafetyError) {
+        const responseByReason = {
+          HOST_NOT_ALLOWED: [403, "TOKEN_IMPORT_PROXY_HOST_NOT_ALLOWED", "目标地址未在受信任白名单中"],
+          DNS_RESOLUTION_FAILED: [502, "TOKEN_IMPORT_PROXY_DNS_RESOLUTION_FAILED", "目标地址解析失败"],
+          PRIVATE_IP_BLOCKED: [403, "TOKEN_IMPORT_PROXY_PRIVATE_IP_BLOCKED", "目标地址解析到了不安全的内网或保留地址"],
+          REDIRECT_BLOCKED: [502, "TOKEN_IMPORT_PROXY_REDIRECT_BLOCKED", "上游跳转目标不安全或不被允许"],
+          RESPONSE_TOO_LARGE: [502, "TOKEN_IMPORT_PROXY_RESPONSE_TOO_LARGE", "上游响应体超过安全大小限制"],
+          CONTENT_TYPE_NOT_ALLOWED: [502, "TOKEN_IMPORT_PROXY_CONTENT_TYPE_NOT_ALLOWED", "上游响应类型不被允许"],
+          TIMEOUT: [502, "TOKEN_IMPORT_PROXY_UPSTREAM_TIMEOUT", "上游请求超时"],
+          FETCH_FAILED: [502, "TOKEN_IMPORT_PROXY_FETCH_FAILED", "上游请求失败"],
+        };
+        const [status, code, message] = responseByReason[error.reason] || [
+          502,
+          "TOKEN_IMPORT_PROXY_FETCH_FAILED",
+          "上游请求失败",
+        ];
+        return errorResponse(res, status, code, message);
+      }
+
       return errorResponse(
         res,
         502,
-        isTimeout
-          ? "TOKEN_IMPORT_PROXY_UPSTREAM_TIMEOUT"
-          : "TOKEN_IMPORT_PROXY_FETCH_FAILED",
-        isTimeout ? "上游请求超时" : "上游请求失败",
+        "TOKEN_IMPORT_PROXY_FETCH_FAILED",
+        "上游请求失败",
       );
-    } finally {
-      clearTimeout(timer);
     }
   },
 );

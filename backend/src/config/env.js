@@ -491,12 +491,36 @@ export const env = {
     trustedImportApiHosts.length > 0
       ? trustedImportApiHosts
       : defaultTrustedImportApiHosts,
+  tokenImportProxyTimeoutMs: parsePositiveIntInRange(
+    process.env.TOKEN_IMPORT_PROXY_TIMEOUT_MS,
+    15_000,
+    1_000,
+    120_000,
+  ),
+  tokenImportProxyResponseMaxBytes: parsePositiveIntInRange(
+    process.env.TOKEN_IMPORT_PROXY_RESPONSE_MAX_BYTES,
+    1024 * 1024,
+    1024,
+    8 * 1024 * 1024,
+  ),
   wechatContactExternalUrlAllowlist,
   cspConnectSrc:
     cspConnectSrc.length > 0 ? cspConnectSrc : defaultCspConnectSrc,
   wechatProxyHortorLoginGuestOnly: parseBoolean(
     process.env.WECHAT_PROXY_HORTOR_LOGIN_GUEST_ONLY,
     false,
+  ),
+  wechatProxyTimeoutMs: parsePositiveIntInRange(
+    process.env.WECHAT_PROXY_TIMEOUT_MS,
+    15_000,
+    1_000,
+    120_000,
+  ),
+  wechatProxyResponseMaxBytes: parsePositiveIntInRange(
+    process.env.WECHAT_PROXY_RESPONSE_MAX_BYTES,
+    512 * 1024,
+    1024,
+    8 * 1024 * 1024,
   ),
   publicWechatContactsSseMaxGlobal: parsePositiveIntInRange(
     process.env.PUBLIC_WECHAT_CONTACTS_SSE_MAX_GLOBAL,

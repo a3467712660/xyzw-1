@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import http from "node:http";
 import test from "node:test";
+import * as dns from "node:dns";
 import { createApp } from "../src/app/createApp.js";
 import { initDatabase } from "../src/db/database.js";
 import { query, run } from "../src/db/client.js";
@@ -132,6 +133,11 @@ test("POST /wechat-proxy/hortor-login forwards header deviceUniqueId to upstream
     global.fetch = originalFetch;
   });
 
+  const lookupMock = t.mock.method(dns.promises, "lookup", async () => [
+    { address: "93.184.216.34", family: 4 },
+  ]);
+  t.after(() => lookupMock.mock.restore());
+
   const server = await createServer();
   t.after(async () => {
     await new Promise((resolve) => server.close(resolve));
@@ -259,11 +265,21 @@ test("POST /wechat-proxy/qrstatus forwards body uuid to upstream", async (t) => 
   const originalFetch = global.fetch;
   global.fetch = async (url) => {
     upstreamUrl = String(url);
-    return new Response("ok", { status: 200 });
+    return new Response("ok", {
+      status: 200,
+      headers: {
+        "content-type": "text/plain; charset=utf-8",
+      },
+    });
   };
   t.after(() => {
     global.fetch = originalFetch;
   });
+
+  const lookupMock = t.mock.method(dns.promises, "lookup", async () => [
+    { address: "93.184.216.34", family: 4 },
+  ]);
+  t.after(() => lookupMock.mock.restore());
 
   const server = await createServer();
   t.after(async () => {
@@ -338,6 +354,11 @@ test("GET /wechat-proxy/qrconnect is rate limited", async (t) => {
     global.fetch = originalFetch;
   });
 
+  const lookupMock = t.mock.method(dns.promises, "lookup", async () => [
+    { address: "93.184.216.34", family: 4 },
+  ]);
+  t.after(() => lookupMock.mock.restore());
+
   const server = await createServer();
   t.after(async () => {
     await new Promise((resolve) => server.close(resolve));
@@ -372,6 +393,11 @@ test("wechat proxy shared limiter blocks across route families", async (t) => {
   t.after(() => {
     global.fetch = originalFetch;
   });
+
+  const lookupMock = t.mock.method(dns.promises, "lookup", async () => [
+    { address: "93.184.216.34", family: 4 },
+  ]);
+  t.after(() => lookupMock.mock.restore());
 
   const server = await createServer();
   t.after(async () => {
@@ -416,4 +442,173 @@ test("wechat proxy shared limiter blocks across route families", async (t) => {
   });
 
   assert.equal(blocked.status, 429);
+});
+
+test("POST /wechat-proxy/qrstatus blocks fixed upstream host when DNS resolves to loopback and keeps logs redacted", async (t) => {
+  await initDatabase();
+  run(`DELETE FROM security_rate_limits WHERE scope_key LIKE 'wechat_proxy_%'`);
+
+  let upstreamCalls = 0;
+  const originalFetch = global.fetch;
+  global.fetch = async () => {
+    upstreamCalls += 1;
+    return new Response("unexpected", { status: 200 });
+  };
+  t.after(() => {
+    global.fetch = originalFetch;
+  });
+
+  const lookupMock = t.mock.method(dns.promises, "lookup", async (hostname) => {
+    if (String(hostname) === "long.open.weixin.qq.com") {
+      return [{ address: "127.0.0.1", family: 4 }];
+    }
+    return [{ address: "93.184.216.34", family: 4 }];
+  });
+  t.after(() => lookupMock.mock.restore());
+
+  const warnCalls = [];
+  const originalWarn = console.warn;
+  console.warn = (...args) => {
+    warnCalls.push(args.map((item) => String(item || "")).join(" "));
+  };
+  t.after(() => {
+    console.warn = originalWarn;
+  });
+
+  const server = await createServer();
+  t.after(async () => {
+    await new Promise((resolve) => server.close(resolve));
+    run(`DELETE FROM security_rate_limits WHERE scope_key LIKE 'wechat_proxy_%'`);
+  });
+
+  const response = await requestLocal({
+    url: `${makeBaseUrl(server)}/api/v1/wechat-proxy/qrstatus`,
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ uuid: "wx-uuid-secret-123" }),
+  });
+
+  assert.equal(response.status, 502);
+  assert.equal(upstreamCalls, 0);
+  assert.equal(response.body.includes("不安全"), true);
+
+  const warnText = warnCalls.join("\n");
+  assert.equal(warnText.includes("wx-uuid-secret-123"), false);
+});
+
+test("GET /wechat-proxy/qrconnect blocks redirects to non-allowlisted hosts", async (t) => {
+  await initDatabase();
+  run(`DELETE FROM security_rate_limits WHERE scope_key LIKE 'wechat_proxy_%'`);
+
+  const originalFetch = global.fetch;
+  global.fetch = async () =>
+    new Response("", {
+      status: 302,
+      headers: {
+        location: "https://evil.example.com/next",
+      },
+    });
+  t.after(() => {
+    global.fetch = originalFetch;
+  });
+
+  const lookupMock = t.mock.method(dns.promises, "lookup", async () => [
+    { address: "93.184.216.34", family: 4 },
+  ]);
+  t.after(() => lookupMock.mock.restore());
+
+  const server = await createServer();
+  t.after(async () => {
+    await new Promise((resolve) => server.close(resolve));
+    run(`DELETE FROM security_rate_limits WHERE scope_key LIKE 'wechat_proxy_%'`);
+  });
+
+  const response = await requestLocal({
+    url: `${makeBaseUrl(server)}/api/v1/wechat-proxy/qrconnect?appid=test&state=redirect`,
+    method: "GET",
+  });
+
+  assert.equal(response.status, 502);
+  assert.equal(response.body.includes("跳转"), true);
+});
+
+test("GET /wechat-proxy/qrconnect rejects oversized upstream html responses", async (t) => {
+  await initDatabase();
+  run(`DELETE FROM security_rate_limits WHERE scope_key LIKE 'wechat_proxy_%'`);
+
+  const originalFetch = global.fetch;
+  global.fetch = async () =>
+    new Response("x".repeat(256 * 1024 + 32), {
+      status: 200,
+      headers: {
+        "content-type": "text/html; charset=utf-8",
+      },
+    });
+  t.after(() => {
+    global.fetch = originalFetch;
+  });
+
+  const lookupMock = t.mock.method(dns.promises, "lookup", async () => [
+    { address: "93.184.216.34", family: 4 },
+  ]);
+  t.after(() => lookupMock.mock.restore());
+
+  const server = await createServer();
+  t.after(async () => {
+    await new Promise((resolve) => server.close(resolve));
+    run(`DELETE FROM security_rate_limits WHERE scope_key LIKE 'wechat_proxy_%'`);
+  });
+
+  const response = await requestLocal({
+    url: `${makeBaseUrl(server)}/api/v1/wechat-proxy/qrconnect?appid=test&state=size`,
+    method: "GET",
+  });
+
+  assert.equal(response.status, 502);
+  assert.equal(response.body.includes("响应体"), true);
+});
+
+test("POST /wechat-proxy/hortor-login rejects upstream content types outside the allowlist", async (t) => {
+  await initDatabase();
+  run(`DELETE FROM security_rate_limits WHERE scope_key LIKE 'wechat_proxy_%'`);
+
+  const originalFetch = global.fetch;
+  global.fetch = async () =>
+    new Response("<xml>invalid</xml>", {
+      status: 200,
+      headers: {
+        "content-type": "application/xml; charset=utf-8",
+      },
+    });
+  t.after(() => {
+    global.fetch = originalFetch;
+  });
+
+  const lookupMock = t.mock.method(dns.promises, "lookup", async () => [
+    { address: "93.184.216.34", family: 4 },
+  ]);
+  t.after(() => lookupMock.mock.restore());
+
+  const server = await createServer();
+  t.after(async () => {
+    await new Promise((resolve) => server.close(resolve));
+    run(`DELETE FROM security_rate_limits WHERE scope_key LIKE 'wechat_proxy_%'`);
+  });
+
+  const response = await requestLocal({
+    url: `${makeBaseUrl(server)}/api/v1/wechat-proxy/hortor-login?gameId=xyzwapp`,
+    method: "POST",
+    headers: {
+      origin: env.corsOrigins[0],
+      referer: `${env.corsOrigins[0]}/login`,
+      "content-type": "text/plain; charset=utf-8",
+      "x-xyzw-device-unique-id": "DID-test_123",
+    },
+    body: "payload",
+  });
+
+  assert.equal(response.status, 502);
+  assert.equal(response.body.includes("响应类型"), true);
 });
