@@ -37,7 +37,7 @@ export function registerMiddleware(app) {
   };
 
   app.use(cors(corsOptionsDelegate));
-  app.options("*", cors(corsOptionsDelegate));
+  app.options("/{*any}", cors(corsOptionsDelegate));
   app.use(requestLogger);
   app.use(
     helmet({

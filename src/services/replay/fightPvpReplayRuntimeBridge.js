@@ -135,7 +135,7 @@ const toFunctionSourceSnippet = (value, maxLength = 220) =>
 const toIdentifierWords = (value) =>
   String(value || "")
     .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
-    .split(/[^A-Za-z0-9]+/)
+    .split(/[^a-z0-9]+/i)
     .map((entry) => entry.trim().toLowerCase())
     .filter(Boolean);
 
@@ -443,7 +443,7 @@ const matchesProductionReplayKeyword = (value) =>
 
 const matchesProductionContextHandlerName = (name) => {
   const normalized = String(name || "")
-    .replace(/[^A-Za-z0-9]/g, "")
+    .replace(/[^a-z0-9]/gi, "")
     .toLowerCase();
   return REPLAY_PRODUCTION_CONTEXT_HANDLER_NAME_PREFIXES.some((prefix) =>
     normalized === prefix || normalized.startsWith(prefix));
@@ -457,16 +457,32 @@ const isGetterLikeMethodName = (name) => {
 const isMetadataLikeMethodName = (name) =>
   hasIdentifierWord(name, REPLAY_PRODUCTION_METADATA_WORDS);
 
-const looksLikeMetadataSourceSnippet = (value) =>
-  /return\s+[^;{}]*(version|config|state|status|meta|metadata)/i.test(String(value || ""));
+const looksLikeMetadataSourceSnippet = (value) => {
+  const normalized = toNormalizedSourceSnippet(value).toLowerCase();
+  if (!normalized.includes("return")) {
+    return false;
+  }
+  return ["version", "config", "state", "status", "metadata", "meta"].some(
+    (keyword) => normalized.includes(keyword),
+  );
+};
 
 const looksLikePureGetterSourceSnippet = (value) => {
   const normalized = toNormalizedSourceSnippet(value);
   if (!normalized) {
     return false;
   }
+  const arrowIndex = normalized.indexOf("=>");
+  const arrowBody = arrowIndex >= 0
+    ? normalized.slice(arrowIndex + 2).trim()
+    : "";
   return /^function\b[^(]*\([^)]*\)\s*\{\s*return\b/i.test(normalized)
-    || /^\([^)]*\)\s*=>\s*[^={][^;]*$/i.test(normalized)
+    || (
+      /^\([^)]*\)\s*=>/.test(normalized)
+      && Boolean(arrowBody)
+      && !arrowBody.startsWith("{")
+      && !arrowBody.startsWith("=")
+    )
     || /^\w+\([^)]*\)\s*\{\s*return\b/i.test(normalized);
 };
 
@@ -887,7 +903,7 @@ const findProductionComponentByName = (node, componentName, handlerName = null) 
   const components = getSceneNodeComponents(node);
   const normalizeName = (value) =>
     String(value || "")
-      .replace(/[^A-Za-z0-9]/g, "")
+      .replace(/[^a-z0-9]/gi, "")
       .toLowerCase();
   const normalizedExpected = normalizeName(componentName);
 
@@ -941,10 +957,10 @@ const buildProductionEventHandlerCandidate = ({
     customEventData,
     fn: method,
     invoke: (payload, options = {}) =>
-      resolvedComponent[handlerName].call(
+      Reflect.apply(
+        method,
         resolvedComponent,
-        payload,
-        options?.customEventData ?? customEventData ?? null,
+        [payload, options?.customEventData ?? customEventData ?? null],
       ),
     label: `${nodePath}#${resolvedComponentName}.${handlerName}`,
     methodName: handlerName,
@@ -1429,7 +1445,8 @@ export const collectReplayGlobalCandidates = (
           source: "global-object",
           ownerKey: key,
           methodName,
-          invoke: (payload, options = {}) => value[methodName].call(value, payload, options),
+          invoke: (payload, options = {}) =>
+            Reflect.apply(method, value, [payload, options]),
         }));
       }
     }
@@ -1569,7 +1586,8 @@ export const scanSceneForReplayCandidates = (gameWindow) => {
           nodeName,
           nodePath,
           source,
-          invoke: (payload, options = {}) => component[methodName].call(component, payload, options),
+          invoke: (payload, options = {}) =>
+            Reflect.apply(method, component, [payload, options]),
         }));
       }
     }
@@ -1751,7 +1769,7 @@ const scoreProductionReplayTarget = (candidate, payloadShape = null) => {
         ? "methodName:blacklisted"
         : globalEntityServiceTarget
           ? "globalEntity:service-target"
-        : "negativeSignal:blacklisted-service-target",
+          : "negativeSignal:blacklisted-service-target",
     );
   }
 
@@ -6772,28 +6790,40 @@ export const startFightPvpReplayRuntime = async ({
       }).join(", ");
       const sceneLabel = diagnostics.sceneName || diagnostics.scene || GAME_SCENE_NAME;
       const detail = `已检查：gameWindow=${diagnostics.replayGameWindowStatus || "unknown"}@${diagnostics.replayGameWindowSource || "window"}；loaderFamily=${diagnostics.loaderFamily || REPLAY_LOADER_FAMILIES.UNKNOWN}；probeFamily=${diagnostics.probeFamily || "-"}；probeCompatibility=${diagnostics.probeCompatibility || "-"}；bridgeStatus=${diagnostics.bridgeStatus || "-"}@${diagnostics.bridgeSource || "-"}；runtimeStage=${diagnostics.runtimeStage || "unknown"}；scene=${sceneLabel || "-"}；suspectedBundlePath=${diagnostics.suspectedBundlePath || "-"}；requireSwap=${diagnostics.requireSwap ? "yes" : "no"}；sameRequireRef=${diagnostics.sameRequireRef ?? "-"}；sameRequireSource=${diagnostics.sameRequireSource ?? "-"}；requireFn=${diagnostics.requireFunctionName || "-"}；launcherRequireFn=${diagnostics.launcherRequireFunctionName || "-"}；launcherRequireFp=${formatRequireFingerprintSummary(diagnostics.launcherRequireFingerprint)}；liveRequireFp=${formatRequireFingerprintSummary(diagnostics.liveRequireFingerprint)}；bundleReady=${diagnostics.replayGameBundleReady ? "yes" : "no"}(${diagnostics.replayGameBundleReadyAttempts ?? 0}, source=${diagnostics.replayGameBundleReadySource || "-"})；gameScript=document:${diagnostics.gameScriptInDocument ? "yes" : "no"}/performance:${diagnostics.gameScriptInPerformance ? "yes" : "no"}；modules=${canonicalSummary}；entrypoints=${scannedSummary}；debug=${requireSummary}。`;
-      const message = diagnostics.loaderFamily === REPLAY_LOADER_FAMILIES.PUBLIC
-        ? buildPublicReplayBridgeFailureMessage(diagnostics)
-        : diagnostics.replayGameBundleReady === false
-        ? diagnostics.runtimeStage === "loader-family-mismatch"
+      let message;
+      if (diagnostics.loaderFamily === REPLAY_LOADER_FAMILIES.PUBLIC) {
+        message = buildPublicReplayBridgeFailureMessage(diagnostics);
+      } else if (diagnostics.replayGameBundleReady === false) {
+        if (
+          diagnostics.runtimeStage === "loader-family-mismatch"
           || diagnostics.probeCompatibility === "incompatible-probe"
           || (
             diagnostics.loaderFamily === REPLAY_LOADER_FAMILIES.PUBLIC
             && allCanonicalMissing
           )
-          ? `运行时已进入 ${sceneLabel}，并已找到候选 window。当前 live loader 属于 production/public family，source-era 的 BattleUIManager/enter-oss/BattleKitCrossSite probes 与该 loader 不兼容；当前状态应归类为 loader-family-mismatch。${detail}`
-          : diagnostics.runtimeStage === "bridge-not-exposed"
-            || (
-              diagnostics.loaderFamily === REPLAY_LOADER_FAMILIES.PUBLIC
-              && diagnostics.bridgeStatus !== "present"
-            )
-            ? `运行时已进入 ${sceneLabel}，并已识别为 production/public loader，但尚未发现稳定的 replay bridge；因此当前状态应归类为 bridge-not-exposed，而不是等待 BattleUIManager 注册。${detail}`
-          : diagnostics.runtimeStage === "require-exec-error" || firstRequireExecError
-            ? `运行时已进入 ${sceneLabel}，并已找到候选 window。当前更像是 require-exec-error：${firstRequireExecError?.moduleId || REPLAY_GAME_BUNDLE_READY_MODULE_ID} -> ${firstRequireExecError?.errorMessage || diagnostics.replayGameBundleReadyError || "unknown error"}${firstRequireExecError?.stackTop ? ` @ ${firstRequireExecError.stackTop}` : ""}。${detail}`
-            : `运行时已进入 ${sceneLabel}，并已找到候选 window。当前 replay 诊断已切到 loader-family-aware 模型，不会再把 scene=Game 解释为后续等待 battle modules 注册。${detail}`
-        : diagnostics.loaderFamily === REPLAY_LOADER_FAMILIES.PUBLIC
-          ? `运行时已进入 ${sceneLabel}，并已识别为 production/public loader。当前 replay 入口通过显式 bridge 暴露；若仍未能调用，则剩余问题在于 bridge 的 play() 实现或 bridge 下游的 production hook。${detail}`
-          : `运行时已进入 ${sceneLabel}，并已找到真实游戏 window。BattleUIManager 已可从 live require 直接解析；若仍未能定位回放入口，则剩余问题在于目标导出路径不存在或末端不可调用。${detail}`;
+        ) {
+          message = `运行时已进入 ${sceneLabel}，并已找到候选 window。当前 live loader 属于 production/public family，source-era 的 BattleUIManager/enter-oss/BattleKitCrossSite probes 与该 loader 不兼容；当前状态应归类为 loader-family-mismatch。${detail}`;
+        } else if (
+          diagnostics.runtimeStage === "bridge-not-exposed"
+          || (
+            diagnostics.loaderFamily === REPLAY_LOADER_FAMILIES.PUBLIC
+            && diagnostics.bridgeStatus !== "present"
+          )
+        ) {
+          message = `运行时已进入 ${sceneLabel}，并已识别为 production/public loader，但尚未发现稳定的 replay bridge；因此当前状态应归类为 bridge-not-exposed，而不是等待 BattleUIManager 注册。${detail}`;
+        } else if (
+          diagnostics.runtimeStage === "require-exec-error"
+          || firstRequireExecError
+        ) {
+          message = `运行时已进入 ${sceneLabel}，并已找到候选 window。当前更像是 require-exec-error：${firstRequireExecError?.moduleId || REPLAY_GAME_BUNDLE_READY_MODULE_ID} -> ${firstRequireExecError?.errorMessage || diagnostics.replayGameBundleReadyError || "unknown error"}${firstRequireExecError?.stackTop ? ` @ ${firstRequireExecError.stackTop}` : ""}。${detail}`;
+        } else {
+          message = `运行时已进入 ${sceneLabel}，并已找到候选 window。当前 replay 诊断已切到 loader-family-aware 模型，不会再把 scene=Game 解释为后续等待 battle modules 注册。${detail}`;
+        }
+      } else if (diagnostics.loaderFamily === REPLAY_LOADER_FAMILIES.PUBLIC) {
+        message = `运行时已进入 ${sceneLabel}，并已识别为 production/public loader。当前 replay 入口通过显式 bridge 暴露；若仍未能调用，则剩余问题在于 bridge 的 play() 实现或 bridge 下游的 production hook。${detail}`;
+      } else {
+        message = `运行时已进入 ${sceneLabel}，并已找到真实游戏 window。BattleUIManager 已可从 live require 直接解析；若仍未能定位回放入口，则剩余问题在于目标导出路径不存在或末端不可调用。${detail}`;
+      }
       return {
         ok: false,
         reason: "replay-start-failed",

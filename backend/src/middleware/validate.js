@@ -11,6 +11,29 @@ const pickFirstIssueMessage = (error) => {
   return `${path}: ${issue.message}`;
 };
 
+const replaceRequestPayload = (req, key, nextValue) => {
+  try {
+    req[key] = nextValue;
+    return;
+  } catch {
+    const currentValue = req[key];
+    if (currentValue && typeof currentValue === "object") {
+      Object.keys(currentValue).forEach((currentKey) => {
+        delete currentValue[currentKey];
+      });
+      Object.assign(currentValue, nextValue);
+      return;
+    }
+
+    Object.defineProperty(req, key, {
+      configurable: true,
+      enumerable: true,
+      writable: true,
+      value: nextValue,
+    });
+  }
+};
+
 export const validateRequest = ({ body, query, params }) =>
   (req, res, next) => {
     if (body) {
@@ -21,7 +44,7 @@ export const validateRequest = ({ body, query, params }) =>
           message: pickFirstIssueMessage(result.error),
         });
       }
-      req.body = result.data;
+      replaceRequestPayload(req, "body", result.data);
     }
 
     if (query) {
@@ -32,7 +55,7 @@ export const validateRequest = ({ body, query, params }) =>
           message: pickFirstIssueMessage(result.error),
         });
       }
-      req.query = result.data;
+      replaceRequestPayload(req, "query", result.data);
     }
 
     if (params) {
@@ -43,9 +66,8 @@ export const validateRequest = ({ body, query, params }) =>
           message: pickFirstIssueMessage(result.error),
         });
       }
-      req.params = result.data;
+      replaceRequestPayload(req, "params", result.data);
     }
 
     return next();
   };
-

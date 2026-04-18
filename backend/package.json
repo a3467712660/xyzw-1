@@ -12,16 +12,33 @@
     "incident:invalidate-sensitive-codes": "node src/scripts/invalidateSensitiveCodes.js",
     "test": "NODE_ENV=test JWT_SECRET=test-jwt-secret AES_KEY=test-aes-key CSRF_SECRET=test-csrf-secret INVITE_CODE_PEPPER=test-invite-pepper ACTIVATION_CODE_PEPPER=test-activation-pepper PASSWORD_RESET_CODE_PEPPER=test-password-reset-pepper DB_PATH=./data/test.sqlite.bin BIN_STORAGE_PATH=./data/test-bin node --test"
   },
-  "dependencies": {
-    "better-sqlite3": "^12.8.0",
-    "cors": "^2.8.5",
-    "dotenv": "^16.6.1",
-    "express": "^4.21.2",
-    "helmet": "^7.2.0",
-    "node-cron": "^4.2.1",
-    "otplib": "^13.3.0",
-    "ws": "^8.18.3",
-    "zod": "^3.25.76"
+  "engines": {
+    "node": ">=20.19 <23",
+    "npm": ">=10"
   },
-  "packageManager": "npm@10"
+  "dependencies": {
+    "better-sqlite3": "12.8.0",
+    "cors": "2.8.6",
+    "dotenv": "16.6.1",
+    "express": "5.2.1",
+    "helmet": "8.1.0",
+    "node-cron": "4.2.1",
+    "otplib": "13.3.0",
+    "ws": "8.20.0",
+    "zod": "3.25.76"
+  },
+  "overrides": {
+    "axios": "1.15.0",
+    "plain-crypto-js": "0.0.0-blocked",
+    "crypto-js": "4.2.0",
+    "vite": "8.0.8",
+    "esbuild": "0.28.0",
+    "rollup": "4.60.1",
+    "ws": "8.20.0",
+    "express": "5.2.1",
+    "helmet": "8.1.0",
+    "zod": "3.25.76",
+    "better-sqlite3": "12.8.0"
+  },
+  "packageManager": "npm@10.9.8"
 }

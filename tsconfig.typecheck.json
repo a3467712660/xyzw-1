@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "allowJs": false
+  },
+  "include": [
+    "src/vite-env.d.ts",
+    "src/api/index.ts",
+    "src/api/types.ts",
+    "src/router/index.ts",
+    "src/router/guards.ts",
+    "src/router/meta.ts",
+    "src/stores/auth.ts",
+    "src/stores/localTokenManager.ts"
+  ]
+}

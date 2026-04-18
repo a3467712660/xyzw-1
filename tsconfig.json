@@ -2,6 +2,7 @@
   "files": [],
   "compilerOptions": {
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
+    "ignoreDeprecations": "5.0",
     "baseUrl": ".",
     "outDir": "dist",
     "paths": {

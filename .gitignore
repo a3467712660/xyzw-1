@@ -91,6 +91,7 @@ server/__pycache__/
 !.github/workflows/
 .github/workflows/*
 !.github/workflows/security-sca.yml
+!.github/workflows/ci.yml
 *.bat
 *.exe
 node_modules/

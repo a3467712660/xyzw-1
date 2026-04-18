@@ -1,4 +1,5 @@
 import { createI18n } from "vue-i18n";
+import messages from "@intlify/unplugin-vue-i18n/messages";
 
 const normalizeLocale = (value) => {
   const locale = String(value || "").trim();
@@ -16,10 +17,8 @@ export const applyLocale = (value) => {
 
 const initialLocale = applyLocale(localStorage.getItem("language") || "zh-CN");
 
-const localeLoaders = {
-  "en": () => import("@/locales/en.json"),
-  "zh-CN": () => import("@/locales/zh-CN.json"),
-};
+const getLocaleMessages = (locale) =>
+  messages[locale] || messages["zh-CN"] || {};
 
 const loadedLocales = new Set();
 
@@ -36,9 +35,7 @@ export const loadLocaleMessages = async (value) => {
     return locale;
   }
 
-  const loader = localeLoaders[locale] || localeLoaders["zh-CN"];
-  const messages = await loader();
-  i18n.global.setLocaleMessage(locale, messages.default || messages);
+  i18n.global.setLocaleMessage(locale, getLocaleMessages(locale));
   loadedLocales.add(locale);
   return locale;
 };
