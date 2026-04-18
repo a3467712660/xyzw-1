@@ -256,6 +256,8 @@
             <n-button
               class="social-button"
               size="large"
+              :disabled="isWechatPopupLoading"
+              :loading="isWechatPopupLoading"
               @click="handleSocialLogin('wechat')"
             >
               <template #icon>
@@ -289,6 +291,7 @@ import { useDialog, useMessage } from "naive-ui/es";
 import { useI18n } from "vue-i18n";
 import { toDataURL as qrToDataURL } from "qrcode";
 import { useAuthStore } from "@/stores/auth";
+import { openWechatAuthPopup } from "@/utils/wechatAuthPopup";
 import { getDefaultAuthenticatedPath } from "@/utils/accessScope";
 import {
   ChatbubbleEllipses,
@@ -317,6 +320,7 @@ const mfaQrStatus = ref("idle");
 const loginCooldownSeconds = ref(0);
 const formErrorRef = ref(null);
 const formErrorMessage = ref("");
+const isWechatPopupLoading = ref(false);
 let mfaQrPollingTimer = null;
 let loginCooldownTimer = null;
 const isMfaPending = computed(() => !!mfaChallengeToken.value);
@@ -514,6 +518,46 @@ const finishLogin = () => {
   });
 };
 
+const activateMfaChallenge = async (challengeToken) => {
+  clearLoginCooldown();
+  mfaChallengeToken.value = String(challengeToken || "");
+  mfaCode.value = "";
+  isRecoveryMode.value = false;
+  mfaMethod.value = "code";
+  resetMfaQrState();
+  message.info(t("login.messages.mfaCodePrompt"));
+  await nextTick();
+  focusNamedInput("mfa-totp-code");
+};
+
+const resolveWechatPayloadMessage = (payload) => {
+  const errorCode = String(payload?.errorCode || "").trim();
+  if (errorCode === "AUTH_WECHAT_NOT_BOUND") {
+    return t("login.messages.wechatNotBound");
+  }
+  if (errorCode === "AUTH_WECHAT_NOT_CONFIGURED") {
+    return t("login.messages.wechatNotConfigured");
+  }
+  return payload?.message || t("login.messages.wechatFailed");
+};
+
+const resolveWechatPopupErrorMessage = (error) => {
+  const code = String(error?.code || "").trim();
+  if (code === "AUTH_WECHAT_NOT_CONFIGURED") {
+    return t("login.messages.wechatNotConfigured");
+  }
+  if (code === "WECHAT_POPUP_BLOCKED") {
+    return t("login.messages.wechatPopupBlocked");
+  }
+  if (code === "WECHAT_POPUP_CANCELLED") {
+    return t("login.messages.wechatCancelled");
+  }
+  if (code === "WECHAT_POPUP_TIMEOUT") {
+    return t("login.messages.wechatTimeout");
+  }
+  return error?.message || t("login.messages.wechatFailed");
+};
+
 const handleLogin = async () => {
   if (!loginFormRef.value)
     return;
@@ -536,15 +580,7 @@ const handleLogin = async () => {
     });
 
     if (result.success && result.mfaRequired) {
-      clearLoginCooldown();
-      mfaChallengeToken.value = String(result.mfaChallengeToken || "");
-      mfaCode.value = "";
-      isRecoveryMode.value = false;
-      mfaMethod.value = "code";
-      resetMfaQrState();
-      message.info(t("login.messages.mfaCodePrompt"));
-      await nextTick();
-      focusNamedInput("mfa-totp-code");
+      await activateMfaChallenge(result.mfaChallengeToken);
       return;
     }
 
@@ -692,12 +728,54 @@ const cancelMfa = () => {
   message.warning(t("login.messages.mfaCancelled"));
 };
 
+const handleWechatLogin = async () => {
+  if (isWechatPopupLoading.value) {
+    return;
+  }
+  try {
+    isWechatPopupLoading.value = true;
+    const payload = await openWechatAuthPopup({
+      intent: "login",
+      payload: {
+        rememberMe: loginForm.rememberMe,
+      },
+    });
+    if (!payload?.success) {
+      const messageText = resolveWechatPayloadMessage(payload);
+      await announceFormError(messageText);
+      message.error(messageText);
+      return;
+    }
+    if (payload?.mfaRequired) {
+      await activateMfaChallenge(payload?.mfaChallengeToken);
+      return;
+    }
+
+    const recovered = await authStore.recoverSessionFromServer();
+    if (!recovered) {
+      await announceFormError(t("login.messages.wechatRecoverFailed"));
+      message.error(t("login.messages.wechatRecoverFailed"));
+      return;
+    }
+
+    formErrorMessage.value = "";
+    resetMfaState();
+    finishLogin();
+  } catch (error) {
+    const messageText = resolveWechatPopupErrorMessage(error);
+    await announceFormError(messageText);
+    message.error(messageText);
+  } finally {
+    isWechatPopupLoading.value = false;
+  }
+};
+
 const handleSocialLogin = (provider) => {
-  message.info(
-    provider === "qq"
-      ? t("login.messages.qqPending")
-      : t("login.messages.wechatPending"),
-  );
+  if (provider === "qq") {
+    message.info(t("login.messages.qqPending"));
+    return;
+  }
+  handleWechatLogin();
 };
 
 onMounted(() => {

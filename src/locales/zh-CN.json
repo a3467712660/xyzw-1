@@ -60,7 +60,14 @@
       "mfaSuccess": "二步验证通过",
       "rateLimitCooldown": "登录尝试过于频繁，请在 {seconds} 秒后重试。",
       "qqPending": "QQ登录功能开发中...",
-      "wechatPending": "微信登录功能开发中..."
+      "wechatPending": "微信登录功能开发中...",
+      "wechatFailed": "微信登录失败，请稍后重试",
+      "wechatNotBound": "该微信未绑定站内账号，当前不支持通过微信直接注册新账号，请先使用账号密码登录后到个人中心绑定微信",
+      "wechatNotConfigured": "微信登录暂未配置",
+      "wechatPopupBlocked": "微信登录弹窗被浏览器拦截，请允许弹窗后重试",
+      "wechatCancelled": "微信登录已取消",
+      "wechatTimeout": "微信登录超时，请重新发起操作",
+      "wechatRecoverFailed": "微信登录成功，但恢复登录状态失败，请刷新后重试"
     },
     "mfa": {
       "title": "二次验证",
@@ -1259,6 +1266,8 @@
       "setup": "设置",
       "reset": "重新设置",
       "requestReset": "申请重置",
+      "bindWechat": "绑定微信",
+      "unbindWechat": "解绑微信",
       "confirm": "确认",
       "done": "完成",
       "copy": "复制",
@@ -1273,6 +1282,10 @@
       "twoFactor": {
         "title": "两步验证",
         "desc": "为您的账户添加额外的安全保护"
+      },
+      "wechat": {
+        "title": "微信绑定",
+        "desc": "绑定后可在登录页通过微信扫码直接登录当前账号"
       },
       "loginHistory": {
         "title": "登录历史",
@@ -1313,6 +1326,7 @@
     },
     "messages": {
       "loadFailed": "加载个人信息失败",
+      "wechatLoadFailed": "加载微信绑定状态失败",
       "saveFailed": "保存失败，请稍后重试",
       "saveSuccess": "个人信息保存成功",
       "passwordChangeFailed": "密码修改失败",
@@ -1341,6 +1355,22 @@
       "sensitiveConfirmCancelled": "已取消二次确认",
       "sensitiveConfirmFailed": "二次确认失败，请检查当前密码",
       "sensitiveConfirmSuccess": "二次确认通过",
+      "wechatStatusBound": "已绑定",
+      "wechatStatusUnbound": "未绑定",
+      "wechatStatusUnavailable": "暂未配置",
+      "wechatNoNickname": "未同步微信昵称",
+      "wechatBoundAt": "绑定时间：{time}",
+      "wechatLastLoginAt": "最近微信登录：{time}",
+      "wechatMaskedOpenId": "OpenID：{value}",
+      "wechatBindSuccess": "微信绑定成功",
+      "wechatBindFailed": "微信绑定失败，请稍后重试",
+      "wechatUnbindSuccess": "微信解绑成功",
+      "wechatUnbindFailed": "微信解绑失败，请稍后重试",
+      "wechatAlreadyBound": "该微信已绑定其他账号",
+      "wechatNotConfigured": "微信绑定暂未配置",
+      "wechatPopupBlocked": "微信绑定弹窗被浏览器拦截，请允许弹窗后重试",
+      "wechatCancelled": "微信绑定已取消",
+      "wechatTimeout": "微信绑定超时，请重新发起操作",
       "copySuccess": "复制成功",
       "copyFailed": "复制失败，请手动复制",
       "twoFactorPending": "两步验证设置功能开发中...",

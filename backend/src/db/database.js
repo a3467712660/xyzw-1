@@ -352,10 +352,18 @@ const createSchema = () => {
       mfa_enabled INTEGER NOT NULL DEFAULT 0,
       mfa_totp_secret_enc TEXT,
       mfa_recovery_codes_hash TEXT,
+      last_login_at TEXT,
       account_display_id TEXT,
       access_scope TEXT NOT NULL DEFAULT 'full',
       token_bind_limit INTEGER NOT NULL DEFAULT 999,
       token_version INTEGER NOT NULL DEFAULT 0,
+      wechat_open_id TEXT,
+      wechat_union_id TEXT,
+      wechat_app_id TEXT,
+      wechat_nickname TEXT,
+      wechat_avatar_url TEXT,
+      wechat_bound_at TEXT,
+      wechat_last_login_at TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
@@ -858,6 +866,59 @@ const createSchema = () => {
     db.exec(`ALTER TABLE users ADD COLUMN mfa_recovery_codes_hash TEXT;`);
   } catch {
     // ignore: column already exists
+  }
+  try {
+    db.exec(`ALTER TABLE users ADD COLUMN wechat_open_id TEXT;`);
+  } catch {
+    // ignore: column already exists
+  }
+  try {
+    db.exec(`ALTER TABLE users ADD COLUMN wechat_union_id TEXT;`);
+  } catch {
+    // ignore: column already exists
+  }
+  try {
+    db.exec(`ALTER TABLE users ADD COLUMN wechat_app_id TEXT;`);
+  } catch {
+    // ignore: column already exists
+  }
+  try {
+    db.exec(`ALTER TABLE users ADD COLUMN wechat_nickname TEXT;`);
+  } catch {
+    // ignore: column already exists
+  }
+  try {
+    db.exec(`ALTER TABLE users ADD COLUMN wechat_avatar_url TEXT;`);
+  } catch {
+    // ignore: column already exists
+  }
+  try {
+    db.exec(`ALTER TABLE users ADD COLUMN wechat_bound_at TEXT;`);
+  } catch {
+    // ignore: column already exists
+  }
+  try {
+    db.exec(`ALTER TABLE users ADD COLUMN wechat_last_login_at TEXT;`);
+  } catch {
+    // ignore: column already exists
+  }
+  try {
+    db.exec(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_users_wechat_open_id
+      ON users(wechat_open_id)
+      WHERE wechat_open_id IS NOT NULL;
+    `);
+  } catch {
+    // ignore: may fail on inconsistent dbs during partial migration
+  }
+  try {
+    db.exec(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_users_wechat_union_id
+      ON users(wechat_union_id)
+      WHERE wechat_union_id IS NOT NULL;
+    `);
+  } catch {
+    // ignore: may fail on inconsistent dbs during partial migration
   }
   if (!hasColumn("users", "mfa_enabled")) {
     db.exec(`ALTER TABLE users ADD COLUMN mfa_enabled INTEGER NOT NULL DEFAULT 0;`);

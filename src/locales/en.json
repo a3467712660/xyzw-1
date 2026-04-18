@@ -60,7 +60,14 @@
       "mfaSuccess": "Two-step verification passed",
       "rateLimitCooldown": "Too many sign-in attempts. Try again in {seconds} seconds.",
       "qqPending": "QQ sign-in is under development...",
-      "wechatPending": "WeChat sign-in is under development..."
+      "wechatPending": "WeChat sign-in is under development...",
+      "wechatFailed": "WeChat sign-in failed. Please try again later.",
+      "wechatNotBound": "This WeChat account is not bound to any site account. Direct registration through WeChat is not supported. Sign in with username and password first, then bind WeChat in Profile.",
+      "wechatNotConfigured": "WeChat sign-in is not configured yet",
+      "wechatPopupBlocked": "The WeChat sign-in popup was blocked by your browser. Allow popups and try again.",
+      "wechatCancelled": "WeChat sign-in was cancelled",
+      "wechatTimeout": "WeChat sign-in timed out. Please try again.",
+      "wechatRecoverFailed": "WeChat sign-in succeeded, but restoring the session failed. Refresh and try again."
     },
     "mfa": {
       "title": "Two-step Verification",
@@ -1283,6 +1290,8 @@
       "setup": "Set Up",
       "reset": "Reset",
       "requestReset": "Request Reset",
+      "bindWechat": "Bind WeChat",
+      "unbindWechat": "Unbind WeChat",
       "confirm": "Confirm",
       "done": "Done",
       "copy": "Copy",
@@ -1297,6 +1306,10 @@
       "twoFactor": {
         "title": "Two-factor authentication",
         "desc": "Add an extra layer of protection to your account"
+      },
+      "wechat": {
+        "title": "WeChat binding",
+        "desc": "After binding, you can sign in to this account directly from the login page with WeChat."
       },
       "loginHistory": {
         "title": "Login history",
@@ -1337,6 +1350,7 @@
     },
     "messages": {
       "loadFailed": "Failed to load profile",
+      "wechatLoadFailed": "Failed to load WeChat binding status",
       "saveFailed": "Save failed. Please try again later.",
       "saveSuccess": "Profile saved successfully",
       "passwordChangeFailed": "Failed to change password",
@@ -1365,6 +1379,22 @@
       "sensitiveConfirmCancelled": "Sensitive confirmation cancelled",
       "sensitiveConfirmFailed": "Sensitive confirmation failed. Please verify your current password.",
       "sensitiveConfirmSuccess": "Sensitive confirmation passed",
+      "wechatStatusBound": "Bound",
+      "wechatStatusUnbound": "Not bound",
+      "wechatStatusUnavailable": "Not configured",
+      "wechatNoNickname": "No WeChat nickname synced",
+      "wechatBoundAt": "Bound at: {time}",
+      "wechatLastLoginAt": "Last WeChat login: {time}",
+      "wechatMaskedOpenId": "OpenID: {value}",
+      "wechatBindSuccess": "WeChat bound successfully",
+      "wechatBindFailed": "Failed to bind WeChat. Please try again later.",
+      "wechatUnbindSuccess": "WeChat unbound successfully",
+      "wechatUnbindFailed": "Failed to unbind WeChat. Please try again later.",
+      "wechatAlreadyBound": "This WeChat account is already bound to another user",
+      "wechatNotConfigured": "WeChat binding is not configured yet",
+      "wechatPopupBlocked": "The WeChat binding popup was blocked by your browser. Allow popups and try again.",
+      "wechatCancelled": "WeChat binding was cancelled",
+      "wechatTimeout": "WeChat binding timed out. Please try again.",
       "copySuccess": "Copied",
       "copyFailed": "Copy failed. Please copy manually.",
       "twoFactorPending": "Two-factor authentication setup is under development...",

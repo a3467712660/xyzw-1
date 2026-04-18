@@ -7,14 +7,46 @@ const passwordResetCodeMask = (code) => maskedCode(code, "RST");
 const redactStoredResetCode = (id) => `reset-redacted:${String(id || "").trim()}`;
 import { normalizeAccessScope } from "../constants/accessScope.js";
 
-const toBooleanAdmin = (row) => ({
-  ...row,
-  isAdmin: Number(row.isAdmin) === 1,
-  mfaEnabled: Number(row.mfaEnabled) === 1,
-  tokenVersion: Number(row.tokenVersion ?? 0) || 0,
-  accessScope: normalizeAccessScope(row.accessScope),
-  tokenBindLimit: Math.max(1, Math.min(999, Number(row.tokenBindLimit) || 999)),
-});
+const toBooleanAdmin = (row) => {
+  const normalized = {
+    ...row,
+    isAdmin: Number(row.isAdmin) === 1,
+    mfaEnabled: Number(row.mfaEnabled) === 1,
+    tokenVersion: Number(row.tokenVersion ?? 0) || 0,
+    accessScope: normalizeAccessScope(row.accessScope),
+    tokenBindLimit: Math.max(1, Math.min(999, Number(row.tokenBindLimit) || 999)),
+    wechatBound: Number(row.wechatBound ?? 0) === 1,
+    wechatBoundAt: row.wechatBoundAt || null,
+    lastLoginAt: row.lastLoginAt || null,
+  };
+  delete normalized.wechatOpenId;
+  delete normalized.wechatUnionId;
+  return normalized;
+};
+
+const AUTH_USER_SELECT = `
+  id,
+  username,
+  email,
+  nickname,
+  phone,
+  account_display_id as accountDisplayId,
+  trial_expires_at as trialExpiresAt,
+  access_scope as accessScope,
+  token_bind_limit as tokenBindLimit,
+  is_admin as isAdmin,
+  mfa_enabled as mfaEnabled,
+  mfa_totp_secret_enc as mfaTotpSecretEnc,
+  mfa_recovery_codes_hash as mfaRecoveryCodesHash,
+  token_version as tokenVersion,
+  last_login_at as lastLoginAt,
+  wechat_bound_at as wechatBoundAt,
+  CASE
+    WHEN wechat_open_id IS NOT NULL OR wechat_union_id IS NOT NULL THEN 1
+    ELSE 0
+  END as wechatBound,
+  created_at as createdAt
+`;
 
 export const userRepository = {
   findIdByUsernameOrEmail(username, email) {
@@ -28,23 +60,9 @@ export const userRepository = {
   findByIdentity(identity) {
     const rows = query(
       `SELECT
-         id,
-         username,
-         email,
-         nickname,
-         phone,
-         account_display_id as accountDisplayId,
-         trial_expires_at as trialExpiresAt,
-         access_scope as accessScope,
-         token_bind_limit as tokenBindLimit,
-         is_admin as isAdmin,
-         mfa_enabled as mfaEnabled,
-         mfa_totp_secret_enc as mfaTotpSecretEnc,
-         mfa_recovery_codes_hash as mfaRecoveryCodesHash,
-         token_version as tokenVersion,
+         ${AUTH_USER_SELECT},
          password_salt as passwordSalt,
-         password_hash as passwordHash,
-         created_at as createdAt
+         password_hash as passwordHash
        FROM users
        WHERE username = $identity OR email = $identity`,
       { $identity: identity },
@@ -56,21 +74,7 @@ export const userRepository = {
   findById(id) {
     const rows = query(
       `SELECT
-         id,
-         username,
-         email,
-         nickname,
-         phone,
-         account_display_id as accountDisplayId,
-         trial_expires_at as trialExpiresAt,
-         access_scope as accessScope,
-         token_bind_limit as tokenBindLimit,
-         is_admin as isAdmin,
-         mfa_enabled as mfaEnabled,
-         mfa_totp_secret_enc as mfaTotpSecretEnc,
-         mfa_recovery_codes_hash as mfaRecoveryCodesHash,
-         token_version as tokenVersion,
-         created_at as createdAt
+         ${AUTH_USER_SELECT}
        FROM users
        WHERE id = $id`,
       { $id: id },
@@ -317,6 +321,119 @@ export const userRepository = {
 
   deleteById(id) {
     run(`DELETE FROM users WHERE id = $id`, { $id: id });
+  },
+
+  findByWechatIdentity({ openId, unionId }) {
+    const normalizedUnionId = String(unionId || "").trim();
+    const normalizedOpenId = String(openId || "").trim();
+    if (normalizedUnionId) {
+      const rows = query(
+        `SELECT
+           ${AUTH_USER_SELECT}
+         FROM users
+         WHERE wechat_union_id = $unionId
+         LIMIT 1`,
+        { $unionId: normalizedUnionId },
+      );
+      if (rows[0]) {
+        return toBooleanAdmin(rows[0]);
+      }
+    }
+    if (!normalizedOpenId) {
+      return null;
+    }
+    const rows = query(
+      `SELECT
+         ${AUTH_USER_SELECT}
+       FROM users
+       WHERE wechat_open_id = $openId
+       LIMIT 1`,
+      { $openId: normalizedOpenId },
+    );
+    return rows[0] ? toBooleanAdmin(rows[0]) : null;
+  },
+
+  findWechatBindingByUserId(id) {
+    const rows = query(
+      `SELECT
+         wechat_open_id as openId,
+         wechat_union_id as unionId,
+         wechat_app_id as appId,
+         wechat_nickname as nickname,
+         wechat_avatar_url as avatarUrl,
+         wechat_bound_at as boundAt,
+         wechat_last_login_at as lastLoginAt
+       FROM users
+       WHERE id = $id`,
+      { $id: id },
+    );
+    return rows[0] || null;
+  },
+
+  bindWechat({
+    id,
+    openId,
+    unionId = null,
+    appId = null,
+    nickname = null,
+    avatarUrl = null,
+    boundAt,
+    updatedAt,
+  }) {
+    run(
+      `UPDATE users
+       SET wechat_open_id = $openId,
+           wechat_union_id = $unionId,
+           wechat_app_id = $appId,
+           wechat_nickname = $nickname,
+           wechat_avatar_url = $avatarUrl,
+           wechat_bound_at = $boundAt,
+           updated_at = $updatedAt
+       WHERE id = $id`,
+      {
+        $id: id,
+        $openId: String(openId || "").trim() || null,
+        $unionId: String(unionId || "").trim() || null,
+        $appId: String(appId || "").trim() || null,
+        $nickname: String(nickname || "").trim() || null,
+        $avatarUrl: String(avatarUrl || "").trim() || null,
+        $boundAt: boundAt,
+        $updatedAt: updatedAt,
+      },
+    );
+  },
+
+  clearWechatBinding({ id, updatedAt }) {
+    run(
+      `UPDATE users
+       SET wechat_open_id = NULL,
+           wechat_union_id = NULL,
+           wechat_app_id = NULL,
+           wechat_nickname = NULL,
+           wechat_avatar_url = NULL,
+           wechat_bound_at = NULL,
+           wechat_last_login_at = NULL,
+           updated_at = $updatedAt
+       WHERE id = $id`,
+      {
+        $id: id,
+        $updatedAt: updatedAt,
+      },
+    );
+  },
+
+  updateWechatLastLogin({ id, wechatLastLoginAt, updatedAt }) {
+    run(
+      `UPDATE users
+       SET wechat_last_login_at = $wechatLastLoginAt,
+           updated_at = $updatedAt
+       WHERE id = $id`,
+      {
+        $id: id,
+        $wechatLastLoginAt: wechatLastLoginAt,
+        $updatedAt: updatedAt,
+      },
+    );
   },
 
   hasBlockingReferralHistory(userId) {

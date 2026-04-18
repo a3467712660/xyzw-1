@@ -378,6 +378,9 @@ export const env = {
   protectedAdminIdentities,
   publicAppOrigin: parseOptionalOrigin(process.env.PUBLIC_APP_ORIGIN),
   adminAppOrigin: parseOptionalOrigin(process.env.ADMIN_APP_ORIGIN),
+  wechatOpenAppId: String(process.env.WECHAT_OPEN_APP_ID || "").trim(),
+  wechatOpenAppSecret: String(process.env.WECHAT_OPEN_APP_SECRET || "").trim(),
+  wechatOpenRedirectUri: String(process.env.WECHAT_OPEN_REDIRECT_URI || "").trim(),
   trustProxy: parseTrustProxy(process.env.TRUST_PROXY),
   logRequests: (process.env.LOG_REQUESTS || "true") === "true",
   dbWriteSafetyLogEnabled: parseBoolean(

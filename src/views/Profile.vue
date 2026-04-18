@@ -160,6 +160,62 @@
 
               <div class="security-item">
                 <div class="security-info">
+                  <h3>{{ t("profile.security.wechat.title") }}</h3>
+                  <p>
+                    {{
+                      wechatBindingConfigured
+                        ? t("profile.security.wechat.desc")
+                        : t("profile.messages.wechatNotConfigured")
+                    }}
+                  </p>
+                  <div v-if="wechatBinding.bound" class="wechat-binding-meta">
+                    <n-avatar
+                      round
+                      :size="44"
+                      :src="wechatBinding.avatarUrl || undefined"
+                    >
+                      {{ (wechatBinding.nickname || "W").slice(0, 1) }}
+                    </n-avatar>
+                    <div class="wechat-binding-meta__text">
+                      <strong>{{ wechatBinding.nickname || t("profile.messages.wechatNoNickname") }}</strong>
+                      <span v-if="wechatBinding.boundAt">
+                        {{ t("profile.messages.wechatBoundAt", { time: formatDateTime(wechatBinding.boundAt) }) }}
+                      </span>
+                      <span v-if="wechatBinding.lastLoginAt">
+                        {{ t("profile.messages.wechatLastLoginAt", { time: formatDateTime(wechatBinding.lastLoginAt) }) }}
+                      </span>
+                      <span v-if="wechatBinding.maskedOpenId">
+                        {{ t("profile.messages.wechatMaskedOpenId", { value: wechatBinding.maskedOpenId }) }}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <n-space vertical class="security-item__actions" :size="8">
+                  <n-tag :type="wechatBinding.bound ? 'success' : wechatBindingConfigured ? 'warning' : 'default'">
+                    {{
+                      wechatBinding.bound
+                        ? t("profile.messages.wechatStatusBound")
+                        : wechatBindingConfigured
+                          ? t("profile.messages.wechatStatusUnbound")
+                          : t("profile.messages.wechatStatusUnavailable")
+                    }}
+                  </n-tag>
+                  <n-button
+                    :disabled="!wechatBindingConfigured"
+                    :loading="isWechatBindingLoading || isWechatBindingActionLoading"
+                    @click="wechatBinding.bound ? handleWechatUnbind() : handleWechatBind()"
+                  >
+                    {{
+                      wechatBinding.bound
+                        ? t("profile.actions.unbindWechat")
+                        : t("profile.actions.bindWechat")
+                    }}
+                  </n-button>
+                </n-space>
+              </div>
+
+              <div class="security-item">
+                <div class="security-info">
                   <h3>{{ t("profile.security.loginHistory.title") }}</h3>
                   <p>{{ t("profile.security.loginHistory.desc") }}</p>
                 </div>
@@ -445,6 +501,7 @@ import { setLocale } from "@/i18n";
 import { safeModeEnabled as safeModePreference } from "@/services/token/tokenStorage";
 import { useLocalTokenStore } from "@/stores/localTokenManager";
 import { ensureUserSensitiveConfirmTokenByDialog } from "@/utils/userSensitiveConfirm";
+import { openWechatAuthPopup } from "@/utils/wechatAuthPopup";
 import { useTheme } from "@/composables/useTheme";
 
 const router = useRouter();
@@ -459,6 +516,8 @@ const isProfileSaving = ref(false);
 const isPasswordSaving = ref(false);
 const isRemoteBinDownloadSaving = ref(false);
 const isRefreshSecondVerifySaving = ref(false);
+const isWechatBindingLoading = ref(false);
+const isWechatBindingActionLoading = ref(false);
 const isMfaSetupModalVisible = ref(false);
 const isMfaSetupLoading = ref(false);
 const isMfaEnableLoading = ref(false);
@@ -503,6 +562,15 @@ const securityPreferences = reactive({
   refreshSecondVerifyEnabled: true,
 });
 const safeModeEnabled = ref(Boolean(safeModePreference.value));
+const wechatBindingConfigured = ref(true);
+const wechatBinding = reactive({
+  bound: false,
+  nickname: "",
+  avatarUrl: "",
+  boundAt: null,
+  lastLoginAt: null,
+  maskedOpenId: "",
+});
 const isMfaBusy = computed(() => isMfaSetupLoading.value || isMfaEnableLoading.value);
 const mfaEnabledDone = computed(() => mfaRecoveryCodes.value.length > 0);
 const isTwoFactorEnabled = computed(() =>
@@ -576,12 +644,91 @@ const syncUserInfo = (profile) => {
   });
 };
 
+const syncWechatBinding = (payload = {}) => {
+  Object.assign(wechatBinding, {
+    bound: Boolean(payload?.bound),
+    nickname: payload?.nickname || "",
+    avatarUrl: payload?.avatarUrl || "",
+    boundAt: payload?.boundAt || null,
+    lastLoginAt: payload?.lastLoginAt || null,
+    maskedOpenId: payload?.maskedOpenId || "",
+  });
+};
+
+const formatDateTime = (value) => {
+  const text = String(value || "").trim();
+  if (!text)
+    return "";
+  const date = new Date(text);
+  if (Number.isNaN(date.getTime()))
+    return text;
+  return date.toLocaleString();
+};
+
 const loadProfile = async () => {
   const res = await api.user.getProfile();
   if (!res.success) {
     throw new Error(res.message || t("profile.messages.loadFailed"));
   }
   syncUserInfo(res.data);
+};
+
+const loadWechatBinding = async ({ silent = false } = {}) => {
+  if (!authStore.isAuthenticated) {
+    wechatBindingConfigured.value = true;
+    syncWechatBinding();
+    return;
+  }
+
+  try {
+    isWechatBindingLoading.value = true;
+    const res = await api.auth.getWechatBinding();
+    if (!res?.success) {
+      throw new Error(res?.message || t("profile.messages.wechatLoadFailed"));
+    }
+    wechatBindingConfigured.value = true;
+    syncWechatBinding(res.data);
+  } catch (error) {
+    if (String(error?.code || "").trim() === "AUTH_WECHAT_NOT_CONFIGURED") {
+      wechatBindingConfigured.value = false;
+      syncWechatBinding();
+      if (!silent) {
+        message.warning(t("profile.messages.wechatNotConfigured"));
+      }
+      return;
+    }
+    throw error;
+  } finally {
+    isWechatBindingLoading.value = false;
+  }
+};
+
+const resolveWechatPopupErrorMessage = (error) => {
+  const code = String(error?.code || "").trim();
+  if (code === "AUTH_WECHAT_NOT_CONFIGURED") {
+    return t("profile.messages.wechatNotConfigured");
+  }
+  if (code === "WECHAT_POPUP_BLOCKED") {
+    return t("profile.messages.wechatPopupBlocked");
+  }
+  if (code === "WECHAT_POPUP_CANCELLED") {
+    return t("profile.messages.wechatCancelled");
+  }
+  if (code === "WECHAT_POPUP_TIMEOUT") {
+    return t("profile.messages.wechatTimeout");
+  }
+  return error?.message || t("profile.messages.wechatBindFailed");
+};
+
+const resolveWechatPayloadMessage = (payload) => {
+  const errorCode = String(payload?.errorCode || "").trim();
+  if (errorCode === "AUTH_WECHAT_ALREADY_BOUND") {
+    return t("profile.messages.wechatAlreadyBound");
+  }
+  if (errorCode === "AUTH_WECHAT_NOT_CONFIGURED") {
+    return t("profile.messages.wechatNotConfigured");
+  }
+  return payload?.message || t("profile.messages.wechatBindFailed");
 };
 
 const parseUserAgentShort = (uaRaw) => {
@@ -989,6 +1136,82 @@ const goToAdminUsersForRefreshVerify = () => {
   router.push("/admin/admin-users");
 };
 
+const handleWechatBind = async () => {
+  if (isWechatBindingActionLoading.value) {
+    return;
+  }
+  try {
+    isWechatBindingActionLoading.value = true;
+    const payload = await openWechatAuthPopup({
+      intent: "bind",
+    });
+    if (!payload?.success) {
+      message.error(resolveWechatPayloadMessage(payload));
+      return;
+    }
+    await loadWechatBinding({ silent: true });
+    await authStore.fetchUserInfo();
+    message.success(t("profile.messages.wechatBindSuccess"));
+  } catch (error) {
+    message.error(resolveWechatPopupErrorMessage(error));
+  } finally {
+    isWechatBindingActionLoading.value = false;
+  }
+};
+
+const handleWechatUnbind = async () => {
+  if (isWechatBindingActionLoading.value) {
+    return;
+  }
+
+  const confirmToken = await ensureUserSensitiveConfirmTokenByDialog({
+    dialog,
+    message,
+    title: t("profile.dialogs.sensitiveConfirm.title"),
+    prompt: t("profile.messages.sensitiveConfirmPrompt"),
+    placeholder: t("profile.placeholders.currentPassword"),
+    positiveText: t("profile.actions.confirm"),
+    negativeText: t("profile.deleteDialog.cancel"),
+    emptyCredentialMessage: t("profile.validation.currentPasswordRequired"),
+    cancelledMessage: t("profile.messages.sensitiveConfirmCancelled"),
+    failedMessage: t("profile.messages.sensitiveConfirmFailed"),
+    successMessage: t("profile.messages.sensitiveConfirmSuccess"),
+    mfaEnabled: Boolean(authStore.user?.mfaEnabled),
+    preferMfa: true,
+    methodLabelTotp: t("profile.messages.sensitiveConfirmMethodTotp"),
+    methodLabelRecovery: t("profile.messages.sensitiveConfirmMethodRecovery"),
+    methodLabelPassword: t("profile.messages.sensitiveConfirmMethodPassword"),
+    totpPlaceholder: t("profile.messages.sensitiveConfirmTotpPlaceholder"),
+    recoveryPlaceholder: t("profile.messages.sensitiveConfirmRecoveryPlaceholder"),
+    mfaHint: t("profile.messages.sensitiveConfirmMfaHint"),
+  });
+  if (!confirmToken) {
+    return;
+  }
+
+  try {
+    isWechatBindingActionLoading.value = true;
+    const res = await api.auth.unbindWechat({ confirmToken });
+    if (!res?.success) {
+      message.error(res?.message || t("profile.messages.wechatUnbindFailed"));
+      return;
+    }
+    await loadWechatBinding({ silent: true });
+    await authStore.fetchUserInfo();
+    message.success(res?.message || t("profile.messages.wechatUnbindSuccess"));
+  } catch (error) {
+    if (String(error?.code || "").trim() === "AUTH_WECHAT_NOT_CONFIGURED") {
+      wechatBindingConfigured.value = false;
+      syncWechatBinding();
+      message.error(t("profile.messages.wechatNotConfigured"));
+      return;
+    }
+    message.error(error?.message || t("profile.messages.wechatUnbindFailed"));
+  } finally {
+    isWechatBindingActionLoading.value = false;
+  }
+};
+
 const submitDisableRefreshSecondVerifyRequest = () => {
   if (isRefreshSecondVerifySaving.value || !securityPreferences.refreshSecondVerifyEnabled) {
     return;
@@ -1240,6 +1463,11 @@ onMounted(async () => {
     message.error(error.message || t("profile.messages.loadFailed"));
   }
   await loadSecurityPreferences();
+  try {
+    await loadWechatBinding();
+  } catch (error) {
+    message.error(error.message || t("profile.messages.wechatLoadFailed"));
+  }
   safeModeEnabled.value = Boolean(safeModePreference.value);
 
   const savedPreferences = localStorage.getItem("userPreferences");
@@ -1452,6 +1680,37 @@ onMounted(async () => {
   line-height: 1.6;
 }
 
+.wechat-binding-meta {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.wechat-binding-meta__text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.wechat-binding-meta__text strong,
+.wechat-binding-meta__text span {
+  min-width: 0;
+  word-break: break-word;
+}
+
+.wechat-binding-meta__text strong {
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.wechat-binding-meta__text span {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .mfa-setup-modal {
   max-width: 640px;
 }
@@ -1541,6 +1800,10 @@ onMounted(async () => {
   .security-item__actions {
     width: 100%;
     align-items: stretch;
+  }
+
+  .wechat-binding-meta {
+    align-items: flex-start;
   }
 
   .security-item :deep(.n-button),

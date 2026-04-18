@@ -52,6 +52,7 @@ const isAuthBootstrapRequest = (config) => {
     url.includes("/auth/login") ||
     url.includes("/auth/register") ||
     url.includes("/auth/password-reset") ||
+    url.includes("/auth/wechat/login/start") ||
     url.includes("/auth/mfa/verify") ||
     url.includes("/auth/mfa/qr/session") ||
     url.includes("/auth/mfa/qr/approve") ||
@@ -385,6 +386,22 @@ const api = {
     getUserInfo: () => request.get("/auth/user"),
     getMe: (config = {}) => request.get("/auth/me", config),
     ensureCsrf: () => request.get("/auth/csrf", { skipAuthHandling: true }),
+    startWechatLogin: (payload = {}) =>
+      request.post("/auth/wechat/login/start", payload, {
+        skipAuthHandling: true,
+      }),
+    startWechatBind: () => request.post("/auth/wechat/bind/start", {}),
+    getWechatBinding: () => request.get("/auth/wechat/binding"),
+    unbindWechat: ({ confirmToken } = {}) =>
+      request.post(
+        "/auth/wechat/unbind",
+        {},
+        {
+          headers: confirmToken
+            ? { [USER_CONFIRM_HEADER_NAME]: confirmToken }
+            : {},
+        },
+      ),
     refreshToken: () =>
       request.post("/auth/refresh", {}, { skipAuthHandling: true }),
     logoutAll: () => request.post("/auth/logout-all"),

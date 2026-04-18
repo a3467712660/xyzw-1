@@ -15,6 +15,7 @@ import { authRequired } from "../middleware/auth.js";
 import { createRateLimiter } from "../middleware/rateLimit.js";
 import { validateRequest } from "../middleware/validate.js";
 import { errorResponse } from "../lib/httpResponse.js";
+import { userSensitiveActionRequired } from "../middleware/userSensitiveAction.js";
 import { inviteCodeRepository } from "../repositories/inviteCodeRepository.js";
 import { referralProfileRepository } from "../repositories/referralProfileRepository.js";
 import { refreshTokenRepository } from "../repositories/refreshTokenRepository.js";
@@ -48,6 +49,12 @@ import {
   attachReferralAttributionOnRegister,
   normalizeReferralCode,
 } from "../services/referralService.js";
+import {
+  buildAuthorizeUrl,
+  exchangeCodeForAccessToken,
+  fetchWechatUserProfile,
+  isWechatOpenConfigured,
+} from "../services/wechatOpenAuthService.js";
 
 const router = Router();
 router.get("/temporary-invites", (_req, res) => {
@@ -155,9 +162,16 @@ const mfaDisableBodySchema = z.object({
 const mfaResetLinkBodySchema = z.object({
   token: z.string().trim().min(1).max(4096),
 }).strict();
+const wechatLoginStartBodySchema = z.object({
+  rememberMe: z.boolean().optional().default(false),
+}).strict();
 const MFA_QR_SESSION_TTL_MS = MFA_CHALLENGE_TTL_SECONDS * 1000;
 const MAX_MFA_QR_SESSION_COUNT = 500;
 const mfaQrSessionStore = new Map();
+const WECHAT_AUTH_FLOW_TTL_MS = 5 * 60 * 1000;
+const MAX_WECHAT_AUTH_FLOW_COUNT = 500;
+const WECHAT_AUTH_CALLBACK_SOURCE = "xyzw-wechat-auth";
+const wechatAuthFlowStore = new Map();
 
 const isLocalMfaResetRequest = (req) => {
   const origin = normalizeHttpOrigin(String(req.get("origin") || "").trim());
@@ -331,7 +345,114 @@ const rotateRefreshToken = ({ currentTokenId, user, req, rememberMe = false }) =
   return next;
 };
 
-const issueMfaChallengeToken = (user, { rememberMe = false } = {}) =>
+const buildAuthUserPayload = (user, { lastLoginAt = null } = {}) => ({
+  id: user.id,
+  username: user.username,
+  email: user.email,
+  nickname: user.nickname || "",
+  phone: user.phone || "",
+  trialExpiresAt: user.trialExpiresAt || null,
+  accessScope: normalizeAccessScope(user.accessScope),
+  isTaskControlOnly:
+    normalizeAccessScope(user.accessScope) === ACCESS_SCOPE_TASK_CONTROL_ONLY,
+  hasGameFeatureAccess:
+    normalizeAccessScope(user.accessScope) === ACCESS_SCOPE_FULL,
+  tokenBindLimit: Math.max(1, Math.min(999, Number(user.tokenBindLimit) || 999)),
+  mfaEnabled: !!user.mfaEnabled,
+  lastLoginAt: lastLoginAt || user.lastLoginAt || null,
+  wechatBound: Boolean(user.wechatBound),
+  wechatBoundAt: user.wechatBoundAt || null,
+  isAdmin: user.isAdmin,
+  createdAt: user.createdAt,
+  avatar: "/icons/xiaoyugan.png",
+});
+
+const getLoginBlockedError = (user) => {
+  if (
+    user?.trialExpiresAt
+    && Number.isFinite(new Date(user.trialExpiresAt).getTime())
+    && new Date(user.trialExpiresAt).getTime() < Date.now()
+  ) {
+    return {
+      status: 403,
+      code: "AUTH_TRIAL_EXPIRED",
+      message: "账号试用已到期，请联系管理员",
+      reason: "trial_expired",
+    };
+  }
+  return null;
+};
+
+const issueLoginSession = ({
+  req,
+  res,
+  user,
+  rememberMe = false,
+  loginMethod = "password",
+}) => {
+  const safeLoginMethod = String(loginMethod || "password").trim() || "password";
+  const lastLoginAt = nowIso();
+  userRepository.updateLastLogin({
+    id: user.id,
+    lastLoginAt,
+    updatedAt: lastLoginAt,
+  });
+  if (safeLoginMethod.startsWith("wechat")) {
+    userRepository.updateWechatLastLogin({
+      id: user.id,
+      wechatLastLoginAt: lastLoginAt,
+      updatedAt: lastLoginAt,
+    });
+  }
+
+  const token = buildAccessToken(user);
+  setAccessCookie(req, res, token);
+  const refresh = issueRefreshToken({ user, req, rememberMe });
+  const refreshMaxAge = Math.max(
+    0,
+    new Date(refresh.expiresAt).getTime() - Date.now(),
+  );
+  res.cookie(
+    env.refreshCookieName,
+    refresh.refreshToken,
+    refreshCookieOptions(req, refreshMaxAge),
+  );
+
+  const loginDetail = {
+    loginMethod: safeLoginMethod,
+    isAdmin: Boolean(user.isAdmin),
+    rememberMe: Boolean(rememberMe),
+    refreshTtlDays: Math.round(refresh.ttlMs / (24 * 60 * 60 * 1000)),
+  };
+  recordSecurityEvent({
+    userId: user.id,
+    eventType: "login_success",
+    detail: loginDetail,
+    ...reqMeta(req),
+  });
+  if (safeLoginMethod.startsWith("wechat")) {
+    recordSecurityEvent({
+      userId: user.id,
+      eventType: "wechat_login_success",
+      detail: loginDetail,
+      ...reqMeta(req),
+    });
+  }
+
+  return {
+    token,
+    lastLoginAt,
+    refresh,
+  };
+};
+
+const issueMfaChallengeToken = (
+  user,
+  {
+    rememberMe = false,
+    loginMethod = "password+mfa",
+  } = {},
+) =>
   signJwt(
     {
       sub: user.id,
@@ -339,6 +460,7 @@ const issueMfaChallengeToken = (user, { rememberMe = false } = {}) =>
       ver: Number(user.tokenVersion ?? 0),
       purpose: MFA_CHALLENGE_PURPOSE,
       rememberMe: Boolean(rememberMe),
+      loginMethod: String(loginMethod || "password+mfa").trim() || "password+mfa",
     },
     MFA_CHALLENGE_TTL_SECONDS,
   );
@@ -482,62 +604,177 @@ const cleanupExpiredMfaQrSessions = () => {
   }
 };
 
-const finalizeLogin = ({ req, res, user, rememberMe = false }) => {
-  const lastLoginAt = nowIso();
-  userRepository.updateLastLogin({
-    id: user.id,
-    lastLoginAt,
-    updatedAt: lastLoginAt,
-  });
+const cleanupExpiredWechatAuthFlows = () => {
+  const now = Date.now();
+  for (const [flowId, flow] of wechatAuthFlowStore.entries()) {
+    if (!flow || Number(flow.expiresAtMs || 0) <= now) {
+      wechatAuthFlowStore.delete(flowId);
+    }
+  }
+  if (wechatAuthFlowStore.size <= MAX_WECHAT_AUTH_FLOW_COUNT) {
+    return;
+  }
+  const flows = Array.from(wechatAuthFlowStore.entries()).sort(
+    (a, b) => Number(a?.[1]?.createdAtMs || 0) - Number(b?.[1]?.createdAtMs || 0),
+  );
+  const removeCount = Math.max(0, flows.length - MAX_WECHAT_AUTH_FLOW_COUNT);
+  for (let i = 0; i < removeCount; i += 1) {
+    wechatAuthFlowStore.delete(String(flows[i]?.[0] || ""));
+  }
+};
 
-  const token = buildAccessToken(user);
-  setAccessCookie(req, res, token);
-  const refresh = issueRefreshToken({ user, req, rememberMe });
-  const refreshMaxAge = Math.max(
-    0,
-    new Date(refresh.expiresAt).getTime() - Date.now(),
+const createWechatAuthFlow = ({ intent, rememberMe = false, userId = null }) => {
+  cleanupExpiredWechatAuthFlows();
+  const createdAtMs = Date.now();
+  const flowId = secureId("wxflow");
+  wechatAuthFlowStore.set(flowId, {
+    id: flowId,
+    intent: String(intent || "").trim(),
+    rememberMe: Boolean(rememberMe),
+    userId: String(userId || "").trim() || null,
+    createdAtMs,
+    expiresAtMs: createdAtMs + WECHAT_AUTH_FLOW_TTL_MS,
+  });
+  return {
+    flowId,
+    authorizeUrl: buildAuthorizeUrl({ state: flowId }),
+  };
+};
+
+const consumeWechatAuthFlow = (flowId) => {
+  cleanupExpiredWechatAuthFlows();
+  const safeFlowId = String(flowId || "").trim();
+  const flow = wechatAuthFlowStore.get(safeFlowId);
+  if (!flow) {
+    return null;
+  }
+  wechatAuthFlowStore.delete(safeFlowId);
+  return flow;
+};
+
+const maskWechatOpenId = (openId) => {
+  const value = String(openId || "").trim();
+  if (!value) {
+    return "";
+  }
+  if (value.length <= 6) {
+    return `${value.slice(0, 2)}***`;
+  }
+  return `${value.slice(0, 4)}***${value.slice(-4)}`;
+};
+
+const createWechatCallbackPayload = ({
+  intent,
+  success,
+  flowId,
+  message,
+  errorCode = "",
+  mfaRequired = false,
+  mfaChallengeToken = "",
+}) => {
+  const payload = {
+    source: WECHAT_AUTH_CALLBACK_SOURCE,
+    intent: String(intent || "").trim() || "login",
+    success: Boolean(success),
+    flowId: String(flowId || "").trim(),
+    message: String(message || "").trim(),
+  };
+  if (!payload.success && errorCode) {
+    payload.errorCode = String(errorCode || "").trim();
+  }
+  if (mfaRequired) {
+    payload.mfaRequired = true;
+    payload.mfaChallengeToken = String(mfaChallengeToken || "").trim();
+  }
+  return payload;
+};
+
+const sendWechatCallbackHtml = (res, payload) => {
+  const serializedPayload = encodeURIComponent(JSON.stringify(payload || {}));
+  return res
+    .status(200)
+    .type("html")
+    .send(`<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>微信登录</title>
+</head>
+<body>
+  <p id="message">处理中...</p>
+  <script>
+    const payload = JSON.parse(decodeURIComponent("${serializedPayload}"));
+    const fallback = payload.message || (payload.success ? "操作成功，请返回原页面继续。" : "操作失败，请返回原页面重试。");
+    const messageEl = document.getElementById("message");
+    if (messageEl) {
+      messageEl.textContent = fallback;
+    }
+    try {
+      if (window.opener) {
+        window.opener.postMessage(payload, window.location.origin);
+      }
+    } catch (error) {
+      console.error(error);
+    }
+    try {
+      window.close();
+    } catch (error) {
+      console.error(error);
+    }
+  </script>
+</body>
+</html>`);
+};
+
+const loadWechatUserProfileByCode = async (code) => {
+  const exchanged = await exchangeCodeForAccessToken(code);
+  const profile = await fetchWechatUserProfile({
+    accessToken: exchanged.accessToken,
+    openId: exchanged.openId,
+  });
+  return {
+    openId: String(profile.openId || exchanged.openId || "").trim(),
+    unionId: String(profile.unionId || exchanged.unionId || "").trim(),
+    nickname: String(profile.nickname || "").trim(),
+    avatarUrl: String(profile.avatarUrl || "").trim(),
+    appId: String(profile.appId || "").trim(),
+  };
+};
+
+const isWechatBindingConflictError = (error) => {
+  const message = String(error?.message || "");
+  return (
+    message.includes("idx_users_wechat_open_id")
+    || message.includes("idx_users_wechat_union_id")
+    || message.includes("users.wechat_open_id")
+    || message.includes("users.wechat_union_id")
   );
-  res.cookie(
-    env.refreshCookieName,
-    refresh.refreshToken,
-    refreshCookieOptions(req, refreshMaxAge),
-  );
-  recordSecurityEvent({
-    userId: user.id,
-    eventType: "login_success",
-    detail: {
-      loginMethod: user.mfaEnabled ? "password+mfa" : "password",
-      isAdmin: Boolean(user.isAdmin),
-      rememberMe: Boolean(rememberMe),
-      refreshTtlDays: Math.round(refresh.ttlMs / (24 * 60 * 60 * 1000)),
-    },
-    ...reqMeta(req),
+};
+
+const finalizeLogin = ({
+  req,
+  res,
+  user,
+  rememberMe = false,
+  loginMethod = "password",
+}) => {
+  const session = issueLoginSession({
+    req,
+    res,
+    user,
+    rememberMe,
+    loginMethod,
   });
 
   return res.json({
     success: true,
     message: "登录成功",
     data: {
-      ...(env.accessTokenExposeInBody ? { token } : {}),
-      user: {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        nickname: user.nickname || "",
-        phone: user.phone || "",
-        trialExpiresAt: user.trialExpiresAt || null,
-        accessScope: normalizeAccessScope(user.accessScope),
-        isTaskControlOnly:
-          normalizeAccessScope(user.accessScope) === ACCESS_SCOPE_TASK_CONTROL_ONLY,
-        hasGameFeatureAccess:
-          normalizeAccessScope(user.accessScope) === ACCESS_SCOPE_FULL,
-        tokenBindLimit: Math.max(1, Math.min(999, Number(user.tokenBindLimit) || 999)),
-        mfaEnabled: !!user.mfaEnabled,
-        lastLoginAt,
-        isAdmin: user.isAdmin,
-        createdAt: user.createdAt,
-        avatar: "/icons/xiaoyugan.png",
-      },
+      ...(env.accessTokenExposeInBody ? { token: session.token } : {}),
+      user: buildAuthUserPayload(user, {
+        lastLoginAt: session.lastLoginAt,
+      }),
     },
   });
 };
@@ -722,27 +959,27 @@ router.post("/login", loginLimiter, validateRequest({ body: loginBodySchema }), 
       updatedAt: nowIso(),
     });
   }
-  if (
-    user.trialExpiresAt
-    && Number.isFinite(new Date(user.trialExpiresAt).getTime())
-    && new Date(user.trialExpiresAt).getTime() < Date.now()
-  ) {
+  const blocked = getLoginBlockedError(user);
+  if (blocked) {
     recordSecurityEvent({
       userId: user.id,
       eventType: "login_failed",
-      detail: { reason: "trial_expired" },
+      detail: { reason: blocked.reason },
       ...reqMeta(req),
     });
     return errorResponse(
       res,
-      403,
-      "AUTH_TRIAL_EXPIRED",
-      "账号试用已到期，请联系管理员",
+      blocked.status,
+      blocked.code,
+      blocked.message,
     );
   }
 
   if (user.mfaEnabled) {
-    const mfaChallengeToken = issueMfaChallengeToken(user, { rememberMe });
+    const mfaChallengeToken = issueMfaChallengeToken(user, {
+      rememberMe,
+      loginMethod: "password+mfa",
+    });
     recordSecurityEvent({
       userId: user.id,
       eventType: "login_failed",
@@ -759,7 +996,372 @@ router.post("/login", loginLimiter, validateRequest({ body: loginBodySchema }), 
     });
   }
 
-  return finalizeLogin({ req, res, user, rememberMe });
+  return finalizeLogin({
+    req,
+    res,
+    user,
+    rememberMe,
+    loginMethod: "password",
+  });
+});
+
+router.post(
+  "/wechat/login/start",
+  validateRequest({ body: wechatLoginStartBodySchema }),
+  (req, res) => {
+    if (!isWechatOpenConfigured()) {
+      return errorResponse(
+        res,
+        503,
+        "AUTH_WECHAT_NOT_CONFIGURED",
+        "微信登录暂未配置",
+      );
+    }
+
+    const { flowId, authorizeUrl } = createWechatAuthFlow({
+      intent: "login",
+      rememberMe: Boolean(req.body?.rememberMe),
+    });
+    return res.json({
+      success: true,
+      data: {
+        authorizeUrl,
+        flowId,
+      },
+    });
+  },
+);
+
+router.post("/wechat/bind/start", authRequired, (req, res) => {
+  if (!isWechatOpenConfigured()) {
+    return errorResponse(
+      res,
+      503,
+      "AUTH_WECHAT_NOT_CONFIGURED",
+      "微信绑定暂未配置",
+    );
+  }
+
+  const { flowId, authorizeUrl } = createWechatAuthFlow({
+    intent: "bind",
+    userId: req.auth.user.id,
+  });
+  return res.json({
+    success: true,
+    data: {
+      authorizeUrl,
+      flowId,
+    },
+  });
+});
+
+router.get("/wechat/callback", async (req, res) => {
+  const flowId = String(req.query?.state || "").trim();
+  const code = String(req.query?.code || "").trim();
+  const flow = consumeWechatAuthFlow(flowId);
+  const intent = String(flow?.intent || "login").trim() || "login";
+  const callbackFailure = ({
+    message,
+    errorCode,
+  }) =>
+    sendWechatCallbackHtml(
+      res,
+      createWechatCallbackPayload({
+        intent,
+        success: false,
+        flowId,
+        message,
+        errorCode,
+      }),
+    );
+
+  try {
+    if (!isWechatOpenConfigured()) {
+      return callbackFailure({
+        message: "微信登录暂未配置",
+        errorCode: "AUTH_WECHAT_NOT_CONFIGURED",
+      });
+    }
+
+    if (!flow) {
+      return callbackFailure({
+        message: "微信登录状态已失效，请重新发起操作",
+        errorCode: "AUTH_WECHAT_FLOW_INVALID",
+      });
+    }
+
+    if (!code) {
+      if (intent === "bind" && flow.userId) {
+        recordSecurityEvent({
+          userId: flow.userId,
+          eventType: "wechat_bind_failed",
+          detail: { reason: "missing_code" },
+          ...reqMeta(req),
+        });
+      } else {
+        recordSecurityEvent({
+          userId: null,
+          eventType: "wechat_login_failed",
+          detail: { reason: "missing_code" },
+          ...reqMeta(req),
+        });
+      }
+      return callbackFailure({
+        message: "缺少微信授权结果，请重新扫码后重试",
+        errorCode: "AUTH_WECHAT_CODE_MISSING",
+      });
+    }
+
+    let profile;
+    try {
+      profile = await loadWechatUserProfileByCode(code);
+    } catch (error) {
+      if (intent === "bind" && flow.userId) {
+        recordSecurityEvent({
+          userId: flow.userId,
+          eventType: "wechat_bind_failed",
+          detail: {
+            reason: "upstream_error",
+            errorCode: String(error?.code || "AUTH_WECHAT_UPSTREAM_ERROR"),
+          },
+          ...reqMeta(req),
+        });
+      } else {
+        recordSecurityEvent({
+          userId: null,
+          eventType: "wechat_login_failed",
+          detail: {
+            reason: "upstream_error",
+            errorCode: String(error?.code || "AUTH_WECHAT_UPSTREAM_ERROR"),
+          },
+          ...reqMeta(req),
+        });
+      }
+      return callbackFailure({
+        message: error?.message || "微信登录失败，请重新扫码后重试",
+        errorCode: String(error?.code || "AUTH_WECHAT_UPSTREAM_ERROR"),
+      });
+    }
+
+    if (intent === "bind") {
+      const currentUser = userRepository.findById(flow.userId);
+      if (!currentUser) {
+        recordSecurityEvent({
+          userId: flow.userId || null,
+          eventType: "wechat_bind_failed",
+          detail: { reason: "user_not_found" },
+          ...reqMeta(req),
+        });
+        return callbackFailure({
+          message: "当前账号不存在或已失效",
+          errorCode: "AUTH_USER_NOT_FOUND",
+        });
+      }
+
+      const existingBinding = userRepository.findWechatBindingByUserId(currentUser.id);
+      const existingUser = userRepository.findByWechatIdentity(profile);
+      if (existingUser && existingUser.id !== currentUser.id) {
+        recordSecurityEvent({
+          userId: currentUser.id,
+          eventType: "wechat_bind_failed",
+          detail: { reason: "already_bound" },
+          ...reqMeta(req),
+        });
+        return callbackFailure({
+          message: "该微信已绑定其他账号",
+          errorCode: "AUTH_WECHAT_ALREADY_BOUND",
+        });
+      }
+
+      const boundAt = existingUser?.id === currentUser.id
+        && String(existingBinding?.openId || "").trim() === String(profile.openId || "").trim()
+        && String(existingBinding?.unionId || "").trim() === String(profile.unionId || "").trim()
+        ? existingBinding?.boundAt || nowIso()
+        : nowIso();
+
+      try {
+        userRepository.bindWechat({
+          id: currentUser.id,
+          openId: profile.openId,
+          unionId: profile.unionId,
+          appId: profile.appId,
+          nickname: profile.nickname,
+          avatarUrl: profile.avatarUrl,
+          boundAt,
+          updatedAt: boundAt,
+        });
+      } catch (error) {
+        if (isWechatBindingConflictError(error)) {
+          recordSecurityEvent({
+            userId: currentUser.id,
+            eventType: "wechat_bind_failed",
+            detail: { reason: "already_bound" },
+            ...reqMeta(req),
+          });
+          return callbackFailure({
+            message: "该微信已绑定其他账号",
+            errorCode: "AUTH_WECHAT_ALREADY_BOUND",
+          });
+        }
+        throw error;
+      }
+
+      recordSecurityEvent({
+        userId: currentUser.id,
+        eventType: "wechat_bind_success",
+        detail: {
+          hasUnionId: Boolean(profile.unionId),
+        },
+        ...reqMeta(req),
+      });
+      return sendWechatCallbackHtml(
+        res,
+        createWechatCallbackPayload({
+          intent: "bind",
+          success: true,
+          flowId,
+          message: "微信绑定成功",
+        }),
+      );
+    }
+
+    const user = userRepository.findByWechatIdentity(profile);
+    if (!user) {
+      recordSecurityEvent({
+        userId: null,
+        eventType: "wechat_login_failed",
+        detail: {
+          reason: "not_bound",
+          maskedOpenId: maskWechatOpenId(profile.openId),
+        },
+        ...reqMeta(req),
+      });
+      return callbackFailure({
+        message: "该微信未绑定站内账号，请先使用账号密码登录后到个人中心绑定微信",
+        errorCode: "AUTH_WECHAT_NOT_BOUND",
+      });
+    }
+
+    const blocked = getLoginBlockedError(user);
+    if (blocked) {
+      recordSecurityEvent({
+        userId: user.id,
+        eventType: "wechat_login_failed",
+        detail: { reason: blocked.reason },
+        ...reqMeta(req),
+      });
+      return callbackFailure({
+        message: blocked.message,
+        errorCode: blocked.code,
+      });
+    }
+
+    if (user.mfaEnabled) {
+      const mfaChallengeToken = issueMfaChallengeToken(user, {
+        rememberMe: Boolean(flow.rememberMe),
+        loginMethod: "wechat+mfa",
+      });
+      recordSecurityEvent({
+        userId: user.id,
+        eventType: "wechat_login_failed",
+        detail: {
+          reason: "mfa_required",
+          rememberMe: Boolean(flow.rememberMe),
+        },
+        ...reqMeta(req),
+      });
+      return sendWechatCallbackHtml(
+        res,
+        createWechatCallbackPayload({
+          intent: "login",
+          success: true,
+          flowId,
+          message: "需要二步验证",
+          mfaRequired: true,
+          mfaChallengeToken,
+        }),
+      );
+    }
+
+    issueLoginSession({
+      req,
+      res,
+      user,
+      rememberMe: Boolean(flow.rememberMe),
+      loginMethod: "wechat",
+    });
+    return sendWechatCallbackHtml(
+      res,
+      createWechatCallbackPayload({
+        intent: "login",
+        success: true,
+        flowId,
+        message: "微信登录成功",
+      }),
+    );
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error("[auth-wechat-callback] failed:", error);
+    return callbackFailure({
+      message: "微信登录失败，请稍后重试",
+      errorCode: String(error?.code || "AUTH_WECHAT_CALLBACK_FAILED"),
+    });
+  }
+});
+
+router.get("/wechat/binding", authRequired, (req, res) => {
+  if (!isWechatOpenConfigured()) {
+    return errorResponse(
+      res,
+      503,
+      "AUTH_WECHAT_NOT_CONFIGURED",
+      "微信绑定暂未配置",
+    );
+  }
+
+  const binding = userRepository.findWechatBindingByUserId(req.auth.user.id);
+  const bound = Boolean(binding?.openId || binding?.unionId);
+  return res.json({
+    success: true,
+    data: {
+      bound,
+      nickname: binding?.nickname || "",
+      avatarUrl: binding?.avatarUrl || "",
+      boundAt: binding?.boundAt || null,
+      lastLoginAt: binding?.lastLoginAt || null,
+      maskedOpenId: bound ? maskWechatOpenId(binding?.openId) : "",
+    },
+  });
+});
+
+router.post("/wechat/unbind", authRequired, userSensitiveActionRequired, (req, res) => {
+  if (!isWechatOpenConfigured()) {
+    return errorResponse(
+      res,
+      503,
+      "AUTH_WECHAT_NOT_CONFIGURED",
+      "微信绑定暂未配置",
+    );
+  }
+
+  const binding = userRepository.findWechatBindingByUserId(req.auth.user.id);
+  const updatedAt = nowIso();
+  userRepository.clearWechatBinding({
+    id: req.auth.user.id,
+    updatedAt,
+  });
+  recordSecurityEvent({
+    userId: req.auth.user.id,
+    eventType: "wechat_unbind_success",
+    detail: {
+      hadBinding: Boolean(binding?.openId || binding?.unionId),
+    },
+    ...reqMeta(req),
+  });
+  return res.json({
+    success: true,
+    message: "微信解绑成功",
+  });
 });
 
 router.post(
@@ -814,6 +1416,7 @@ router.post(
       res,
       user,
       rememberMe: Boolean(challengeCheck.payload?.rememberMe),
+      loginMethod: String(challengeCheck.payload?.loginMethod || "password+mfa"),
     });
   },
 );
@@ -965,6 +1568,7 @@ router.post(
       res,
       user: challengeCheck.user,
       rememberMe: Boolean(challengeCheck.payload?.rememberMe),
+      loginMethod: String(challengeCheck.payload?.loginMethod || "password+mfa"),
     });
   },
 );

@@ -275,6 +275,26 @@ export const useAuthStore = defineStore("auth", () => {
     await initializeAuth();
   };
 
+  const recoverSessionFromServer = async () => {
+    try {
+      isLoading.value = true;
+      await ensureCsrfToken();
+      const refreshed = await refreshAccessToken();
+      if (!refreshed) {
+        clearLocalSession();
+        return false;
+      }
+      const hydrated = await fetchUserInfo();
+      if (!hydrated) {
+        clearLocalSession();
+        return false;
+      }
+      return true;
+    } finally {
+      isLoading.value = false;
+    }
+  };
+
   const handleUnauthorized = () => {
     clearLocalSession();
   };
@@ -298,5 +318,6 @@ export const useAuthStore = defineStore("auth", () => {
     refreshAccessToken,
     initializeAuth,
     initAuth,
+    recoverSessionFromServer,
   };
 });
