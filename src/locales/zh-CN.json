@@ -3454,13 +3454,15 @@
       "registerNow": "立即注册",
       "enterDashboard": "进入控制台",
       "createAccount": "创建账户",
-      "viewCapabilities": "查看核心能力"
+      "viewCapabilities": "查看核心能力",
+      "downloadAndroidApp": "查看 Android App"
     },
     "nav": {
       "home": "首页",
       "dashboard": "控制台",
       "features": "游戏功能",
       "security": "安全能力",
+      "androidApp": "Android App",
       "pricing": "价格菜单",
       "tokens": "Token管理",
       "changelog": "更新日志"
@@ -3474,6 +3476,9 @@
     "hero": {
       "title": "把繁琐操作，折叠成一块清晰面板",
       "subtitle": "角色、任务、数据、活动一次接入。你只需要制定策略，重复动作交给系统处理。",
+      "androidAppKicker": "原生 Android",
+      "androidAppTitle": "现在可以直接下载 Android 原生 App",
+      "androidAppDescription": "提供独立客户端入口，登录后继续复用当前账号体系、角色接口和通知能力。",
       "tags": {
         "multiRole": "多角色协同",
         "automation": "自动化任务",
@@ -3598,6 +3603,39 @@
       "brand": "XYZW 游戏管理系统",
       "privacy": "隐私政策",
       "terms": "服务条款"
+    }
+  },
+  "androidAppPage": {
+    "eyebrow": "Android 原生客户端",
+    "title": "下载 XYZW Helper Android App",
+    "subtitle": "这是独立的 Android 原生应用入口，不是网页壳。安装后可继续使用当前后端账号体系、Cookie 会话与通知能力。",
+    "panel": {
+      "title": "当前下载说明",
+      "badge": "Native Android"
+    },
+    "status": {
+      "ready": "下载链接已就绪",
+      "pending": "下载链接准备中",
+      "readyHint": "当前下载地址：{url}",
+      "unavailableHint": "当前站点还没有配置 Android 安装包下载地址。可先保留此入口页，待运维补充 VITE_ANDROID_APP_DOWNLOAD_URL 后对外开放。"
+    },
+    "actions": {
+      "download": "下载 Android App",
+      "backHome": "返回首页"
+    },
+    "features": {
+      "native": {
+        "title": "真正的原生界面",
+        "description": "客户端使用原生 Android UI，不嵌入现有 Web 页面，交互和触控体验更直接。"
+      },
+      "session": {
+        "title": "继续复用当前账号体系",
+        "description": "登录后由后端 Set-Cookie 建立会话，客户端通过 CookieJar 保持登录，并继续配合 CSRF 保护写操作。"
+      },
+      "sync": {
+        "title": "接口与通知链路一致",
+        "description": "角色、通知和后续任务能力继续复用 /api/v1 与 /ws，不需要额外维护一套移动端协议。"
+      }
     }
   },
   "pricingPage": {

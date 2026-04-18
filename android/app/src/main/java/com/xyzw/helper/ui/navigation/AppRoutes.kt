@@ -1,0 +1,26 @@
+package com.xyzw.helper.ui.navigation
+
+sealed class AppRoute(val route: String) {
+  data object Splash : AppRoute("splash")
+  data object AuthGraph : AppRoute("auth_graph")
+  data object Login : AppRoute("login")
+  data object MfaVerify : AppRoute("mfaVerify")
+  data object Register : AppRoute("register")
+  data object ForgotPassword : AppRoute("forgotPassword")
+  data object MainGraph : AppRoute("main_graph")
+  data object MainShell : AppRoute("mainShell")
+  data object Dashboard : AppRoute("dashboard")
+  data object AdminHub : AppRoute("adminHub")
+  data object AdminUsers : AppRoute("adminUsers")
+  data object AdminInvites : AppRoute("adminInvites")
+  data object AdminActivationCodes : AppRoute("adminActivationCodes")
+  data object AdminFeedbackTickets : AppRoute("adminFeedbackTickets")
+  data object AdminTaskControlLogs : AppRoute("adminTaskControlLogs")
+  data object AdminChangelogBroadcast : AppRoute("adminChangelogBroadcast")
+  data object AdminWechatContacts : AppRoute("adminWechatContacts")
+  data object AdminReferrals : AppRoute("adminReferrals")
+  data object Roles : AppRoute("roles")
+  data object Tasks : AppRoute("tasks")
+  data object Notifications : AppRoute("notifications")
+  data object Profile : AppRoute("profile")
+}

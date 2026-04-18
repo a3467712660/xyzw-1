@@ -213,6 +213,12 @@ import {
   APP_SIDER_COLLAPSED_WIDTH,
   APP_SIDER_WIDTH,
 } from "@/constants/ui";
+import {
+  ANDROID_APP_MENU_ROUTE,
+  ANDROID_APP_USER_ACTION,
+  createSupportMenuOptions,
+  createUserMenuOptions,
+} from "@/layout/appShellNavigation";
 import { isNowInLegionWarTime } from "@/utils/clubBattleUtils";
 import { canAccessAdminCenter, hasGameFeatureAccess } from "@/utils/accessScope";
 import {
@@ -329,10 +335,7 @@ const workspaceMenuOptions = computed(() => {
   return options;
 });
 
-const supportMenuOptions = [
-  { label: "个人设置", key: "/admin/profile", icon: renderIcon(Settings) },
-  { label: "功能反馈", key: "/admin/feedback", icon: renderIcon(Megaphone) },
-];
+const supportMenuOptions = createSupportMenuOptions(renderIcon);
 
 const adminMenuOptions = [
   { label: "账号管理", key: "/admin/admin-users", icon: renderIcon(People) },
@@ -400,20 +403,7 @@ const headerStatusText = computed(() =>
     : selectedTokenStatusText.value,
 );
 
-const userMenuOptions = [
-  {
-    label: "个人设置",
-    key: "profile",
-  },
-  {
-    label: "退出账号",
-    key: "logout-account",
-  },
-  {
-    label: "仅清除当前账号Token",
-    key: "clear-tokens",
-  },
-];
+const userMenuOptions = createUserMenuOptions();
 
 const persistSiderState = () => {
   if (typeof window === "undefined") {
@@ -437,6 +427,9 @@ const handleUserAction = async (key) => {
   switch (key) {
     case "profile":
       router.push("/admin/profile");
+      break;
+    case ANDROID_APP_USER_ACTION:
+      router.push(ANDROID_APP_MENU_ROUTE);
       break;
     case "logout-account":
       await authStore.logout();

@@ -81,6 +81,15 @@ export const publicRoutes = [
     }),
   },
   {
+    path: "/android-app",
+    name: "AndroidAppDownload",
+    component: () => import("@/views/AndroidAppDownload.vue"),
+    meta: withRouteMeta({
+      title: "Android App",
+      layout: "public",
+    }),
+  },
+  {
     path: "/r/:code",
     name: "ReferralLanding",
     component: () => import("@/views/ReferralLanding.vue"),

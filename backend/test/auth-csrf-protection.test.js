@@ -30,6 +30,59 @@ const toCookieHeader = (setCookieValues = []) =>
     .filter(Boolean)
     .join("; ");
 
+const mergeCookieHeaders = (...headers) => {
+  const pairs = [];
+  headers.forEach((header) => {
+    String(header || "")
+      .split(";")
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .forEach((pair) => {
+        const [name] = pair.split("=");
+        if (!name) return;
+        const existingIndex = pairs.findIndex((item) => item.startsWith(`${name}=`));
+        if (existingIndex >= 0) {
+          pairs.splice(existingIndex, 1);
+        }
+        pairs.push(pair);
+      });
+  });
+  return pairs.join("; ");
+};
+
+const removeCookieFromHeader = (header, cookieName) =>
+  String(header || "")
+    .split(";")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .filter((pair) => !pair.startsWith(`${cookieName}=`))
+    .join("; ");
+
+const seedUser = ({ userId, username, password }) => {
+  const ts = nowIso();
+  const passwordMeta = createPassword(password);
+
+  run(`DELETE FROM refresh_tokens WHERE user_id = $userId`, { $userId: userId });
+  run(`DELETE FROM users WHERE id = $userId`, { $userId: userId });
+  run(`DELETE FROM users WHERE username = $username`, { $username: username });
+
+  run(
+    `INSERT INTO users (
+      id, username, email, password_salt, password_hash, token_version, created_at, updated_at
+    ) VALUES (
+      $id, $username, NULL, $salt, $hash, 0, $createdAt, $updatedAt
+    )`,
+    {
+      $id: userId,
+      $username: username,
+      $salt: passwordMeta.salt,
+      $hash: passwordMeta.hash,
+      $createdAt: ts,
+      $updatedAt: ts,
+    },
+  );
+};
+
 const fetchCsrfContext = async (baseUrl) => {
   const csrfBootstrapResponse = await fetch(`${baseUrl}/api/v1/auth/csrf`);
   assert.equal(csrfBootstrapResponse.status, 200);
@@ -99,6 +152,47 @@ test("POST /auth/login requires CSRF token when app middleware is enabled", asyn
     }),
   });
   assert.equal(withCsrfResponse.status, 401);
+});
+
+test("non-browser client can POST /auth/login with csrf cookie and header", async (t) => {
+  await initDatabase();
+
+  const userId = `csrf_login_user_${Date.now()}`;
+  const username = `csrf_login_${Date.now()}`;
+  const password = "Test1234!Aa";
+  seedUser({ userId, username, password });
+
+  const server = await createServer();
+  t.after(async () => {
+    await new Promise((resolve) => server.close(resolve));
+    run(`DELETE FROM refresh_tokens WHERE user_id = $userId`, { $userId: userId });
+    run(`DELETE FROM users WHERE id = $userId`, { $userId: userId });
+  });
+
+  const baseUrl = makeBaseUrl(server);
+  const { cookieHeader, csrfToken } = await fetchCsrfContext(baseUrl);
+
+  const response = await fetch(`${baseUrl}/api/v1/auth/login`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      cookie: cookieHeader,
+      [env.csrfHeaderName]: csrfToken,
+      "user-agent": "android-native-test",
+    },
+    body: JSON.stringify({
+      username,
+      password,
+      rememberMe: true,
+    }),
+  });
+
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.equal(payload?.success, true);
+  const responseCookies = toCookieHeader(response.headers.getSetCookie());
+  assert.match(responseCookies, new RegExp(`${env.accessCookieName}=`));
+  assert.match(responseCookies, new RegExp(`${env.refreshCookieName}=`));
 });
 
 test("GET /auth/csrf reports whether the request carries a refresh cookie", async (t) => {
@@ -259,4 +353,87 @@ test("POST /auth/password-reset requires CSRF token when app middleware is enabl
   assert.equal(withCsrfResponse.status, 200);
   const payload = await withCsrfResponse.json();
   assert.equal(payload?.success, true);
+});
+
+test("POST /auth/refresh succeeds with refresh cookie and csrf header after access cookie is missing", async (t) => {
+  await initDatabase();
+
+  const userId = `csrf_refresh_flow_user_${Date.now()}`;
+  const username = `csrf_refresh_flow_${Date.now()}`;
+  const password = "Test1234!Aa";
+  seedUser({ userId, username, password });
+
+  const server = await createServer();
+  t.after(async () => {
+    await new Promise((resolve) => server.close(resolve));
+    run(`DELETE FROM refresh_tokens WHERE user_id = $userId`, { $userId: userId });
+    run(`DELETE FROM users WHERE id = $userId`, { $userId: userId });
+  });
+
+  const baseUrl = makeBaseUrl(server);
+  const { cookieHeader, csrfToken } = await fetchCsrfContext(baseUrl);
+
+  const loginResponse = await fetch(`${baseUrl}/api/v1/auth/login`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      cookie: cookieHeader,
+      [env.csrfHeaderName]: csrfToken,
+      "user-agent": "android-native-test",
+    },
+    body: JSON.stringify({
+      username,
+      password,
+      rememberMe: true,
+    }),
+  });
+  assert.equal(loginResponse.status, 200);
+
+  const authenticatedCookieHeader = mergeCookieHeaders(
+    cookieHeader,
+    toCookieHeader(loginResponse.headers.getSetCookie()),
+  );
+  const refreshOnlyCookieHeader = removeCookieFromHeader(
+    authenticatedCookieHeader,
+    env.accessCookieName,
+  );
+
+  const meUnauthorizedResponse = await fetch(`${baseUrl}/api/v1/auth/me`, {
+    headers: {
+      cookie: refreshOnlyCookieHeader,
+      "user-agent": "android-native-test",
+    },
+  });
+  assert.equal(meUnauthorizedResponse.status, 401);
+
+  const refreshResponse = await fetch(`${baseUrl}/api/v1/auth/refresh`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      cookie: refreshOnlyCookieHeader,
+      [env.csrfHeaderName]: csrfToken,
+      "user-agent": "android-native-test",
+    },
+    body: JSON.stringify({}),
+  });
+  assert.equal(refreshResponse.status, 200);
+  const refreshPayload = await refreshResponse.json();
+  assert.equal(refreshPayload?.success, true);
+
+  const refreshedCookieHeader = mergeCookieHeaders(
+    refreshOnlyCookieHeader,
+    toCookieHeader(refreshResponse.headers.getSetCookie()),
+  );
+  assert.match(refreshedCookieHeader, new RegExp(`${env.accessCookieName}=`));
+
+  const meResponse = await fetch(`${baseUrl}/api/v1/auth/me`, {
+    headers: {
+      cookie: refreshedCookieHeader,
+      "user-agent": "android-native-test",
+    },
+  });
+  assert.equal(meResponse.status, 200);
+  const mePayload = await meResponse.json();
+  assert.equal(mePayload?.success, true);
+  assert.equal(mePayload?.data?.id, userId);
 });

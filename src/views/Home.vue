@@ -27,6 +27,9 @@
 
         <div class="nav-actions">
           <template v-if="!authStore.isAuthenticated">
+            <n-button quaternary type="primary" @click="router.push('/android-app')">
+              {{ t("homePage.nav.androidApp") }}
+            </n-button>
             <n-button quaternary type="primary" @click="router.push('/pricing')">
               {{ t("homePage.nav.pricing") }}
             </n-button>
@@ -38,6 +41,9 @@
             </n-button>
           </template>
           <template v-else>
+            <n-button quaternary type="primary" @click="router.push('/android-app')">
+              {{ t("homePage.nav.androidApp") }}
+            </n-button>
             <n-button type="primary" @click="router.push('/admin/dashboard')">
               {{ t("homePage.actions.enterDashboard") }}
             </n-button>
@@ -65,6 +71,14 @@
             <n-icon><LockClosed></LockClosed></n-icon>
             <span>{{ t("homePage.nav.security") }}</span>
           </button>
+          <router-link
+            class="drawer-item"
+            to="/android-app"
+            @click="isMobileMenuOpen = false"
+          >
+            <n-icon><LogoAndroid></LogoAndroid></n-icon>
+            <span>{{ t("homePage.nav.androidApp") }}</span>
+          </router-link>
           <router-link
             class="drawer-item"
             to="/pricing"
@@ -135,6 +149,14 @@
           >
             <n-icon><PersonCircle></PersonCircle></n-icon>
             <span>{{ t("homePage.nav.tokens") }}</span>
+          </router-link>
+          <router-link
+            class="drawer-item"
+            to="/android-app"
+            @click="isMobileMenuOpen = false"
+          >
+            <n-icon><LogoAndroid></LogoAndroid></n-icon>
+            <span>{{ t("homePage.nav.androidApp") }}</span>
           </router-link>
           <router-link
             class="drawer-item"
@@ -225,6 +247,26 @@
                 </n-icon>
                 <span>{{ item.label }}</span>
               </div>
+            </div>
+            <div class="hero-download-card public-brand-soft-card">
+              <div class="hero-download-card__icon">
+                <n-icon>
+                  <LogoAndroid></LogoAndroid>
+                </n-icon>
+              </div>
+              <div class="hero-download-card__copy">
+                <span>{{ t("homePage.hero.androidAppKicker") }}</span>
+                <strong>{{ t("homePage.hero.androidAppTitle") }}</strong>
+                <p>{{ t("homePage.hero.androidAppDescription") }}</p>
+              </div>
+              <n-button
+                quaternary
+                class="hero-download-card__action"
+                type="primary"
+                @click="router.push('/android-app')"
+              >
+                {{ t("homePage.actions.downloadAndroidApp") }}
+              </n-button>
             </div>
           </div>
 
@@ -384,6 +426,12 @@
         <div class="footer-links">
           <router-link
             class="footer-link"
+            to="/android-app"
+          >
+            {{ t("homePage.nav.androidApp") }}
+          </router-link>
+          <router-link
+            class="footer-link"
             to="/changelog"
           >
             {{ t("homePage.nav.changelog") }}
@@ -409,6 +457,7 @@ import {
   Flash,
   Key,
   LockClosed,
+  LogoAndroid,
   Menu,
   PersonCircle,
   Pricetag,
@@ -949,6 +998,63 @@ onUnmounted(() => {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+.hero-download-card {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  padding: 16px 18px;
+  border-radius: 22px;
+}
+
+.hero-download-card__icon {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border-radius: 16px;
+  color: #fff;
+  background: linear-gradient(135deg, rgba(15, 107, 255, 1), rgba(14, 165, 233, 0.92));
+  box-shadow: 0 16px 30px rgba(15, 107, 255, 0.24);
+}
+
+.hero-download-card__icon :deep(svg) {
+  width: 24px;
+  height: 24px;
+}
+
+.hero-download-card__copy {
+  min-width: 0;
+}
+
+.hero-download-card__copy span {
+  display: inline-flex;
+  margin-bottom: 4px;
+  color: var(--primary-color);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.hero-download-card__copy strong {
+  display: block;
+  font-size: 17px;
+  margin-bottom: 6px;
+}
+
+.hero-download-card__copy p {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.65;
+  font-size: 14px;
+}
+
+.hero-download-card__action {
+  min-width: 164px;
 }
 
 .trust-pill {
@@ -1697,6 +1803,14 @@ onUnmounted(() => {
 
   .hero-actions {
     flex-direction: column;
+  }
+
+  .hero-download-card {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-download-card__action {
+    width: 100%;
   }
 
   .security-shell {

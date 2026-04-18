@@ -3478,13 +3478,15 @@
       "registerNow": "Register Now",
       "enterDashboard": "Enter Dashboard",
       "createAccount": "Create Account",
-      "viewCapabilities": "View Core Capabilities"
+      "viewCapabilities": "View Core Capabilities",
+      "downloadAndroidApp": "View Android App"
     },
     "nav": {
       "home": "Home",
       "dashboard": "Dashboard",
       "features": "Game Features",
       "security": "Security",
+      "androidApp": "Android App",
       "pricing": "Pricing",
       "tokens": "Token Management",
       "changelog": "Changelog"
@@ -3498,6 +3500,9 @@
     "hero": {
       "title": "Fold repetitive operations into one clear control surface",
       "subtitle": "Roles, tasks, data, and events all connect in one place. You set the strategy, and the system handles the repetition.",
+      "androidAppKicker": "Native Android",
+      "androidAppTitle": "A dedicated Android app is now available",
+      "androidAppDescription": "Use the native client entry while keeping the current account system, role APIs, and notification flow.",
       "tags": {
         "multiRole": "Multi-role Coordination",
         "automation": "Automated Tasks",
@@ -3622,6 +3627,39 @@
       "brand": "XYZW Game Management System",
       "privacy": "Privacy Policy",
       "terms": "Terms of Service"
+    }
+  },
+  "androidAppPage": {
+    "eyebrow": "Native Android Client",
+    "title": "Download the XYZW Helper Android App",
+    "subtitle": "This is a dedicated native Android entry, not a web shell. After installation it continues to use the current backend account system, cookie session flow, and notifications.",
+    "panel": {
+      "title": "Download Status",
+      "badge": "Native Android"
+    },
+    "status": {
+      "ready": "Download link is ready",
+      "pending": "Download link is pending",
+      "readyHint": "Current download URL: {url}",
+      "unavailableHint": "This site has not configured an Android package download URL yet. Keep this entry page live now and expose the actual package after VITE_ANDROID_APP_DOWNLOAD_URL is provided."
+    },
+    "actions": {
+      "download": "Download Android App",
+      "backHome": "Back Home"
+    },
+    "features": {
+      "native": {
+        "title": "Real native interface",
+        "description": "The client uses native Android UI instead of embedding the current web pages, which keeps touch interactions more direct."
+      },
+      "session": {
+        "title": "Same account and session model",
+        "description": "The backend still establishes the session through Set-Cookie, while the client stores cookies in its CookieJar and keeps CSRF on write requests."
+      },
+      "sync": {
+        "title": "Same API and notification paths",
+        "description": "Roles, notifications, and follow-up task capabilities continue to reuse /api/v1 and /ws, so there is no separate mobile-only protocol to maintain."
+      }
     }
   },
   "pricingPage": {
