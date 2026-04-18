@@ -3,11 +3,11 @@ import crypto from "node:crypto";
 import { z } from "zod";
 import {
   createPassword,
-  isLegacyPasswordHash,
   sha256Hex,
   signJwt,
   verifyJwt,
   verifyPassword,
+  verifyPasswordDetails,
 } from "../lib/crypto.js";
 import { validatePasswordStrengthAsync } from "../lib/passwordPolicy.js";
 import { nowIso, randomId, secureId } from "../db/sql.js";
@@ -936,8 +936,11 @@ router.post("/login", loginLimiter, validateRequest({ body: loginBodySchema }), 
   const rememberMe = Boolean(req.body?.rememberMe);
 
   const user = userRepository.findByIdentity(username);
+  const passwordCheck = user
+    ? verifyPasswordDetails(password, user.passwordSalt, user.passwordHash)
+    : { ok: false, needsUpgrade: false };
 
-  if (!user || !verifyPassword(password, user.passwordSalt, user.passwordHash)) {
+  if (!user || !passwordCheck.ok) {
     recordSecurityEvent({
       userId: user?.id || null,
       eventType: "login_failed",
@@ -950,7 +953,7 @@ router.post("/login", loginLimiter, validateRequest({ body: loginBodySchema }), 
     return errorResponse(res, 401, "AUTH_INVALID_CREDENTIALS", "用户名或密码错误");
   }
 
-  if (isLegacyPasswordHash(user.passwordHash)) {
+  if (passwordCheck.needsUpgrade) {
     const upgraded = createPassword(password);
     userRepository.updatePassword({
       id: user.id,

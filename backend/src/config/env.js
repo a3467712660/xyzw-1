@@ -369,6 +369,12 @@ export const env = {
   activationCodePepper: rawActivationCodePepper,
   passwordResetCodePepper: rawPasswordResetCodePepper,
   referralCookieSecret: rawReferralCookieSecret,
+  jwtIssuer:
+    String(process.env.JWT_ISSUER || "xyzw-web-helper-backend").trim()
+    || "xyzw-web-helper-backend",
+  jwtAudience:
+    String(process.env.JWT_AUDIENCE || "xyzw-web-helper-api").trim()
+    || "xyzw-web-helper-api",
   allowLegacyReferralBodyFallback: parseBoolean(
     process.env.ALLOW_LEGACY_REFERRAL_BODY_FALLBACK,
     false,

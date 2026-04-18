@@ -1,4 +1,10 @@
 import crypto from "crypto";
+import {
+  Algorithm,
+  Version,
+  hashSync as hashArgon2Sync,
+  verifySync as verifyArgon2Sync,
+} from "@node-rs/argon2";
 import { env } from "../config/env.js";
 
 const toBase64Url = (value) =>
@@ -39,11 +45,19 @@ export const maskedCode = (value, fallbackPrefix = "CODE") => {
   return `${prefix}-****-${codeSuffix(normalized) || "****"}`;
 };
 
-const PASSWORD_HASH_VERSION = "scrypt-v1";
+const ARGON2_PASSWORD_HASH_VERSION = "argon2id-v1";
+const SCRYPT_PASSWORD_HASH_VERSION = "scrypt-v1";
+const ARGON2_MEMORY_COST = 19 * 1024;
+const ARGON2_TIME_COST = 2;
+const ARGON2_PARALLELISM = 1;
+const ARGON2_OUTPUT_LEN = 32;
+const ARGON2_SALT_BYTES = 16;
 const SCRYPT_N = 1 << 14;
 const SCRYPT_R = 8;
 const SCRYPT_P = 1;
 const SCRYPT_KEYLEN = 64;
+const ARGON2_PREFIX = `${ARGON2_PASSWORD_HASH_VERSION}$`;
+const SCRYPT_PREFIX = `${SCRYPT_PASSWORD_HASH_VERSION}$`;
 
 const makeScryptHash = (plainPassword, saltHex) => {
   const derived = crypto.scryptSync(plainPassword, saltHex, SCRYPT_KEYLEN, {
@@ -53,7 +67,7 @@ const makeScryptHash = (plainPassword, saltHex) => {
     maxmem: 128 * 1024 * 1024,
   });
   return [
-    PASSWORD_HASH_VERSION,
+    SCRYPT_PASSWORD_HASH_VERSION,
     SCRYPT_N,
     SCRYPT_R,
     SCRYPT_P,
@@ -62,28 +76,35 @@ const makeScryptHash = (plainPassword, saltHex) => {
   ].join("$");
 };
 
-export const isLegacyPasswordHash = (hash) =>
-  !String(hash || "").startsWith(`${PASSWORD_HASH_VERSION}$`);
+const makeArgon2Hash = (plainPassword, saltBuffer) =>
+  `${ARGON2_PREFIX}${hashArgon2Sync(plainPassword, {
+    algorithm: Algorithm.Argon2id,
+    version: Version.V0x13,
+    memoryCost: ARGON2_MEMORY_COST,
+    timeCost: ARGON2_TIME_COST,
+    parallelism: ARGON2_PARALLELISM,
+    outputLen: ARGON2_OUTPUT_LEN,
+    salt: saltBuffer,
+  })}`;
 
-export const createPassword = (plainPassword) => {
-  const salt = crypto.randomBytes(16).toString("hex");
-  const hash = makeScryptHash(plainPassword, salt);
-  return { salt, hash };
+export const isLegacyPasswordHash = (hash) =>
+  !String(hash || "").startsWith(ARGON2_PREFIX)
+  && !String(hash || "").startsWith(SCRYPT_PREFIX);
+
+const isArgon2PasswordHash = (hash) =>
+  String(hash || "").startsWith(ARGON2_PREFIX);
+
+const verifyLegacySha256Password = (plainPassword, salt, hashText) => {
+  const target = sha256Hex(`${salt}:${plainPassword}`);
+  return (
+    target.length === hashText.length
+    && crypto.timingSafeEqual(Buffer.from(target), Buffer.from(hashText))
+  );
 };
 
-export const verifyPassword = (plainPassword, salt, hash) => {
-  const hashText = String(hash || "");
-
-  if (isLegacyPasswordHash(hashText)) {
-    const target = sha256Hex(`${salt}:${plainPassword}`);
-    return (
-      target.length === hashText.length
-      && crypto.timingSafeEqual(Buffer.from(target), Buffer.from(hashText))
-    );
-  }
-
+const verifyScryptPassword = (plainPassword, salt, hashText) => {
   const [version, nRaw, rRaw, pRaw, keyLenRaw, digestHex] = hashText.split("$");
-  if (version !== PASSWORD_HASH_VERSION || !digestHex) {
+  if (version !== SCRYPT_PASSWORD_HASH_VERSION || !digestHex) {
     return false;
   }
 
@@ -91,7 +112,12 @@ export const verifyPassword = (plainPassword, salt, hash) => {
   const r = Number(rRaw);
   const p = Number(pRaw);
   const keyLen = Number(keyLenRaw);
-  if (!Number.isFinite(n) || !Number.isFinite(r) || !Number.isFinite(p) || !Number.isFinite(keyLen)) {
+  if (
+    !Number.isFinite(n)
+    || !Number.isFinite(r)
+    || !Number.isFinite(p)
+    || !Number.isFinite(keyLen)
+  ) {
     return false;
   }
 
@@ -102,7 +128,61 @@ export const verifyPassword = (plainPassword, salt, hash) => {
     maxmem: 128 * 1024 * 1024,
   });
   const digest = Buffer.from(digestHex, "hex");
-  return target.length === digest.length && crypto.timingSafeEqual(target, digest);
+  return (
+    target.length === digest.length
+    && crypto.timingSafeEqual(target, digest)
+  );
+};
+
+export const verifyPasswordDetails = (plainPassword, salt, hash) => {
+  const hashText = String(hash || "");
+
+  if (isArgon2PasswordHash(hashText)) {
+    try {
+      const ok = verifyArgon2Sync(
+        hashText.slice(ARGON2_PREFIX.length),
+        plainPassword,
+      );
+      return {
+        ok,
+        algorithm: ARGON2_PASSWORD_HASH_VERSION,
+        needsUpgrade: false,
+      };
+    } catch {
+      return {
+        ok: false,
+        algorithm: ARGON2_PASSWORD_HASH_VERSION,
+        needsUpgrade: false,
+      };
+    }
+  }
+
+  if (isLegacyPasswordHash(hashText)) {
+    const ok = verifyLegacySha256Password(plainPassword, salt, hashText);
+    return {
+      ok,
+      algorithm: "sha256-legacy",
+      needsUpgrade: ok,
+    };
+  }
+
+  const ok = verifyScryptPassword(plainPassword, salt, hashText);
+  return {
+    ok,
+    algorithm: SCRYPT_PASSWORD_HASH_VERSION,
+    needsUpgrade: ok,
+  };
+};
+
+export const createPassword = (plainPassword) => {
+  const saltBuffer = crypto.randomBytes(ARGON2_SALT_BYTES);
+  const salt = saltBuffer.toString("hex");
+  const hash = makeArgon2Hash(plainPassword, saltBuffer);
+  return { salt, hash };
+};
+
+export const verifyPassword = (plainPassword, salt, hash) => {
+  return verifyPasswordDetails(plainPassword, salt, hash).ok;
 };
 
 const normalizedAesKey = () => {
@@ -179,11 +259,23 @@ export const decryptBuffer = (payload) => {
   return Buffer.concat([decipher.update(encrypted), decipher.final()]);
 };
 
+const signJwtData = (data) =>
+  crypto
+    .createHmac("sha256", env.jwtSecret)
+    .update(data)
+    .digest("base64")
+    .replace(/=/g, "")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_");
+
 export const signJwt = (payload, expiresInSeconds = 60 * 60 * 24 * 7) => {
   const now = Math.floor(Date.now() / 1000);
   const header = { alg: "HS256", typ: "JWT" };
   const body = {
     ...payload,
+    iss: env.jwtIssuer,
+    aud: env.jwtAudience,
+    jti: String(payload?.jti || crypto.randomUUID()),
     iat: now,
     exp: now + expiresInSeconds,
   };
@@ -191,14 +283,7 @@ export const signJwt = (payload, expiresInSeconds = 60 * 60 * 24 * 7) => {
   const encodedHeader = toBase64Url(JSON.stringify(header));
   const encodedBody = toBase64Url(JSON.stringify(body));
   const data = `${encodedHeader}.${encodedBody}`;
-
-  const signature = crypto
-    .createHmac("sha256", env.jwtSecret)
-    .update(data)
-    .digest("base64")
-    .replace(/=/g, "")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_");
+  const signature = signJwtData(data);
 
   return `${data}.${signature}`;
 };
@@ -215,14 +300,26 @@ export const verifyJwt = (token) => {
 
   const [encodedHeader, encodedBody, signature] = parts;
   const data = `${encodedHeader}.${encodedBody}`;
+  let header;
+  try {
+    header = JSON.parse(fromBase64Url(encodedHeader).toString("utf8"));
+  } catch {
+    throw new Error("Invalid token header");
+  }
 
-  const expectedSignature = crypto
-    .createHmac("sha256", env.jwtSecret)
-    .update(data)
-    .digest("base64")
-    .replace(/=/g, "")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_");
+  if (String(header?.alg || "") !== "HS256") {
+    throw new Error("Invalid token header");
+  }
+
+  const typ = String(header?.typ || "").trim();
+  if (typ && typ !== "JWT") {
+    throw new Error("Invalid token header");
+  }
+
+  const expectedSignature = signJwtData(data);
+  if (signature.length !== expectedSignature.length) {
+    throw new Error("Signature mismatch");
+  }
 
   if (
     !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature))
@@ -231,6 +328,16 @@ export const verifyJwt = (token) => {
   }
 
   const payload = JSON.parse(fromBase64Url(encodedBody).toString("utf8"));
+  const hasIssuer = String(payload?.iss || "").trim().length > 0;
+  const hasAudience = String(payload?.aud || "").trim().length > 0;
+  if (hasIssuer || hasAudience) {
+    if (!hasIssuer || String(payload.iss) !== env.jwtIssuer) {
+      throw new Error("Invalid token issuer");
+    }
+    if (!hasAudience || String(payload.aud) !== env.jwtAudience) {
+      throw new Error("Invalid token audience");
+    }
+  }
   const now = Math.floor(Date.now() / 1000);
   if (!payload.exp || payload.exp < now) {
     throw new Error("Token expired");
