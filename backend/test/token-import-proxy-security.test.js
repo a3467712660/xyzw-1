@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import * as dns from "node:dns";
 import http from "node:http";
+import { PassThrough } from "node:stream";
 import test from "node:test";
 import express from "express";
 import { run } from "../src/db/client.js";
@@ -97,6 +98,25 @@ const authHeaders = ({ userId, username }) => {
   };
 };
 
+const createStreamingBody = ({
+  initialChunks = [],
+  trailingChunks = [],
+  endAfterMs = null,
+} = {}) => {
+  const body = new PassThrough();
+  queueMicrotask(() => {
+    initialChunks.forEach((chunk) => body.write(chunk));
+    if (endAfterMs === null) {
+      return;
+    }
+    setTimeout(() => {
+      trailingChunks.forEach((chunk) => body.write(chunk));
+      body.end();
+    }, endAfterMs);
+  });
+  return body;
+};
+
 test("fetchProxyResource pins transport lookup to validated public addresses", async () => {
   const upstream = await fetchProxyResource({
     route: "/api/v1/token-import/proxy",
@@ -137,8 +157,8 @@ test("fetchProxyResource pins transport lookup to validated public addresses", a
   assert.deepEqual(JSON.parse(upstream.bodyBuffer.toString("utf8")), { ok: true });
 });
 
-test("fetchProxyResource blocks DNS rebinding when connected address drifts after public precheck", async () => {
-  let upstreamCalled = false;
+test("fetchProxyResource detects connected address drift outside validated dns results", async () => {
+  let requestImplCalled = false;
 
   await assert.rejects(
     fetchProxyResource({
@@ -154,6 +174,7 @@ test("fetchProxyResource blocks DNS rebinding when connected address drifts afte
       maxResponseBytes: 1024,
       lookup: async () => [{ address: "93.184.216.34", family: 4 }],
       requestImpl: async ({ url, lookup, resolvedAddresses }) => {
+        requestImplCalled = true;
         assert.equal(url.hostname, "api.example.com");
         assert.deepEqual(resolvedAddresses, [
           { address: "93.184.216.34", family: 4 },
@@ -182,7 +203,7 @@ test("fetchProxyResource blocks DNS rebinding when connected address drifts afte
     },
   );
 
-  assert.equal(upstreamCalled, false);
+  assert.equal(requestImplCalled, true);
 });
 
 test("fetchProxyResource repins DNS on each allowlisted redirect hop", async () => {
@@ -292,6 +313,172 @@ test("fetchProxyResource blocks allowlisted redirects when the next hop resolves
   );
 
   assert.equal(requestCount, 1);
+});
+
+test("fetchProxyResource times out when node response body stalls after headers", async () => {
+  await assert.rejects(
+    fetchProxyResource({
+      route: "/api/v1/token-import/proxy",
+      url: "https://api.example.com/import.json",
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+      },
+      allowedHosts: ["api.example.com"],
+      allowedContentTypes: ["application/json", "application/*+json"],
+      timeoutMs: 40,
+      maxResponseBytes: 1024,
+      lookup: async () => [{ address: "93.184.216.34", family: 4 }],
+      requestImpl: async () => ({
+        status: 200,
+        headers: {
+          "content-type": "application/json; charset=utf-8",
+        },
+        body: createStreamingBody(),
+        connectedAddress: "93.184.216.34",
+      }),
+    }),
+    (error) => {
+      assert.equal(error instanceof ProxySafetyError, true);
+      assert.equal(error.reason, "TIMEOUT");
+      return true;
+    },
+  );
+});
+
+test("fetchProxyResource keeps stalled body errors as TIMEOUT when response stays below max bytes", async () => {
+  await assert.rejects(
+    fetchProxyResource({
+      route: "/api/v1/token-import/proxy",
+      url: "https://api.example.com/import.json",
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+      },
+      allowedHosts: ["api.example.com"],
+      allowedContentTypes: ["application/json", "application/*+json"],
+      timeoutMs: 40,
+      maxResponseBytes: 1024,
+      lookup: async () => [{ address: "93.184.216.34", family: 4 }],
+      requestImpl: async () => ({
+        status: 200,
+        headers: {
+          "content-type": "application/json; charset=utf-8",
+        },
+        body: createStreamingBody({
+          initialChunks: ['{"partial":true'],
+        }),
+        connectedAddress: "93.184.216.34",
+      }),
+    }),
+    (error) => {
+      assert.equal(error instanceof ProxySafetyError, true);
+      assert.equal(error.reason, "TIMEOUT");
+      return true;
+    },
+  );
+});
+
+test("fetchProxyResource times out when redirect second hop body stalls", async () => {
+  let requestCount = 0;
+
+  await assert.rejects(
+    fetchProxyResource({
+      route: "/api/v1/token-import/proxy",
+      url: "https://api.example.com/import.json",
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+      },
+      allowedHosts: ["api.example.com", "cdn.example.com"],
+      allowedContentTypes: ["application/json", "application/*+json"],
+      timeoutMs: 40,
+      maxResponseBytes: 1024,
+      lookup: async (hostname) => {
+        if (String(hostname) === "cdn.example.com") {
+          return [{ address: "93.184.216.35", family: 4 }];
+        }
+        return [{ address: "93.184.216.34", family: 4 }];
+      },
+      requestImpl: async ({ url }) => {
+        requestCount += 1;
+        if (requestCount === 1) {
+          assert.equal(url.hostname, "api.example.com");
+          return {
+            status: 302,
+            headers: {
+              location: "https://cdn.example.com/next.json",
+            },
+            bodyBuffer: Buffer.alloc(0),
+            connectedAddress: "93.184.216.34",
+          };
+        }
+
+        assert.equal(url.hostname, "cdn.example.com");
+        return {
+          status: 200,
+          headers: {
+            "content-type": "application/json; charset=utf-8",
+          },
+          body: createStreamingBody({
+            initialChunks: ['{"nextHop":'],
+          }),
+          connectedAddress: "93.184.216.35",
+        };
+      },
+    }),
+    (error) => {
+      assert.equal(error instanceof ProxySafetyError, true);
+      assert.equal(error.reason, "TIMEOUT");
+      return true;
+    },
+  );
+
+  assert.equal(requestCount, 2);
+});
+
+test("fetchProxyResource rejects custom requestImpl outside test environment", async (t) => {
+  const previousNodeEnv = process.env.NODE_ENV;
+  process.env.NODE_ENV = "production";
+  t.after(() => {
+    process.env.NODE_ENV = previousNodeEnv;
+  });
+
+  let requestImplCalled = false;
+
+  await assert.rejects(
+    fetchProxyResource({
+      route: "/api/v1/token-import/proxy",
+      url: "https://api.example.com/import.json",
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+      },
+      allowedHosts: ["api.example.com"],
+      allowedContentTypes: ["application/json", "application/*+json"],
+      timeoutMs: 40,
+      maxResponseBytes: 1024,
+      lookup: async () => [{ address: "93.184.216.34", family: 4 }],
+      requestImpl: async () => {
+        requestImplCalled = true;
+        return {
+          status: 200,
+          headers: {
+            "content-type": "application/json; charset=utf-8",
+          },
+          bodyBuffer: Buffer.from('{"ok":true}', "utf8"),
+          connectedAddress: "93.184.216.34",
+        };
+      },
+    }),
+    (error) => {
+      assert.equal(error instanceof ProxySafetyError, true);
+      assert.equal(error.reason, "FETCH_IMPL_NOT_ALLOWED");
+      return true;
+    },
+  );
+
+  assert.equal(requestImplCalled, false);
 });
 
 test("POST /token-import/proxy allows public JSON upstream on allowlisted host", async (t) => {
@@ -670,4 +857,61 @@ test("POST /token-import/proxy rejects oversized upstream responses", async (t) 
   assert.equal(response.status, 502);
   const payload = JSON.parse(response.body);
   assert.equal(payload?.error?.code, "TOKEN_IMPORT_PROXY_RESPONSE_TOO_LARGE");
+});
+
+test("POST /token-import/proxy returns upstream timeout when body stalls after headers", async (t) => {
+  await initDatabase();
+
+  const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const userId = `proxy_timeout_user_${suffix}`;
+  const username = `proxy_timeout_user_${suffix}`;
+  run(`DELETE FROM users WHERE id = $id OR username = $username`, {
+    $id: userId,
+    $username: username,
+  });
+  createUser({ id: userId, username, password: "ProxyTimeout123!Aa" });
+
+  const originalTrustedHosts = env.trustedImportApiHosts;
+  const originalTimeoutMs = env.tokenImportProxyTimeoutMs;
+  env.trustedImportApiHosts = ["api.example.com"];
+  env.tokenImportProxyTimeoutMs = 40;
+  t.after(() => {
+    env.trustedImportApiHosts = originalTrustedHosts;
+    env.tokenImportProxyTimeoutMs = originalTimeoutMs;
+  });
+
+  mockHttpsRequest(t, async () => ({
+    status: 200,
+    headers: {
+      "content-type": "application/json; charset=utf-8",
+    },
+    connectedAddress: "93.184.216.34",
+    streamBody: (response) => {
+      response.write('{"ok":');
+    },
+  }));
+
+  const lookupMock = t.mock.method(dns.promises, "lookup", async () => [
+    { address: "93.184.216.34", family: 4 },
+  ]);
+  t.after(() => lookupMock.mock.restore());
+
+  const server = await createServer();
+  t.after(async () => {
+    await new Promise((resolve) => server.close(resolve));
+    run(`DELETE FROM users WHERE id = $id`, { $id: userId });
+  });
+
+  const response = await requestLocal({
+    url: `${makeBaseUrl(server)}/api/v1/token-import/proxy`,
+    method: "POST",
+    headers: authHeaders({ userId, username }),
+    body: JSON.stringify({
+      url: "https://api.example.com/import.json",
+    }),
+  });
+
+  assert.equal(response.status, 502);
+  const payload = JSON.parse(response.body);
+  assert.equal(payload?.error?.code, "TOKEN_IMPORT_PROXY_UPSTREAM_TIMEOUT");
 });

@@ -701,6 +701,49 @@ test("GET /wechat-proxy/qrconnect rejects oversized upstream html responses", as
   assert.equal(response.body.includes("响应体"), true);
 });
 
+test("GET /wechat-proxy/qrconnect returns upstream timeout when body stalls after headers", async (t) => {
+  await initDatabase();
+  run(`DELETE FROM security_rate_limits WHERE scope_key LIKE 'wechat_proxy_%'`);
+
+  const originalTimeoutMs = env.wechatProxyTimeoutMs;
+  env.wechatProxyTimeoutMs = 40;
+  t.after(() => {
+    env.wechatProxyTimeoutMs = originalTimeoutMs;
+  });
+
+  mockHttpsRequest(t, async () => ({
+    status: 200,
+    headers: {
+      "content-type": "text/html; charset=utf-8",
+    },
+    connectedAddress: "93.184.216.34",
+    streamBody: (response) => {
+      response.write("<html><body>partial");
+    },
+  }));
+
+  const lookupMock = t.mock.method(dns.promises, "lookup", async () => [
+    { address: "93.184.216.34", family: 4 },
+  ]);
+  t.after(() => lookupMock.mock.restore());
+
+  const server = await createServer();
+  t.after(async () => {
+    await new Promise((resolve) => server.close(resolve));
+    run(`DELETE FROM security_rate_limits WHERE scope_key LIKE 'wechat_proxy_%'`);
+  });
+
+  const response = await requestLocal({
+    url: `${makeBaseUrl(server)}/api/v1/wechat-proxy/qrconnect?appid=test&state=timeout`,
+    method: "GET",
+  });
+
+  assert.equal(response.status, 502);
+  const payload = JSON.parse(response.body);
+  assert.equal(payload?.success, false);
+  assert.equal(payload?.message, "上游请求超时");
+});
+
 test("POST /wechat-proxy/hortor-login rejects upstream content types outside the allowlist", async (t) => {
   await initDatabase();
   run(`DELETE FROM security_rate_limits WHERE scope_key LIKE 'wechat_proxy_%'`);

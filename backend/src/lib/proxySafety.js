@@ -159,13 +159,38 @@ const discardResponseBody = (response) => {
   }
 };
 
-const readNodeResponseBodyWithinLimit = async (source, maxBytes) =>
-  new Promise((resolve, reject) => {
+const createTimeoutError = () =>
+  new ProxySafetyError("TIMEOUT", "upstream request timed out", {
+    statusCode: 502,
+  });
+
+const getRemainingMs = (deadlineAt) => Math.max(0, deadlineAt - Date.now());
+
+const getRemainingMsOrThrow = (deadlineAt) => {
+  const remainingMs = getRemainingMs(deadlineAt);
+  if (remainingMs <= 0) {
+    throw createTimeoutError();
+  }
+  return remainingMs;
+};
+
+const readNodeResponseBodyWithinLimit = async (source, maxBytes, remainingMs) => {
+  if (remainingMs <= 0) {
+    throw createTimeoutError();
+  }
+
+  return new Promise((resolve, reject) => {
     const chunks = [];
     let total = 0;
     let settled = false;
+    const timeoutError = createTimeoutError();
+    const timer = setTimeout(() => {
+      source.destroy?.();
+      finish(timeoutError);
+    }, remainingMs);
 
     const cleanup = () => {
+      clearTimeout(timer);
       source.off("data", onData);
       source.off("end", onEnd);
       source.off("error", onError);
@@ -188,14 +213,13 @@ const readNodeResponseBodyWithinLimit = async (source, maxBytes) =>
       const chunk = Buffer.from(value);
       total += chunk.length;
       if (total > maxBytes) {
-        source.destroy?.();
-        finish(
-          new ProxySafetyError(
-            "RESPONSE_TOO_LARGE",
-            "upstream response exceeded max bytes",
-            { statusCode: 502 },
-          ),
+        const error = new ProxySafetyError(
+          "RESPONSE_TOO_LARGE",
+          "upstream response exceeded max bytes",
+          { statusCode: 502 },
         );
+        source.destroy?.();
+        finish(error);
         return;
       }
       chunks.push(chunk);
@@ -213,8 +237,40 @@ const readNodeResponseBodyWithinLimit = async (source, maxBytes) =>
     source.on("end", onEnd);
     source.on("error", onError);
   });
+};
 
-const readResponseBodyWithinLimit = async (response, maxBytes) => {
+const readWithDeadline = async (readFn, onTimeout, remainingMs) => {
+  if (remainingMs <= 0) {
+    throw createTimeoutError();
+  }
+
+  const timeoutError = createTimeoutError();
+  let timer = null;
+
+  try {
+    return await Promise.race([
+      Promise.resolve().then(readFn),
+      new Promise((_, reject) => {
+        timer = setTimeout(async () => {
+          try {
+            await onTimeout?.(timeoutError);
+          } catch {
+            // ignore cancellation errors on timeout cleanup
+          }
+          reject(timeoutError);
+        }, remainingMs);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
+const readResponseBodyWithinLimit = async (response, maxBytes, remainingMs) => {
+  if (remainingMs <= 0) {
+    throw createTimeoutError();
+  }
+
   if (Buffer.isBuffer(response?.bodyBuffer)) {
     if (response.bodyBuffer.length > maxBytes) {
       throw new ProxySafetyError(
@@ -233,36 +289,59 @@ const readResponseBodyWithinLimit = async (response, maxBytes) => {
 
   if (typeof source.getReader === "function") {
     const reader = source.getReader();
-    const chunks = [];
-    let total = 0;
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) {
-        break;
+    try {
+      return await readWithDeadline(
+        async () => {
+          const chunks = [];
+          let total = 0;
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) {
+              break;
+            }
+            const chunk = Buffer.from(value);
+            total += chunk.length;
+            if (total > maxBytes) {
+              await reader.cancel();
+              throw new ProxySafetyError(
+                "RESPONSE_TOO_LARGE",
+                "upstream response exceeded max bytes",
+                { statusCode: 502 },
+              );
+            }
+            chunks.push(chunk);
+          }
+
+          return Buffer.concat(chunks, total);
+        },
+        async (timeoutError) => {
+          await reader.cancel(timeoutError);
+        },
+        remainingMs,
+      );
+    } finally {
+      try {
+        reader.releaseLock();
+      } catch {
+        // ignore reader release errors after cancel/end
       }
-      const chunk = Buffer.from(value);
-      total += chunk.length;
-      if (total > maxBytes) {
-        await reader.cancel();
-        throw new ProxySafetyError(
-          "RESPONSE_TOO_LARGE",
-          "upstream response exceeded max bytes",
-          { statusCode: 502 },
-        );
-      }
-      chunks.push(chunk);
     }
-
-    return Buffer.concat(chunks, total);
   }
 
   if (typeof source.on === "function") {
-    return readNodeResponseBodyWithinLimit(source, maxBytes);
+    return readNodeResponseBodyWithinLimit(source, maxBytes, remainingMs);
   }
 
   if (typeof response?.arrayBuffer === "function") {
-    const buffer = Buffer.from(await response.arrayBuffer());
+    const buffer = Buffer.from(
+      await readWithDeadline(
+        () => response.arrayBuffer(),
+        null,
+        remainingMs,
+      ),
+    );
     if (buffer.length > maxBytes) {
       throw new ProxySafetyError(
         "RESPONSE_TOO_LARGE",
@@ -429,36 +508,6 @@ const assertConnectedAddressAllowed = (connectedAddress, addresses) => {
   }
 };
 
-const createFetchRequestImpl = (fetchImpl) => async ({
-  url,
-  method,
-  headers,
-  body,
-  timeoutMs,
-}) => {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-
-  try {
-    const response = await fetchImpl(url.toString(), {
-      method,
-      headers,
-      body,
-      redirect: "manual",
-      signal: controller.signal,
-    });
-    return {
-      status: response.status,
-      headers: response.headers,
-      body: response.body,
-      arrayBuffer: () => response.arrayBuffer(),
-      connectedAddress: "",
-    };
-  } finally {
-    clearTimeout(timer);
-  }
-};
-
 const performPinnedNodeRequest = async ({
   url,
   method,
@@ -514,7 +563,6 @@ const performPinnedNodeRequest = async ({
   });
 
 const defaultLookup = (...args) => dns.promises.lookup(...args);
-const defaultFetch = (...args) => global.fetch(...args);
 
 const defaultLogProxySafetyEvent = ({
   route,
@@ -559,14 +607,17 @@ export const fetchProxyResource = async ({
   maxRedirects = DEFAULT_MAX_REDIRECTS,
   lookup = defaultLookup,
   requestImpl = null,
-  fetchImpl = defaultFetch,
   logEvent = defaultLogProxySafetyEvent,
 }) => {
-  const effectiveRequestImpl =
-    requestImpl ||
-    (fetchImpl !== defaultFetch
-      ? createFetchRequestImpl(fetchImpl)
-      : performPinnedNodeRequest);
+  if (requestImpl && process.env.NODE_ENV !== "test") {
+    throw new ProxySafetyError(
+      "FETCH_IMPL_NOT_ALLOWED",
+      "custom request impl is only allowed in test",
+      { statusCode: 502 },
+    );
+  }
+
+  const effectiveRequestImpl = requestImpl || performPinnedNodeRequest;
 
   let currentUrl = new URL(url);
   let currentRequestState = {
@@ -576,6 +627,8 @@ export const fetchProxyResource = async ({
   };
 
   for (let hop = 0; hop <= maxRedirects; hop += 1) {
+    const deadlineAt = Date.now() + timeoutMs;
+
     if (!["http:", "https:"].includes(currentUrl.protocol)) {
       throw new ProxySafetyError(
         "UNSUPPORTED_PROTOCOL",
@@ -614,7 +667,7 @@ export const fetchProxyResource = async ({
         method: currentRequestState.method,
         headers: currentRequestState.headers,
         body: currentRequestState.body,
-        timeoutMs,
+        timeoutMs: getRemainingMsOrThrow(deadlineAt),
         lookup: pinnedLookup,
         resolvedAddresses: addresses,
       });
@@ -706,7 +759,11 @@ export const fetchProxyResource = async ({
       );
     }
 
-    const bodyBuffer = await readResponseBodyWithinLimit(response, maxResponseBytes);
+    const bodyBuffer = await readResponseBodyWithinLimit(
+      response,
+      maxResponseBytes,
+      getRemainingMsOrThrow(deadlineAt),
+    );
     return {
       status: response.status,
       bodyBuffer,

@@ -126,6 +126,10 @@ export const mockHttpsRequest = (t, responder) => {
               : undefined,
           };
           onResponse?.(response);
+          if (typeof responseSpec.streamBody === "function") {
+            responseSpec.streamBody(response);
+            return;
+          }
           if (responseSpec.bodyBuffer) {
             response.end(toBuffer(responseSpec.bodyBuffer));
             return;
