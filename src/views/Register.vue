@@ -1,14 +1,14 @@
 <template>
-  <div class="register-page" :class="{ 'register-page--ready': isPageReady }">
-    <div aria-hidden="true" class="register-bg">
-      <span class="bg-orb orb-a"></span>
-      <span class="bg-orb orb-b"></span>
-      <span class="bg-orb orb-c"></span>
-      <span class="grid-mask"></span>
+  <div class="register-page public-brand-page" :class="{ 'register-page--ready': isPageReady }">
+    <div aria-hidden="true" class="register-bg public-brand-bg">
+      <span class="bg-orb orb-a public-brand-orb public-brand-orb--a"></span>
+      <span class="bg-orb orb-b public-brand-orb public-brand-orb--b"></span>
+      <span class="bg-orb orb-c public-brand-orb public-brand-orb--c"></span>
+      <span class="grid-mask public-brand-grid"></span>
     </div>
 
     <div class="register-shell">
-      <aside class="register-intro reveal-up">
+      <aside class="register-intro public-brand-glass-card reveal-up">
         <div class="intro-brand">
           <img alt="XYZW" class="brand-logo brand-logo--intro" src="/icons/xiaoyugan.png">
           <div>
@@ -20,21 +20,21 @@
         <p>{{ t("register.subtitle") }}</p>
 
         <div class="intro-points">
-          <div class="point-item">
+          <div class="point-item public-brand-soft-card">
             <span class="point-dot"></span>
             <div>
               <strong>{{ t("register.points.fast.title") }}</strong>
               <p>{{ t("register.points.fast.desc") }}</p>
             </div>
           </div>
-          <div class="point-item">
+          <div class="point-item public-brand-soft-card">
             <span class="point-dot"></span>
             <div>
               <strong>{{ t("register.points.invite.title") }}</strong>
               <p>{{ t("register.points.invite.desc") }}</p>
             </div>
           </div>
-          <div class="point-item">
+          <div class="point-item public-brand-soft-card">
             <span class="point-dot"></span>
             <div>
               <strong>{{ t("register.points.ready.title") }}</strong>
@@ -44,7 +44,7 @@
         </div>
       </aside>
 
-      <section class="register-card reveal-up reveal-delay-2">
+      <section class="register-card public-brand-glass-card reveal-up reveal-delay-2">
         <header class="card-header">
           <div class="brand">
             <img alt="XYZW" class="brand-logo" src="/icons/xiaoyugan.png">

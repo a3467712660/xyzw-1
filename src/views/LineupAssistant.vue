@@ -2,7 +2,7 @@
   <div class="lineup-assistant-page app-page">
     <PageHero
       eyebrow="阵容助手"
-      title="独立阵容管理界面"
+      title="阵容工作台"
       :description="selectedTokenDescription"
     >
       <template #meta>
@@ -306,15 +306,35 @@ watch(
 
 .lineup-assistant-alert {
   margin-bottom: 16px;
+  padding: 14px 16px;
 }
 
 .lineup-assistant-shell {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 18px;
 }
 
 .lineup-assistant-page :deep(.lineup-saver) {
   min-height: auto;
+  border-radius: 24px;
+}
+
+.lineup-assistant-page :deep(.toolbar) {
+  width: 100%;
+}
+
+.lineup-assistant-page :deep(.hero-actions .n-button) {
+  min-height: 40px;
+}
+
+@media (max-width: 640px) {
+  .lineup-assistant-page__actions {
+    width: 100%;
+  }
+
+  .lineup-assistant-alert {
+    padding: 12px 14px;
+  }
 }
 </style>

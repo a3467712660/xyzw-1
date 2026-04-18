@@ -1,11 +1,12 @@
 <template>
-  <div class="pricing-page">
-    <div aria-hidden="true" class="pricing-page__bg">
-      <span class="pricing-page__orb pricing-page__orb--a"></span>
-      <span class="pricing-page__orb pricing-page__orb--b"></span>
+  <div class="pricing-page public-brand-page">
+    <div aria-hidden="true" class="pricing-page__bg public-brand-bg">
+      <span class="pricing-page__orb pricing-page__orb--a public-brand-orb public-brand-orb--a"></span>
+      <span class="pricing-page__orb pricing-page__orb--b public-brand-orb public-brand-orb--b"></span>
+      <span class="public-brand-grid"></span>
     </div>
 
-    <section class="pricing-page__hero">
+    <section class="pricing-page__hero public-brand-glass-card">
       <div class="container pricing-page__hero-inner">
         <div class="pricing-page__hero-copy">
           <span class="pricing-page__eyebrow">{{ t("pricingPage.eyebrow") }}</span>
@@ -27,7 +28,7 @@
     <main class="pricing-page__content">
       <div class="container pricing-page__content-inner">
         <section class="pricing-section">
-          <div class="pricing-duration-panel">
+          <div class="pricing-duration-panel public-brand-soft-card">
             <div class="pricing-duration-panel__copy">
               <span class="pricing-duration-panel__eyebrow">{{ t("pricingPage.durationPicker.label") }}</span>
               <h2>{{ t("pricingPage.durationPicker.title") }}</h2>
@@ -55,7 +56,7 @@
             <article
               v-for="item in priceCards"
               :key="item.id"
-              class="pricing-card"
+              class="pricing-card public-brand-glass-card"
             >
               <div class="pricing-card__header">
                 <span class="pricing-card__badge">{{ item.badge }}</span>
@@ -78,11 +79,11 @@
           </div>
 
           <div class="compare-grid">
-            <article class="compare-card">
+            <article class="compare-card public-brand-soft-card">
               <h3>{{ t("pricingPage.compare.normal.title") }}</h3>
               <p>{{ t("pricingPage.compare.normal.description") }}</p>
             </article>
-            <article class="compare-card compare-card--featured">
+            <article class="compare-card compare-card--featured public-brand-soft-card">
               <h3>{{ t("pricingPage.compare.full.title") }}</h3>
               <p>{{ t("pricingPage.compare.full.description") }}</p>
             </article>
@@ -90,7 +91,7 @@
         </section>
 
         <section class="pricing-section">
-          <div class="contact-card">
+          <div class="contact-card public-brand-glass-card">
             <span class="contact-card__label">{{ t("pricingPage.contact.label") }}</span>
             <h2>{{ t("pricingPage.contact.title") }}</h2>
             <p>{{ t("pricingPage.contact.description") }}</p>

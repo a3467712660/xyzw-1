@@ -1,9 +1,21 @@
 <template>
-  <div class="referral-landing-page">
-    <div class="referral-landing-card">
+  <div class="referral-landing-page public-brand-page public-brand-page--centered">
+    <div aria-hidden="true" class="public-brand-bg">
+      <span class="public-brand-orb public-brand-orb--a"></span>
+      <span class="public-brand-orb public-brand-orb--b"></span>
+      <span class="public-brand-orb public-brand-orb--c"></span>
+      <span class="public-brand-grid"></span>
+    </div>
+
+    <div class="referral-landing-card public-brand-glass-card public-brand-status-card public-brand-stack">
+      <span class="public-brand-status-chip">{{ statusLabel }}</span>
       <h1>{{ t("referralLanding.title") }}</h1>
       <p>{{ statusText }}</p>
+      <p class="referral-landing-note">{{ statusNote }}</p>
       <n-spin :show="loading"></n-spin>
+      <n-button secondary type="primary" @click="router.replace('/register')">
+        前往注册页
+      </n-button>
     </div>
   </div>
 </template>
@@ -24,9 +36,17 @@ const message = useMessage();
 const { t } = useI18n();
 
 const loading = ref(false);
+const statusLabel = computed(() => (loading.value ? "邀请码识别中" : "准备跳转"));
 const statusText = computed(() =>
   loading.value ? t("referralLanding.loading") : t("referralLanding.redirecting"),
 );
+const statusNote = computed(() => {
+  const code = String(route.params.code || "").trim();
+  if (!code) {
+    return "未检测到推荐码，页面会直接返回注册页。";
+  }
+  return "正在校验推荐关系并写入本地缓存；如果邀请码失效，也会自动回到注册页。";
+});
 
 const clearStoredReferral = () => {
   if (typeof window === "undefined") {
@@ -88,23 +108,11 @@ onMounted(() => {
 
 <style scoped lang="scss">
 .referral-landing-page {
-  min-height: 100dvh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
+  width: 100%;
 }
 
 .referral-landing-card {
-  width: min(520px, 100%);
-  padding: 28px;
-  border-radius: 24px;
-  background: var(--surface-glass-strong);
-  border: 1px solid var(--surface-glass-border);
-  box-shadow: var(--shadow-light);
-  display: grid;
-  gap: 14px;
-  text-align: center;
+  width: min(560px, 100%);
 }
 
 .referral-landing-card h1,
@@ -114,5 +122,10 @@ onMounted(() => {
 
 .referral-landing-card p {
   color: var(--text-secondary);
+}
+
+.referral-landing-note {
+  font-size: 14px;
+  line-height: 1.65;
 }
 </style>

@@ -1,72 +1,176 @@
 <template>
-  <div class="legion-war-container">
-    <div class="legion-war-map">
-      <div class="map-title">
-        <div class="map-title-item">战场图示</div>
-        <div>
-          <span>是否进入战场:</span>
-          <n-button text @click="getBattlefieldInfo">
-            <span :class="connectionClass">
-              {{ isEntireBattlefield ? "已进入战场" : "重新进入战场" }}</span>
-          </n-button>
-          当前时间-{{ currentDateTime }}
+  <div class="legion-war-page app-page">
+    <PageHero
+      eyebrow="军团战"
+      title="战场态势控制台"
+      :description="legionHeroDescription"
+    >
+      <template #meta>
+        <div class="app-chip-row">
+          <span class="app-inline-stat">
+            <strong>{{ battlefieldStatusText }}</strong>
+            战场状态
+          </span>
+          <span class="app-inline-stat">
+            <strong>{{ connectionStatusText }}</strong>
+            连接状态
+          </span>
+          <span class="app-inline-stat">
+            <strong>{{ layoutModeLabel }}</strong>
+            当前布局
+          </span>
+          <span class="app-inline-stat">
+            <strong>{{ perspectiveLabel }}</strong>
+            当前视角
+          </span>
         </div>
-      </div>
-      <div class="map-container">
-        <canvas ref="legionWarMapDom" class="mapCanvas"></canvas>
-      </div>
-    </div>
-    <div class="legion-war-operation">
-      <div class="legion-war-operation-title">
-        <div class="operation-title-item">操作面板</div>
-      </div>
-      <div class="legion-war-operation-container">
-        <div class="legion-war-operation-item">
-          <div>占领布局</div>
-          <div>
-            <n-switch
-              v-model:value="isOccupyOrDistribution"
-              @update:value="handleChange"
-            ></n-switch>
+      </template>
+
+      <template #actions>
+        <PageToolbar class="legion-war-page__hero-toolbar">
+          <template #left>
+            <StatusPill
+              :label="battlefieldStatusText"
+              :tone="isEntireBattlefield ? 'success' : 'warning'"
+            ></StatusPill>
+            <StatusPill
+              :label="connectionStatusText"
+              :tone="isConnected ? 'success' : 'default'"
+            ></StatusPill>
+          </template>
+
+          <template #right>
+            <n-button
+              size="large"
+              type="primary"
+              :disabled="!isEntireBattlefield"
+              @click="getBattlefieldInfo"
+            >
+              拉取数据
+            </n-button>
+            <n-button
+              size="large"
+              :disabled="!canBroadcastLegionStatus"
+              @click="sendMessageToLegion"
+            >
+              发送频道复活信息
+            </n-button>
+          </template>
+        </PageToolbar>
+      </template>
+    </PageHero>
+
+    <SummaryGrid :items="summaryCards"></SummaryGrid>
+
+    <n-grid item-responsive responsive="screen" :x-gap="16" :y-gap="16">
+      <n-grid-item span="24 l:17">
+        <SectionCard
+          class="legion-war-page__map-card"
+          description="保留单 canvas 渲染与点击/resize 链路，只重做状态栏和容器层级。"
+          title="战场图示"
+        >
+          <template #header-extra>
+            <StatusPill
+              size="sm"
+              :label="battlefieldStatusText"
+              :tone="isEntireBattlefield ? 'success' : 'warning'"
+            ></StatusPill>
+          </template>
+
+          <div class="legion-war-page__map-toolbar">
+            <div class="legion-war-page__map-meta">
+              <span class="map-meta-chip">
+                战场编号：{{ battlefieldHintText }}
+              </span>
+              <span class="map-meta-chip">
+                当前时间：{{ currentDateTime }}
+              </span>
+            </div>
+
+            <n-button
+              tertiary
+              type="primary"
+              :disabled="!isEntireBattlefield"
+              @click="getBattlefieldInfo"
+            >
+              刷新当前战场
+            </n-button>
           </div>
-          <div>分布布局</div>
-        </div>
-        <div class="legion-war-operation-item">
-          <div>战队战况</div>
-          <div>
-            <n-switch
-              v-model:value="isLegionOrIndividual"
-              @update:value="handleChange"
-            ></n-switch>
+
+          <div class="map-container">
+            <canvas ref="legionWarMapDom" class="mapCanvas"></canvas>
           </div>
-          <div>个人战况</div>
-        </div>
-        <div class="legion-war-operation-item">
-          <n-button
-            class="btn-pad-12"
-            type="primary"
-            :disabled="!isEntireBattlefield"
-            @click="getBattlefieldInfo"
-          >
-            拉取数据(需进入战场后)
-          </n-button>
-        </div>
-        <div class="legion-war-operation-item">
-          <n-button
-            class="btn-pad-12"
-            type="primary"
-            @click="sendMessageToLegion"
-          >
-            发送各战队免费复活到战队频道
-          </n-button>
-        </div>
-      </div>
-    </div>
+        </SectionCard>
+      </n-grid-item>
+
+      <n-grid-item span="24 l:7">
+        <SectionCard
+          class="legion-war-page__control-card"
+          description="布局切换、战况视角、战场数据刷新和频道广播都收口到这里。"
+          title="操作面板"
+        >
+          <div class="legion-war-page__control-stack">
+            <div class="legion-war-page__toggle-card">
+              <div class="legion-war-page__toggle-copy">
+                <strong>地图布局</strong>
+                <p>在占领布局与分布布局间切换，不改变底层地图数据。</p>
+              </div>
+              <div class="legion-war-page__toggle-control">
+                <span>占领</span>
+                <n-switch
+                  v-model:value="isOccupyOrDistribution"
+                  @update:value="handleChange"
+                ></n-switch>
+                <span>分布</span>
+              </div>
+            </div>
+
+            <div class="legion-war-page__toggle-card">
+              <div class="legion-war-page__toggle-copy">
+                <strong>战况视角</strong>
+                <p>切换战队战况和个人战况，保持现有绘图和点击查看逻辑。</p>
+              </div>
+              <div class="legion-war-page__toggle-control">
+                <span>战队</span>
+                <n-switch
+                  v-model:value="isLegionOrIndividual"
+                  @update:value="handleChange"
+                ></n-switch>
+                <span>个人</span>
+              </div>
+            </div>
+
+            <div class="legion-war-page__action-list">
+              <n-button
+                class="legion-war-page__action"
+                type="primary"
+                :disabled="!isEntireBattlefield"
+                @click="getBattlefieldInfo"
+              >
+                拉取战场数据
+              </n-button>
+              <n-button
+                class="legion-war-page__action"
+                :disabled="!canBroadcastLegionStatus"
+                @click="sendMessageToLegion"
+              >
+                发送各战队免费复活到战队频道
+              </n-button>
+            </div>
+
+            <div class="legion-war-page__note">
+              <strong>当前说明：</strong>
+              {{ controlHintText }}
+            </div>
+          </div>
+        </SectionCard>
+      </n-grid-item>
+    </n-grid>
   </div>
 </template>
 
 <script setup>
-import { onMounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { useLegionWarActions } from "@/composables/useLegionWarActions";
 import {
@@ -77,26 +181,15 @@ import {
 } from "@/utils/legionWar";
 import { useTokenStore } from "@/stores/tokenStore";
 import { useMessage } from "naive-ui/es";
+import PageHero from "@/components/workbench/PageHero.vue";
+import PageToolbar from "@/components/workbench/PageToolbar.vue";
+import SectionCard from "@/components/workbench/SectionCard.vue";
+import StatusPill from "@/components/workbench/StatusPill.vue";
+import SummaryGrid from "@/components/workbench/SummaryGrid.vue";
 
 const router = useRouter();
 const tokenStore = useTokenStore();
 const message = useMessage();
-
-const connectionStatusText = computed(() => {
-  return legionWarWebSocket.value?.status === "connected" ? "已连接" : "未连接";
-});
-const connectionStatus = computed(() => {
-  return legionWarWebSocket.value?.status === "connected"
-    ? "connected"
-    : "disconnected";
-});
-
-const connectionClass = computed(() => {
-  return isEntireBattlefield.value ? "status-connected" : "status-disconnected";
-});
-const isConnected = computed(() => {
-  return connectionStatus?.value === "connected";
-});
 
 /**
  * 是占领情况还是分布情况
@@ -108,7 +201,7 @@ const isOccupyOrDistribution = ref(false);
 const isLegionOrIndividual = ref(false);
 
 // 处理change事件
-const handleChange = function (value) {
+const handleChange = function () {
   drawCanvasContent();
 };
 
@@ -129,7 +222,6 @@ const validData = ref(null);
 const result = ref(null);
 
 const {
-  connectWebSocket,
   currentDateTime,
   getBattlefieldInfo,
   hint,
@@ -150,6 +242,105 @@ const {
 const sendMessageToLegion = async () => {
   await sendLegionBroadcast(validData.value);
 };
+
+const connectionStatusText = computed(() => {
+  return legionWarWebSocket.value?.status === "connected" ? "已连接" : "未连接";
+});
+
+const connectionStatus = computed(() => {
+  return legionWarWebSocket.value?.status === "connected"
+    ? "connected"
+    : "disconnected";
+});
+
+const isConnected = computed(() => {
+  return connectionStatus.value === "connected";
+});
+
+const battlefieldStatusText = computed(() =>
+  isEntireBattlefield.value ? "已进入战场" : "等待进入战场",
+);
+
+const layoutModeLabel = computed(() =>
+  isOccupyOrDistribution.value ? "分布布局" : "占领布局",
+);
+
+const perspectiveLabel = computed(() =>
+  isLegionOrIndividual.value ? "个人战况" : "战队战况",
+);
+
+const battlefieldHintText = computed(() =>
+  hint.value ? String(hint.value) : "待同步",
+);
+
+const battlefieldNodeCount = computed(() =>
+  Object.keys(validData.value?.buildingData || {}).length,
+);
+
+const legionCount = computed(() =>
+  Object.keys(validData.value?.legionInfo || {}).length,
+);
+
+const canBroadcastLegionStatus = computed(() =>
+  Boolean(legionCount.value),
+);
+
+const legionHeroDescription = computed(() => {
+  if (!isConnected.value) {
+    return "当前正在等待 WebSocket 建立连接，连接完成后会自动进入战场并加载作战态势。";
+  }
+
+  if (!isEntireBattlefield.value) {
+    return "连接已建立，正在等待进入战场。进入后即可拉取完整地图并查看俱乐部或个人战况。";
+  }
+
+  return `当前处于${layoutModeLabel.value} / ${perspectiveLabel.value}视图，可直接刷新战场数据并发送战队免费复活信息。`;
+});
+
+const controlHintText = computed(() => {
+  if (!isEntireBattlefield.value) {
+    return "进入战场前无法拉取地图数据。连接建立后会自动尝试进入当前战场。";
+  }
+
+  if (!canBroadcastLegionStatus.value) {
+    return "请先拉取一次战场数据，成功读取俱乐部信息后才能发送免费复活汇总。";
+  }
+
+  return "当前数据已就绪，可以切换视图查看地图，并把各战队剩余免费复活次数发送到俱乐部频道。";
+});
+
+const summaryCards = computed(() => [
+  {
+    label: "连接状态",
+    value: connectionStatusText.value,
+    meta: isConnected.value ? "WebSocket 已建立" : "等待连接或重连",
+  },
+  {
+    label: "战场编号",
+    value: battlefieldHintText.value,
+    meta: isEntireBattlefield.value ? "当前战场已同步" : "进入战场后刷新",
+  },
+  {
+    label: "地图布局",
+    value: layoutModeLabel.value,
+    meta: "占领与分布视图切换",
+  },
+  {
+    label: "战况视角",
+    value: perspectiveLabel.value,
+    meta: "战队与个人战况切换",
+  },
+  {
+    label: "建筑节点",
+    value: String(battlefieldNodeCount.value),
+    meta: legionCount.value ? `已识别 ${legionCount.value} 个战队` : "等待战场数据",
+  },
+  {
+    label: "当前时间",
+    value: currentDateTime.value || "待同步",
+    meta: "每次刷新战场后更新",
+  },
+]);
 
 const drawHexagon = (x, y, color) => {
   ctx.beginPath();
@@ -758,161 +949,134 @@ onUnmounted(() => {
 </script>
 
 <style scoped lang="scss">
-.btn-pad-12 {
-  padding: 12px;
+.legion-war-page__hero-toolbar {
+  width: 100%;
 }
 
-.legion-war-container {
+.legion-war-page__map-card,
+.legion-war-page__control-card {
+  min-height: 100%;
+}
+
+.legion-war-page__map-toolbar {
   display: flex;
   justify-content: space-between;
-  gap: var(--spacing-md);
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.legion-war-page__map-meta {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.map-meta-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 107, 255, 0.12);
+  background: rgba(15, 107, 255, 0.08);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.map-container {
+  width: 100%;
+  min-height: 62vh;
+  border-radius: 22px;
+  overflow: hidden;
+  border: 1px solid var(--surface-glass-border);
+  background:
+    linear-gradient(180deg, rgba(15, 107, 255, 0.06), transparent 10%),
+    var(--surface-glass);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.mapCanvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.legion-war-page__control-stack {
+  display: grid;
+  gap: 14px;
+}
+
+.legion-war-page__toggle-card {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 20px;
+  border: 1px solid var(--surface-glass-border);
+  background:
+    linear-gradient(135deg, rgba(15, 107, 255, 0.07), transparent 78%),
+    var(--surface-glass);
+}
+
+.legion-war-page__toggle-copy {
+  display: grid;
+  gap: 6px;
+}
+
+.legion-war-page__toggle-copy strong {
+  color: var(--text-primary);
+  font-size: 15px;
+}
+
+.legion-war-page__toggle-copy p {
   margin: 0;
-  padding: var(--spacing-md);
-  min-height: calc(100dvh - 72px);
-  animation: legion-fade-in 0.42s ease;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
 
-  .legion-war-map {
-    background: var(--surface-glass-strong);
-    border: 1px solid var(--surface-glass-border);
-    border-radius: var(--border-radius-large);
-    box-shadow: var(--shadow-light);
-    backdrop-filter: blur(10px);
-    display: flex;
-    flex-direction: column;
-    padding: var(--spacing-md);
-    width: min(87%, 1250px);
+.legion-war-page__toggle-control {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 700;
+}
 
-    .map-title {
-      display: flex;
-      padding: var(--spacing-sm);
-      border-bottom: 1px solid var(--surface-glass-border);
-      align-items: center;
-      justify-content: space-between;
-      border-radius: var(--border-radius-small);
-      color: var(--text-primary);
-    }
+.legion-war-page__action-list {
+  display: grid;
+  gap: 10px;
+}
 
-    .map-container {
-      width: 100%;
-      height: 100%;
-      min-height: 60vh;
-      border-radius: var(--border-radius-medium);
-      overflow: hidden;
-      border: 1px solid var(--border-light);
-      margin-top: var(--spacing-sm);
-      .mapCanvas {
-        width: 100%;
-        height: 100%;
-        display: block;
-      }
-    }
-  }
-  .legion-war-operation {
-    background: var(--surface-glass-strong);
-    border: 1px solid var(--surface-glass-border);
-    border-radius: var(--border-radius-large);
-    box-shadow: var(--shadow-light);
-    backdrop-filter: blur(10px);
-    width: min(12.5%, 300px);
-    min-width: 210px;
-    display: flex;
-    flex-direction: column;
-    padding: var(--spacing-md);
+.legion-war-page__action {
+  min-height: 44px;
+}
 
-    .legion-war-operation-title {
-      display: flex;
-      padding: var(--spacing-sm);
-      border-bottom: 1px solid var(--surface-glass-border);
-      align-items: center;
-      justify-content: space-between;
-      color: var(--text-primary);
-    }
-    .legion-war-operation-container {
-      width: 100%;
-      height: 100%;
-      display: flex;
-      padding: var(--spacing-xs);
-      flex-direction: column;
-      gap: var(--spacing-sm);
-      .legion-war-operation-item {
-        width: 100%;
-        display: flex;
-        flex-direction: row;
-        justify-content: space-between;
-        align-items: center;
-        padding: var(--spacing-xs) 0;
-        border-bottom: 1px solid var(--border-light);
-        color: var(--text-secondary);
+.legion-war-page__note {
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid var(--surface-glass-border);
+  background: rgba(15, 107, 255, 0.06);
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
 
-        &:last-child {
-          border-bottom: none;
-        }
-      }
-    }
-  }
-  .status-connected {
-    color: var(--success-color);
-  }
-
-  .status-disconnected {
-    color: var(--error-color);
-  }
+.legion-war-page__note strong {
+  color: var(--text-primary);
 }
 
 @media (max-width: 768px) {
-  .legion-war-container {
+  .legion-war-page__map-toolbar,
+  .legion-war-page__toggle-control {
     flex-direction: column;
-    padding: var(--spacing-sm);
-
-    .legion-war-map {
-      width: 100%;
-      padding: var(--spacing-sm);
-      margin-bottom: var(--spacing-md);
-
-      .map-title {
-        font-size: var(--font-size-sm);
-        padding: var(--spacing-xs);
-        flex-wrap: wrap;
-        gap: 8px;
-      }
-
-      .map-container {
-        min-height: 50vh;
-      }
-    }
-
-    .legion-war-operation {
-      width: 100%;
-      min-width: 0;
-      padding: var(--spacing-sm);
-
-      .legion-war-operation-container {
-        flex-direction: row;
-        flex-wrap: wrap;
-        gap: var(--spacing-md);
-
-        .legion-war-operation-item {
-          width: 100%;
-          padding: var(--spacing-xs) 0;
-          border-bottom: 1px solid var(--border-light);
-
-          &:last-child {
-            border-bottom: none;
-          }
-        }
-      }
-    }
+    align-items: stretch;
   }
-}
 
-@keyframes legion-fade-in {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
+  .map-container {
+    min-height: 50vh;
   }
 }
 </style>

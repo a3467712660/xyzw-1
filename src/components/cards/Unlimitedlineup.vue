@@ -3447,6 +3447,10 @@ onUnmounted(() => {
 <style scoped lang="scss">
 .lineup-saver {
   min-height: 300px;
+  background:
+    radial-gradient(circle at top right, rgba(15, 107, 255, 0.08), transparent 24%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.18), transparent 24%),
+    var(--surface-glass-strong);
 }
 
 .apply-progress-modal {
@@ -3479,10 +3483,10 @@ onUnmounted(() => {
 }
 
 .apply-progress-stage {
-  padding: 12px 14px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, rgba(24, 144, 255, 0.12) 0%, rgba(114, 46, 209, 0.1) 100%);
-  border: 1px solid rgba(24, 144, 255, 0.15);
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(15, 107, 255, 0.12) 0%, rgba(0, 163, 137, 0.1) 100%);
+  border: 1px solid rgba(15, 107, 255, 0.15);
   color: var(--text-primary);
   font-weight: 600;
 }
@@ -3537,10 +3541,12 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 12px;
-  border-radius: 12px;
-  background: rgba(15, 23, 42, 0.04);
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  padding: 14px;
+  border-radius: 16px;
+  background:
+    linear-gradient(135deg, rgba(15, 107, 255, 0.08), transparent 80%),
+    rgba(15, 23, 42, 0.03);
+  border: 1px solid rgba(15, 107, 255, 0.12);
 }
 
 .apply-debug-header-row {
@@ -3688,7 +3694,7 @@ onUnmounted(() => {
 .lineup-container {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-md);
+  gap: 18px;
 }
 
 .toolbar {

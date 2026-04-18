@@ -1,5 +1,5 @@
 <template>
-  <div class="game-workbench-v2">
+  <div class="game-workbench-v2 game-features-page">
     <GameCommandBar
       :active-group-name="activeGroup?.label || ''"
       :active-module-name="activeModuleMeta?.label || ''"
@@ -19,7 +19,10 @@
       @toggle-connection="handleToggleConnection"
     ></GameCommandBar>
 
-    <div class="game-workbench-v2__body game-workbench-v2__body--no-inspector">
+    <div
+      class="game-workbench-v2__body"
+      :class="{ 'game-workbench-v2__body--no-inspector': !showDesktopInspector }"
+    >
       <GameModuleRail
         v-model="activeModule"
         :dock-label="t('gameFeatures.workbench.dockLabel')"
@@ -37,6 +40,18 @@
         :status-label="t('gameFeatures.workbench.stage.telemetryLabel')"
         :status-text="connectionStatusText"
       >
+        <div class="game-stage-overview">
+          <article
+            v-for="card in stageSummaryCards"
+            :key="card.label"
+            class="game-stage-overview__item"
+          >
+            <span class="game-stage-overview__label">{{ card.label }}</span>
+            <strong class="game-stage-overview__value">{{ card.value }}</strong>
+            <span class="game-stage-overview__meta">{{ card.meta }}</span>
+          </article>
+        </div>
+
         <GameStatus
           v-model:active-module="activeModule"
           :show-identity-card="false"
@@ -151,7 +166,7 @@ const { isMobile } = useResponsive();
 const activeModule = ref(GAME_STATUS_MODULE_IDS.daily);
 const lastActivity = ref(null);
 const showInspectorDrawer = ref(false);
-const showDesktopInspector = computed(() => false);
+const showDesktopInspector = computed(() => !isMobile.value);
 
 const canAccessRestrictedGameSections = computed(() =>
   hasGameFeatureAccess(authStore.user),
@@ -257,6 +272,24 @@ const commandSignals = computed(() => [
     label: t("gameFeatures.workbench.signals.lastActivity"),
     value: lastActivity.value || t("gameFeatures.workbench.values.none"),
     meta: t("gameFeatures.workbench.signals.lastActivityMeta"),
+  },
+]);
+
+const stageSummaryCards = computed(() => [
+  {
+    label: "当前分组",
+    value: activeGroup.value?.label || t("gameFeatures.workbench.values.pending"),
+    meta: activeGroup.value?.caption || "先锁定你要处理的工作区，再进入功能卡片。",
+  },
+  {
+    label: "当前模块",
+    value: activeModuleMeta.value?.label || t("gameFeatures.title"),
+    meta: activeModuleMeta.value?.description || "模块说明会跟随左侧导航切换。",
+  },
+  {
+    label: "建议动作",
+    value: summaryCards.value[3].value,
+    meta: summaryCards.value[3].meta,
   },
 ]);
 

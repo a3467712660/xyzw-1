@@ -1,11 +1,13 @@
 <template>
-  <div class="task-control-page">
-    <TaskControlList
-      :preparing-runner="isPreparingRunner"
-      :run-feature="runFeatureTask"
-    ></TaskControlList>
+  <div class="task-control-page app-page">
+    <div class="task-control-page__content">
+      <TaskControlList
+        :preparing-runner="isPreparingRunner"
+        :run-feature="runFeatureTask"
+      ></TaskControlList>
+    </div>
 
-    <div v-if="showHiddenRunner" class="batch-hidden">
+    <div v-if="showHiddenRunner" aria-hidden="true" class="batch-hidden">
       <BatchDailyTasks ref="batchRunnerRef"></BatchDailyTasks>
     </div>
   </div>
@@ -102,14 +104,36 @@ onMounted(() => {
 
 <style scoped lang="scss">
 .task-control-page {
+  position: relative;
+  isolation: isolate;
   display: grid;
   gap: 12px;
   min-height: calc(100dvh - 72px);
   animation: tc-fade-in 0.36s ease;
 }
 
+.task-control-page::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 12% 10%, rgba(15, 107, 255, 0.08), transparent 24%),
+    radial-gradient(circle at 88% 12%, rgba(0, 163, 137, 0.06), transparent 22%);
+  opacity: 0.9;
+}
+
+.task-control-page__content {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+}
+
 .batch-hidden {
   position: absolute;
+  top: 0;
+  left: -9999px;
   width: 1px;
   height: 1px;
   overflow: hidden;

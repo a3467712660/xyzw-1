@@ -1,14 +1,14 @@
 <template>
-  <div class="login-page" :class="{ 'login-page--ready': isPageReady }">
-    <div aria-hidden="true" class="login-bg">
-      <span class="bg-orb orb-a"></span>
-      <span class="bg-orb orb-b"></span>
-      <span class="bg-orb orb-c"></span>
-      <span class="grid-mask"></span>
+  <div class="login-page public-brand-page" :class="{ 'login-page--ready': isPageReady }">
+    <div aria-hidden="true" class="login-bg public-brand-bg">
+      <span class="bg-orb orb-a public-brand-orb public-brand-orb--a"></span>
+      <span class="bg-orb orb-b public-brand-orb public-brand-orb--b"></span>
+      <span class="bg-orb orb-c public-brand-orb public-brand-orb--c"></span>
+      <span class="grid-mask public-brand-grid"></span>
     </div>
 
     <div class="login-shell">
-      <aside class="intro-panel reveal-up">
+      <aside class="intro-panel public-brand-glass-card reveal-up">
         <div class="intro-brand">
           <img alt="XYZW" class="brand-logo" src="/icons/xiaoyugan.png">
           <div>
@@ -23,7 +23,7 @@
           <article
             v-for="feature in features"
             :key="feature.id"
-            class="feature-item"
+            class="feature-item public-brand-soft-card"
           >
             <div class="feature-icon">
               <component :is="feature.icon"></component>
@@ -36,7 +36,7 @@
         </div>
       </aside>
 
-      <section class="login-card reveal-up reveal-delay-2">
+      <section class="login-card public-brand-glass-card reveal-up reveal-delay-2">
         <header class="card-header">
           <h2>{{ t("login.cardTitle") }}</h2>
           <p>{{ t("login.cardDesc") }}</p>

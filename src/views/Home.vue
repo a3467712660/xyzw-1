@@ -1,10 +1,10 @@
 <template>
-  <div class="home-page" :class="{ 'home-page--ready': isPageReady }">
-    <div aria-hidden="true" class="home-bg">
-      <span class="bg-orb orb-a"></span>
-      <span class="bg-orb orb-b"></span>
-      <span class="bg-orb orb-c"></span>
-      <span class="grid-mask"></span>
+  <div class="home-page public-brand-page" :class="{ 'home-page--ready': isPageReady }">
+    <div aria-hidden="true" class="home-bg public-brand-bg">
+      <span class="bg-orb orb-a public-brand-orb public-brand-orb--a"></span>
+      <span class="bg-orb orb-b public-brand-orb public-brand-orb--b"></span>
+      <span class="bg-orb orb-c public-brand-orb public-brand-orb--c"></span>
+      <span class="grid-mask public-brand-grid"></span>
     </div>
 
     <nav class="navbar">
@@ -229,7 +229,7 @@
           </div>
 
           <div class="hero-panel reveal-up reveal-delay-2">
-            <div class="mockup-window">
+            <div class="mockup-window public-brand-glass-card">
               <div class="mockup-topbar">
                 <div class="mockup-dots">
                   <span></span>
@@ -317,7 +317,7 @@
             <article
               v-for="item in workflowSteps"
               :key="item.id"
-              class="workflow-card"
+              class="workflow-card public-brand-soft-card"
             >
               <span class="workflow-card__step">{{ item.step }}</span>
               <h3>{{ item.title }}</h3>
@@ -334,7 +334,7 @@
               <article
                 v-for="item in securityCards"
                 :key="item.id"
-                class="security-card"
+                class="security-card public-brand-soft-card"
               >
                 <div class="security-card__icon">
                   <component :is="item.icon"></component>
@@ -362,7 +362,7 @@
             <article
               v-for="feature in features"
               :key="feature.id"
-              class="feature-item"
+              class="feature-item public-brand-soft-card"
             >
               <div class="feature-icon">
                 <component :is="feature.icon"></component>

@@ -1,0 +1,163 @@
+.public-brand-page {
+  position: relative;
+  min-height: 100dvh;
+  color: var(--text-primary);
+  overflow: clip;
+  isolation: isolate;
+}
+
+.public-brand-page--centered {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.public-brand-bg {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.public-brand-stack {
+  position: relative;
+  z-index: 2;
+}
+
+.public-brand-orb {
+  position: absolute;
+  border-radius: 999px;
+  filter: blur(80px);
+  opacity: 0.72;
+}
+
+.public-brand-orb--a {
+  width: 34vw;
+  height: 34vw;
+  min-width: 240px;
+  min-height: 240px;
+  left: -10vw;
+  top: -4vh;
+  background: radial-gradient(circle, rgba(15, 107, 255, 0.3), transparent 72%);
+}
+
+.public-brand-orb--b {
+  width: 30vw;
+  height: 30vw;
+  min-width: 220px;
+  min-height: 220px;
+  right: -8vw;
+  top: 16vh;
+  background: radial-gradient(circle, rgba(0, 163, 137, 0.24), transparent 72%);
+}
+
+.public-brand-orb--c {
+  width: 28vw;
+  height: 28vw;
+  min-width: 200px;
+  min-height: 200px;
+  left: 28%;
+  bottom: -14vh;
+  background: radial-gradient(circle, rgba(249, 115, 22, 0.18), transparent 74%);
+}
+
+.public-brand-grid {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(to right, rgba(15, 107, 255, 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(15, 107, 255, 0.06) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.38), transparent 84%);
+  opacity: 0.38;
+}
+
+.public-brand-glass-card,
+.public-brand-soft-card {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--surface-glass-border);
+  backdrop-filter: blur(18px);
+}
+
+.public-brand-glass-card {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.16), transparent 18%),
+    var(--surface-glass-strong);
+  box-shadow:
+    var(--shadow-medium),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+}
+
+.public-brand-soft-card {
+  background:
+    linear-gradient(135deg, rgba(15, 107, 255, 0.12), transparent 76%),
+    rgba(255, 255, 255, 0.54);
+  box-shadow:
+    var(--shadow-light),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+[data-theme="dark"] .public-brand-glass-card {
+  background:
+    linear-gradient(180deg, rgba(96, 165, 250, 0.06), transparent 18%),
+    rgba(8, 22, 41, 0.82);
+}
+
+[data-theme="dark"] .public-brand-soft-card {
+  background:
+    linear-gradient(135deg, rgba(15, 107, 255, 0.12), transparent 76%),
+    rgba(8, 22, 41, 0.72);
+}
+
+.public-brand-status-card {
+  width: min(560px, 100%);
+  padding: 30px;
+  border-radius: 28px;
+  display: grid;
+  gap: 16px;
+  text-align: center;
+}
+
+.public-brand-status-chip {
+  justify-self: center;
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 107, 255, 0.16);
+  background: rgba(15, 107, 255, 0.08);
+  color: var(--primary-color);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.public-brand-page :is(.n-button, .arco-btn) {
+  min-height: 44px;
+}
+
+@media (max-width: 768px) {
+  .public-brand-page--centered {
+    padding: 16px;
+  }
+
+  .public-brand-status-card {
+    padding: 22px 18px;
+    border-radius: 22px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .public-brand-page *,
+  .public-brand-page *::before,
+  .public-brand-page *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -305,6 +305,42 @@ const selectMobileSection = (sectionId) => {
   padding-bottom: calc(var(--spacing-xl) + env(safe-area-inset-bottom));
 }
 
+.game-status-module-stage--embedded .game-status-module-stage__header {
+  margin-bottom: 14px;
+  padding: 0 0 14px;
+  border-bottom: 1px solid rgba(63, 119, 173, 0.1);
+}
+
+.game-status-module-stage--embedded .game-status-module-stage__compact-copy {
+  gap: 8px;
+}
+
+.game-status-module-stage--embedded .game-status-module-stage__body--with-subnav {
+  grid-template-columns: minmax(216px, 236px) minmax(0, 1fr);
+  gap: 14px;
+}
+
+.game-status-module-stage--embedded .game-status-module-stage__subnav {
+  position: sticky;
+  top: 0;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(63, 119, 173, 0.08), transparent 34%),
+    rgba(255, 255, 255, 0.62);
+}
+
+.game-status-module-stage--embedded .game-status-module-stage__subnav-item {
+  min-height: 48px;
+  justify-content: center;
+}
+
+.game-status-module-stage--embedded .game-status-module-stage__mobile-toggle {
+  min-height: 52px;
+  border-radius: 18px;
+}
+
 @media (max-width: 959px) {
   .game-status-module-stage__header {
     flex-direction: column;
@@ -313,6 +349,11 @@ const selectMobileSection = (sectionId) => {
   .game-status-module-stage__mobile-toggle {
     width: 100%;
     min-width: 0;
+  }
+
+  .game-status-module-stage--embedded .game-status-module-stage__header {
+    padding-bottom: 0;
+    border-bottom: 0;
   }
 }
 </style>

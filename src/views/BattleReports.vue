@@ -34,11 +34,31 @@
         :status-text="connectionStatusText"
       >
         <div class="battle-reports-stage">
+          <div class="game-stage-overview game-stage-overview--report">
+            <article
+              v-for="card in stageCards"
+              :key="card.label"
+              class="game-stage-overview__item"
+            >
+              <span class="game-stage-overview__label">{{ card.label }}</span>
+              <strong class="game-stage-overview__value">{{ card.value }}</strong>
+              <span class="game-stage-overview__meta">{{ card.meta }}</span>
+            </article>
+          </div>
+
           <div
             v-if="mountedModules.saltField"
             v-show="activeModule === REPORT_MODULE_IDS.saltField"
             class="battle-reports-panel battle-reports-panel--salt"
           >
+            <header class="battle-reports-panel__header">
+              <div class="battle-reports-panel__copy">
+                <span class="battle-reports-panel__eyebrow">盐场战报</span>
+                <h3>盐场地图、战况与周月报表</h3>
+                <p>把匹配详情、周战绩、月战绩和实时态势统一放进同一条工作带里切换查看。</p>
+              </div>
+            </header>
+
             <div class="sub-nav sub-nav-center">
               <n-tabs
                 animated
@@ -97,6 +117,14 @@
             v-show="activeModule === REPORT_MODULE_IDS.peachGarden"
             class="battle-reports-panel battle-reports-panel--peach"
           >
+            <header class="battle-reports-panel__header">
+              <div class="battle-reports-panel__copy">
+                <span class="battle-reports-panel__eyebrow">蟠桃园战报</span>
+                <h3>概览与对战战报并排归档</h3>
+                <p>先看蟠桃概览，再切到对战战报，移动端仍保持同一阅读顺序和切换语气。</p>
+              </div>
+            </header>
+
             <div class="sub-nav sub-nav-center">
               <n-tabs
                 animated
@@ -357,6 +385,31 @@ const commandSignals = computed(() => [
   },
 ]);
 
+const stageCards = computed(() => [
+  {
+    label: "当前模块",
+    value: activeModuleMeta.value?.label || "战报功能",
+    meta: activeModuleMeta.value?.description || "先在左侧切换盐场或蟠桃园，再进入具体页签。",
+  },
+  {
+    label: "当前页签",
+    value: currentSubTabLabel.value,
+    meta: activeModule.value === REPORT_MODULE_IDS.saltField
+      ? "地图、实时战况与周月战绩都在同一工作带里。"
+      : "在概览与对战战报之间快速来回切换。",
+  },
+  {
+    label: "连接状态",
+    value: connectionStatusText.value,
+    meta: isConnected.value ? "实时内容会复用当前连接。" : "建议先恢复连接再查看实时态势。",
+  },
+  {
+    label: "最近活动",
+    value: lastActivity.value || "未记录",
+    meta: "切换模块、页签或连接动作后，这里的时间会更新。",
+  },
+]);
+
 const connectionActionLabel = computed(() =>
   isConnected.value
     ? t("gameFeatures.connection.disconnect")
@@ -440,6 +493,7 @@ watch(
   activeModule,
   (moduleId) => {
     mountedModules.value[moduleId] = true;
+    updateLastActivity();
   },
   { immediate: true },
 );
@@ -448,6 +502,7 @@ watch(
   saltFieldSubTab,
   (tab) => {
     mountedSaltTabs.value[tab] = true;
+    updateLastActivity();
   },
   { immediate: true },
 );
@@ -456,6 +511,7 @@ watch(
   peachSubTab,
   (tab) => {
     mountedPeachTabs.value[tab] = true;
+    updateLastActivity();
   },
   { immediate: true },
 );
@@ -551,16 +607,57 @@ watch(
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: var(--spacing-md);
+  gap: 14px;
+  padding: 18px;
+  border-radius: 24px;
+  border: 1px solid rgba(63, 119, 173, 0.12);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), transparent 26%),
+    rgba(255, 255, 255, 0.2);
+}
+
+.battle-reports-panel__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.battle-reports-panel__copy {
+  display: grid;
+  gap: 6px;
+}
+
+.battle-reports-panel__eyebrow {
+  color: var(--text-tertiary);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.battle-reports-panel__copy h3 {
+  margin: 0;
+  font-size: clamp(18px, 2vw, 24px);
+  color: var(--text-primary);
+}
+
+.battle-reports-panel__copy p {
+  margin: 0;
+  max-width: 68ch;
+  color: var(--text-secondary);
+  line-height: 1.65;
 }
 
 .sub-nav-center {
-  padding: 8px;
+  padding: 10px;
   display: flex;
-  justify-content: center;
-  border-radius: 16px;
+  justify-content: flex-start;
+  border-radius: 20px;
   border: 1px solid rgba(63, 119, 173, 0.12);
-  background: rgba(255, 255, 255, 0.34);
+  background:
+    linear-gradient(135deg, rgba(63, 119, 173, 0.12), transparent 82%),
+    rgba(255, 255, 255, 0.38);
 }
 
 .sub-tabs :deep(.n-tabs-nav-scroll-wrapper) {
@@ -580,9 +677,15 @@ watch(
   height: calc(100dvh - 200px);
   min-height: 600px;
   overflow: auto;
+  border-radius: 18px;
 }
 
 @media (max-width: 959px) {
+  .battle-reports-panel {
+    padding: 14px;
+    border-radius: 20px;
+  }
+
   .sub-nav-center {
     justify-content: flex-start;
     overflow-x: auto;

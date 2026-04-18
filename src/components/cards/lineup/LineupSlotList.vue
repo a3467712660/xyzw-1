@@ -222,10 +222,14 @@ const slotHeroViews = computed(() =>
 }
 
 .quick-switch-section {
+  display: grid;
+  gap: 10px;
+
   h4 {
     margin: 0 0 var(--spacing-sm) 0;
     font-size: var(--font-size-sm);
     color: var(--text-secondary);
+    letter-spacing: 0.04em;
   }
 }
 
@@ -235,15 +239,24 @@ const slotHeroViews = computed(() =>
   flex-wrap: wrap;
 }
 
+.team-selector :deep(.n-button) {
+  min-height: 40px;
+  min-width: 72px;
+}
+
 .current-team-section {
-  background: var(--bg-tertiary);
-  border-radius: var(--border-radius-medium);
-  padding: var(--spacing-md);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.16), transparent 76%),
+    rgba(255, 255, 255, 0.44);
+  border-radius: 20px;
+  padding: 16px;
+  border: 1px solid rgba(15, 107, 255, 0.12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
 
   h4 {
     margin: 0 0 var(--spacing-sm) 0;
-    font-size: var(--font-size-sm);
-    color: var(--text-secondary);
+    font-size: 15px;
+    color: var(--text-primary);
     display: flex;
     align-items: center;
     gap: var(--spacing-sm);
@@ -266,20 +279,29 @@ const slotHeroViews = computed(() =>
 .hero-item {
   display: flex;
   align-items: center;
-  gap: var(--spacing-xs);
-  background: var(--bg-primary);
-  border-radius: var(--border-radius-small);
-  padding: var(--spacing-xs) var(--spacing-sm);
+  gap: 10px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.16), transparent 78%),
+    rgba(255, 255, 255, 0.68);
+  border-radius: 18px;
+  padding: 12px 14px;
   width: 100%;
-  transition: all 0.2s;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    border-color 0.2s ease,
+    background 0.2s ease;
   cursor: grab;
-  border: 2px solid transparent;
+  border: 1px solid rgba(15, 107, 255, 0.12);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
 }
 
 .hero-item:hover {
-  background: var(--primary-color-light);
+  background:
+    linear-gradient(135deg, rgba(15, 107, 255, 0.12), transparent 72%),
+    rgba(255, 255, 255, 0.8);
   transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.1);
 }
 
 .hero-item.dragging {
@@ -293,12 +315,12 @@ const slotHeroViews = computed(() =>
 }
 
 .hero-position {
-  width: 18px;
-  height: 18px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
-  background: var(--primary-color);
+  background: linear-gradient(135deg, var(--primary-color), rgba(0, 163, 137, 0.82));
   color: white;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: bold;
   display: flex;
   align-items: center;
@@ -316,15 +338,16 @@ const slotHeroViews = computed(() =>
 }
 
 .hero-avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
   overflow: hidden;
-  background: var(--bg-tertiary);
+  background: rgba(255, 255, 255, 0.72);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  border: 1px solid rgba(15, 107, 255, 0.12);
 }
 
 .hero-avatar img {
@@ -349,12 +372,12 @@ const slotHeroViews = computed(() =>
 .hero-name-small-inline {
   font-size: var(--font-size-xs);
   color: var(--text-primary);
-  max-width: 60px;
+  max-width: 76px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-weight: 600;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, var(--primary-color) 0%, rgba(0, 163, 137, 0.92) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -365,10 +388,10 @@ const slotHeroViews = computed(() =>
   color: white;
   font-weight: 600;
   white-space: nowrap;
-  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  background: linear-gradient(135deg, rgba(15, 107, 255, 0.92) 0%, rgba(0, 163, 137, 0.92) 100%);
   padding: 2px 6px;
   border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(240, 147, 251, 0.3);
+  box-shadow: 0 2px 6px rgba(15, 107, 255, 0.2);
 }
 
 .hero-info {
@@ -384,12 +407,12 @@ const slotHeroViews = computed(() =>
   color: var(--primary-color);
   background: linear-gradient(
     135deg,
-    rgba(114, 46, 209, 0.15) 0%,
-    rgba(114, 46, 209, 0.08) 100%
+    rgba(15, 107, 255, 0.12) 0%,
+    rgba(0, 163, 137, 0.08) 100%
   );
-  border: 1px solid rgba(114, 46, 209, 0.2);
+  border: 1px solid rgba(15, 107, 255, 0.16);
   padding: 4px 8px;
-  border-radius: 6px;
+  border-radius: 10px;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -404,7 +427,7 @@ const slotHeroViews = computed(() =>
   gap: 3px;
   margin-left: 4px;
   padding-left: 6px;
-  border-left: 1px solid rgba(114, 46, 209, 0.2);
+  border-left: 1px solid rgba(15, 107, 255, 0.16);
 }
 
 .slot-dot-small {
@@ -431,7 +454,7 @@ const slotHeroViews = computed(() =>
 
 .hero-stats span {
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: 8px;
   font-weight: 500;
   white-space: nowrap;
   min-width: 90px;
@@ -474,6 +497,10 @@ const slotHeroViews = computed(() =>
   width: 100%;
 }
 
+.hero-actions :deep(.n-button) {
+  min-height: 40px;
+}
+
 @media (max-width: 768px) {
   .hero-item {
     align-items: flex-start;
@@ -490,6 +517,11 @@ const slotHeroViews = computed(() =>
   .remove-btn {
     width: auto;
     flex: 1;
+  }
+
+  .team-selector :deep(.n-button),
+  .hero-actions :deep(.n-button) {
+    min-height: 44px;
   }
 }
 </style>

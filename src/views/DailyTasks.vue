@@ -635,14 +635,14 @@ watch(
 .daily-tasks-page {
   min-height: 100dvh;
   animation: daily-fade-in 0.42s ease;
+  gap: 20px;
 }
 
 .role-selector-shell {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr);
+  align-items: start;
   gap: var(--spacing-lg);
-  flex-wrap: wrap;
 }
 
 .selector-group {
@@ -667,18 +667,21 @@ watch(
   display: grid;
   grid-template-columns: repeat(3, minmax(120px, 1fr));
   gap: var(--spacing-sm);
-  flex: 1 1 360px;
+  align-self: stretch;
 }
 
 .role-stat-box {
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-light);
-  border-radius: var(--border-radius-large);
-  padding: var(--spacing-md);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.2), transparent 78%),
+    rgba(255, 255, 255, 0.52);
+  border: 1px solid rgba(15, 107, 255, 0.12);
+  border-radius: 18px;
+  padding: 16px;
   display: flex;
   flex-direction: column;
   gap: 6px;
   min-width: 0;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.24);
 }
 
 .role-stat-box__label {
@@ -703,7 +706,7 @@ watch(
   padding-left: 18px;
   color: var(--text-secondary);
   display: grid;
-  gap: 10px;
+  gap: 12px;
   line-height: 1.6;
 }
 
@@ -719,12 +722,12 @@ watch(
 }
 
 .search-box {
-  width: min(100%, 320px);
+  width: min(100%, 360px);
 }
 
 .tasks-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: var(--spacing-lg);
 }
 
@@ -734,6 +737,9 @@ watch(
   justify-content: center;
   align-items: center;
   min-height: 320px;
+  border-radius: 20px;
+  border: 1px dashed rgba(15, 107, 255, 0.16);
+  background: rgba(255, 255, 255, 0.24);
 }
 
 @keyframes daily-fade-in {
@@ -749,7 +755,7 @@ watch(
 
 @media (max-width: 959px) {
   .role-selector-shell {
-    align-items: stretch;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .search-box {
@@ -775,6 +781,11 @@ watch(
   .tasks-grid {
     grid-template-columns: 1fr;
     gap: var(--spacing-md);
+  }
+
+  .empty-state,
+  .loading-state {
+    min-height: 240px;
   }
 }
 </style>

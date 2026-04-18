@@ -14,49 +14,53 @@
       </div>
 
       <div class="game-command-bar__actions">
-        <div
-          class="game-command-bar__status-pill game-signal-pill"
-          :class="`game-signal-pill--${connectionTone}`"
-        >
-          <n-icon>
-            <CloudDone></CloudDone>
-          </n-icon>
-          <span>{{ connectionStatusText }}</span>
+        <div class="game-command-bar__status-stack">
+          <div
+            class="game-command-bar__status-pill game-signal-pill"
+            :class="`game-signal-pill--${connectionTone}`"
+          >
+            <n-icon>
+              <CloudDone></CloudDone>
+            </n-icon>
+            <span>{{ connectionStatusText }}</span>
+          </div>
         </div>
 
-        <n-button
-          strong
-          :type="isConnected ? 'default' : 'primary'"
-          @click="$emit('toggle-connection')"
-        >
-          {{ connectionActionLabel }}
-        </n-button>
+        <div class="game-command-bar__action-stack">
+          <n-button
+            strong
+            :type="isConnected ? 'default' : 'primary'"
+            @click="$emit('toggle-connection')"
+          >
+            {{ connectionActionLabel }}
+          </n-button>
 
-        <n-button
-          v-if="showTokenButton"
-          secondary
-          @click="$emit('go-tokens')"
-        >
-          <template #icon>
-            <n-icon>
-              <Cube></Cube>
-            </n-icon>
-          </template>
-          {{ tokenActionLabel }}
-        </n-button>
+          <n-button
+            v-if="showTokenButton"
+            secondary
+            @click="$emit('go-tokens')"
+          >
+            <template #icon>
+              <n-icon>
+                <Cube></Cube>
+              </n-icon>
+            </template>
+            {{ tokenActionLabel }}
+          </n-button>
 
-        <n-button
-          v-if="showInspectorButton"
-          quaternary
-          @click="$emit('open-inspector')"
-        >
-          <template #icon>
-            <n-icon>
-              <Menu></Menu>
-            </n-icon>
-          </template>
-          {{ inspectorActionLabel }}
-        </n-button>
+          <n-button
+            v-if="showInspectorButton"
+            quaternary
+            @click="$emit('open-inspector')"
+          >
+            <template #icon>
+              <n-icon>
+                <Menu></Menu>
+              </n-icon>
+            </template>
+            {{ inspectorActionLabel }}
+          </n-button>
+        </div>
       </div>
     </div>
 
