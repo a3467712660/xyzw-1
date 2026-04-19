@@ -1,7 +1,10 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
 package com.xyzw.helper.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -47,6 +50,19 @@ import com.xyzw.helper.data.model.ReferralConversionItem
 import com.xyzw.helper.data.model.WechatContactAdminItem
 import com.xyzw.helper.data.network.AdminWechatContactRequest
 import com.xyzw.helper.data.network.ApiResult
+import com.xyzw.helper.ui.components.ActionGrid
+import com.xyzw.helper.ui.components.ActionGridItem
+import com.xyzw.helper.ui.components.AdminOverviewStrip
+import com.xyzw.helper.ui.components.AdminSurfacePage
+import com.xyzw.helper.ui.components.AppHero
+import com.xyzw.helper.ui.components.DangerZoneCard
+import com.xyzw.helper.ui.components.DenseInfoRow
+import com.xyzw.helper.ui.components.MobileDataCard
+import com.xyzw.helper.ui.components.PageToolbar
+import com.xyzw.helper.ui.components.SectionCard as AppSectionCard
+import com.xyzw.helper.ui.components.SummaryMetric
+import com.xyzw.helper.ui.components.SurfacePrimaryButton
+import com.xyzw.helper.ui.components.SurfaceSecondaryButton
 import com.xyzw.helper.ui.components.XyzwConfirmDialog
 import com.xyzw.helper.ui.components.XyzwExpandableText
 import com.xyzw.helper.ui.components.XyzwStatusChip
@@ -74,51 +90,42 @@ fun AdminHubScreen(
   }
 
   val entries = listOf(
-    "用户管理" to Pair("账号权限、密码、会话与多重验证重置", onOpenUsers),
-    "邀请码" to Pair("查看、创建与禁用邀请码", onOpenInvites),
-    "激活码" to Pair("创建、解绑、禁用和删除激活码", onOpenActivationCodes),
-    "工单管理" to Pair("处理用户工单和状态更新", onOpenFeedbackTickets),
-    "后端任务日志" to Pair("按账号/任务/状态筛选任务日志", onOpenTaskLogs),
-    "更新日志广播" to Pair("向全部账户发送更新日志通知", onOpenChangelogBroadcast),
-    "微信联系配置" to Pair("维护价格菜单的微信联系人入口", onOpenWechatContacts),
-    "推广归因" to Pair("查看归因和返佣转化处理", onOpenReferrals),
+    ActionGridItem(title = "用户管理", description = "账号权限、密码、会话与多重验证重置", onClick = onOpenUsers),
+    ActionGridItem(title = "邀请码", description = "查看、创建与禁用邀请码", onClick = onOpenInvites),
+    ActionGridItem(title = "激活码", description = "创建、解绑、禁用和删除激活码", onClick = onOpenActivationCodes),
+    ActionGridItem(title = "工单管理", description = "处理用户工单和状态更新", onClick = onOpenFeedbackTickets),
+    ActionGridItem(title = "后端任务日志", description = "按账号、任务、状态筛选任务日志", onClick = onOpenTaskLogs),
+    ActionGridItem(title = "更新日志广播", description = "向全部账户发送更新日志通知", onClick = onOpenChangelogBroadcast),
+    ActionGridItem(title = "微信联系配置", description = "维护价格菜单的微信联系人入口", onClick = onOpenWechatContacts),
+    ActionGridItem(title = "推广归因", description = "查看归因和返佣转化处理", onClick = onOpenReferrals),
   )
 
-  AdminScreenScaffold(
+  AdminSurfacePage(
     title = "管理员中心",
     onBack = onBack,
-  ) { innerPadding ->
-    LazyColumn(
-      modifier = Modifier
-        .fillMaxSize()
-        .padding(innerPadding)
-        .padding(16.dp),
-      verticalArrangement = Arrangement.spacedBy(12.dp),
+  ) {
+    AppHero(
+      eyebrow = "Admin Surface",
+      title = "管理员中心",
+      description = "账号、邀请码、激活码、工单、任务日志和推广归因集中在同一管理入口。",
+      meta = {
+        XyzwStatusChip(status = "admin", label = currentUser?.username ?: "管理员")
+        XyzwStatusChip(status = "active", label = accessScopeLabel(currentUser?.accessScope))
+      },
+    )
+    AdminOverviewStrip(
+      metrics = listOf(
+        SummaryMetric("管理入口", entries.size.toString(), "原生 Android 页面"),
+        SummaryMetric("当前账号", currentUser?.username ?: "--", "管理员"),
+        SummaryMetric("权限范围", accessScopeLabel(currentUser?.accessScope), "后端授权"),
+        SummaryMetric("安全确认", if (currentUser?.mfaEnabled == true) "MFA" else "密码", "高风险动作"),
+      ),
+    )
+    AppSectionCard(
+      title = "管理员入口",
+      description = "仅当前账号为管理员时显示。所有页面均为原生安卓界面实现。",
     ) {
-      item {
-        AdminCardSection(
-          title = "管理员入口",
-          subtitle = "仅当前账号为管理员时显示。所有页面均为原生安卓界面实现。",
-        ) {
-          Text(currentUser?.username ?: "未登录", style = MaterialTheme.typography.titleLarge)
-          Text(
-            "当前权限范围：${accessScopeLabel(currentUser?.accessScope)}",
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-          )
-        }
-      }
-      items(entries, key = { it.first }) { entry ->
-        val description = entry.second.first
-        val action = entry.second.second
-        AdminCardSection(
-          title = entry.first,
-          subtitle = description,
-        ) {
-          Button(onClick = action, modifier = Modifier.fillMaxWidth()) {
-            Text("进入")
-          }
-        }
-      }
+      ActionGrid(items = entries)
     }
   }
 }
@@ -321,7 +328,7 @@ fun AdminUsersScreen(
     )
   }
 
-  AdminScreenScaffold(
+  AdminSurfacePage(
     title = "用户管理",
     onBack = onBack,
     actions = {
@@ -329,70 +336,75 @@ fun AdminUsersScreen(
         Text(if (uiState.isLoading) "刷新中…" else "刷新")
       }
     },
-  ) { innerPadding ->
-    LazyColumn(
-      modifier = Modifier
-        .fillMaxSize()
-        .padding(innerPadding)
-        .padding(16.dp),
-      verticalArrangement = Arrangement.spacedBy(12.dp),
+  ) {
+    AppHero(
+      eyebrow = "Admin Users",
+      title = "账号管理",
+      description = "按用户名、邮箱、用户编号和权限状态筛选，处理账号安全与高风险操作。",
+      meta = {
+        XyzwStatusChip(status = "admin", label = currentUser?.username ?: "管理员")
+        XyzwStatusChip(status = if (uiState.isLoading) "pending" else "active", label = if (uiState.isLoading) "刷新中" else "已加载")
+      },
+    )
+    AdminOverviewStrip(
+      metrics = listOf(
+        SummaryMetric("用户总数", filteredUsers.size.toString(), "当前筛选"),
+        SummaryMetric("管理员", uiState.users.count { it.isAdmin }.toString(), "具备管理权限"),
+        SummaryMetric("已开 MFA", uiState.users.count { it.mfaEnabled }.toString(), "多重验证"),
+        SummaryMetric("当前账号", currentUser?.username ?: "--", accessScopeLabel(currentUser?.accessScope)),
+      ),
+    )
+    PageToolbar(
+      title = "搜索与筛选",
+      description = "按用户名、邮箱、用户编号、本地权限状态筛选。",
     ) {
-      item {
-        AdminCardSection(
-          title = "搜索与筛选",
-          subtitle = "按用户名、邮箱、用户编号、本地权限状态筛选。",
-        ) {
-          OutlinedTextField(
-            value = userQuery,
-            onValueChange = { userQuery = it },
-            label = { Text("搜索用户") },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-          )
-          Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf("all" to "全部", "admin" to "管理员", "normal" to "普通用户", "mfa" to "已开多重验证").forEach { (value, label) ->
-              FilterChip(
-                selected = userFilter == value,
-                onClick = { userFilter = value },
-                label = { Text(label) },
-              )
-            }
-          }
-        }
-      }
-      item {
-        AdminStatsRow(
-          stats = listOf(
-            "用户总数" to filteredUsers.size.toString(),
-            "管理员" to uiState.users.count { it.isAdmin }.toString(),
-            "当前账号" to (currentUser?.username ?: "--"),
-          ),
+      OutlinedTextField(
+        value = userQuery,
+        onValueChange = { userQuery = it },
+        label = { Text("搜索用户") },
+        modifier = Modifier.weight(1f),
+        singleLine = true,
+      )
+    }
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+      listOf("all" to "全部", "admin" to "管理员", "normal" to "普通用户", "mfa" to "已开多重验证").forEach { (value, label) ->
+        FilterChip(
+          selected = userFilter == value,
+          onClick = { userFilter = value },
+          label = { Text(label) },
         )
       }
-      item {
-        AdminErrorBanner(uiState.error?.message)
-      }
-      items(filteredUsers, key = { it.id }) { user ->
-        AdminCardSection(
-          title = user.username,
-          subtitle = listOfNotNull(
-            user.email,
-            if (user.isAdmin) "管理员" else "普通用户",
-            if (user.isCurrentUser) "当前登录账号" else null,
-          ).joinToString(" · "),
-        ) {
+    }
+    AdminErrorBanner(uiState.error?.message)
+    AppSectionCard(
+      title = "用户列表",
+      description = "移动端以数据卡形式承载桌面表格的关键信息和操作。",
+    ) {
+      if (filteredUsers.isEmpty()) {
+        Text("暂无匹配用户。", color = MaterialTheme.colorScheme.onSurfaceVariant)
+      } else {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+          filteredUsers.forEach { user ->
+            MobileDataCard(
+              title = user.username,
+              subtitle = listOfNotNull(
+                user.email,
+                if (user.isCurrentUser) "当前登录账号" else null,
+              ).joinToString(" · "),
+              status = {
+                XyzwStatusChip(status = if (user.isAdmin) "admin" else "user", label = if (user.isAdmin) "管理员" else "普通用户")
+              },
+            ) {
           Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            XyzwStatusChip(status = if (user.isAdmin) "admin" else "user", label = if (user.isAdmin) "管理员" else "普通用户")
             XyzwStatusChip(status = if (user.mfaEnabled) "enabled" else "disabled", label = if (user.mfaEnabled) "多重验证已启用" else "多重验证未启用")
           }
-          Text("权限范围：${accessScopeLabel(user.accessScope)}", fontWeight = FontWeight.Medium)
-          Text("令牌绑定上限：${user.tokenBindLimit}")
-          Text("角色数：${user.roleCount} / 邀请码数：${user.inviteCount}")
-          Text("多重验证：${if (user.mfaEnabled) "已开启" else "未开启"}")
-          Text("创建时间：${formatDateTime(user.createdAt)}")
-          Text("最近登录：${formatDateTime(user.lastLoginAt)}")
+              DenseInfoRow("权限范围", accessScopeLabel(user.accessScope))
+              DenseInfoRow("令牌绑定上限", user.tokenBindLimit.toString())
+              DenseInfoRow("角色/邀请码", "${user.roleCount} / ${user.inviteCount}")
+              DenseInfoRow("创建时间", formatDateTime(user.createdAt))
+              DenseInfoRow("最近登录", formatDateTime(user.lastLoginAt))
 
-          Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+              Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (!user.isCurrentUser) {
               OutlinedButton(
                 onClick = {
@@ -493,6 +505,8 @@ fun AdminUsersScreen(
           }
         }
       }
+    }
+  }
     }
   }
 }

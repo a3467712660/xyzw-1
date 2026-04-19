@@ -71,6 +71,19 @@ import com.xyzw.helper.data.storage.AppPreferences
 import com.xyzw.helper.data.storage.ThemeMode
 import com.xyzw.helper.data.token.validateBinUploadSize
 import com.xyzw.helper.ui.components.SensitiveValueText
+import com.xyzw.helper.ui.components.ActionGrid
+import com.xyzw.helper.ui.components.ActionGridItem
+import com.xyzw.helper.ui.components.AdminOverviewStrip
+import com.xyzw.helper.ui.components.AppHero
+import com.xyzw.helper.ui.components.DangerZoneCard
+import com.xyzw.helper.ui.components.DenseInfoRow
+import com.xyzw.helper.ui.components.MobileDataCard
+import com.xyzw.helper.ui.components.PageToolbar
+import com.xyzw.helper.ui.components.SectionCard as AppSectionCard
+import com.xyzw.helper.ui.components.SummaryGrid
+import com.xyzw.helper.ui.components.SummaryMetric
+import com.xyzw.helper.ui.components.SurfacePrimaryButton
+import com.xyzw.helper.ui.components.SurfaceSecondaryButton
 import com.xyzw.helper.ui.components.XyzwActionCard
 import com.xyzw.helper.ui.components.XyzwConfirmDialog
 import com.xyzw.helper.ui.components.XyzwEmptyState
@@ -217,9 +230,40 @@ fun TokenManagementScreen(
       verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
       item {
-        SectionCard(
-          title = "手动导入",
-          description = "填写名称并粘贴完整令牌文本，保存到本地加密工作区。",
+        AppHero(
+          eyebrow = "Token 工作区",
+          title = "令牌管理",
+          description = "导入、校验、BIN 上传导出和远程恢复状态集中在同一处。",
+          meta = {
+            XyzwStatusChip(status = if (uiState.tokens.isNotEmpty()) "active" else "pending", label = "令牌 ${uiState.tokens.size}")
+            XyzwStatusChip(status = if (uiState.binFiles.isNotEmpty()) "active" else "disabled", label = "BIN ${uiState.binFiles.size}")
+          },
+          actions = {
+            SurfacePrimaryButton(
+              text = if (uiState.isLoading) "刷新中..." else "刷新",
+              onClick = viewModel::refresh,
+              modifier = Modifier.weight(1f),
+              enabled = !uiState.isLoading,
+            )
+          },
+        )
+      }
+
+      item {
+        SummaryGrid(
+          items = listOf(
+            SummaryMetric("已导入角色", uiState.tokens.size.toString(), "本机加密工作区"),
+            SummaryMetric("长效凭证", uiState.tokens.count { it.activationActive }.toString(), "激活可用"),
+            SummaryMetric("BIN 文件", uiState.binFiles.size.toString(), "服务端保存"),
+            SummaryMetric("待补 BIN", uiState.tokens.count { !it.binFilePresent }.toString(), "可在令牌卡上传"),
+          ),
+        )
+      }
+
+      item {
+        AppSectionCard(
+          title = "导入令牌",
+          description = "支持手动粘贴和受信任链接导入，敏感内容默认隐藏。",
         ) {
           OutlinedTextField(
             value = manualTokenName,
@@ -237,27 +281,21 @@ fun TokenManagementScreen(
             helper = "敏感内容默认隐藏，确认无误后再导入。",
           )
           Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Button(
+            SurfacePrimaryButton(
+              text = if (uiState.isImporting) "导入中…" else "导入令牌",
               onClick = { viewModel.importManual(manualToken, manualTokenName) },
               enabled = manualToken.isNotBlank() && !uiState.isImporting,
-            ) {
-              Text(if (uiState.isImporting) "导入中…" else "导入令牌")
-            }
-            OutlinedButton(onClick = {
-              manualToken = ""
-              manualTokenName = ""
-            }) {
-              Text("清空")
-            }
+              modifier = Modifier.weight(1f),
+            )
+            SurfaceSecondaryButton(
+              text = "清空",
+              onClick = {
+                manualToken = ""
+                manualTokenName = ""
+              },
+              modifier = Modifier.weight(1f),
+            )
           }
-        }
-      }
-
-      item {
-        SectionCard(
-          title = "链接导入",
-          description = "通过受信任链接和后端代理拉取配置文本，再解析出可用令牌。",
-        ) {
           OutlinedTextField(
             value = importUrl,
             onValueChange = { importUrl = it },
@@ -265,21 +303,23 @@ fun TokenManagementScreen(
             label = { Text("受信任链接") },
           )
           Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Button(
+            SurfacePrimaryButton(
+              text = if (uiState.isImporting) "拉取中…" else "链接导入",
               onClick = { viewModel.importFromUrl(importUrl) },
               enabled = importUrl.isNotBlank() && !uiState.isImporting,
-            ) {
-              Text(if (uiState.isImporting) "拉取中…" else "链接导入")
-            }
-            OutlinedButton(onClick = { importUrl = "" }) {
-              Text("清空")
-            }
+              modifier = Modifier.weight(1f),
+            )
+            SurfaceSecondaryButton(
+              text = "清空链接",
+              onClick = { importUrl = "" },
+              modifier = Modifier.weight(1f),
+            )
           }
         }
       }
 
       item {
-        SectionCard(
+        AppSectionCard(
           title = "已导入令牌",
           description = "每个令牌都会显示激活状态和二进制文件关联状态。",
         ) {
@@ -306,7 +346,7 @@ fun TokenManagementScreen(
       }
 
       item {
-        SectionCard(
+        AppSectionCard(
           title = "二进制文件",
           description = "服务端已保存的二进制文件清单。",
         ) {
@@ -315,18 +355,15 @@ fun TokenManagementScreen(
           } else {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
               uiState.binFiles.forEach { item ->
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-                  Column(
-                    modifier = Modifier
-                      .fillMaxWidth()
-                      .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                  ) {
-                    Text(item.fileName, fontWeight = FontWeight.SemiBold)
-                    Text("令牌编号：${item.tokenId}")
-                    Text("大小：${item.size} 字节")
-                    Text("更新时间：${formatDisplayDateTime(item.updatedAt)}")
-                  }
+                MobileDataCard(
+                  title = item.fileName,
+                  subtitle = "令牌编号：${item.tokenId}",
+                  status = {
+                    XyzwStatusChip(status = "active", label = "已保存")
+                  },
+                ) {
+                  DenseInfoRow("大小", "${item.size} 字节")
+                  DenseInfoRow("更新时间", formatDisplayDateTime(item.updatedAt))
                 }
               }
             }
@@ -609,15 +646,43 @@ fun DailyTasksScreen(
       verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
       item {
-        SectionCard(
-          title = "角色选择",
+        AppHero(
+          eyebrow = "Daily Tasks",
+          title = "日常任务",
+          description = "按角色查看任务状态、执行一次、调整启用与自动执行设置，并查看历史记录。",
+          meta = {
+            XyzwStatusChip(status = if (uiState.roles.isNotEmpty()) "active" else "pending", label = "角色 ${uiState.roles.size}")
+            XyzwStatusChip(status = if (uiState.statusSummary.percentage >= 100) "success" else "pending", label = "进度 ${uiState.statusSummary.percentage}%")
+          },
+          actions = {
+            SurfacePrimaryButton(
+              text = if (uiState.isLoading) "刷新中..." else "刷新任务",
+              onClick = viewModel::refresh,
+              modifier = Modifier.weight(1f),
+              enabled = !uiState.isLoading,
+            )
+          },
+        )
+      }
+
+      item {
+        SummaryGrid(
+          items = listOf(
+            SummaryMetric("任务总数", uiState.statusSummary.total.toString(), "当前角色"),
+            SummaryMetric("已完成", uiState.statusSummary.completed.toString(), "今日状态"),
+            SummaryMetric("进度", "${uiState.statusSummary.percentage}%", "完成率"),
+            SummaryMetric("历史记录", uiState.history.size.toString(), "最近执行"),
+          ),
+        )
+      }
+
+      item {
+        PageToolbar(
+          title = "角色筛选",
           description = "先选择角色，再查看任务状态和历史。",
         ) {
           if (uiState.roles.isEmpty()) {
-            XyzwEmptyState(
-              title = "还没有角色",
-              description = "请先到工作台添加角色，再配置日常任务。",
-            )
+            Text("还没有角色，请先到工作台添加角色。", color = MaterialTheme.colorScheme.onSurfaceVariant)
           } else {
             FlowRow(
               horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -636,17 +701,7 @@ fun DailyTasksScreen(
       }
 
       item {
-        HubSummaryCards(
-          cards = listOf(
-            "任务总数" to uiState.statusSummary.total.toString(),
-            "已完成" to uiState.statusSummary.completed.toString(),
-            "进度" to "${uiState.statusSummary.percentage}%",
-          ),
-        )
-      }
-
-      item {
-        SectionCard(
+        AppSectionCard(
           title = "任务列表",
           description = "支持执行一次、启用/停用和自动执行切换。",
         ) {
@@ -673,7 +728,7 @@ fun DailyTasksScreen(
       }
 
       item {
-        SectionCard(
+        AppSectionCard(
           title = "执行历史",
           description = "展示最近的任务执行记录。",
         ) {
@@ -682,17 +737,15 @@ fun DailyTasksScreen(
           } else {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
               uiState.history.forEach { row ->
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-                  Column(
-                    modifier = Modifier
-                      .fillMaxWidth()
-                      .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                  ) {
-                    Text(row.title.ifBlank { row.taskKey }, fontWeight = FontWeight.SemiBold)
-                    Text(row.message)
-                    Text("${formatDisplayDateTime(row.runAt)} · ${taskSourceLabel(row.source)}")
-                  }
+                MobileDataCard(
+                  title = row.title.ifBlank { row.taskKey },
+                  subtitle = row.message,
+                  status = {
+                    XyzwStatusChip(status = row.status, label = taskStatusLabel(row.status))
+                  },
+                ) {
+                  DenseInfoRow("执行时间", formatDisplayDateTime(row.runAt))
+                  DenseInfoRow("来源", taskSourceLabel(row.source))
                 }
               }
               if (uiState.hasMoreHistory) {
@@ -766,20 +819,44 @@ fun TaskControlScreen(
       verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
       item {
-        SectionCard(
+        AppHero(
+          eyebrow = "Task Control",
+          title = "任务控制",
+          description = "查看任务控制状态、日志、刷新结果，并清理本地展示或服务端日志。",
+          meta = {
+            XyzwStatusChip(status = if (uiState.state.tasks.isNotEmpty()) "active" else "pending", label = "任务 ${uiState.state.tasks.size}")
+            XyzwStatusChip(status = if (uiState.logs.isNotEmpty()) "active" else "disabled", label = "日志 ${uiState.logs.size}")
+          },
+          actions = {
+            SurfacePrimaryButton(text = if (uiState.isLoading) "刷新中..." else "刷新", onClick = viewModel::refresh, modifier = Modifier.weight(1f), enabled = !uiState.isLoading)
+          },
+        )
+      }
+
+      item {
+        SummaryGrid(
+          items = listOf(
+            SummaryMetric("任务数量", uiState.state.tasks.size.toString(), "服务端配置"),
+            SummaryMetric("启用任务", uiState.state.tasks.count { it.enabled }.toString(), "当前启用"),
+            SummaryMetric("服务端日志", uiState.logs.size.toString(), "最近记录"),
+            SummaryMetric("实时事件", uiState.localEvents.size.toString(), "本地展示"),
+          ),
+        )
+      }
+
+      item {
+        PageToolbar(
           title = "操作",
           description = "刷新服务端状态，或清空本地展示缓存。",
         ) {
-          FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = viewModel::refresh) { Text("刷新") }
-            OutlinedButton(onClick = viewModel::clearLocalState) { Text("清空本地展示状态") }
-            OutlinedButton(onClick = { confirmClearLogs = true }) { Text("清空日志") }
-          }
+          SurfacePrimaryButton(text = "刷新", onClick = viewModel::refresh, enabled = !uiState.isLoading)
+          SurfaceSecondaryButton(text = "清空本地展示", onClick = viewModel::clearLocalState)
+          SurfaceSecondaryButton(text = "清空日志", onClick = { confirmClearLogs = true })
         }
       }
 
       item {
-        SectionCard(
+        AppSectionCard(
           title = "任务状态",
           description = "显示当前保存的任务控制配置。",
         ) {
@@ -788,19 +865,18 @@ fun TaskControlScreen(
           } else {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
               uiState.state.tasks.forEach { task ->
-                Card {
-                  Column(
-                    modifier = Modifier
-                      .fillMaxWidth()
-                      .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                  ) {
-                    Text(task.id, fontWeight = FontWeight.SemiBold)
-                    Text("启用：${if (task.enabled) "是" else "否"}")
-                    Text("定时表达式：${task.cronExpr}")
-                    Text("令牌数：${task.tokenIds.size}")
+                MobileDataCard(
+                  title = task.id,
+                  subtitle = "令牌数：${task.tokenIds.size}",
+                  status = {
+                    XyzwStatusChip(status = if (task.enabled) "active" else "disabled", label = if (task.enabled) "已启用" else "已停用")
+                  },
+                  content = {
+                    DenseInfoRow("启用", if (task.enabled) "是" else "否")
+                    DenseInfoRow("定时表达式", task.cronExpr.ifBlank { "--" })
+                    DenseInfoRow("令牌数", task.tokenIds.size.toString())
                     if (task.lastRunAt.isNotBlank()) {
-                      Text("上次运行：${formatDisplayDateTime(task.lastRunAt)}")
+                      DenseInfoRow("上次运行", formatDisplayDateTime(task.lastRunAt))
                     }
                     Row(
                       modifier = Modifier.fillMaxWidth(),
@@ -813,15 +889,16 @@ fun TaskControlScreen(
                         enabled = !uiState.isMutating,
                       )
                     }
-                    OutlinedButton(
+                  },
+                  actions = {
+                    SurfaceSecondaryButton(
+                      text = "编辑定时表达式",
                       onClick = { cronEditTarget = task },
-                      modifier = Modifier.fillMaxWidth(),
+                      modifier = Modifier.weight(1f),
                       enabled = !uiState.isMutating,
-                    ) {
-                      Text("编辑定时表达式")
-                    }
-                  }
-                }
+                    )
+                  },
+                )
               }
             }
           }
@@ -829,7 +906,7 @@ fun TaskControlScreen(
       }
 
       item {
-        SectionCard(
+        AppSectionCard(
           title = "任务日志",
           description = "服务端日志与本地实时事件统一展示。",
         ) {
@@ -853,17 +930,15 @@ fun TaskControlScreen(
                 Text("实时事件：$event", color = MaterialTheme.colorScheme.primary)
               }
               visibleLogs.forEach { row ->
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-                  Column(
-                    modifier = Modifier
-                      .fillMaxWidth()
-                      .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                  ) {
-                    Text(row.taskName.ifBlank { row.taskId.orEmpty() }, fontWeight = FontWeight.SemiBold)
-                    XyzwExpandableText(row.message)
-                    Text("${taskStatusLabel(row.status)} · ${formatDisplayDateTime(row.createdAt)}")
-                  }
+                MobileDataCard(
+                  title = row.taskName.ifBlank { row.taskId.orEmpty() },
+                  subtitle = taskStatusLabel(row.status),
+                  status = {
+                    XyzwStatusChip(status = row.status, label = taskStatusLabel(row.status))
+                  },
+                ) {
+                  XyzwExpandableText(row.message)
+                  DenseInfoRow("创建时间", formatDisplayDateTime(row.createdAt))
                 }
               }
             }
@@ -935,11 +1010,35 @@ fun ProfileSettingsScreen(
     title = "我的",
     snackbarHostState = snackbarHostState,
   ) {
-    SectionCard(
+    AppHero(
+      eyebrow = "个人设置",
+      title = uiState.profile?.username ?: "我的账号",
+      description = "集中管理账号资料、安全开关、主题偏好和二级功能入口。",
+      meta = {
+        XyzwStatusChip(status = if (uiState.profile?.mfaEnabled == true) "active" else "disabled", label = if (uiState.profile?.mfaEnabled == true) "MFA 已启用" else "MFA 未启用")
+        XyzwStatusChip(status = if (uiState.remoteBinDownloadEnabled) "active" else "disabled", label = if (uiState.remoteBinDownloadEnabled) "远程 BIN 可导出" else "远程 BIN 关闭")
+      },
+      actions = {
+        if (isAdmin) {
+          SurfacePrimaryButton(text = "管理员中心", onClick = onOpenAdminHub, modifier = Modifier.weight(1f))
+        }
+      },
+    )
+
+    SummaryGrid(
+      items = listOf(
+        SummaryMetric("账号", uiState.profile?.username ?: "--", uiState.profile?.email ?: "未提供邮箱"),
+        SummaryMetric("主题", preferences.themeMode.name, "当前显示模式"),
+        SummaryMetric("远程 BIN", if (uiState.remoteBinDownloadEnabled) "已开启" else "未开启", "导出前仍需二次确认"),
+        SummaryMetric("安全事件", uiState.securityEvents.size.toString(), "最近记录"),
+      ),
+    )
+
+    AppSectionCard(
       title = "资料",
       description = "展示和更新账号资料。",
     ) {
-      Text("用户名：${uiState.profile?.username ?: "未登录"}")
+      DenseInfoRow("用户名", uiState.profile?.username ?: "未登录")
       OutlinedTextField(
         value = email,
         onValueChange = { email = it },
@@ -964,11 +1063,11 @@ fun ProfileSettingsScreen(
       }
     }
 
-    SectionCard(
+    AppSectionCard(
       title = "安全",
       description = "修改密码、远程二进制文件开关和安全事件。",
     ) {
-      Text("多重验证：${if (uiState.profile?.mfaEnabled == true) "已启用" else "未启用"}")
+      DenseInfoRow("多重验证", if (uiState.profile?.mfaEnabled == true) "已启用" else "未启用")
       ProfilePasswordFields(
         currentPassword = currentPassword,
         newPassword = newPassword,
@@ -997,21 +1096,19 @@ fun ProfileSettingsScreen(
         )
       }
 
-      Text("刷新二次验证：${if (uiState.refreshSecondVerifyEnabled) "开启" else "关闭"}")
+      DenseInfoRow("刷新二次验证", if (uiState.refreshSecondVerifyEnabled) "开启" else "关闭")
       if (isAdmin) {
-        OutlinedButton(onClick = onOpenAdminHub) {
-          Text("进入管理员中心")
-        }
+        SurfaceSecondaryButton(text = "进入管理员中心", onClick = onOpenAdminHub)
       }
       if (uiState.securityEvents.isNotEmpty()) {
         Text("最近安全事件", style = MaterialTheme.typography.titleMedium)
         uiState.securityEvents.take(5).forEach { row ->
-          Text("${securityEventLabel(row.eventType)} · ${formatDisplayDateTime(row.createdAt)}")
+          DenseInfoRow(securityEventLabel(row.eventType), formatDisplayDateTime(row.createdAt))
         }
       }
     }
 
-    SectionCard(
+    AppSectionCard(
       title = "偏好与功能入口",
       description = "主题模式、本地偏好和二级功能入口。",
     ) {
@@ -1035,24 +1132,29 @@ fun ProfileSettingsScreen(
           label = { Text("调试接口地址") },
           singleLine = true,
         )
-        OutlinedButton(
+        SurfaceSecondaryButton(
+          text = "保存接口地址",
           onClick = { viewModel.setApiBaseUrl(apiBaseUrlDraft) },
           enabled = apiBaseUrlDraft.startsWith("http://") || apiBaseUrlDraft.startsWith("https://"),
-        ) {
-          Text("保存接口地址")
-        }
+        )
       } else {
-        Text("当前接口地址：${preferences.apiBaseUrl}")
+        DenseInfoRow("当前接口地址", preferences.apiBaseUrl)
         Text("正式包不允许在界面中改成明文地址。", style = MaterialTheme.typography.bodySmall)
       }
       FlowRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
       ) {
-        OutlinedButton(onClick = onOpenReferral) { Text("推广中心") }
-        OutlinedButton(onClick = onOpenFeedback) { Text("反馈中心") }
-        OutlinedButton(onClick = { showConfirmLogout = true }) { Text("退出登录") }
+        SurfaceSecondaryButton(text = "推广中心", onClick = onOpenReferral)
+        SurfaceSecondaryButton(text = "反馈中心", onClick = onOpenFeedback)
       }
+    }
+
+    DangerZoneCard(
+      title = "危险区",
+      description = "退出登录会清除本机会话并关闭实时连接。",
+    ) {
+      SurfaceSecondaryButton(text = "退出登录", onClick = { showConfirmLogout = true }, modifier = Modifier.fillMaxWidth())
     }
   }
 
@@ -1492,31 +1594,28 @@ private fun TokenCard(
   onDelete: () -> Unit,
   onDeleteBin: () -> Unit,
 ) {
-  Card {
-    Column(
-      modifier = Modifier
-        .fillMaxWidth()
-        .padding(16.dp),
-      verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-      Text(token.displayName, style = MaterialTheme.typography.titleMedium)
-      Text("令牌编号：${token.id}")
+  MobileDataCard(
+    title = token.displayName.ifBlank { token.id },
+    subtitle = "令牌编号：${token.id}",
+    status = {
+      XyzwStatusChip(
+        status = if (token.activationActive) "active" else if (token.activationBound) "pending" else "disabled",
+        label = if (token.activationActive) "可用" else if (token.activationBound) "已绑定" else "未绑定",
+      )
+    },
+    content = {
       if (token.rawToken.isBlank() && token.binFilePresent) {
         Text("令牌明文未保存在本机，已从远程二进制文件恢复可用状态。")
       } else {
         SensitiveValueText(label = "令牌内容", value = token.rawToken)
       }
       if (token.roleId.isNotBlank()) {
-        Text("角色编号：${token.roleId}")
+        DenseInfoRow("角色编号", token.roleId)
       }
       if (token.region.isNotBlank()) {
-        Text("大区：${token.region}")
+        DenseInfoRow("大区", token.region)
       }
-      XyzwStatusChip(
-        status = if (token.activationActive) "active" else if (token.activationBound) "pending" else "disabled",
-        label = if (token.activationActive) "可用" else if (token.activationBound) "已绑定但不可用" else "未绑定",
-      )
-      token.activationExpiresAt?.let { Text("到期时间：${formatDisplayDateTime(it)}") }
+      token.activationExpiresAt?.let { DenseInfoRow("到期时间", formatDisplayDateTime(it)) }
       XyzwStatusChip(
         status = if (token.binFilePresent) "enabled" else "disabled",
         label = if (token.binFilePresent) "二进制文件已上传" else "二进制文件未上传",
@@ -1524,32 +1623,20 @@ private fun TokenCard(
       token.lastError?.takeIf { it.isNotBlank() }?.let { error ->
         Text(error, color = MaterialTheme.colorScheme.error)
       }
+    },
+    actions = {
       FlowRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
       ) {
-        OutlinedButton(onClick = onRefresh) {
-          Icon(Icons.Outlined.Refresh, contentDescription = null)
-          Text("校验状态")
-        }
-        OutlinedButton(onClick = onUpload) {
-          Icon(Icons.Outlined.FileUpload, contentDescription = null)
-          Text("上传二进制文件")
-        }
-        OutlinedButton(onClick = onDownload, enabled = token.binFilePresent) {
-          Icon(Icons.Outlined.Download, contentDescription = null)
-          Text("导出二进制文件")
-        }
-        OutlinedButton(onClick = onDeleteBin, enabled = token.binFilePresent) {
-          Icon(Icons.Outlined.Delete, contentDescription = null)
-          Text("删除二进制文件")
-        }
-        OutlinedButton(onClick = onDelete) {
-          Text("移除令牌")
-        }
+        SurfaceSecondaryButton(text = "校验状态", onClick = onRefresh)
+        SurfaceSecondaryButton(text = "上传 BIN", onClick = onUpload)
+        SurfaceSecondaryButton(text = "导出 BIN", onClick = onDownload, enabled = token.binFilePresent)
+        SurfaceSecondaryButton(text = "删除 BIN", onClick = onDeleteBin, enabled = token.binFilePresent)
+        SurfaceSecondaryButton(text = "移除令牌", onClick = onDelete)
       }
-    }
-  }
+    },
+  )
 }
 
 @Composable
@@ -1560,22 +1647,21 @@ private fun DailyTaskCard(
   onToggleAutoExecute: (Boolean) -> Unit,
   onConfigure: () -> Unit,
 ) {
-  Card {
-    Column(
-      modifier = Modifier
-        .fillMaxWidth()
-        .padding(16.dp),
-      verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-      Text(task.title, style = MaterialTheme.typography.titleMedium)
-      if (task.subtitle.isNotBlank()) {
-        Text(task.subtitle, style = MaterialTheme.typography.bodyMedium)
-      }
-      Text("完成状态：${if (task.completed) "已完成" else "待完成"}")
-      Text("执行权限：${if (task.canExecute) "可执行" else "未启用"}")
-      Text("进度：${task.progress.current}/${task.progress.total}")
-      Text("延迟：${task.settings.delay}s · 通知：${if (task.settings.notification) "开启" else "关闭"}")
-      Text("定时表达式：${task.settings.cronExpr.ifBlank { "--" }}")
+  MobileDataCard(
+    title = task.title,
+    subtitle = task.subtitle.takeIf { it.isNotBlank() },
+    status = {
+      XyzwStatusChip(
+        status = if (task.completed) "success" else if (task.canExecute) "pending" else "disabled",
+        label = if (task.completed) "已完成" else if (task.canExecute) "可执行" else "未启用",
+      )
+    },
+    content = {
+      DenseInfoRow("完成状态", if (task.completed) "已完成" else "待完成")
+      DenseInfoRow("执行权限", if (task.canExecute) "可执行" else "未启用")
+      DenseInfoRow("进度", "${task.progress.current}/${task.progress.total}")
+      DenseInfoRow("延迟/通知", "${task.settings.delay}s · ${if (task.settings.notification) "开启" else "关闭"}")
+      DenseInfoRow("定时表达式", task.settings.cronExpr.ifBlank { "--" })
       Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -1596,14 +1682,12 @@ private fun DailyTaskCard(
           onCheckedChange = onToggleAutoExecute,
         )
       }
-      Button(onClick = onComplete, enabled = task.canExecute) {
-        Text("执行一次")
-      }
-      OutlinedButton(onClick = onConfigure, modifier = Modifier.fillMaxWidth()) {
-        Text("编辑配置")
-      }
-    }
-  }
+    },
+    actions = {
+      SurfacePrimaryButton(text = "执行一次", onClick = onComplete, enabled = task.canExecute, modifier = Modifier.weight(1f))
+      SurfaceSecondaryButton(text = "编辑配置", onClick = onConfigure, modifier = Modifier.weight(1f))
+    },
+  )
 }
 
 @Composable

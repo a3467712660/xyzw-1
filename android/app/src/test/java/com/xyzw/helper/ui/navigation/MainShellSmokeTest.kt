@@ -121,9 +121,9 @@ class MainShellSmokeTest {
 
     composeRule.onNodeWithText("令牌管理").performScrollTo().assertIsDisplayed()
     composeRule.onNodeWithText("管理员中心").performScrollTo().assertIsDisplayed()
-    composeRule.onNodeWithText("应用版本：--").performScrollTo().assertIsDisplayed()
-    composeRule.onNodeWithText("后端版本：--").performScrollTo().assertIsDisplayed()
-    composeRule.onNodeWithText("代码提交：--").performScrollTo().assertIsDisplayed()
+    composeRule.onNodeWithText("应用版本").performScrollTo().assertIsDisplayed()
+    composeRule.onNodeWithText("后端版本").performScrollTo().assertIsDisplayed()
+    composeRule.onNodeWithText("代码提交").performScrollTo().assertIsDisplayed()
   }
 
   @Test
@@ -163,5 +163,29 @@ class MainShellSmokeTest {
     }
 
     composeRule.onNodeWithText("权限不足或需要管理员确认").assertIsDisplayed()
+  }
+
+  @Test
+  fun `admin hub uses admin surface overview`() {
+    composeRule.setContent {
+      XyzwTheme(themeMode = ThemeMode.LIGHT) {
+        AdminHubScreen(
+          currentUser = AuthUser(id = "admin-1", username = "root", isAdmin = true),
+          onBack = {},
+          onOpenUsers = {},
+          onOpenInvites = {},
+          onOpenActivationCodes = {},
+          onOpenFeedbackTickets = {},
+          onOpenTaskLogs = {},
+          onOpenChangelogBroadcast = {},
+          onOpenWechatContacts = {},
+          onOpenReferrals = {},
+        )
+      }
+    }
+
+    composeRule.onNodeWithText("Admin Surface").performScrollTo().assertIsDisplayed()
+    composeRule.onNodeWithText("管理入口").performScrollTo().assertIsDisplayed()
+    composeRule.onNodeWithText("用户管理").performScrollTo().assertIsDisplayed()
   }
 }
