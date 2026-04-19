@@ -8,6 +8,8 @@ import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.Dashboard
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.TaskAlt
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -205,8 +207,17 @@ fun MainShell(
       MainShellBottomBar(
         items = items,
         currentRoute = shellBackStackEntry?.destination?.route,
+        unreadNotificationCount = notificationsState.notifications.count { !it.isRead },
         onNavigate = { route ->
-          shellNavController.navigate(route.route)
+          if (shellBackStackEntry?.destination?.route != route.route) {
+            shellNavController.navigate(route.route) {
+              launchSingleTop = true
+              restoreState = true
+              popUpTo(AppRoute.Dashboard.route) {
+                saveState = true
+              }
+            }
+          }
         },
       )
     },
@@ -221,7 +232,11 @@ fun MainShell(
           uiState = dashboardState,
           showAdminEntry = showAdminEntry,
           onRefresh = dashboardViewModel::refresh,
-          onOpenRoles = { shellNavController.navigate(AppRoute.Roles.route) },
+          onOpenTokens = { shellNavController.navigate(AppRoute.TokenManagement.route) },
+          onOpenRoles = { shellNavController.navigate(AppRoute.RoleManagement.route) },
+          onOpenDailyTasks = { shellNavController.navigate(AppRoute.DailyTasks.route) },
+          onOpenFeedback = { shellNavController.navigate(AppRoute.Feedback.route) },
+          onOpenReferral = { shellNavController.navigate(AppRoute.Referral.route) },
           onOpenNotifications = { shellNavController.navigate(AppRoute.Notifications.route) },
           onOpenAdminHub = { shellNavController.navigate(AppRoute.AdminHub.route) },
         )
@@ -357,6 +372,8 @@ fun MainShell(
           onMarkRead = notificationsViewModel::markRead,
           onMarkAllRead = notificationsViewModel::markAllRead,
           onClearAll = notificationsViewModel::clearAll,
+          onSetUnreadOnly = notificationsViewModel::setUnreadOnly,
+          onConsumeMessage = notificationsViewModel::consumeMessage,
         )
       }
       composable(AppRoute.Profile.route) {
@@ -393,6 +410,7 @@ fun MainShell(
 internal fun MainShellBottomBar(
   items: List<ShellDestination>,
   currentRoute: String?,
+  unreadNotificationCount: Int = 0,
   onNavigate: (AppRoute) -> Unit,
 ) {
   NavigationBar {
@@ -401,7 +419,21 @@ internal fun MainShellBottomBar(
       NavigationBarItem(
         selected = selected,
         onClick = { onNavigate(item.route) },
-        icon = { Icon(item.icon, contentDescription = item.label) },
+        icon = {
+          if (item.route == AppRoute.Notifications && unreadNotificationCount > 0) {
+            BadgedBox(
+              badge = {
+                Badge {
+                  Text(unreadNotificationCount.coerceAtMost(99).toString())
+                }
+              },
+            ) {
+              Icon(item.icon, contentDescription = item.label)
+            }
+          } else {
+            Icon(item.icon, contentDescription = item.label)
+          }
+        },
         label = { Text(item.label) },
       )
     }

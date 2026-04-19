@@ -10,15 +10,31 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.xyzw.helper.data.model.NotificationItem
 import com.xyzw.helper.data.storage.AppPreferences
 import com.xyzw.helper.data.storage.ThemeMode
+import com.xyzw.helper.ui.components.XyzwCard
+import com.xyzw.helper.ui.components.XyzwConfirmDialog
+import com.xyzw.helper.ui.components.XyzwEmptyState
+import com.xyzw.helper.ui.components.XyzwErrorState
+import com.xyzw.helper.ui.components.XyzwExpandableText
+import com.xyzw.helper.ui.components.XyzwLoadingState
+import com.xyzw.helper.ui.components.XyzwPage
+import com.xyzw.helper.ui.components.XyzwStatusChip
 
 @Composable
 fun RolesScreen(
@@ -64,36 +80,78 @@ fun NotificationsScreen(
   onMarkRead: (String) -> Unit,
   onMarkAllRead: () -> Unit,
   onClearAll: () -> Unit,
+  onSetUnreadOnly: (Boolean) -> Unit,
+  onConsumeMessage: () -> Unit,
 ) {
-  Column(
-    modifier = Modifier
-      .fillMaxSize()
-      .padding(16.dp),
-    verticalArrangement = Arrangement.spacedBy(12.dp),
+  val snackbarHostState = remember { SnackbarHostState() }
+  var showClearConfirm by rememberSaveable { mutableStateOf(false) }
+
+  LaunchedEffect(uiState.actionMessage, uiState.errorMessage) {
+    uiState.actionMessage?.let { snackbarHostState.showSnackbar(it) }
+    uiState.errorMessage?.let { snackbarHostState.showSnackbar(it) }
+    if (uiState.actionMessage != null || uiState.errorMessage != null) {
+      onConsumeMessage()
+    }
+  }
+
+  XyzwPage(
+    title = "通知中心",
+    subtitle = "查看系统消息、任务提醒和处理状态。",
+    onRefresh = onRefresh,
+    snackbarHostState = snackbarHostState,
   ) {
-    Row(
-      modifier = Modifier.fillMaxWidth(),
-      horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-      Text("通知中心", style = MaterialTheme.typography.headlineSmall)
+    XyzwCard {
       Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        OutlinedButton(onClick = onMarkAllRead) { Text("全部已读") }
-        OutlinedButton(onClick = onClearAll) { Text("清空") }
-        OutlinedButton(onClick = onRefresh) { Text(if (uiState.isLoading) "刷新中…" else "刷新") }
+        FilterChip(
+          selected = !uiState.unreadOnly,
+          onClick = { onSetUnreadOnly(false) },
+          label = { Text("全部") },
+        )
+        FilterChip(
+          selected = uiState.unreadOnly,
+          onClick = { onSetUnreadOnly(true) },
+          label = { Text("未读") },
+        )
+      }
+      Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedButton(onClick = onMarkAllRead, enabled = uiState.notifications.any { !it.isRead }) { Text("全部已读") }
+        OutlinedButton(onClick = { showClearConfirm = true }, enabled = uiState.notifications.isNotEmpty()) { Text("清空") }
       }
     }
+
     if (!uiState.errorMessage.isNullOrBlank()) {
-      Text(uiState.errorMessage, color = MaterialTheme.colorScheme.error)
+      XyzwErrorState(message = uiState.errorMessage, onRetry = onRefresh)
     }
-    if (uiState.notifications.isEmpty() && !uiState.isLoading) {
-      Text("暂无通知", color = MaterialTheme.colorScheme.onSurfaceVariant)
-    } else {
-      LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        items(uiState.notifications, key = { it.id }) { notification ->
+
+    when {
+      uiState.isLoading -> XyzwLoadingState("通知加载中...")
+      uiState.notifications.isEmpty() -> XyzwEmptyState(
+        title = if (uiState.unreadOnly) "暂无未读通知" else "暂无通知",
+        description = "有新通知时会通过 WebSocket 自动刷新。",
+        primaryActionLabel = "刷新",
+        onPrimaryAction = onRefresh,
+      )
+
+      else -> Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        uiState.notifications.forEach { notification ->
           NotificationCard(notification = notification, onMarkRead = onMarkRead)
         }
       }
     }
+  }
+
+  if (showClearConfirm) {
+    XyzwConfirmDialog(
+      title = "清空通知",
+      message = "确认清空当前账号的所有通知？该操作不可撤销。",
+      confirmLabel = "清空",
+      destructive = true,
+      onConfirm = {
+        showClearConfirm = false
+        onClearAll()
+      },
+      onDismiss = { showClearConfirm = false },
+    )
   }
 }
 
@@ -162,19 +220,26 @@ private fun NotificationCard(
   notification: NotificationItem,
   onMarkRead: (String) -> Unit,
 ) {
-  Card(modifier = Modifier.fillMaxWidth()) {
-    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-      Text(notification.title, style = MaterialTheme.typography.titleMedium)
-      Text(notification.content, style = MaterialTheme.typography.bodyMedium)
-      Text(
-        text = notification.createdAt,
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+  XyzwCard {
+    Row(
+      modifier = Modifier.fillMaxWidth(),
+      horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+      Text(notification.title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+      XyzwStatusChip(
+        status = if (notification.isRead) "read" else "unread",
+        label = if (notification.isRead) "已读" else "未读",
       )
-      if (!notification.isRead) {
-        OutlinedButton(onClick = { onMarkRead(notification.id) }) {
-          Text("标记已读")
-        }
+    }
+    XyzwExpandableText(notification.content)
+    Text(
+      text = notification.createdAt,
+      style = MaterialTheme.typography.bodySmall,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    if (!notification.isRead) {
+      OutlinedButton(onClick = { onMarkRead(notification.id) }, modifier = Modifier.fillMaxWidth()) {
+        Text("标记已读")
       }
     }
   }

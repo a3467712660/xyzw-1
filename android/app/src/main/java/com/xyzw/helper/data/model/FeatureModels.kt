@@ -162,6 +162,7 @@ data class TaskControlTaskRow(
 data class TaskControlStateSnapshot(
   val tasks: List<TaskControlTaskRow> = emptyList(),
   val updatedAt: String? = null,
+  val rawTasks: List<JsonObject> = emptyList(),
 )
 
 @Serializable

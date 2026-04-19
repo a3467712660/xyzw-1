@@ -36,6 +36,7 @@ import com.xyzw.helper.data.model.BinFileItem
 import com.xyzw.helper.data.model.BinFileUploadResult
 import com.xyzw.helper.data.model.TokenActivationStatus
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
 import okhttp3.RequestBody
 import okhttp3.ResponseBody
 import kotlinx.serialization.Serializable
@@ -214,7 +215,12 @@ interface DailyTaskApi {
 
 interface TaskControlApi {
   @GET("task-control/state")
-  suspend fun getState(): Response<ApiEnvelope<TaskControlStateSnapshot>>
+  suspend fun getState(): Response<ApiEnvelope<JsonObject>>
+
+  @PUT("task-control/state")
+  suspend fun saveState(
+    @Body request: JsonObject,
+  ): Response<ApiEnvelope<JsonObject>>
 
   @GET("task-control/logs")
   suspend fun getLogs(
@@ -392,6 +398,13 @@ interface AdminApi {
     @Body request: EmptyRequest = EmptyRequest(),
   ): Response<ApiEnvelope<Unit>>
 
+  @POST("admin/invite-codes/{id}/reveal")
+  suspend fun revealInviteCode(
+    @Path("id") id: String,
+    @Header("X-Admin-Confirm-Token") confirmToken: String,
+    @Body request: EmptyRequest = EmptyRequest(),
+  ): Response<ApiEnvelope<JsonObject>>
+
   @GET("admin/activation-codes")
   suspend fun listActivationCodes(): Response<ApiEnvelope<List<ActivationCodeItem>>>
 
@@ -426,6 +439,13 @@ interface AdminApi {
     @Path("id") id: String,
     @Header("X-Admin-Confirm-Token") confirmToken: String,
   ): Response<ApiEnvelope<Unit>>
+
+  @POST("admin/activation-codes/{id}/reveal")
+  suspend fun revealActivationCode(
+    @Path("id") id: String,
+    @Header("X-Admin-Confirm-Token") confirmToken: String,
+    @Body request: EmptyRequest = EmptyRequest(),
+  ): Response<ApiEnvelope<JsonObject>>
 
   @GET("admin/task-control/logs")
   suspend fun listTaskControlLogs(

@@ -6,9 +6,11 @@
 package com.xyzw.helper.ui.screens
 
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import com.xyzw.helper.BuildConfig
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -65,6 +67,18 @@ import com.xyzw.helper.data.network.ApiResult
 import com.xyzw.helper.data.network.GameRoleUpsertRequest
 import com.xyzw.helper.data.storage.AppPreferences
 import com.xyzw.helper.data.storage.ThemeMode
+import com.xyzw.helper.ui.components.SensitiveValueText
+import com.xyzw.helper.ui.components.XyzwActionCard
+import com.xyzw.helper.ui.components.XyzwConfirmDialog
+import com.xyzw.helper.ui.components.XyzwEmptyState
+import com.xyzw.helper.ui.components.XyzwErrorState
+import com.xyzw.helper.ui.components.XyzwExpandableText
+import com.xyzw.helper.ui.components.XyzwLoadingState
+import com.xyzw.helper.ui.components.XyzwPage
+import com.xyzw.helper.ui.components.XyzwSection
+import com.xyzw.helper.ui.components.XyzwStatusChip
+import com.xyzw.helper.ui.components.XyzwTopBar
+import com.xyzw.helper.ui.components.XyzwTwoColumnStats
 import kotlinx.coroutines.launch
 import java.io.IOException
 
@@ -127,10 +141,13 @@ fun TokenManagementScreen(
   val context = LocalContext.current
   val scope = rememberCoroutineScope()
   val snackbarHostState = remember { SnackbarHostState() }
+  var manualTokenName by rememberSaveable { mutableStateOf("") }
   var manualToken by rememberSaveable { mutableStateOf("") }
   var importUrl by rememberSaveable { mutableStateOf("") }
   var uploadTargetTokenId by rememberSaveable { mutableStateOf<String?>(null) }
   var confirmDownloadTokenId by rememberSaveable { mutableStateOf<String?>(null) }
+  var confirmRemoveTokenId by rememberSaveable { mutableStateOf<String?>(null) }
+  var confirmDeleteBinTokenId by rememberSaveable { mutableStateOf<String?>(null) }
 
   val openDocumentLauncher = rememberLauncherForActivityResult(
     contract = ActivityResultContracts.OpenDocument(),
@@ -191,8 +208,15 @@ fun TokenManagementScreen(
       item {
         SectionCard(
           title = "手动导入",
-          description = "粘贴完整 token 文本并保存到本地加密工作区。",
+          description = "填写名称并粘贴完整 token 文本，保存到本地加密工作区。",
         ) {
+          OutlinedTextField(
+            value = manualTokenName,
+            onValueChange = { manualTokenName = it },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("Token 名称") },
+            singleLine = true,
+          )
           OutlinedTextField(
             value = manualToken,
             onValueChange = { manualToken = it },
@@ -202,12 +226,15 @@ fun TokenManagementScreen(
           )
           Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Button(
-              onClick = { viewModel.importManual(manualToken) },
+              onClick = { viewModel.importManual(manualToken, manualTokenName) },
               enabled = manualToken.isNotBlank() && !uiState.isImporting,
             ) {
               Text(if (uiState.isImporting) "导入中…" else "导入 Token")
             }
-            OutlinedButton(onClick = { manualToken = "" }) {
+            OutlinedButton(onClick = {
+              manualToken = ""
+              manualTokenName = ""
+            }) {
               Text("清空")
             }
           }
@@ -257,8 +284,8 @@ fun TokenManagementScreen(
                     openDocumentLauncher.launch(arrayOf("*/*"))
                   },
                   onDownload = { confirmDownloadTokenId = token.id },
-                  onDelete = { viewModel.removeToken(token.id) },
-                  onDeleteBin = { viewModel.deleteBinFile(token.id) },
+                  onDelete = { confirmRemoveTokenId = token.id },
+                  onDeleteBin = { confirmDeleteBinTokenId = token.id },
                 )
               }
             }
@@ -317,6 +344,40 @@ fun TokenManagementScreen(
       },
     )
   }
+
+  if (confirmRemoveTokenId != null) {
+    XyzwConfirmDialog(
+      title = "删除 Token",
+      message = "确认从本机加密工作区移除该 Token？服务端 BIN 文件不会自动删除。",
+      confirmLabel = "删除",
+      destructive = true,
+      onConfirm = {
+        val tokenId = confirmRemoveTokenId
+        confirmRemoveTokenId = null
+        if (tokenId != null) {
+          viewModel.removeToken(tokenId)
+        }
+      },
+      onDismiss = { confirmRemoveTokenId = null },
+    )
+  }
+
+  if (confirmDeleteBinTokenId != null) {
+    XyzwConfirmDialog(
+      title = "删除 BIN 文件",
+      message = "确认删除服务端保存的 BIN 文件？删除后需要重新上传。",
+      confirmLabel = "删除",
+      destructive = true,
+      onConfirm = {
+        val tokenId = confirmDeleteBinTokenId
+        confirmDeleteBinTokenId = null
+        if (tokenId != null) {
+          viewModel.deleteBinFile(tokenId)
+        }
+      },
+      onDismiss = { confirmDeleteBinTokenId = null },
+    )
+  }
 }
 
 @Composable
@@ -326,13 +387,24 @@ fun RoleManagementScreen(
 ) {
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
   val scope = rememberCoroutineScope()
+  val snackbarHostState = remember { SnackbarHostState() }
   var editingRole by remember { mutableStateOf<GameRole?>(null) }
   var showingEditor by rememberSaveable { mutableStateOf(false) }
   var detailRole by remember { mutableStateOf<GameRole?>(null) }
+  var confirmDeleteRole by remember { mutableStateOf<GameRole?>(null) }
+
+  LaunchedEffect(uiState.actionMessage, uiState.errorMessage) {
+    uiState.actionMessage?.let { snackbarHostState.showSnackbar(it) }
+    uiState.errorMessage?.let { snackbarHostState.showSnackbar(it) }
+    if (uiState.actionMessage != null || uiState.errorMessage != null) {
+      viewModel.consumeMessage()
+    }
+  }
 
   DetailScaffold(
     title = "角色管理",
     onBack = onBack,
+    snackbarHostState = snackbarHostState,
     actions = {
       IconButton(onClick = viewModel::refresh) {
         Icon(Icons.Outlined.Refresh, contentDescription = "刷新角色")
@@ -385,7 +457,7 @@ fun RoleManagementScreen(
                   ) { Text("编辑") }
                   OutlinedButton(
                     onClick = {
-                      scope.launch { viewModel.deleteRole(role.id) }
+                      confirmDeleteRole = role
                     },
                   ) { Text("删除") }
                 }
@@ -436,6 +508,23 @@ fun RoleManagementScreen(
       },
     )
   }
+
+  if (confirmDeleteRole != null) {
+    XyzwConfirmDialog(
+      title = "删除角色",
+      message = "确认删除角色“${confirmDeleteRole?.name}”？删除后需要重新创建。",
+      confirmLabel = "删除",
+      destructive = true,
+      onConfirm = {
+        val target = confirmDeleteRole
+        confirmDeleteRole = null
+        if (target != null) {
+          scope.launch { viewModel.deleteRole(target.id) }
+        }
+      },
+      onDismiss = { confirmDeleteRole = null },
+    )
+  }
 }
 
 @Composable
@@ -444,9 +533,21 @@ fun DailyTasksScreen(
   onBack: () -> Unit,
 ) {
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+  val snackbarHostState = remember { SnackbarHostState() }
+  var configuringTask by remember { mutableStateOf<DailyTaskEntry?>(null) }
+
+  LaunchedEffect(uiState.actionMessage, uiState.errorMessage) {
+    uiState.actionMessage?.let { snackbarHostState.showSnackbar(it) }
+    uiState.errorMessage?.let { snackbarHostState.showSnackbar(it) }
+    if (uiState.actionMessage != null || uiState.errorMessage != null) {
+      viewModel.consumeMessage()
+    }
+  }
+
   DetailScaffold(
     title = "日常任务",
     onBack = onBack,
+    snackbarHostState = snackbarHostState,
     actions = {
       IconButton(onClick = { viewModel.refresh() }) {
         Icon(Icons.Outlined.Refresh, contentDescription = "刷新任务")
@@ -466,7 +567,10 @@ fun DailyTasksScreen(
           description = "先选择角色，再查看任务状态和历史。",
         ) {
           if (uiState.roles.isEmpty()) {
-            EmptyHint("还没有角色，请先到工作台添加角色。")
+            XyzwEmptyState(
+              title = "还没有角色",
+              description = "请先到工作台添加角色，再配置日常任务。",
+            )
           } else {
             FlowRow(
               horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -513,6 +617,7 @@ fun DailyTasksScreen(
                   onToggleAutoExecute = { auto ->
                     viewModel.updateTask(task, task.settings.enabled, auto)
                   },
+                  onConfigure = { configuringTask = task },
                 )
               }
             }
@@ -543,11 +648,38 @@ fun DailyTasksScreen(
                   }
                 }
               }
+              if (uiState.hasMoreHistory) {
+                OutlinedButton(
+                  onClick = viewModel::loadMoreHistory,
+                  enabled = !uiState.isLoadingMoreHistory,
+                  modifier = Modifier.fillMaxWidth(),
+                ) {
+                  Text(if (uiState.isLoadingMoreHistory) "加载中…" else "加载更多")
+                }
+              }
             }
           }
         }
       }
     }
+  }
+
+  configuringTask?.let { task ->
+    DailyTaskConfigDialog(
+      task = task,
+      onDismiss = { configuringTask = null },
+      onSave = { enabled, autoExecute, notification, delay, cronExpr ->
+        viewModel.updateTaskSettings(
+          task = task,
+          enabled = enabled,
+          autoExecute = autoExecute,
+          notification = notification,
+          delay = delay,
+          cronExpr = cronExpr,
+        )
+        configuringTask = null
+      },
+    )
   }
 }
 
@@ -557,9 +689,22 @@ fun TaskControlScreen(
   onBack: () -> Unit,
 ) {
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+  val snackbarHostState = remember { SnackbarHostState() }
+  var confirmClearLogs by rememberSaveable { mutableStateOf(false) }
+  var cronEditTarget by remember { mutableStateOf<com.xyzw.helper.data.model.TaskControlTaskRow?>(null) }
+
+  LaunchedEffect(uiState.actionMessage, uiState.errorMessage) {
+    uiState.actionMessage?.let { snackbarHostState.showSnackbar(it) }
+    uiState.errorMessage?.let { snackbarHostState.showSnackbar(it) }
+    if (uiState.actionMessage != null || uiState.errorMessage != null) {
+      viewModel.consumeMessage()
+    }
+  }
+
   DetailScaffold(
     title = "任务控制",
     onBack = onBack,
+    snackbarHostState = snackbarHostState,
     actions = {
       IconButton(onClick = viewModel::refresh) {
         Icon(Icons.Outlined.Refresh, contentDescription = "刷新任务控制")
@@ -581,7 +726,7 @@ fun TaskControlScreen(
           FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = viewModel::refresh) { Text("刷新") }
             OutlinedButton(onClick = viewModel::clearLocalState) { Text("清空本地展示状态") }
-            OutlinedButton(onClick = viewModel::clearServerLogs) { Text("清空日志") }
+            OutlinedButton(onClick = { confirmClearLogs = true }) { Text("清空日志") }
           }
         }
       }
@@ -610,6 +755,24 @@ fun TaskControlScreen(
                     if (task.lastRunAt.isNotBlank()) {
                       Text("上次运行：${task.lastRunAt}")
                     }
+                    Row(
+                      modifier = Modifier.fillMaxWidth(),
+                      horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                      Text("启用任务")
+                      Switch(
+                        checked = task.enabled,
+                        onCheckedChange = { viewModel.updateTaskEnabled(task, it) },
+                        enabled = !uiState.isMutating,
+                      )
+                    }
+                    OutlinedButton(
+                      onClick = { cronEditTarget = task },
+                      modifier = Modifier.fillMaxWidth(),
+                      enabled = !uiState.isMutating,
+                    ) {
+                      Text("编辑 Cron")
+                    }
                   }
                 }
               }
@@ -623,14 +786,26 @@ fun TaskControlScreen(
           title = "任务日志",
           description = "服务端日志与本地实时事件统一展示。",
         ) {
-          if (uiState.logs.isEmpty() && uiState.localEvents.isEmpty()) {
+          FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf("" to "全部", "success" to "成功", "failed" to "失败", "running" to "运行中").forEach { (value, label) ->
+              FilterChip(
+                selected = uiState.statusFilter == value,
+                onClick = { viewModel.setStatusFilter(value) },
+                label = { Text(label) },
+              )
+            }
+          }
+          val visibleLogs = uiState.logs.filter { row ->
+            uiState.statusFilter.isBlank() || row.status.equals(uiState.statusFilter, ignoreCase = true)
+          }
+          if (visibleLogs.isEmpty() && uiState.localEvents.isEmpty()) {
             EmptyHint("暂无任务日志。")
           } else {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
               uiState.localEvents.forEach { event ->
                 Text("实时事件：$event", color = MaterialTheme.colorScheme.primary)
               }
-              uiState.logs.forEach { row ->
+              visibleLogs.forEach { row ->
                 Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
                   Column(
                     modifier = Modifier
@@ -639,7 +814,7 @@ fun TaskControlScreen(
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                   ) {
                     Text(row.taskName.ifBlank { row.taskId.orEmpty() }, fontWeight = FontWeight.SemiBold)
-                    Text(row.message)
+                    XyzwExpandableText(row.message)
                     Text("${row.status} · ${row.createdAt}")
                   }
                 }
@@ -649,6 +824,31 @@ fun TaskControlScreen(
         }
       }
     }
+  }
+
+  if (confirmClearLogs) {
+    XyzwConfirmDialog(
+      title = "清空任务日志",
+      message = "确认清空服务端任务控制日志？该操作不可撤销。",
+      confirmLabel = "清空",
+      destructive = true,
+      onConfirm = {
+        confirmClearLogs = false
+        viewModel.clearServerLogs()
+      },
+      onDismiss = { confirmClearLogs = false },
+    )
+  }
+
+  cronEditTarget?.let { task ->
+    TaskControlCronDialog(
+      task = task,
+      onDismiss = { cronEditTarget = null },
+      onSave = { cronExpr ->
+        cronEditTarget = null
+        viewModel.updateTaskCron(task, cronExpr)
+      },
+    )
   }
 }
 
@@ -668,13 +868,19 @@ fun ProfileSettingsScreen(
   var email by rememberSaveable(uiState.profile?.email) { mutableStateOf(uiState.profile?.email.orEmpty()) }
   var nickname by rememberSaveable(uiState.profile?.nickname) { mutableStateOf(uiState.profile?.nickname.orEmpty()) }
   var phone by rememberSaveable(uiState.profile?.phone) { mutableStateOf(uiState.profile?.phone.orEmpty()) }
+  var apiBaseUrlDraft by rememberSaveable(preferences.apiBaseUrl) { mutableStateOf(preferences.apiBaseUrl) }
   var currentPassword by rememberSaveable { mutableStateOf("") }
   var newPassword by rememberSaveable { mutableStateOf("") }
+  var showConfirmPasswordChange by rememberSaveable { mutableStateOf(false) }
   var showConfirmRemoteBin by rememberSaveable { mutableStateOf(false) }
   var targetRemoteBinState by rememberSaveable { mutableStateOf(false) }
 
-  LaunchedEffect(uiState.errorMessage) {
+  LaunchedEffect(uiState.actionMessage, uiState.errorMessage) {
+    uiState.actionMessage?.let { snackbarHostState.showSnackbar(it) }
     uiState.errorMessage?.let { snackbarHostState.showSnackbar(it) }
+    if (uiState.actionMessage != null || uiState.errorMessage != null) {
+      viewModel.consumeMessage()
+    }
   }
 
   HubScaffold(
@@ -728,7 +934,7 @@ fun ProfileSettingsScreen(
         label = { Text("新密码") },
       )
       Button(
-        onClick = { viewModel.changePassword(currentPassword, newPassword) },
+        onClick = { showConfirmPasswordChange = true },
         enabled = currentPassword.isNotBlank() && newPassword.isNotBlank(),
       ) {
         Text("修改密码")
@@ -784,7 +990,24 @@ fun ProfileSettingsScreen(
           )
         }
       }
-      Text("当前 API 地址：${preferences.apiBaseUrl}")
+      if (BuildConfig.DEBUG) {
+        OutlinedTextField(
+          value = apiBaseUrlDraft,
+          onValueChange = { apiBaseUrlDraft = it },
+          modifier = Modifier.fillMaxWidth(),
+          label = { Text("Debug API 地址") },
+          singleLine = true,
+        )
+        OutlinedButton(
+          onClick = { viewModel.setApiBaseUrl(apiBaseUrlDraft) },
+          enabled = apiBaseUrlDraft.startsWith("http://") || apiBaseUrlDraft.startsWith("https://"),
+        ) {
+          Text("保存 API 地址")
+        }
+      } else {
+        Text("当前 API 地址：${preferences.apiBaseUrl}")
+        Text("Release 包不允许在 UI 中改成 HTTP 地址。", style = MaterialTheme.typography.bodySmall)
+      }
       FlowRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -794,6 +1017,24 @@ fun ProfileSettingsScreen(
         OutlinedButton(onClick = onLogout) { Text("退出登录") }
       }
     }
+  }
+
+  if (showConfirmPasswordChange) {
+    SensitiveConfirmDialog(
+      title = "修改密码需要二次确认",
+      onDismiss = { showConfirmPasswordChange = false },
+      onConfirm = { password, totpCode, recoveryCode ->
+        scope.launch {
+          when (viewModel.confirmSensitiveAction(password, totpCode, recoveryCode)) {
+            is ApiResult.Success -> {
+              showConfirmPasswordChange = false
+              viewModel.changePassword(currentPassword, newPassword)
+            }
+            is ApiResult.Failure -> snackbarHostState.showSnackbar("二次确认失败")
+          }
+        }
+      },
+    )
   }
 
   if (showConfirmRemoteBin) {
@@ -821,9 +1062,21 @@ fun ReferralScreen(
   onBack: () -> Unit,
 ) {
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+  val context = LocalContext.current
+  val snackbarHostState = remember { SnackbarHostState() }
+
+  LaunchedEffect(uiState.actionMessage, uiState.errorMessage) {
+    uiState.actionMessage?.let { snackbarHostState.showSnackbar(it) }
+    uiState.errorMessage?.let { snackbarHostState.showSnackbar(it) }
+    if (uiState.actionMessage != null || uiState.errorMessage != null) {
+      viewModel.consumeMessage()
+    }
+  }
+
   DetailScaffold(
     title = "推广中心",
     onBack = onBack,
+    snackbarHostState = snackbarHostState,
     actions = {
       IconButton(onClick = viewModel::refresh) {
         Icon(Icons.Outlined.Refresh, contentDescription = "刷新推广数据")
@@ -859,6 +1112,27 @@ fun ReferralScreen(
           } else {
             Text("推广码：${profile.referralCode}")
             Text("分享链接：${profile.shareUrl}")
+            OutlinedButton(
+              onClick = {
+                val shareText = if (profile.shareUrl.isNotBlank()) {
+                  "使用我的推广链接注册：${profile.shareUrl}"
+                } else {
+                  "使用我的推广码注册：${profile.referralCode}"
+                }
+                context.startActivity(
+                  Intent.createChooser(
+                    Intent(Intent.ACTION_SEND).apply {
+                      type = "text/plain"
+                      putExtra(Intent.EXTRA_TEXT, shareText)
+                    },
+                    "分享推广信息",
+                  ),
+                )
+              },
+              modifier = Modifier.fillMaxWidth(),
+            ) {
+              Text("系统分享")
+            }
           }
         }
       }
@@ -900,13 +1174,23 @@ fun FeedbackScreen(
   onBack: () -> Unit,
 ) {
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+  val snackbarHostState = remember { SnackbarHostState() }
   var type by rememberSaveable { mutableStateOf("bug") }
   var title by rememberSaveable { mutableStateOf("") }
   var content by rememberSaveable { mutableStateOf("") }
 
+  LaunchedEffect(uiState.actionMessage, uiState.errorMessage) {
+    uiState.actionMessage?.let { snackbarHostState.showSnackbar(it) }
+    uiState.errorMessage?.let { snackbarHostState.showSnackbar(it) }
+    if (uiState.actionMessage != null || uiState.errorMessage != null) {
+      viewModel.consumeMessage()
+    }
+  }
+
   DetailScaffold(
     title = "反馈中心",
     onBack = onBack,
+    snackbarHostState = snackbarHostState,
     actions = {
       IconButton(onClick = viewModel::refresh) {
         Icon(Icons.Outlined.Refresh, contentDescription = "刷新反馈")
@@ -977,10 +1261,20 @@ fun FeedbackScreen(
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                   ) {
                     Text(item.title, fontWeight = FontWeight.SemiBold)
-                    Text(item.content)
-                    Text("类型：${item.type} · 状态：${item.status}")
+                    XyzwExpandableText(item.content)
+                    Text("类型：${item.type}")
+                    XyzwStatusChip(
+                      status = item.status,
+                      label = when (item.status) {
+                        "pending", "open" -> "待处理"
+                        "processing", "in_progress" -> "处理中"
+                        "resolved" -> "已解决"
+                        "rejected" -> "已驳回"
+                        else -> item.status
+                      },
+                    )
                     item.adminNote?.takeIf { it.isNotBlank() }?.let { note ->
-                      Text("管理员备注：$note", color = MaterialTheme.colorScheme.primary)
+                      XyzwExpandableText("管理员备注：$note")
                     }
                     Text(item.createdAt, style = MaterialTheme.typography.bodySmall)
                   }
@@ -1000,21 +1294,11 @@ private fun HubScaffold(
   snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
   content: @Composable ColumnScope.() -> Unit,
 ) {
-  Scaffold(
-    snackbarHost = { SnackbarHost(snackbarHostState) },
-    topBar = {
-      TopAppBar(title = { Text(title) })
-    },
-  ) { innerPadding ->
-    Column(
-      modifier = Modifier
-        .fillMaxSize()
-        .padding(innerPadding)
-        .padding(16.dp),
-      verticalArrangement = Arrangement.spacedBy(16.dp),
-      content = content,
-    )
-  }
+  XyzwPage(
+    title = title,
+    snackbarHostState = snackbarHostState,
+    content = content,
+  )
 }
 
 @Composable
@@ -1028,13 +1312,9 @@ private fun DetailScaffold(
   Scaffold(
     snackbarHost = { SnackbarHost(snackbarHostState) },
     topBar = {
-      TopAppBar(
-        title = { Text(title) },
-        navigationIcon = {
-          IconButton(onClick = onBack) {
-            Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "返回")
-          }
-        },
+      XyzwTopBar(
+        title = title,
+        onBack = onBack,
         actions = actions,
       )
     },
@@ -1044,28 +1324,7 @@ private fun DetailScaffold(
 
 @Composable
 private fun HubSummaryCards(cards: List<Pair<String, String>>) {
-  FlowRow(
-    modifier = Modifier.fillMaxWidth(),
-    horizontalArrangement = Arrangement.spacedBy(12.dp),
-    verticalArrangement = Arrangement.spacedBy(12.dp),
-  ) {
-    cards.forEach { (label, value) ->
-      Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-      ) {
-        Column(
-          modifier = Modifier
-            .fillMaxWidth()
-            .padding(16.dp),
-          verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-          Text(label, style = MaterialTheme.typography.bodyMedium)
-          Text(value, style = MaterialTheme.typography.headlineSmall)
-        }
-      }
-    }
-  }
+  XyzwTwoColumnStats(cards.map { (label, value) -> Triple(label, value, null) })
 }
 
 @Composable
@@ -1075,20 +1334,11 @@ private fun HubEntryCard(
   action: String,
   onClick: () -> Unit,
 ) {
-  Card {
-    Column(
-      modifier = Modifier
-        .fillMaxWidth()
-        .padding(16.dp),
-      verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-      Text(title, style = MaterialTheme.typography.titleLarge)
-      Text(description, style = MaterialTheme.typography.bodyMedium)
-      Button(onClick = onClick) {
-        Text(action)
-      }
-    }
-  }
+  XyzwActionCard(
+    title = title,
+    subtitle = "$description\n$action",
+    onClick = onClick,
+  )
 }
 
 @Composable
@@ -1097,19 +1347,7 @@ private fun SectionCard(
   description: String,
   content: @Composable ColumnScope.() -> Unit,
 ) {
-  Card {
-    Column(
-      modifier = Modifier
-        .fillMaxWidth()
-        .padding(16.dp),
-      verticalArrangement = Arrangement.spacedBy(12.dp),
-      content = {
-        Text(title, style = MaterialTheme.typography.titleMedium)
-        Text(description, style = MaterialTheme.typography.bodyMedium)
-        content()
-      },
-    )
-  }
+  XyzwSection(title = title, subtitle = description, content = content)
 }
 
 @Composable
@@ -1140,15 +1378,22 @@ private fun TokenCard(
     ) {
       Text(token.displayName, style = MaterialTheme.typography.titleMedium)
       Text("Token ID: ${token.id}")
+      SensitiveValueText(label = "Token 内容", value = token.rawToken)
       if (token.roleId.isNotBlank()) {
         Text("角色 ID: ${token.roleId}")
       }
       if (token.region.isNotBlank()) {
         Text("大区: ${token.region}")
       }
-      Text("激活状态: ${if (token.activationActive) "可用" else if (token.activationBound) "已绑定但不可用" else "未绑定"}")
+      XyzwStatusChip(
+        status = if (token.activationActive) "active" else if (token.activationBound) "pending" else "disabled",
+        label = if (token.activationActive) "可用" else if (token.activationBound) "已绑定但不可用" else "未绑定",
+      )
       token.activationExpiresAt?.let { Text("到期时间: $it") }
-      Text("BIN：${if (token.binFilePresent) "已上传" else "未上传"}")
+      XyzwStatusChip(
+        status = if (token.binFilePresent) "enabled" else "disabled",
+        label = if (token.binFilePresent) "BIN 已上传" else "BIN 未上传",
+      )
       token.lastError?.takeIf { it.isNotBlank() }?.let { error ->
         Text(error, color = MaterialTheme.colorScheme.error)
       }
@@ -1186,6 +1431,7 @@ private fun DailyTaskCard(
   onComplete: () -> Unit,
   onToggleEnabled: (Boolean) -> Unit,
   onToggleAutoExecute: (Boolean) -> Unit,
+  onConfigure: () -> Unit,
 ) {
   Card {
     Column(
@@ -1201,6 +1447,8 @@ private fun DailyTaskCard(
       Text("完成状态：${if (task.completed) "已完成" else "待完成"}")
       Text("执行权限：${if (task.canExecute) "可执行" else "未启用"}")
       Text("进度：${task.progress.current}/${task.progress.total}")
+      Text("延迟：${task.settings.delay}s · 通知：${if (task.settings.notification) "开启" else "关闭"}")
+      Text("Cron：${task.settings.cronExpr.ifBlank { "--" }}")
       Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -1224,8 +1472,108 @@ private fun DailyTaskCard(
       Button(onClick = onComplete, enabled = task.canExecute) {
         Text("执行一次")
       }
+      OutlinedButton(onClick = onConfigure, modifier = Modifier.fillMaxWidth()) {
+        Text("编辑配置")
+      }
     }
   }
+}
+
+@Composable
+private fun TaskControlCronDialog(
+  task: com.xyzw.helper.data.model.TaskControlTaskRow,
+  onDismiss: () -> Unit,
+  onSave: (String) -> Unit,
+) {
+  var cronExpr by rememberSaveable(task.id) { mutableStateOf(task.cronExpr) }
+
+  AlertDialog(
+    onDismissRequest = onDismiss,
+    title = { Text("编辑 Cron") },
+    text = {
+      Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(task.id, style = MaterialTheme.typography.titleMedium)
+        OutlinedTextField(
+          value = cronExpr,
+          onValueChange = { cronExpr = it },
+          label = { Text("cronExpr") },
+          modifier = Modifier.fillMaxWidth(),
+          singleLine = true,
+        )
+      }
+    },
+    confirmButton = {
+      TextButton(onClick = { onSave(cronExpr.trim()) }) {
+        Text("保存")
+      }
+    },
+    dismissButton = {
+      TextButton(onClick = onDismiss) {
+        Text("取消")
+      }
+    },
+  )
+}
+
+@Composable
+private fun DailyTaskConfigDialog(
+  task: DailyTaskEntry,
+  onDismiss: () -> Unit,
+  onSave: (enabled: Boolean, autoExecute: Boolean, notification: Boolean, delay: Int, cronExpr: String) -> Unit,
+) {
+  var enabled by rememberSaveable(task.id) { mutableStateOf(task.settings.enabled) }
+  var autoExecute by rememberSaveable(task.id) { mutableStateOf(task.settings.autoExecute) }
+  var notification by rememberSaveable(task.id) { mutableStateOf(task.settings.notification) }
+  var delay by rememberSaveable(task.id) { mutableStateOf(task.settings.delay.toString()) }
+  var cronExpr by rememberSaveable(task.id) { mutableStateOf(task.settings.cronExpr) }
+
+  AlertDialog(
+    onDismissRequest = onDismiss,
+    title = { Text("任务配置") },
+    text = {
+      Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(task.title, style = MaterialTheme.typography.titleMedium)
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+          Text("启用")
+          Switch(checked = enabled, onCheckedChange = { enabled = it })
+        }
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+          Text("自动执行")
+          Switch(checked = autoExecute, onCheckedChange = { autoExecute = it })
+        }
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+          Text("通知")
+          Switch(checked = notification, onCheckedChange = { notification = it })
+        }
+        OutlinedTextField(
+          value = delay,
+          onValueChange = { delay = it.filter(Char::isDigit) },
+          label = { Text("延迟（秒）") },
+          modifier = Modifier.fillMaxWidth(),
+          singleLine = true,
+        )
+        OutlinedTextField(
+          value = cronExpr,
+          onValueChange = { cronExpr = it },
+          label = { Text("cronExpr") },
+          modifier = Modifier.fillMaxWidth(),
+          singleLine = true,
+        )
+      }
+    },
+    confirmButton = {
+      TextButton(
+        onClick = {
+          onSave(enabled, autoExecute, notification, delay.toIntOrNull() ?: 0, cronExpr.trim())
+        },
+      ) {
+        Text("保存")
+      }
+    },
+    dismissButton = {
+      TextButton(onClick = onDismiss) { Text("取消") }
+    },
+  )
 }
 
 @Composable

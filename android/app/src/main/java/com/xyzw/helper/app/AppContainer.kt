@@ -175,6 +175,10 @@ class AppViewModelFactory(
       modelClass.isAssignableFrom(DashboardViewModel::class.java) -> DashboardViewModel(
         sessionManager = container.sessionManager,
         systemRepository = container.systemRepository,
+        roleRepository = container.gameRoleRepository,
+        tokenManagementRepository = container.tokenManagementRepository,
+        notificationRepository = container.notificationRepository,
+        dailyTaskRepository = container.dailyTaskRepository,
         realtimeCoordinator = container.realtimeCoordinator,
       ) as T
 

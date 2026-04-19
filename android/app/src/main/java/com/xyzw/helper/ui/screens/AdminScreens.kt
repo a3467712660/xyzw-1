@@ -47,6 +47,10 @@ import com.xyzw.helper.data.model.ReferralConversionItem
 import com.xyzw.helper.data.model.WechatContactAdminItem
 import com.xyzw.helper.data.network.AdminWechatContactRequest
 import com.xyzw.helper.data.network.ApiResult
+import com.xyzw.helper.ui.components.XyzwConfirmDialog
+import com.xyzw.helper.ui.components.XyzwExpandableText
+import com.xyzw.helper.ui.components.XyzwStatusChip
+import com.xyzw.helper.ui.components.SensitiveValueText
 import kotlinx.coroutines.launch
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
@@ -142,6 +146,21 @@ fun AdminUsersScreen(
   var activationTarget by remember { mutableStateOf<AdminUserItem?>(null) }
   var resetCodePayload by remember { mutableStateOf<AdminPasswordResetCodePayload?>(null) }
   var mfaResetUrl by remember { mutableStateOf<String?>(null) }
+  var userQuery by remember { mutableStateOf("") }
+  var userFilter by remember { mutableStateOf("all") }
+  val filteredUsers = uiState.users.filter { user ->
+    val matchesQuery = userQuery.isBlank() ||
+      user.username.contains(userQuery, ignoreCase = true) ||
+      user.email.orEmpty().contains(userQuery, ignoreCase = true) ||
+      user.id.contains(userQuery, ignoreCase = true)
+    val matchesFilter = when (userFilter) {
+      "admin" -> user.isAdmin
+      "normal" -> !user.isAdmin
+      "mfa" -> user.mfaEnabled
+      else -> true
+    }
+    matchesQuery && matchesFilter
+  }
 
   AdminConfirmDialog(
     currentUser = currentUser,
@@ -320,9 +339,32 @@ fun AdminUsersScreen(
       verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
       item {
+        AdminCardSection(
+          title = "搜索与筛选",
+          subtitle = "按用户名、邮箱、用户 ID、本地权限状态筛选。",
+        ) {
+          OutlinedTextField(
+            value = userQuery,
+            onValueChange = { userQuery = it },
+            label = { Text("搜索用户") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+          )
+          Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf("all" to "全部", "admin" to "管理员", "normal" to "普通用户", "mfa" to "MFA").forEach { (value, label) ->
+              FilterChip(
+                selected = userFilter == value,
+                onClick = { userFilter = value },
+                label = { Text(label) },
+              )
+            }
+          }
+        }
+      }
+      item {
         AdminStatsRow(
           stats = listOf(
-            "用户总数" to uiState.users.size.toString(),
+            "用户总数" to filteredUsers.size.toString(),
             "管理员" to uiState.users.count { it.isAdmin }.toString(),
             "当前账号" to (currentUser?.username ?: "--"),
           ),
@@ -331,7 +373,7 @@ fun AdminUsersScreen(
       item {
         AdminErrorBanner(uiState.error?.message)
       }
-      items(uiState.users, key = { it.id }) { user ->
+      items(filteredUsers, key = { it.id }) { user ->
         AdminCardSection(
           title = user.username,
           subtitle = listOfNotNull(
@@ -340,6 +382,10 @@ fun AdminUsersScreen(
             if (user.isCurrentUser) "当前登录账号" else null,
           ).joinToString(" · "),
         ) {
+          Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            XyzwStatusChip(status = if (user.isAdmin) "admin" else "user", label = if (user.isAdmin) "管理员" else "普通用户")
+            XyzwStatusChip(status = if (user.mfaEnabled) "enabled" else "disabled", label = if (user.mfaEnabled) "MFA 已启用" else "MFA 未启用")
+          }
           Text("accessScope: ${user.accessScope}", fontWeight = FontWeight.Medium)
           Text("tokenBindLimit: ${user.tokenBindLimit}")
           Text("角色数: ${user.roleCount} / 邀请码数: ${user.inviteCount}")
@@ -600,6 +646,15 @@ fun AdminInvitesScreen(
           Text("usedBy: ${invite.usedBy ?: "--"}")
           Text("createdAt: ${formatDateTime(invite.createdAt)}")
           Text("autoDisableAt: ${formatDateTime(invite.autoDisableAt)}")
+          OutlinedButton(
+            onClick = {
+              confirmRequest = AdminConfirmDialogRequest("查看邀请码明码") {
+                val result = viewModel.revealInvite(invite.id)
+                context.showApiResult(result, "邀请码明码只在创建时显示")
+              }
+            },
+            modifier = Modifier.fillMaxWidth(),
+          ) { Text("查看明码") }
           if (invite.isActive && invite.usedAt.isNullOrBlank()) {
             OutlinedButton(
               onClick = {
@@ -818,6 +873,15 @@ fun AdminActivationCodesScreen(
               },
               modifier = Modifier.fillMaxWidth(),
             ) { Text("删除") }
+            OutlinedButton(
+              onClick = {
+                confirmRequest = AdminConfirmDialogRequest("查看激活码明码") {
+                  val result = viewModel.revealActivationCode(code.id)
+                  context.showApiResult(result, "激活码明码只在创建时显示")
+                }
+              },
+              modifier = Modifier.fillMaxWidth(),
+            ) { Text("查看明码") }
           }
         }
       }
@@ -898,7 +962,8 @@ fun AdminFeedbackTicketsScreen(
           title = ticket.title,
           subtitle = "${ticket.type} · ${ticket.username ?: "--"} · ${formatDateTime(ticket.createdAt)}",
         ) {
-          Text(ticket.content)
+          XyzwExpandableText(ticket.content)
+          XyzwStatusChip(status = ticket.status, label = ticket.status)
           Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf("open" to "待处理", "in_progress" to "处理中", "resolved" to "已完成").forEach { (value, label) ->
               FilterChip(
@@ -1031,7 +1096,7 @@ fun AdminTaskControlLogsScreen(
           subtitle = "${log.username ?: log.userId ?: "--"} · ${log.status} · ${formatDateTime(log.createdAt)}",
         ) {
           Text("taskId: ${log.taskId ?: "--"}")
-          Text(log.message)
+          XyzwExpandableText(log.message)
         }
       }
     }
@@ -1500,7 +1565,7 @@ fun AdminReferralsScreen(
           Text("featureScope: ${featureScopeLabel(conversion.featureScope)} / ${durationLabel(conversion.durationMonths)}")
           Text("结算渠道: ${conversion.settlementChannel ?: "--"}")
           Text("结算单号: ${conversion.settlementRef ?: "--"}")
-          Text("备注: ${conversion.note ?: "--"}")
+          XyzwExpandableText("备注: ${conversion.note ?: "--"}")
           if (conversion.rewardStatus == "pending") {
             OutlinedButton(
               onClick = {

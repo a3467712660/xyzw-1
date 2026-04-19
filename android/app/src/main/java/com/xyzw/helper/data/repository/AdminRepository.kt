@@ -30,6 +30,7 @@ import com.xyzw.helper.data.network.ApiResult
 import com.xyzw.helper.data.network.ApiResultParser
 import com.xyzw.helper.data.network.EmptyRequest
 import com.xyzw.helper.data.network.SensitiveConfirmPayload
+import kotlinx.serialization.json.JsonObject
 import java.time.Instant
 
 private const val ADMIN_FORBIDDEN_MESSAGE = "权限不足或需要管理员确认"
@@ -230,6 +231,19 @@ class AdminRepository(
       )
     }
 
+  suspend fun revealInviteCode(id: String): ApiResult<JsonObject> =
+    withSensitiveConfirmToken { token ->
+      normalizeAdminResult(
+        parser.parse(
+          api.revealInviteCode(
+            id = id,
+            confirmToken = token,
+            request = EmptyRequest(),
+          ),
+        ),
+      )
+    }
+
   suspend fun listActivationCodes(): ApiResult<List<ActivationCodeItem>> =
     normalizeAdminResult(parser.parse(api.listActivationCodes()))
 
@@ -293,6 +307,19 @@ class AdminRepository(
         api.deleteActivationCode(
           id = id,
           confirmToken = token,
+        ),
+      )
+    }
+
+  suspend fun revealActivationCode(id: String): ApiResult<JsonObject> =
+    withSensitiveConfirmToken { token ->
+      normalizeAdminResult(
+        parser.parse(
+          api.revealActivationCode(
+            id = id,
+            confirmToken = token,
+            request = EmptyRequest(),
+          ),
         ),
       )
     }

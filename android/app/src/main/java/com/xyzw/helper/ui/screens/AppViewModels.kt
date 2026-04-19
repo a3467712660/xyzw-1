@@ -7,14 +7,17 @@ import com.xyzw.helper.app.RealtimeCoordinator
 import com.xyzw.helper.data.model.AuthUser
 import com.xyzw.helper.data.model.BuildInfo
 import com.xyzw.helper.data.model.GameRole
+import com.xyzw.helper.data.model.ImportedGameToken
 import com.xyzw.helper.data.model.NotificationItem
 import com.xyzw.helper.data.network.ApiError
 import com.xyzw.helper.data.network.ApiResult
 import com.xyzw.helper.data.repository.AuthRepository
+import com.xyzw.helper.data.repository.DailyTaskRepository
 import com.xyzw.helper.data.repository.GameRoleRepository
 import com.xyzw.helper.data.repository.LoginResult
 import com.xyzw.helper.data.repository.NotificationRepository
 import com.xyzw.helper.data.repository.SystemRepository
+import com.xyzw.helper.data.repository.TokenManagementRepository
 import com.xyzw.helper.data.session.SessionManager
 import com.xyzw.helper.data.session.SessionState
 import com.xyzw.helper.websocket.WsEvent
@@ -213,6 +216,11 @@ class AuthViewModel(
 data class DashboardUiState(
   val user: AuthUser? = null,
   val versionInfo: BuildInfo? = null,
+  val roleCount: Int = 0,
+  val tokenCount: Int = 0,
+  val unreadNotificationCount: Int = 0,
+  val taskCompletionPercent: Int? = null,
+  val taskSummaryText: String = "--",
   val isLoading: Boolean = true,
   val errorMessage: String? = null,
   val wsConnected: Boolean = false,
@@ -221,6 +229,10 @@ data class DashboardUiState(
 class DashboardViewModel(
   sessionManager: SessionManager,
   private val systemRepository: SystemRepository,
+  private val roleRepository: GameRoleRepository,
+  private val tokenManagementRepository: TokenManagementRepository,
+  private val notificationRepository: NotificationRepository,
+  private val dailyTaskRepository: DailyTaskRepository,
   realtimeCoordinator: RealtimeCoordinator,
 ) : ViewModel() {
   private val mutableState = MutableStateFlow(DashboardUiState())
@@ -241,30 +253,68 @@ class DashboardViewModel(
         mutableState.value = mutableState.value.copy(wsConnected = state.isConnected)
       }
     }
+    viewModelScope.launch {
+      tokenManagementRepository.tokens.collect { tokens: List<ImportedGameToken> ->
+        mutableState.value = mutableState.value.copy(tokenCount = tokens.size)
+      }
+    }
     refresh()
   }
 
   fun refresh() {
     viewModelScope.launch {
       mutableState.value = mutableState.value.copy(isLoading = true, errorMessage = null)
-      when (val result = systemRepository.getVersion()) {
-        is ApiResult.Success -> {
-          mutableState.value = mutableState.value.copy(
-            versionInfo = result.data,
-            isLoading = false,
-          )
-        }
+      val versionResult = systemRepository.getVersion()
+      val rolesResult = roleRepository.listRoles()
+      val notificationsResult = notificationRepository.listNotifications(limit = 50, unreadOnly = true)
+      val roles = (rolesResult as? ApiResult.Success)?.data.orEmpty()
+      val completion = loadTaskCompletion(roles)
+      val firstError = listOf(versionResult, rolesResult, notificationsResult)
+        .filterIsInstance<ApiResult.Failure>()
+        .firstOrNull()
 
-        is ApiResult.Failure -> {
-          mutableState.value = mutableState.value.copy(
-            isLoading = false,
-            errorMessage = result.error.message,
-          )
-        }
-      }
+      mutableState.value = mutableState.value.copy(
+        versionInfo = (versionResult as? ApiResult.Success)?.data ?: mutableState.value.versionInfo,
+        roleCount = roles.size,
+        unreadNotificationCount = (notificationsResult as? ApiResult.Success)?.data?.count { !it.isRead }
+          ?: mutableState.value.unreadNotificationCount,
+        taskCompletionPercent = completion.percent,
+        taskSummaryText = completion.label,
+        isLoading = false,
+        errorMessage = firstError?.error?.message,
+      )
     }
   }
+
+  private suspend fun loadTaskCompletion(roles: List<GameRole>): DashboardTaskCompletion {
+    if (roles.isEmpty()) {
+      return DashboardTaskCompletion(percent = null, label = "暂无角色")
+    }
+    var total = 0
+    var completed = 0
+    var failed = 0
+    roles.forEach { role ->
+      when (val result = dailyTaskRepository.getStatus(role.id)) {
+        is ApiResult.Success -> {
+          total += result.data.total
+          completed += result.data.completed
+        }
+        is ApiResult.Failure -> failed += 1
+      }
+    }
+    if (total <= 0) {
+      return DashboardTaskCompletion(percent = null, label = if (failed > 0) "部分角色不可用" else "暂无任务")
+    }
+    val percent = ((completed * 100.0) / total).toInt().coerceIn(0, 100)
+    val suffix = if (failed > 0) "，${failed} 个角色失败" else ""
+    return DashboardTaskCompletion(percent = percent, label = "$completed/$total$suffix")
+  }
 }
+
+private data class DashboardTaskCompletion(
+  val percent: Int?,
+  val label: String,
+)
 
 data class RolesUiState(
   val roles: List<GameRole> = emptyList(),
@@ -307,8 +357,10 @@ class RolesViewModel(
 
 data class NotificationsUiState(
   val notifications: List<NotificationItem> = emptyList(),
+  val unreadOnly: Boolean = false,
   val isLoading: Boolean = true,
   val errorMessage: String? = null,
+  val actionMessage: String? = null,
 )
 
 class NotificationsViewModel(
@@ -346,10 +398,11 @@ class NotificationsViewModel(
   fun refresh() {
     viewModelScope.launch {
       mutableState.value = mutableState.value.copy(isLoading = true, errorMessage = null)
-      when (val result = repository.listNotifications()) {
+      when (val result = repository.listNotifications(unreadOnly = mutableState.value.unreadOnly)) {
         is ApiResult.Success -> {
           mutableState.value = NotificationsUiState(
             notifications = result.data,
+            unreadOnly = mutableState.value.unreadOnly,
             isLoading = false,
           )
         }
@@ -357,6 +410,7 @@ class NotificationsViewModel(
         is ApiResult.Failure -> {
           mutableState.value = NotificationsUiState(
             notifications = emptyList(),
+            unreadOnly = mutableState.value.unreadOnly,
             isLoading = false,
             errorMessage = result.error.message,
           )
@@ -367,42 +421,56 @@ class NotificationsViewModel(
 
   fun markRead(id: String) {
     viewModelScope.launch {
-      when (repository.markRead(id)) {
+      when (val result = repository.markRead(id)) {
         is ApiResult.Success -> {
           mutableState.value = mutableState.value.copy(
             notifications = mutableState.value.notifications.map { item ->
               if (item.id == id) item.copy(isRead = true) else item
             },
+            actionMessage = result.message ?: "通知已标记为已读",
           )
         }
 
-        is ApiResult.Failure -> Unit
+        is ApiResult.Failure -> mutableState.value = mutableState.value.copy(errorMessage = result.error.message)
       }
     }
   }
 
   fun markAllRead() {
     viewModelScope.launch {
-      when (repository.markAllRead()) {
+      when (val result = repository.markAllRead()) {
         is ApiResult.Success -> {
           mutableState.value = mutableState.value.copy(
             notifications = mutableState.value.notifications.map { it.copy(isRead = true) },
+            actionMessage = result.message ?: "已全部标记为已读",
           )
         }
 
-        is ApiResult.Failure -> Unit
+        is ApiResult.Failure -> mutableState.value = mutableState.value.copy(errorMessage = result.error.message)
       }
     }
   }
 
   fun clearAll() {
     viewModelScope.launch {
-      when (repository.clearAll()) {
+      when (val result = repository.clearAll()) {
         is ApiResult.Success -> {
-          mutableState.value = mutableState.value.copy(notifications = emptyList())
+          mutableState.value = mutableState.value.copy(
+            notifications = emptyList(),
+            actionMessage = result.message ?: "通知已清空",
+          )
         }
-        is ApiResult.Failure -> Unit
+        is ApiResult.Failure -> mutableState.value = mutableState.value.copy(errorMessage = result.error.message)
       }
     }
+  }
+
+  fun setUnreadOnly(unreadOnly: Boolean) {
+    mutableState.value = mutableState.value.copy(unreadOnly = unreadOnly)
+    refresh()
+  }
+
+  fun consumeMessage() {
+    mutableState.value = mutableState.value.copy(actionMessage = null, errorMessage = null)
   }
 }

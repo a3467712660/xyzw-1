@@ -208,6 +208,39 @@ class AdminRepositoryTest {
     assertEquals("admin-confirm-1", harness.repository.cachedConfirmToken()?.token)
   }
 
+  @Test
+  fun `reveal invite 410 keeps one time display message`() = runBlocking {
+    server.dispatcher = object : okhttp3.mockwebserver.Dispatcher() {
+      override fun dispatch(request: RecordedRequest): MockResponse =
+        when (request.path) {
+          "/api/v1/admin/confirm-password" -> jsonResponse(
+            200,
+            """{"success":true,"data":{"token":"admin-confirm-1","expiresAt":"2099-01-01T00:00:00Z"}}""",
+          )
+
+          "/api/v1/admin/invite-codes/invite-1/reveal" -> {
+            assertEquals("admin-confirm-1", request.getHeader("X-Admin-Confirm-Token"))
+            jsonResponse(
+              410,
+              """{"success":false,"message":"邀请码明码仅在创建时返回，创建后不可再次查看"}""",
+            )
+          }
+
+          else -> MockResponse().setResponseCode(404)
+        }
+    }
+
+    val harness = createHarness(server.url("/api/v1/"))
+    assertTrue(harness.repository.confirmSensitiveAction(password = "admin-password") is ApiResult.Success<*>)
+
+    val result = harness.repository.revealInviteCode("invite-1")
+
+    assertTrue(result is ApiResult.Failure)
+    result as ApiResult.Failure
+    assertEquals(410, result.error.httpStatus)
+    assertEquals("邀请码明码仅在创建时返回，创建后不可再次查看", result.error.message)
+  }
+
   private fun createHarness(baseUrl: HttpUrl): TestHarness {
     val sessionManager = SessionManager()
     val cookieJar = SecureCookieJar(InMemoryCookieStore())

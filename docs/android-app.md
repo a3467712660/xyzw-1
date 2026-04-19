@@ -176,9 +176,10 @@ VITE_ANDROID_APP_DOWNLOAD_URL=/downloads/xyzw-helper.apk
 
 ```bash
 cd android
+./gradlew clean
 ./gradlew testDebugUnitTest
 ./gradlew assembleDebug
-./gradlew assembleRelease
+./gradlew assembleRelease -PAPI_BASE_URL=https://xyzw.xq5007.fun -PwsOrigin=https://xyzw.xq5007.fun
 ```
 
 当前工程默认包名：
@@ -188,3 +189,72 @@ cd android
 应用名：
 
 - `XYZW Helper`
+
+## V2 功能清单
+
+V2 继续保持原生 Android 实现，不使用 WebView、Capacitor 或 Cordova，也不嵌入现有 Vue 页面。
+
+已实现：
+
+- 统一 Material 3 Design System：light/dark theme、typography、shapes、卡片、入口卡片、统计卡片、状态 chip、空态、错误态、loading、确认弹窗、snackbar、敏感值脱敏展示。
+- 主导航：控制台、工作台、任务、通知、我的五个底部 tab；当前 tab 重复点击不重复压栈；通知 tab 显示未读 badge。
+- 控制台：展示当前用户、WebSocket 状态、角色数、本地 Token 数、任务完成率、未读通知数、后端版本和快捷入口。
+- Token 管理：手动导入名称和 Token 内容、URL proxy 导入、BIN scoped-storage 上传、download-ticket 下载、Token/BIN 删除确认、敏感 Token 默认脱敏。
+- 角色管理：角色列表、新增、编辑、详情弹窗、删除确认、刷新、错误提示。
+- 日常任务：角色选择、状态摘要、任务列表、手动完成、启用/自动执行切换、delay/notification/cronExpr 配置、历史记录加载更多。
+- 任务控制：读取和保存任务控制状态、保存时保留后端未知配置字段、日志刷新、本地状态筛选、清空日志确认、WebSocket 任务状态刷新。
+- 通知中心：全部/未读筛选、单条已读、全部已读、清空确认、WebSocket 新通知刷新、未读 badge。
+- 反馈中心：反馈列表、创建反馈、状态展示、管理员备注展示、长文本展开/收起。
+- 个人中心：资料展示和修改、修改密码前二次确认、主题偏好、Debug API 地址编辑、Release API 地址只读、最近安全事件、退出登录。
+- 推广中心：推广资料、生成推广码、推广概览、转化记录、Android 系统分享。
+- 管理员模块：入口分区、非管理员拦截、用户搜索/筛选、权限和上限调整、重置密码、吊销会话、删除用户、邀请码/激活码创建禁用解绑删除、reveal 410 友好提示、工单处理、任务日志筛选、更新广播、微信联系人维护、推广归因和转化处理。
+- 统一错误处理：401 仍由 `SessionAuthenticator` refresh 一次；403/404/409/429/500 和非标准错误 body 会显示面向用户的友好文案。
+
+尚未实现或受后端限制：
+
+- 管理员后台没有追求 Web 后台的全量复杂配置项，只覆盖移动端高频操作。
+- TaskControl 高级任务配置仍以保留后端原始 JSON 为主，Android 端只暴露启用和 cron 等移动端常用字段，避免覆盖 Web 端高级配置。
+- release 包的 API 地址运行时修改被禁用；如需切换生产域名，必须通过 Gradle 属性重新打包。
+- WebSocket 真机连通性依赖后端 `CORS_ORIGINS`、Cookie secure、域名和内网穿透配置正确。
+
+## 内网穿透打包方式
+
+Debug 包可连接本机或内网穿透后端：
+
+```bash
+cd android
+./gradlew assembleDebug \
+  -PAPI_BASE_URL=https://your-domain.example \
+  -PwsOrigin=https://your-domain.example
+```
+
+Release 包必须使用 HTTPS：
+
+```bash
+cd android
+./gradlew assembleRelease \
+  -PAPI_BASE_URL=https://your-domain.example \
+  -PwsOrigin=https://your-domain.example
+```
+
+注意：`API_BASE_URL` 是服务端根地址，不要写成 `/api/v1`；应用内部会自动访问 `${API_BASE_URL}/api/v1/*`。
+
+## 真机验收清单
+
+- 冷启动后进入登录页，登录成功后进入五 tab 主界面。
+- 控制台能显示用户、角色数、Token 数、未读通知数、任务完成率和后端版本。
+- Token 页面能手动导入、URL 导入、上传 BIN、下载 BIN、删除前弹确认。
+- 无角色时日常任务页显示创建角色引导；有角色时能加载状态、列表和历史。
+- 通知 WebSocket 消息到达后通知中心刷新，底部导航未读 badge 更新。
+- Profile 修改密码前必须出现二次确认，退出登录后 Cookie、session 和 WebSocket 都被清理。
+- 非管理员不能进入管理员中心；管理员高危写操作必须先完成管理员确认。
+- 深色/浅色/跟随系统主题切换后主要文本和状态 chip 仍可读。
+
+## 常见错误
+
+- `API_BASE_URL` 写成 `/api/v1`：应填写服务端根地址，例如 `https://your-domain.example`。
+- `wsOrigin` 写成 `wss://`：Origin 是 HTTP Origin，应写 `https://your-domain.example`。
+- `CORS_ORIGINS` 未包含 `wsOrigin`：后端会拒绝 Android `/ws` 握手。
+- Cookie secure 配置错误：HTTPS 生产环境必须正确设置 secure cookie；HTTP debug 环境不要误用生产 secure 策略。
+- ngrok 返回 warning HTML：后端 API 会收到 HTML 而非 JSON，Android 会显示解析/服务器异常；需要配置 ngrok 跳过 warning 或使用稳定域名。
+- App 保存了旧 `api_base_url`：Debug 包可在个人中心修改；也可以清除 App 数据后重新启动写入默认值。

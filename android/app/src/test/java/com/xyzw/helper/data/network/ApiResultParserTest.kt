@@ -58,8 +58,23 @@ class ApiResultParserTest {
     assertTrue(result is ApiResult.Failure)
     result as ApiResult.Failure
     assertEquals(500, result.error.httpStatus)
-    assertEquals("响应解析失败", result.error.message)
+    assertEquals("服务器异常，请稍后再试", result.error.message)
     assertEquals("""{"unexpected":true}""", result.error.rawBody)
+  }
+
+  @Test
+  fun `empty 429 response uses friendly rate limit message`() {
+    val response = Response.error<ApiEnvelope<SamplePayload>>(
+      429,
+      "".toResponseBody("application/json".toMediaType()),
+    )
+
+    val result = parser.parse(response)
+
+    assertTrue(result is ApiResult.Failure)
+    result as ApiResult.Failure
+    assertEquals(429, result.error.httpStatus)
+    assertEquals("操作过于频繁，请稍后再试", result.error.message)
   }
 
   @Serializable

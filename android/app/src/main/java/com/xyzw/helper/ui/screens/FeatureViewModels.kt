@@ -16,6 +16,7 @@ import com.xyzw.helper.data.model.ReferralOverview
 import com.xyzw.helper.data.model.ReferralProfile
 import com.xyzw.helper.data.model.TaskControlLogItem
 import com.xyzw.helper.data.model.TaskControlStateSnapshot
+import com.xyzw.helper.data.model.TaskControlTaskRow
 import com.xyzw.helper.data.network.ApiResult
 import com.xyzw.helper.data.network.GameRoleUpsertRequest
 import com.xyzw.helper.data.repository.DailyTaskRepository
@@ -33,8 +34,17 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 import java.io.OutputStream
+import java.net.URI
 import java.time.Instant
 
 data class TokenManagementUiState(
@@ -42,6 +52,7 @@ data class TokenManagementUiState(
   val binFiles: List<BinFileItem> = emptyList(),
   val isLoading: Boolean = true,
   val isImporting: Boolean = false,
+  val isMutating: Boolean = false,
   val actionMessage: String? = null,
   val errorMessage: String? = null,
   val pendingDownload: PendingTokenBinDownload? = null,
@@ -97,13 +108,17 @@ class TokenManagementViewModel(
     }
   }
 
-  fun importManual(rawToken: String) {
+  fun importManual(rawToken: String, displayName: String = "") {
     viewModelScope.launch {
       mutableState.value = mutableState.value.copy(isImporting = true, errorMessage = null)
       runCatching { repository.parseManualToken(rawToken) }
         .onSuccess { token ->
-          repository.saveImportedToken(token)
-          refreshActivation(token.id)
+          val savedToken = token.copy(
+            displayName = displayName.trim().ifBlank { token.displayName },
+            updatedAt = Instant.now().toString(),
+          )
+          repository.saveImportedToken(savedToken)
+          refreshActivation(savedToken.id)
           mutableState.value = mutableState.value.copy(
             isImporting = false,
             actionMessage = "Token 已导入",
@@ -120,8 +135,17 @@ class TokenManagementViewModel(
 
   fun importFromUrl(url: String) {
     viewModelScope.launch {
+      val normalizedUrl = url.trim()
+      val validUrl = runCatching {
+        val uri = URI(normalizedUrl)
+        uri.scheme in setOf("http", "https") && !uri.host.isNullOrBlank()
+      }.getOrDefault(false)
+      if (!validUrl) {
+        mutableState.value = mutableState.value.copy(errorMessage = "请输入合法的 http/https URL")
+        return@launch
+      }
       mutableState.value = mutableState.value.copy(isImporting = true, errorMessage = null)
-      when (val result = repository.proxyImport(url)) {
+      when (val result = repository.proxyImport(normalizedUrl)) {
         is ApiResult.Success -> {
           result.data.forEach(repository::saveImportedToken)
           result.data.forEach { token -> refreshActivation(token.id) }
@@ -181,6 +205,7 @@ class TokenManagementViewModel(
 
   fun uploadBinFile(tokenId: String, bytes: ByteArray) {
     viewModelScope.launch {
+      mutableState.value = mutableState.value.copy(isMutating = true, errorMessage = null)
       when (val result = repository.uploadBinFile(tokenId, bytes)) {
         is ApiResult.Success -> {
           repository.updateImportedToken(tokenId) { current ->
@@ -189,11 +214,11 @@ class TokenManagementViewModel(
               updatedAt = Instant.now().toString(),
             )
           }
-          mutableState.value = mutableState.value.copy(actionMessage = "BIN 文件已上传")
+          mutableState.value = mutableState.value.copy(isMutating = false, actionMessage = "BIN 文件已上传")
           refresh()
         }
         is ApiResult.Failure -> {
-          mutableState.value = mutableState.value.copy(errorMessage = result.error.message)
+          mutableState.value = mutableState.value.copy(isMutating = false, errorMessage = result.error.message)
         }
       }
     }
@@ -247,6 +272,7 @@ class TokenManagementViewModel(
 
   fun deleteBinFile(tokenId: String) {
     viewModelScope.launch {
+      mutableState.value = mutableState.value.copy(isMutating = true, errorMessage = null)
       when (val result = repository.deleteBinFile(tokenId)) {
         is ApiResult.Success -> {
           repository.updateImportedToken(tokenId) { current ->
@@ -255,10 +281,11 @@ class TokenManagementViewModel(
               updatedAt = Instant.now().toString(),
             )
           }
+          mutableState.value = mutableState.value.copy(isMutating = false, actionMessage = result.message ?: "BIN 文件已删除")
           refresh()
         }
         is ApiResult.Failure -> {
-          mutableState.value = mutableState.value.copy(errorMessage = result.error.message)
+          mutableState.value = mutableState.value.copy(isMutating = false, errorMessage = result.error.message)
         }
       }
     }
@@ -277,6 +304,7 @@ data class RoleManagementUiState(
   val isLoading: Boolean = true,
   val selectedRole: GameRole? = null,
   val errorMessage: String? = null,
+  val actionMessage: String? = null,
 )
 
 class RoleManagementViewModel(
@@ -325,6 +353,7 @@ class RoleManagementViewModel(
     ) else repository.updateRole(existingId, request)) {
       is ApiResult.Success -> {
         refresh()
+        mutableState.value = mutableState.value.copy(actionMessage = if (existingId.isNullOrBlank()) "角色已创建" else "角色已保存")
         result
       }
       is ApiResult.Failure -> {
@@ -349,7 +378,7 @@ class RoleManagementViewModel(
     when (val result = repository.deleteRole(roleId)) {
       is ApiResult.Success -> {
         refresh()
-        mutableState.value = mutableState.value.copy(selectedRole = null)
+        mutableState.value = mutableState.value.copy(selectedRole = null, actionMessage = "角色已删除")
         result
       }
       is ApiResult.Failure -> {
@@ -357,6 +386,10 @@ class RoleManagementViewModel(
         result
       }
     }
+
+  fun consumeMessage() {
+    mutableState.value = mutableState.value.copy(actionMessage = null, errorMessage = null)
+  }
 }
 
 data class DailyTasksUiState(
@@ -365,8 +398,12 @@ data class DailyTasksUiState(
   val statusSummary: DailyTaskStatusSummary = DailyTaskStatusSummary(),
   val tasks: List<DailyTaskEntry> = emptyList(),
   val history: List<DailyTaskHistoryItem> = emptyList(),
+  val historyPage: Int = 1,
+  val hasMoreHistory: Boolean = false,
   val isLoading: Boolean = true,
+  val isLoadingMoreHistory: Boolean = false,
   val errorMessage: String? = null,
+  val actionMessage: String? = null,
 )
 
 class DailyTasksViewModel(
@@ -422,7 +459,7 @@ class DailyTasksViewModel(
       mutableState.value = mutableState.value.copy(isLoading = true, errorMessage = null)
       val tasksResult = dailyTaskRepository.listTasks(roleId)
       val statusResult = dailyTaskRepository.getStatus(roleId)
-      val historyResult = dailyTaskRepository.getHistory(roleId)
+      val historyResult = dailyTaskRepository.getHistory(roleId, page = 1, limit = 20)
 
       if (tasksResult is ApiResult.Success
         && statusResult is ApiResult.Success
@@ -432,6 +469,8 @@ class DailyTasksViewModel(
           tasks = tasksResult.data,
           statusSummary = statusResult.data,
           history = historyResult.data,
+          historyPage = 1,
+          hasMoreHistory = historyResult.data.size >= 20,
           isLoading = false,
         )
       } else {
@@ -450,7 +489,10 @@ class DailyTasksViewModel(
     val roleId = mutableState.value.selectedRoleId ?: return
     viewModelScope.launch {
       when (val result = dailyTaskRepository.completeTask(taskId, roleId)) {
-        is ApiResult.Success -> refresh(roleId)
+        is ApiResult.Success -> {
+          mutableState.value = mutableState.value.copy(actionMessage = result.message ?: "任务已完成")
+          refresh(roleId)
+        }
         is ApiResult.Failure -> mutableState.value = mutableState.value.copy(errorMessage = result.error.message)
       }
     }
@@ -470,10 +512,68 @@ class DailyTasksViewModel(
           cronExpr = task.settings.cronExpr.ifBlank { null },
         )
       ) {
-        is ApiResult.Success -> refresh(roleId)
+        is ApiResult.Success -> {
+          mutableState.value = mutableState.value.copy(actionMessage = result.message ?: "任务配置已保存")
+          refresh(roleId)
+        }
         is ApiResult.Failure -> mutableState.value = mutableState.value.copy(errorMessage = result.error.message)
       }
     }
+  }
+
+  fun updateTaskSettings(
+    task: DailyTaskEntry,
+    enabled: Boolean = task.settings.enabled,
+    autoExecute: Boolean = task.settings.autoExecute,
+    notification: Boolean = task.settings.notification,
+    delay: Int = task.settings.delay,
+    cronExpr: String = task.settings.cronExpr,
+  ) {
+    val roleId = mutableState.value.selectedRoleId ?: return
+    viewModelScope.launch {
+      when (
+        val result = dailyTaskRepository.updateTask(
+          taskId = task.id,
+          roleId = roleId,
+          enabled = enabled,
+          autoExecute = autoExecute,
+          delay = delay,
+          notification = notification,
+          cronExpr = cronExpr.ifBlank { null },
+        )
+      ) {
+        is ApiResult.Success -> {
+          mutableState.value = mutableState.value.copy(actionMessage = result.message ?: "任务配置已保存")
+          refresh(roleId)
+        }
+        is ApiResult.Failure -> mutableState.value = mutableState.value.copy(errorMessage = result.error.message)
+      }
+    }
+  }
+
+  fun loadMoreHistory() {
+    val roleId = mutableState.value.selectedRoleId ?: return
+    if (!mutableState.value.hasMoreHistory || mutableState.value.isLoadingMoreHistory) return
+    val nextPage = mutableState.value.historyPage + 1
+    viewModelScope.launch {
+      mutableState.value = mutableState.value.copy(isLoadingMoreHistory = true, errorMessage = null)
+      when (val result = dailyTaskRepository.getHistory(roleId, page = nextPage, limit = 20)) {
+        is ApiResult.Success -> mutableState.value = mutableState.value.copy(
+          history = mutableState.value.history + result.data,
+          historyPage = nextPage,
+          hasMoreHistory = result.data.size >= 20,
+          isLoadingMoreHistory = false,
+        )
+        is ApiResult.Failure -> mutableState.value = mutableState.value.copy(
+          isLoadingMoreHistory = false,
+          errorMessage = result.error.message,
+        )
+      }
+    }
+  }
+
+  fun consumeMessage() {
+    mutableState.value = mutableState.value.copy(actionMessage = null, errorMessage = null)
   }
 }
 
@@ -481,8 +581,11 @@ data class TaskControlUiState(
   val state: TaskControlStateSnapshot = TaskControlStateSnapshot(),
   val logs: List<TaskControlLogItem> = emptyList(),
   val localEvents: List<String> = emptyList(),
+  val statusFilter: String = "",
   val isLoading: Boolean = true,
+  val isMutating: Boolean = false,
   val errorMessage: String? = null,
+  val actionMessage: String? = null,
 )
 
 class TaskControlViewModel(
@@ -539,11 +642,73 @@ class TaskControlViewModel(
 
   fun clearServerLogs() {
     viewModelScope.launch {
+      mutableState.value = mutableState.value.copy(isMutating = true, errorMessage = null)
       when (val result = repository.clearLogs()) {
-        is ApiResult.Success -> refresh()
-        is ApiResult.Failure -> mutableState.value = mutableState.value.copy(errorMessage = result.error.message)
+        is ApiResult.Success -> {
+          mutableState.value = mutableState.value.copy(isMutating = false, actionMessage = result.message ?: "日志已清空")
+          refresh()
+        }
+        is ApiResult.Failure -> mutableState.value = mutableState.value.copy(isMutating = false, errorMessage = result.error.message)
       }
     }
+  }
+
+  fun setStatusFilter(status: String) {
+    mutableState.value = mutableState.value.copy(statusFilter = status)
+  }
+
+  fun updateTaskEnabled(task: TaskControlTaskRow, enabled: Boolean) {
+    val state = mutableState.value.state
+    val nextRawRows = state.rawTasks.map { row ->
+      if (row["id"]?.jsonPrimitive?.contentOrNull == task.id) {
+        JsonObject(row + ("enabled" to JsonPrimitive(enabled)))
+      } else {
+        row
+      }
+    }
+    val nextTasks = state.tasks.map { row ->
+      if (row.id == task.id) row.copy(enabled = enabled) else row
+    }
+    saveState(state.copy(tasks = nextTasks, rawTasks = nextRawRows))
+  }
+
+  fun updateTaskCron(task: TaskControlTaskRow, cronExpr: String) {
+    val state = mutableState.value.state
+    val nextRawRows = state.rawTasks.map { row ->
+      if (row["id"]?.jsonPrimitive?.contentOrNull == task.id) {
+        JsonObject(row + ("cronExpr" to JsonPrimitive(cronExpr)))
+      } else {
+        row
+      }
+    }
+    val nextTasks = state.tasks.map { row ->
+      if (row.id == task.id) row.copy(cronExpr = cronExpr) else row
+    }
+    saveState(state.copy(tasks = nextTasks, rawTasks = nextRawRows))
+  }
+
+  private fun saveState(state: TaskControlStateSnapshot) {
+    viewModelScope.launch {
+      mutableState.value = mutableState.value.copy(isMutating = true, errorMessage = null)
+      when (val result = repository.saveState(state)) {
+        is ApiResult.Success -> {
+          mutableState.value = mutableState.value.copy(
+            state = result.data,
+            isMutating = false,
+            actionMessage = result.message ?: "任务控制状态已保存",
+          )
+          refresh()
+        }
+        is ApiResult.Failure -> mutableState.value = mutableState.value.copy(
+          isMutating = false,
+          errorMessage = result.error.message,
+        )
+      }
+    }
+  }
+
+  fun consumeMessage() {
+    mutableState.value = mutableState.value.copy(actionMessage = null, errorMessage = null)
   }
 }
 
@@ -551,6 +716,7 @@ data class FeedbackUiState(
   val feedbacks: List<FeedbackItem> = emptyList(),
   val isLoading: Boolean = true,
   val errorMessage: String? = null,
+  val actionMessage: String? = null,
 )
 
 class FeedbackViewModel(
@@ -582,10 +748,17 @@ class FeedbackViewModel(
   fun submitFeedback(type: String, title: String, content: String) {
     viewModelScope.launch {
       when (val result = repository.createFeedback(type, title, content)) {
-        is ApiResult.Success -> refresh()
+        is ApiResult.Success -> {
+          mutableState.value = mutableState.value.copy(actionMessage = result.message ?: "反馈已提交")
+          refresh()
+        }
         is ApiResult.Failure -> mutableState.value = mutableState.value.copy(errorMessage = result.error.message)
       }
     }
+  }
+
+  fun consumeMessage() {
+    mutableState.value = mutableState.value.copy(actionMessage = null, errorMessage = null)
   }
 }
 
@@ -594,6 +767,7 @@ data class ReferralUiState(
   val conversions: List<ReferralConversionItem> = emptyList(),
   val isLoading: Boolean = true,
   val errorMessage: String? = null,
+  val actionMessage: String? = null,
 )
 
 class ReferralViewModel(
@@ -632,10 +806,17 @@ class ReferralViewModel(
   fun generateProfile() {
     viewModelScope.launch {
       when (val result = repository.generateReferralProfile()) {
-        is ApiResult.Success -> refresh()
+        is ApiResult.Success -> {
+          mutableState.value = mutableState.value.copy(actionMessage = result.message ?: "推广码已生成")
+          refresh()
+        }
         is ApiResult.Failure -> mutableState.value = mutableState.value.copy(errorMessage = result.error.message)
       }
     }
+  }
+
+  fun consumeMessage() {
+    mutableState.value = mutableState.value.copy(actionMessage = null, errorMessage = null)
   }
 }
 
@@ -646,6 +827,7 @@ data class ProfileSettingsUiState(
   val securityEvents: List<com.xyzw.helper.data.model.UserSecurityEventItem> = emptyList(),
   val isLoading: Boolean = true,
   val errorMessage: String? = null,
+  val actionMessage: String? = null,
 )
 
 class ProfileSettingsViewModel(
@@ -708,7 +890,10 @@ class ProfileSettingsViewModel(
   fun saveProfile(email: String, nickname: String, phone: String) {
     viewModelScope.launch {
       when (val result = repository.updateProfile(email, nickname, phone)) {
-        is ApiResult.Success -> refresh()
+        is ApiResult.Success -> {
+          mutableState.value = mutableState.value.copy(actionMessage = result.message ?: "资料已保存")
+          refresh()
+        }
         is ApiResult.Failure -> mutableState.value = mutableState.value.copy(errorMessage = result.error.message)
       }
     }
@@ -719,6 +904,7 @@ class ProfileSettingsViewModel(
       when (val result = repository.changePassword(currentPassword, newPassword)) {
         is ApiResult.Success -> {
           repository.clearSensitiveActionToken()
+          mutableState.value = mutableState.value.copy(actionMessage = result.message ?: "密码已修改，请重新登录")
           localSessionController.clearLocalSession()
         }
         is ApiResult.Failure -> mutableState.value = mutableState.value.copy(errorMessage = result.error.message)
@@ -735,9 +921,23 @@ class ProfileSettingsViewModel(
   fun updateRemoteBinDownload(enabled: Boolean) {
     viewModelScope.launch {
       when (val result = repository.setPreference(REMOTE_BIN_DOWNLOAD_PREF_KEY, JsonPrimitive(enabled))) {
-        is ApiResult.Success -> refresh()
+        is ApiResult.Success -> {
+          mutableState.value = mutableState.value.copy(actionMessage = result.message ?: "偏好已保存")
+          refresh()
+        }
         is ApiResult.Failure -> mutableState.value = mutableState.value.copy(errorMessage = result.error.message)
       }
     }
+  }
+
+  fun setApiBaseUrl(baseUrl: String) {
+    viewModelScope.launch {
+      preferencesStore.setApiBaseUrl(baseUrl)
+      mutableState.value = mutableState.value.copy(actionMessage = "API 地址已保存，重启 App 后生效")
+    }
+  }
+
+  fun consumeMessage() {
+    mutableState.value = mutableState.value.copy(actionMessage = null, errorMessage = null)
   }
 }

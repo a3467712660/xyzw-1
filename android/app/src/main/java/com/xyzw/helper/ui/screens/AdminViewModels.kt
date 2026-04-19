@@ -200,6 +200,9 @@ class AdminInvitesViewModel(
   suspend fun disableInvite(id: String): ApiResult<Unit> =
     runMutation { repository.disableInviteCode(id) }
 
+  suspend fun revealInvite(id: String): ApiResult<kotlinx.serialization.json.JsonObject> =
+    repository.revealInviteCode(id)
+
   private suspend fun <T> runMutation(
     block: suspend () -> ApiResult<T>,
   ): ApiResult<T> =
@@ -281,6 +284,9 @@ class AdminActivationCodesViewModel(
 
   suspend fun deleteActivationCode(id: String): ApiResult<Unit> =
     runMutation { repository.deleteActivationCode(id) }
+
+  suspend fun revealActivationCode(id: String): ApiResult<kotlinx.serialization.json.JsonObject> =
+    repository.revealActivationCode(id)
 
   private suspend fun <T> runMutation(
     block: suspend () -> ApiResult<T>,

@@ -73,4 +73,38 @@ class TaskControlRepositoryTest {
 
     assertTrue(repository.clearLogs() is ApiResult.Success<*>)
   }
+
+  @Test
+  fun `save state preserves unknown task fields from raw rows`() = runBlocking {
+    server.dispatcher = object : Dispatcher() {
+      override fun dispatch(request: RecordedRequest): MockResponse =
+        when (request.path) {
+          "/api/v1/task-control/state" -> when (request.method) {
+            "GET" -> jsonResponse(
+              200,
+              """{"success":true,"data":{"tasks":[{"id":"daily","enabled":true,"cronExpr":"0 6 * * *","tokenIds":[],"tokenNameMap":{},"tokenRoleIdMap":{},"lastRunAt":"","quietDeferredAt":"","quietDeferredReason":"","wsUrl":"","dailyRunner":{"friendGold":true}}],"updatedAt":"2026-04-19T00:00:00Z"}}""",
+            )
+            "PUT" -> {
+              val body = request.body.readUtf8()
+              assertTrue(body.contains("dailyRunner"))
+              jsonResponse(200, """{"success":true,"message":"saved","data":{"updatedAt":"2026-04-19T00:01:00Z"}}""")
+            }
+            else -> MockResponse().setResponseCode(405)
+          }
+          else -> MockResponse().setResponseCode(404)
+        }
+    }
+
+    val harness = createRepositoryHarness(server.url("/api/v1/"))
+    val repository = TaskControlRepository(harness.retrofit.create(), ApiResultParser())
+    val state = repository.getState()
+    assertTrue(state is ApiResult.Success<*>)
+    state as ApiResult.Success
+
+    val saved = repository.saveState(state.data)
+
+    assertTrue(saved is ApiResult.Success<*>)
+    saved as ApiResult.Success
+    assertEquals("2026-04-19T00:01:00Z", saved.data.updatedAt)
+  }
 }

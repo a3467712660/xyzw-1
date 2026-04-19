@@ -73,7 +73,7 @@ class ApiResultParser(
 
       return ApiError(
         httpStatus = response.code(),
-        message = "响应解析失败",
+        message = friendlyFallbackMessage(response.code(), "响应解析失败"),
         rawBody = rawBody,
       )
     }
@@ -88,10 +88,24 @@ class ApiResultParser(
     }
 
     return ApiError.local(
-      message = "请求失败",
+      message = friendlyFallbackMessage(response.code(), "请求失败"),
       httpStatus = response.code(),
     )
   }
+
+  private fun friendlyFallbackMessage(
+    status: Int,
+    fallback: String,
+  ): String =
+    when (status) {
+      401 -> "登录状态已失效，请重新登录"
+      403 -> "权限不足，无法完成当前操作"
+      404 -> "数据不存在或已被删除"
+      409 -> "数据状态冲突，请刷新后重试"
+      429 -> "操作过于频繁，请稍后再试"
+      in 500..599 -> "服务器异常，请稍后再试"
+      else -> fallback
+    }
 
   private fun ResponseBody.consumeText(): String =
     use { it.string() }
