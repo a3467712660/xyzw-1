@@ -7,9 +7,8 @@ fun validateBinUploadSize(sizeBytes: Long?): String? {
     return null
   }
   return if (sizeBytes > MAX_BIN_UPLOAD_BYTES) {
-    "BIN 文件超过 32MB 上限，请选择更小的文件"
+    "二进制文件超过 32MB 上限，请选择更小的文件"
   } else {
     null
   }
 }
-

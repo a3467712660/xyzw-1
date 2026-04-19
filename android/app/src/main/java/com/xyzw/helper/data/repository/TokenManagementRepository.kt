@@ -79,7 +79,7 @@ class TokenManagementRepository(
     inputStreamProvider: () -> InputStream,
   ): ApiResult<BinFileUploadResult> {
     if (contentLength != null && contentLength >= 0 && contentLength > MAX_BIN_UPLOAD_BYTES) {
-      return ApiResult.Failure(ApiError.local("BIN 文件超过 32MB 上限，请选择更小的文件"))
+      return ApiResult.Failure(ApiError.local("二进制文件超过 32MB 上限，请选择更小的文件"))
     }
     return runCatching {
       parser.parse(
@@ -91,7 +91,7 @@ class TokenManagementRepository(
     }.getOrElse { error ->
       ApiResult.Failure(
         ApiError.local(
-          message = error.message ?: "BIN 文件读取失败",
+          message = error.message ?: "二进制文件读取失败",
         ),
       )
     }
@@ -115,7 +115,7 @@ class TokenManagementRepository(
             if (read == -1) break
             total += read.toLong()
             if (total > MAX_BIN_UPLOAD_BYTES) {
-              throw IOException("BIN 文件超过 32MB 上限，请选择更小的文件")
+              throw IOException("二进制文件超过 32MB 上限，请选择更小的文件")
             }
             sink.write(buffer, 0, read)
           }
@@ -144,11 +144,11 @@ class TokenManagementRepository(
       return ApiResult.Failure(
         ApiError(
           httpStatus = response.code(),
-          message = errorMessageFromBody(response.errorBody()?.string()).ifBlank { "BIN 下载失败" },
+          message = errorMessageFromBody(response.errorBody()?.string()).ifBlank { "二进制文件导出失败" },
         ),
       )
     }
-    val body = response.body() ?: return ApiResult.Failure(ApiError.local("BIN 下载响应为空"))
+    val body = response.body() ?: return ApiResult.Failure(ApiError.local("二进制文件导出响应为空"))
     return runCatching {
       body.use { responseBody ->
         responseBody.byteStream().use { input ->
@@ -159,7 +159,7 @@ class TokenManagementRepository(
       }
       ApiResult.Success(Unit)
     }.getOrElse { error ->
-      ApiResult.Failure(ApiError.local(error.message?.let { "BIN 文件写入失败：$it" } ?: "BIN 文件写入失败"))
+      ApiResult.Failure(ApiError.local(error.message?.let { "二进制文件写入失败：$it" } ?: "二进制文件写入失败"))
     }
   }
 

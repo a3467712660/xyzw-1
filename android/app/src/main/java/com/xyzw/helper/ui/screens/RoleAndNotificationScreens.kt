@@ -35,6 +35,7 @@ import com.xyzw.helper.ui.components.XyzwExpandableText
 import com.xyzw.helper.ui.components.XyzwLoadingState
 import com.xyzw.helper.ui.components.XyzwPage
 import com.xyzw.helper.ui.components.XyzwStatusChip
+import com.xyzw.helper.ui.formatters.formatDisplayDateTime
 
 @Composable
 fun RolesScreen(
@@ -64,8 +65,8 @@ fun RolesScreen(
         Card(modifier = Modifier.fillMaxWidth()) {
           Column(modifier = Modifier.padding(16.dp)) {
             Text(role.name, style = MaterialTheme.typography.titleMedium)
-            Text("${role.server} / ${role.profession} / Lv.${role.level}")
-            Text("激活状态: ${if (role.isActive) "启用" else "停用"}")
+            Text("${role.server} / ${role.profession} / 等级 ${role.level}")
+            Text("激活状态：${if (role.isActive) "启用" else "停用"}")
           }
         }
       }
@@ -127,7 +128,7 @@ fun NotificationsScreen(
       uiState.isLoading -> XyzwLoadingState("通知加载中...")
       uiState.notifications.isEmpty() -> XyzwEmptyState(
         title = if (uiState.unreadOnly) "暂无未读通知" else "暂无通知",
-        description = "有新通知时会通过 WebSocket 自动刷新。",
+        description = "有新通知时会通过实时连接自动刷新。",
         primaryActionLabel = "刷新",
         onPrimaryAction = onRefresh,
       )
@@ -189,9 +190,9 @@ fun ProfileScreen(
     Text("我的", style = MaterialTheme.typography.headlineSmall)
     Card(modifier = Modifier.fillMaxWidth()) {
       Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("当前用户: $currentUsername")
-        Text("API_BASE_URL: ${preferences.apiBaseUrl}")
-        Text("主题偏好: ${preferences.themeMode.name}")
+        Text("当前用户：$currentUsername")
+        Text("接口地址：${preferences.apiBaseUrl}")
+        Text("主题偏好：${themeModeLabel(preferences.themeMode)}")
       }
     }
     if (isAdmin) {
@@ -205,7 +206,7 @@ fun ProfileScreen(
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
       ThemeMode.entries.forEach { mode ->
         OutlinedButton(onClick = { onThemeChange(mode) }) {
-          Text(mode.name)
+          Text(themeModeLabel(mode))
         }
       }
     }
@@ -233,7 +234,7 @@ private fun NotificationCard(
     }
     XyzwExpandableText(notification.content)
     Text(
-      text = notification.createdAt,
+      text = formatDisplayDateTime(notification.createdAt),
       style = MaterialTheme.typography.bodySmall,
       color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
@@ -244,3 +245,10 @@ private fun NotificationCard(
     }
   }
 }
+
+private fun themeModeLabel(mode: ThemeMode): String =
+  when (mode) {
+    ThemeMode.SYSTEM -> "跟随系统"
+    ThemeMode.LIGHT -> "浅色"
+    ThemeMode.DARK -> "深色"
+  }

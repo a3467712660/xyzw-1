@@ -132,7 +132,7 @@ class GameFeaturesViewModel(
   fun runAction(actionId: String) {
     val tokenId = mutableState.value.selectedTokenId
     if (tokenId.isBlank()) {
-      mutableState.value = mutableState.value.copy(errorMessage = "请先导入并选择 Token")
+      mutableState.value = mutableState.value.copy(errorMessage = "请先导入并选择令牌")
       return
     }
     viewModelScope.launch {
@@ -180,7 +180,7 @@ class LegionWarViewModel(
   fun refresh() {
     val tokenId = mutableState.value.selectedTokenId
     if (tokenId.isBlank()) {
-      mutableState.value = mutableState.value.copy(errorMessage = "请先导入并选择 Token")
+      mutableState.value = mutableState.value.copy(errorMessage = "请先导入并选择令牌")
       return
     }
     viewModelScope.launch {
@@ -230,7 +230,7 @@ class LineupAssistantViewModel(
   fun refresh() {
     val tokenId = mutableState.value.selectedTokenId
     if (tokenId.isBlank()) {
-      mutableState.value = mutableState.value.copy(errorMessage = "请先导入并选择 Token")
+      mutableState.value = mutableState.value.copy(errorMessage = "请先导入并选择令牌")
       return
     }
     viewModelScope.launch {
@@ -342,7 +342,7 @@ class BattleReportsViewModel(
   fun queryReports() {
     val state = mutableState.value
     if (state.selectedTokenId.isBlank()) {
-      mutableState.value = state.copy(errorMessage = "请先导入并选择 Token")
+      mutableState.value = state.copy(errorMessage = "请先导入并选择令牌")
       return
     }
     viewModelScope.launch {

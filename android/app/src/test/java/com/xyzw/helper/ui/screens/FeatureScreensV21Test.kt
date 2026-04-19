@@ -114,7 +114,7 @@ class FeatureScreensV21Test {
       }
     }
 
-    composeRule.onNodeWithText("确认从本机加密工作区移除该 Token？服务端 BIN 文件不会自动删除。").assertIsDisplayed()
+    composeRule.onNodeWithText("确认从本机加密工作区移除该令牌？服务端二进制文件不会自动删除。").assertIsDisplayed()
     assertEquals(false, confirmed)
     composeRule.onNodeWithText("删除").performClick()
     assertEquals(true, confirmed)
@@ -132,7 +132,7 @@ class FeatureScreensV21Test {
       }
     }
 
-    composeRule.onNodeWithText("确认删除服务端保存的 BIN 文件？删除后需要重新上传。").assertIsDisplayed()
+    composeRule.onNodeWithText("确认删除服务端保存的二进制文件？删除后需要重新上传。").assertIsDisplayed()
     assertEquals(false, confirmed)
     composeRule.onNodeWithText("删除").performClick()
     assertEquals(true, confirmed)

@@ -121,13 +121,13 @@ class TokenManagementViewModel(
           refreshActivation(savedToken.id)
           mutableState.value = mutableState.value.copy(
             isImporting = false,
-            actionMessage = "Token 已导入",
+            actionMessage = "令牌已导入",
           )
         }
         .onFailure { error ->
           mutableState.value = mutableState.value.copy(
             isImporting = false,
-            errorMessage = error.message ?: "Token 导入失败",
+            errorMessage = error.message ?: "令牌导入失败",
           )
         }
     }
@@ -218,7 +218,7 @@ class TokenManagementViewModel(
               updatedAt = Instant.now().toString(),
             )
           }
-          mutableState.value = mutableState.value.copy(isMutating = false, actionMessage = "BIN 文件已上传")
+          mutableState.value = mutableState.value.copy(isMutating = false, actionMessage = "二进制文件已上传")
           refresh()
         }
         is ApiResult.Failure -> {
@@ -260,7 +260,7 @@ class TokenManagementViewModel(
               mutableState.value = mutableState.value.copy(
                 isMutating = false,
                 pendingDownload = null,
-                actionMessage = "BIN 文件已导出",
+                actionMessage = "二进制文件已导出",
               )
             }
             is ApiResult.Failure -> {
@@ -298,7 +298,7 @@ class TokenManagementViewModel(
               updatedAt = Instant.now().toString(),
             )
           }
-          mutableState.value = mutableState.value.copy(isMutating = false, actionMessage = result.message ?: "BIN 文件已删除")
+          mutableState.value = mutableState.value.copy(isMutating = false, actionMessage = result.message ?: "二进制文件已删除")
           refresh()
         }
         is ApiResult.Failure -> {

@@ -83,6 +83,7 @@ import com.xyzw.helper.ui.components.XyzwSection
 import com.xyzw.helper.ui.components.XyzwStatusChip
 import com.xyzw.helper.ui.components.XyzwTopBar
 import com.xyzw.helper.ui.components.XyzwTwoColumnStats
+import com.xyzw.helper.ui.formatters.formatDisplayDateTime
 import kotlinx.coroutines.launch
 import java.io.IOException
 
@@ -96,14 +97,14 @@ fun WorkspaceHubScreen(
   HubScaffold(title = "工作台") {
     HubSummaryCards(
       cards = listOf(
-        "已导入 Token" to tokenCount.toString(),
+        "已导入令牌" to tokenCount.toString(),
         "角色数量" to roleCount.toString(),
       ),
     )
     HubEntryCard(
-      title = "Token 管理",
-      description = "手动导入、URL 导入、BIN 文件上传下载与删除，都在这一页完成。",
-      action = "进入 Token 管理",
+      title = "令牌管理",
+      description = "手动导入、链接导入、二进制文件上传导出与删除，都在这一页完成。",
+      action = "进入令牌管理",
       onClick = onOpenTokens,
     )
     HubEntryCard(
@@ -170,7 +171,7 @@ fun TokenManagementScreen(
       contentLength = sizeBytes?.takeIf { it >= 0 },
       inputStreamProvider = {
         context.contentResolver.openInputStream(uri)
-          ?: throw IOException("无法打开 BIN 文件")
+          ?: throw IOException("无法打开二进制文件")
       },
     )
   }
@@ -199,7 +200,7 @@ fun TokenManagementScreen(
   }
 
   DetailScaffold(
-    title = "Token 管理",
+    title = "令牌管理",
     onBack = onBack,
     snackbarHostState = snackbarHostState,
     actions = {
@@ -218,20 +219,20 @@ fun TokenManagementScreen(
       item {
         SectionCard(
           title = "手动导入",
-          description = "填写名称并粘贴完整 token 文本，保存到本地加密工作区。",
+          description = "填写名称并粘贴完整令牌文本，保存到本地加密工作区。",
         ) {
           OutlinedTextField(
             value = manualTokenName,
             onValueChange = { manualTokenName = it },
             modifier = Modifier.fillMaxWidth(),
-            label = { Text("Token 名称") },
+            label = { Text("令牌名称") },
             singleLine = true,
           )
           XyzwFormField(
             value = manualToken,
             onValueChange = { manualToken = it },
             minLines = 4,
-            label = "Token",
+            label = "令牌",
             password = true,
             helper = "敏感内容默认隐藏，确认无误后再导入。",
           )
@@ -240,7 +241,7 @@ fun TokenManagementScreen(
               onClick = { viewModel.importManual(manualToken, manualTokenName) },
               enabled = manualToken.isNotBlank() && !uiState.isImporting,
             ) {
-              Text(if (uiState.isImporting) "导入中…" else "导入 Token")
+              Text(if (uiState.isImporting) "导入中…" else "导入令牌")
             }
             OutlinedButton(onClick = {
               manualToken = ""
@@ -254,21 +255,21 @@ fun TokenManagementScreen(
 
       item {
         SectionCard(
-          title = "URL 导入",
-          description = "通过受信任 URL 和后端 proxy 拉取 JSON，再解析出可用 token。",
+          title = "链接导入",
+          description = "通过受信任链接和后端代理拉取配置文本，再解析出可用令牌。",
         ) {
           OutlinedTextField(
             value = importUrl,
             onValueChange = { importUrl = it },
             modifier = Modifier.fillMaxWidth(),
-            label = { Text("受信任 URL") },
+            label = { Text("受信任链接") },
           )
           Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Button(
               onClick = { viewModel.importFromUrl(importUrl) },
               enabled = importUrl.isNotBlank() && !uiState.isImporting,
             ) {
-              Text(if (uiState.isImporting) "拉取中…" else "URL 导入")
+              Text(if (uiState.isImporting) "拉取中…" else "链接导入")
             }
             OutlinedButton(onClick = { importUrl = "" }) {
               Text("清空")
@@ -279,11 +280,11 @@ fun TokenManagementScreen(
 
       item {
         SectionCard(
-          title = "已导入 Token",
-          description = "每个 token 都会显示激活状态和 BIN 关联状态。",
+          title = "已导入令牌",
+          description = "每个令牌都会显示激活状态和二进制文件关联状态。",
         ) {
           if (uiState.tokens.isEmpty()) {
-            EmptyHint("当前还没有导入 Token。")
+            EmptyHint("当前还没有导入令牌。")
           } else {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
               uiState.tokens.forEach { token ->
@@ -306,11 +307,11 @@ fun TokenManagementScreen(
 
       item {
         SectionCard(
-          title = "BIN 文件",
-          description = "服务端已保存的 BIN 文件清单。",
+          title = "二进制文件",
+          description = "服务端已保存的二进制文件清单。",
         ) {
           if (uiState.binFiles.isEmpty()) {
-            EmptyHint("没有找到已上传的 BIN 文件。")
+            EmptyHint("没有找到已上传的二进制文件。")
           } else {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
               uiState.binFiles.forEach { item ->
@@ -322,9 +323,9 @@ fun TokenManagementScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                   ) {
                     Text(item.fileName, fontWeight = FontWeight.SemiBold)
-                    Text("Token ID: ${item.tokenId}")
-                    Text("大小: ${item.size} bytes")
-                    Text("更新时间: ${item.updatedAt}")
+                    Text("令牌编号：${item.tokenId}")
+                    Text("大小：${item.size} 字节")
+                    Text("更新时间：${formatDisplayDateTime(item.updatedAt)}")
                   }
                 }
               }
@@ -337,7 +338,7 @@ fun TokenManagementScreen(
 
   if (confirmDownloadTokenId != null) {
     SensitiveConfirmDialog(
-      title = "下载 BIN 需要二次确认",
+      title = "导出二进制文件需要二次确认",
       onDismiss = { confirmDownloadTokenId = null },
       onConfirm = { password, totpCode, recoveryCode ->
         scope.launch {
@@ -389,8 +390,8 @@ internal fun TokenDeleteConfirmDialog(
   onDismiss: () -> Unit,
 ) {
   XyzwConfirmDialog(
-    title = "删除 Token",
-    message = "确认从本机加密工作区移除该 Token？服务端 BIN 文件不会自动删除。",
+    title = "删除令牌",
+    message = "确认从本机加密工作区移除该令牌？服务端二进制文件不会自动删除。",
     confirmLabel = "删除",
     destructive = true,
     onConfirm = onConfirm,
@@ -404,8 +405,8 @@ internal fun BinDeleteConfirmDialog(
   onDismiss: () -> Unit,
 ) {
   XyzwConfirmDialog(
-    title = "删除 BIN 文件",
-    message = "确认删除服务端保存的 BIN 文件？删除后需要重新上传。",
+    title = "删除二进制文件",
+    message = "确认删除服务端保存的二进制文件？删除后需要重新上传。",
     confirmLabel = "删除",
     destructive = true,
     onConfirm = onConfirm,
@@ -690,7 +691,7 @@ fun DailyTasksScreen(
                   ) {
                     Text(row.title.ifBlank { row.taskKey }, fontWeight = FontWeight.SemiBold)
                     Text(row.message)
-                    Text("${row.runAt} · ${row.source}")
+                    Text("${formatDisplayDateTime(row.runAt)} · ${taskSourceLabel(row.source)}")
                   }
                 }
               }
@@ -796,10 +797,10 @@ fun TaskControlScreen(
                   ) {
                     Text(task.id, fontWeight = FontWeight.SemiBold)
                     Text("启用：${if (task.enabled) "是" else "否"}")
-                    Text("Cron：${task.cronExpr}")
-                    Text("Token 数：${task.tokenIds.size}")
+                    Text("定时表达式：${task.cronExpr}")
+                    Text("令牌数：${task.tokenIds.size}")
                     if (task.lastRunAt.isNotBlank()) {
-                      Text("上次运行：${task.lastRunAt}")
+                      Text("上次运行：${formatDisplayDateTime(task.lastRunAt)}")
                     }
                     Row(
                       modifier = Modifier.fillMaxWidth(),
@@ -817,7 +818,7 @@ fun TaskControlScreen(
                       modifier = Modifier.fillMaxWidth(),
                       enabled = !uiState.isMutating,
                     ) {
-                      Text("编辑 Cron")
+                      Text("编辑定时表达式")
                     }
                   }
                 }
@@ -861,7 +862,7 @@ fun TaskControlScreen(
                   ) {
                     Text(row.taskName.ifBlank { row.taskId.orEmpty() }, fontWeight = FontWeight.SemiBold)
                     XyzwExpandableText(row.message)
-                    Text("${row.status} · ${row.createdAt}")
+                    Text("${taskStatusLabel(row.status)} · ${formatDisplayDateTime(row.createdAt)}")
                   }
                 }
               }
@@ -965,9 +966,9 @@ fun ProfileSettingsScreen(
 
     SectionCard(
       title = "安全",
-      description = "修改密码、远程 BIN 开关和安全事件。",
+      description = "修改密码、远程二进制文件开关和安全事件。",
     ) {
-      Text("MFA：${if (uiState.profile?.mfaEnabled == true) "已启用" else "未启用"}")
+      Text("多重验证：${if (uiState.profile?.mfaEnabled == true) "已启用" else "未启用"}")
       ProfilePasswordFields(
         currentPassword = currentPassword,
         newPassword = newPassword,
@@ -981,7 +982,7 @@ fun ProfileSettingsScreen(
         horizontalArrangement = Arrangement.SpaceBetween,
       ) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-          Text("远程 BIN 下载")
+          Text("远程二进制文件导出")
           Text(
             if (uiState.remoteBinDownloadEnabled) "已开启" else "未开启",
             style = MaterialTheme.typography.bodySmall,
@@ -1005,7 +1006,7 @@ fun ProfileSettingsScreen(
       if (uiState.securityEvents.isNotEmpty()) {
         Text("最近安全事件", style = MaterialTheme.typography.titleMedium)
         uiState.securityEvents.take(5).forEach { row ->
-          Text("${row.eventType} · ${row.createdAt}")
+          Text("${securityEventLabel(row.eventType)} · ${formatDisplayDateTime(row.createdAt)}")
         }
       }
     }
@@ -1031,18 +1032,18 @@ fun ProfileSettingsScreen(
           value = apiBaseUrlDraft,
           onValueChange = { apiBaseUrlDraft = it },
           modifier = Modifier.fillMaxWidth(),
-          label = { Text("Debug API 地址") },
+          label = { Text("调试接口地址") },
           singleLine = true,
         )
         OutlinedButton(
           onClick = { viewModel.setApiBaseUrl(apiBaseUrlDraft) },
           enabled = apiBaseUrlDraft.startsWith("http://") || apiBaseUrlDraft.startsWith("https://"),
         ) {
-          Text("保存 API 地址")
+          Text("保存接口地址")
         }
       } else {
-        Text("当前 API 地址：${preferences.apiBaseUrl}")
-        Text("Release 包不允许在 UI 中改成 HTTP 地址。", style = MaterialTheme.typography.bodySmall)
+        Text("当前接口地址：${preferences.apiBaseUrl}")
+        Text("正式包不允许在界面中改成明文地址。", style = MaterialTheme.typography.bodySmall)
       }
       FlowRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -1075,7 +1076,7 @@ fun ProfileSettingsScreen(
 
   if (showConfirmRemoteBin) {
     SensitiveConfirmDialog(
-      title = "切换远程 BIN 下载",
+      title = "切换远程二进制文件导出",
       onDismiss = { showConfirmRemoteBin = false },
       onConfirm = { password, totpCode, recoveryCode ->
         scope.launch {
@@ -1094,7 +1095,7 @@ fun ProfileSettingsScreen(
   if (showConfirmLogout) {
     XyzwConfirmDialog(
       title = "退出登录",
-      message = "确认退出当前账号？退出后会清除本机会话并关闭 WebSocket。",
+      message = "确认退出当前账号？退出后会清除本机会话并关闭实时连接。",
       confirmLabel = "退出登录",
       destructive = true,
       onConfirm = {
@@ -1197,10 +1198,10 @@ fun ReferralScreen(
                       .padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                   ) {
-                    Text("${row.referredUsername} · ${row.featureScope}", fontWeight = FontWeight.SemiBold)
+                    Text("${row.referredUsername} · ${featureScopeDisplayLabel(row.featureScope)}", fontWeight = FontWeight.SemiBold)
                     Text("返佣：${row.rewardAmountCents / 100.0}")
-                    Text("状态：${row.rewardStatus}")
-                    Text(row.createdAt)
+                    Text("状态：${rewardStatusDisplayLabel(row.rewardStatus)}")
+                    Text(formatDisplayDateTime(row.createdAt))
                   }
                 }
               }
@@ -1342,7 +1343,7 @@ fun FeedbackScreen(
                   ) {
                     Text(item.title, fontWeight = FontWeight.SemiBold)
                     XyzwExpandableText(item.content)
-                    Text("类型：${item.type}")
+                    Text("类型：${feedbackTypeDisplayLabel(item.type)}")
                     XyzwStatusChip(
                       status = item.status,
                       label = when (item.status) {
@@ -1356,7 +1357,7 @@ fun FeedbackScreen(
                     item.adminNote?.takeIf { it.isNotBlank() }?.let { note ->
                       XyzwExpandableText("管理员备注：$note")
                     }
-                    Text(item.createdAt, style = MaterialTheme.typography.bodySmall)
+                    Text(formatDisplayDateTime(item.createdAt), style = MaterialTheme.typography.bodySmall)
                   }
                 }
               }
@@ -1499,22 +1500,22 @@ private fun TokenCard(
       verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
       Text(token.displayName, style = MaterialTheme.typography.titleMedium)
-      Text("Token ID: ${token.id}")
-      SensitiveValueText(label = "Token 内容", value = token.rawToken)
+      Text("令牌编号：${token.id}")
+      SensitiveValueText(label = "令牌内容", value = token.rawToken)
       if (token.roleId.isNotBlank()) {
-        Text("角色 ID: ${token.roleId}")
+        Text("角色编号：${token.roleId}")
       }
       if (token.region.isNotBlank()) {
-        Text("大区: ${token.region}")
+        Text("大区：${token.region}")
       }
       XyzwStatusChip(
         status = if (token.activationActive) "active" else if (token.activationBound) "pending" else "disabled",
         label = if (token.activationActive) "可用" else if (token.activationBound) "已绑定但不可用" else "未绑定",
       )
-      token.activationExpiresAt?.let { Text("到期时间: $it") }
+      token.activationExpiresAt?.let { Text("到期时间：${formatDisplayDateTime(it)}") }
       XyzwStatusChip(
         status = if (token.binFilePresent) "enabled" else "disabled",
-        label = if (token.binFilePresent) "BIN 已上传" else "BIN 未上传",
+        label = if (token.binFilePresent) "二进制文件已上传" else "二进制文件未上传",
       )
       token.lastError?.takeIf { it.isNotBlank() }?.let { error ->
         Text(error, color = MaterialTheme.colorScheme.error)
@@ -1529,18 +1530,18 @@ private fun TokenCard(
         }
         OutlinedButton(onClick = onUpload) {
           Icon(Icons.Outlined.FileUpload, contentDescription = null)
-          Text("上传 BIN")
+          Text("上传二进制文件")
         }
         OutlinedButton(onClick = onDownload, enabled = token.binFilePresent) {
           Icon(Icons.Outlined.Download, contentDescription = null)
-          Text("下载 BIN")
+          Text("导出二进制文件")
         }
         OutlinedButton(onClick = onDeleteBin, enabled = token.binFilePresent) {
           Icon(Icons.Outlined.Delete, contentDescription = null)
-          Text("删除 BIN")
+          Text("删除二进制文件")
         }
         OutlinedButton(onClick = onDelete) {
-          Text("移除 Token")
+          Text("移除令牌")
         }
       }
     }
@@ -1570,7 +1571,7 @@ private fun DailyTaskCard(
       Text("执行权限：${if (task.canExecute) "可执行" else "未启用"}")
       Text("进度：${task.progress.current}/${task.progress.total}")
       Text("延迟：${task.settings.delay}s · 通知：${if (task.settings.notification) "开启" else "关闭"}")
-      Text("Cron：${task.settings.cronExpr.ifBlank { "--" }}")
+      Text("定时表达式：${task.settings.cronExpr.ifBlank { "--" }}")
       Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -1611,14 +1612,14 @@ private fun TaskControlCronDialog(
 
   AlertDialog(
     onDismissRequest = onDismiss,
-    title = { Text("编辑 Cron") },
+    title = { Text("编辑定时表达式") },
     text = {
       Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(task.id, style = MaterialTheme.typography.titleMedium)
         OutlinedTextField(
           value = cronExpr,
           onValueChange = { cronExpr = it },
-          label = { Text("cronExpr") },
+          label = { Text("定时表达式") },
           modifier = Modifier.fillMaxWidth(),
           singleLine = true,
         )
@@ -1681,7 +1682,7 @@ internal fun DailyTaskConfigDialog(
         OutlinedTextField(
           value = cronExpr,
           onValueChange = { cronExpr = it },
-          label = { Text("cronExpr") },
+          label = { Text("定时表达式") },
           modifier = Modifier.fillMaxWidth().testTag("daily-task-cron"),
           singleLine = true,
         )
@@ -1791,7 +1792,7 @@ private fun SensitiveConfirmDialog(
     },
     text = {
       Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("填写当前密码，或填写 TOTP / 恢复码完成二次确认。")
+        Text("填写当前密码，或填写动态验证码 / 恢复码完成二次确认。")
         XyzwFormField(
           value = password,
           onValueChange = { password = it },
@@ -1802,7 +1803,7 @@ private fun SensitiveConfirmDialog(
           value = totpCode,
           onValueChange = { totpCode = it },
           modifier = Modifier.fillMaxWidth(),
-          label = { Text("TOTP 验证码") },
+          label = { Text("动态验证码") },
         )
         XyzwFormField(
           value = recoveryCode,
@@ -1847,3 +1848,53 @@ private fun queryContentSize(
       }
     }
   }.getOrNull()
+
+private fun taskSourceLabel(value: String): String =
+  when (value.lowercase()) {
+    "manual" -> "手动"
+    "auto" -> "自动"
+    "schedule", "scheduled" -> "定时"
+    else -> value.ifBlank { "--" }
+  }
+
+private fun taskStatusLabel(value: String): String =
+  when (value.lowercase()) {
+    "success" -> "成功"
+    "failed", "error" -> "失败"
+    "running" -> "运行中"
+    "pending" -> "等待中"
+    "info" -> "信息"
+    else -> value.ifBlank { "--" }
+  }
+
+private fun securityEventLabel(value: String): String =
+  when (value) {
+    "bin_upload" -> "二进制文件上传"
+    "bin_download" -> "二进制文件导出"
+    "bin_delete" -> "二进制文件删除"
+    "csrf_validation_failed" -> "安全校验失败"
+    else -> value.ifBlank { "--" }
+  }
+
+private fun featureScopeDisplayLabel(value: String): String =
+  when (value) {
+    "task_control_only" -> "普通版"
+    "full" -> "全功能"
+    else -> value.ifBlank { "--" }
+  }
+
+private fun rewardStatusDisplayLabel(value: String): String =
+  when (value) {
+    "pending" -> "待结算"
+    "paid" -> "已结算"
+    "rejected" -> "已驳回"
+    else -> value.ifBlank { "--" }
+  }
+
+private fun feedbackTypeDisplayLabel(value: String): String =
+  when (value) {
+    "bug" -> "问题反馈"
+    "feature" -> "功能建议"
+    "contact" -> "联系请求"
+    else -> value.ifBlank { "--" }
+  }

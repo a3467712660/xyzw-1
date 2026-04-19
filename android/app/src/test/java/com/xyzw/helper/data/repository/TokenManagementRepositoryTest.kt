@@ -130,7 +130,7 @@ class TokenManagementRepositoryTest {
         when (request.path) {
           "/api/v1/bin-files/token-1/download-ticket" -> jsonResponse(
             403,
-            """{"success":false,"message":"未开启远程 BIN 下载，请先前往个人设置开启","error":{"code":"REMOTE_BIN_DISABLED","message":"未开启远程 BIN 下载"}}""",
+            """{"success":false,"message":"未开启远程二进制文件导出，请先前往个人设置开启","error":{"code":"REMOTE_BIN_DISABLED","message":"未开启远程二进制文件导出"}}""",
           )
           else -> MockResponse().setResponseCode(404)
         }
@@ -156,7 +156,7 @@ class TokenManagementRepositoryTest {
     assertTrue(ticketResult is ApiResult.Failure)
     ticketResult as ApiResult.Failure
     assertEquals(403, ticketResult.error.httpStatus)
-    assertTrue(ticketResult.error.message.contains("未开启远程 BIN 下载"))
+    assertTrue(ticketResult.error.message.contains("未开启远程二进制文件导出"))
   }
 
   @Test
@@ -263,7 +263,7 @@ class TokenManagementRepositoryTest {
 
     assertTrue(result is ApiResult.Failure)
     result as ApiResult.Failure
-    assertTrue(result.error.message.contains("BIN 文件写入失败"))
+    assertTrue(result.error.message.contains("二进制文件写入失败"))
   }
 
   @Test
@@ -271,6 +271,6 @@ class TokenManagementRepositoryTest {
     assertEquals(null, validateBinUploadSize(null))
     assertEquals(null, validateBinUploadSize(-1))
     assertEquals(null, validateBinUploadSize(MAX_BIN_UPLOAD_BYTES))
-    assertEquals("BIN 文件超过 32MB 上限，请选择更小的文件", validateBinUploadSize(MAX_BIN_UPLOAD_BYTES + 1))
+    assertEquals("二进制文件超过 32MB 上限，请选择更小的文件", validateBinUploadSize(MAX_BIN_UPLOAD_BYTES + 1))
   }
 }

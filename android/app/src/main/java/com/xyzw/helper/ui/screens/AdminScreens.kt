@@ -51,9 +51,8 @@ import com.xyzw.helper.ui.components.XyzwConfirmDialog
 import com.xyzw.helper.ui.components.XyzwExpandableText
 import com.xyzw.helper.ui.components.XyzwStatusChip
 import com.xyzw.helper.ui.components.SensitiveValueText
+import com.xyzw.helper.ui.formatters.formatDisplayDateTime
 import kotlinx.coroutines.launch
-import java.time.OffsetDateTime
-import java.time.format.DateTimeFormatter
 import kotlin.math.max
 
 @Composable
@@ -75,7 +74,7 @@ fun AdminHubScreen(
   }
 
   val entries = listOf(
-    "用户管理" to Pair("账号权限、密码、会话与 MFA 重置", onOpenUsers),
+    "用户管理" to Pair("账号权限、密码、会话与多重验证重置", onOpenUsers),
     "邀请码" to Pair("查看、创建与禁用邀请码", onOpenInvites),
     "激活码" to Pair("创建、解绑、禁用和删除激活码", onOpenActivationCodes),
     "工单管理" to Pair("处理用户工单和状态更新", onOpenFeedbackTickets),
@@ -99,11 +98,11 @@ fun AdminHubScreen(
       item {
         AdminCardSection(
           title = "管理员入口",
-          subtitle = "仅当前账号 isAdmin=true 时显示。所有页面均为原生 Android Compose 实现。",
+          subtitle = "仅当前账号为管理员时显示。所有页面均为原生安卓界面实现。",
         ) {
           Text(currentUser?.username ?: "未登录", style = MaterialTheme.typography.titleLarge)
           Text(
-            "当前 accessScope: ${currentUser?.accessScope ?: "--"}",
+            "当前权限范围：${accessScopeLabel(currentUser?.accessScope)}",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
           )
         }
@@ -219,14 +218,14 @@ fun AdminUsersScreen(
   if (tokenLimitTarget != null) {
     AlertDialog(
       onDismissRequest = { tokenLimitTarget = null },
-      title = { Text("修改 Token 上限") },
+      title = { Text("修改令牌上限") },
       text = {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
           Text("目标账号：${tokenLimitTarget?.username}")
           OutlinedTextField(
             value = tokenBindLimitInput,
             onValueChange = { tokenBindLimitInput = it.filter(Char::isDigit) },
-            label = { Text("tokenBindLimit") },
+            label = { Text("令牌绑定上限") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             modifier = Modifier.fillMaxWidth(),
           )
@@ -237,9 +236,9 @@ fun AdminUsersScreen(
           onClick = {
             val target = tokenLimitTarget ?: return@TextButton
             val nextLimit = tokenBindLimitInput.toIntOrNull()?.coerceAtLeast(1) ?: return@TextButton
-            confirmRequest = AdminConfirmDialogRequest("修改 Token 上限") {
+            confirmRequest = AdminConfirmDialogRequest("修改令牌上限") {
               val result = viewModel.updateUserTokenBindLimit(target.id, nextLimit)
-              if (context.showApiResult(result, "Token 上限已更新")) {
+              if (context.showApiResult(result, "令牌上限已更新")) {
                 tokenLimitTarget = null
                 tokenBindLimitInput = ""
               }
@@ -256,7 +255,7 @@ fun AdminUsersScreen(
   if (activationTarget != null) {
     AlertDialog(
       onDismissRequest = { activationTarget = null },
-      title = { Text("Token 激活记录") },
+      title = { Text("令牌激活记录") },
       text = {
         Column(
           modifier = Modifier
@@ -271,11 +270,11 @@ fun AdminUsersScreen(
           payload?.items?.forEach { item ->
             AdminCardSection(
               title = item.roleName ?: item.tokenId ?: "激活记录",
-              subtitle = "tokenId: ${item.tokenId ?: "--"}",
+              subtitle = "令牌编号：${item.tokenId ?: "--"}",
             ) {
-              Text("roleId: ${item.roleId ?: "--"}")
-              Text("expiresAt: ${formatDateTime(item.expiresAt)}")
-              Text("状态: ${if (item.active) "有效" else "已过期"}")
+              Text("角色编号：${item.roleId ?: "--"}")
+              Text("到期时间：${formatDateTime(item.expiresAt)}")
+              Text("状态：${if (item.active) "有效" else "已过期"}")
             }
           }
         }
@@ -294,8 +293,8 @@ fun AdminUsersScreen(
       text = {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
           Text("账号：${resetCodePayload?.username}")
-          Text("shortCode: ${resetCodePayload?.shortCode}")
-          Text("expiresAt: ${formatDateTime(resetCodePayload?.expiresAt)}")
+          Text("短验证码：${resetCodePayload?.shortCode}")
+          Text("到期时间：${formatDateTime(resetCodePayload?.expiresAt)}")
         }
       },
       confirmButton = {
@@ -308,7 +307,7 @@ fun AdminUsersScreen(
   if (mfaResetUrl != null) {
     AlertDialog(
       onDismissRequest = { mfaResetUrl = null },
-      title = { Text("MFA 重置链接") },
+      title = { Text("多重验证重置链接") },
       text = {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
           Text("请尽快复制并发送给用户。")
@@ -341,7 +340,7 @@ fun AdminUsersScreen(
       item {
         AdminCardSection(
           title = "搜索与筛选",
-          subtitle = "按用户名、邮箱、用户 ID、本地权限状态筛选。",
+          subtitle = "按用户名、邮箱、用户编号、本地权限状态筛选。",
         ) {
           OutlinedTextField(
             value = userQuery,
@@ -351,7 +350,7 @@ fun AdminUsersScreen(
             singleLine = true,
           )
           Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf("all" to "全部", "admin" to "管理员", "normal" to "普通用户", "mfa" to "MFA").forEach { (value, label) ->
+            listOf("all" to "全部", "admin" to "管理员", "normal" to "普通用户", "mfa" to "已开多重验证").forEach { (value, label) ->
               FilterChip(
                 selected = userFilter == value,
                 onClick = { userFilter = value },
@@ -384,14 +383,14 @@ fun AdminUsersScreen(
         ) {
           Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             XyzwStatusChip(status = if (user.isAdmin) "admin" else "user", label = if (user.isAdmin) "管理员" else "普通用户")
-            XyzwStatusChip(status = if (user.mfaEnabled) "enabled" else "disabled", label = if (user.mfaEnabled) "MFA 已启用" else "MFA 未启用")
+            XyzwStatusChip(status = if (user.mfaEnabled) "enabled" else "disabled", label = if (user.mfaEnabled) "多重验证已启用" else "多重验证未启用")
           }
-          Text("accessScope: ${user.accessScope}", fontWeight = FontWeight.Medium)
-          Text("tokenBindLimit: ${user.tokenBindLimit}")
-          Text("角色数: ${user.roleCount} / 邀请码数: ${user.inviteCount}")
-          Text("MFA: ${if (user.mfaEnabled) "已开启" else "未开启"}")
-          Text("createdAt: ${formatDateTime(user.createdAt)}")
-          Text("lastLoginAt: ${formatDateTime(user.lastLoginAt)}")
+          Text("权限范围：${accessScopeLabel(user.accessScope)}", fontWeight = FontWeight.Medium)
+          Text("令牌绑定上限：${user.tokenBindLimit}")
+          Text("角色数：${user.roleCount} / 邀请码数：${user.inviteCount}")
+          Text("多重验证：${if (user.mfaEnabled) "已开启" else "未开启"}")
+          Text("创建时间：${formatDateTime(user.createdAt)}")
+          Text("最近登录：${formatDateTime(user.lastLoginAt)}")
 
           Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (!user.isCurrentUser) {
@@ -412,9 +411,9 @@ fun AdminUsersScreen(
             OutlinedButton(
               onClick = {
                 val nextScope = if (user.accessScope == "full") "task_control_only" else "full"
-                confirmRequest = AdminConfirmDialogRequest("调整 accessScope") {
+                confirmRequest = AdminConfirmDialogRequest("调整权限范围") {
                   val result = viewModel.updateUserAccessScope(user.id, nextScope)
-                  context.showApiResult(result, "accessScope 已更新")
+                  context.showApiResult(result, "权限范围已更新")
                 }
               },
               modifier = Modifier.fillMaxWidth(),
@@ -427,7 +426,7 @@ fun AdminUsersScreen(
                 tokenBindLimitInput = user.tokenBindLimit.toString()
               },
               modifier = Modifier.fillMaxWidth(),
-            ) { Text("修改 tokenBindLimit") }
+            ) { Text("修改令牌上限") }
             OutlinedButton(
               onClick = { passwordTarget = user; newPassword = "" },
               modifier = Modifier.fillMaxWidth(),
@@ -450,11 +449,11 @@ fun AdminUsersScreen(
             if (user.mfaEnabled) {
               OutlinedButton(
                 onClick = {
-                  confirmRequest = AdminConfirmDialogRequest("创建 MFA 重置链接") {
+                  confirmRequest = AdminConfirmDialogRequest("创建多重验证重置链接") {
                     when (val result = viewModel.createMfaResetLink(user.id)) {
                       is ApiResult.Success -> {
                         mfaResetUrl = result.data.resetUrl
-                        context.showToast(result.message ?: "已生成 MFA 重置链接")
+                        context.showToast(result.message ?: "已生成多重验证重置链接")
                       }
 
                       is ApiResult.Failure -> context.showToast(result.error.message)
@@ -462,7 +461,7 @@ fun AdminUsersScreen(
                   }
                 },
                 modifier = Modifier.fillMaxWidth(),
-              ) { Text("创建 MFA 重置链接") }
+            ) { Text("创建多重验证重置链接") }
             }
             OutlinedButton(
               onClick = {
@@ -479,7 +478,7 @@ fun AdminUsersScreen(
                 scope.launch { viewModel.loadTokenActivations(user.id) }
               },
               modifier = Modifier.fillMaxWidth(),
-            ) { Text("查看 Token 激活记录") }
+            ) { Text("查看令牌激活记录") }
             if (!user.isCurrentUser) {
               OutlinedButton(
                 onClick = {
@@ -584,7 +583,7 @@ fun AdminInvitesScreen(
           OutlinedTextField(
             value = bindLimit,
             onValueChange = { bindLimit = it.filter(Char::isDigit) },
-            label = { Text("bindAccountLimit") },
+            label = { Text("绑定账号上限") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             modifier = Modifier.fillMaxWidth(),
           )
@@ -640,12 +639,12 @@ fun AdminInvitesScreen(
           title = invite.code ?: invite.maskedCode ?: invite.codeMask ?: invite.id,
           subtitle = inviteStatusLabel(invite),
         ) {
-          Text("类型: ${if (invite.isTemporary) "临时邀请码" else "普通邀请码"}")
-          Text("bindAccountLimit: ${invite.bindAccountLimit}")
-          Text("createdBy: ${invite.createdBy ?: "--"}")
-          Text("usedBy: ${invite.usedBy ?: "--"}")
-          Text("createdAt: ${formatDateTime(invite.createdAt)}")
-          Text("autoDisableAt: ${formatDateTime(invite.autoDisableAt)}")
+          Text("类型：${if (invite.isTemporary) "临时邀请码" else "普通邀请码"}")
+          Text("绑定账号上限：${invite.bindAccountLimit}")
+          Text("创建者：${invite.createdBy ?: "--"}")
+          Text("使用者：${invite.usedBy ?: "--"}")
+          Text("创建时间：${formatDateTime(invite.createdAt)}")
+          Text("自动停用时间：${formatDateTime(invite.autoDisableAt)}")
           OutlinedButton(
             onClick = {
               confirmRequest = AdminConfirmDialogRequest("查看邀请码明码") {
@@ -835,12 +834,12 @@ fun AdminActivationCodesScreen(
           title = code.code ?: code.maskedCode ?: code.codeMask ?: code.id,
           subtitle = activationStatusLabel(code),
         ) {
-          Text("版本类型: ${featureScopeLabel(code.featureScope)}")
-          Text("时长: ${durationLabel(code.durationMonths)}")
-          Text("售价: ${formatMoney(code.saleAmountCents, code.saleCurrency)}")
-          Text("绑定角色: ${code.bindingRoleName ?: "--"}")
-          Text("绑定用户: ${code.bindingUsername ?: "--"}")
-          Text("到期时间: ${formatDateTime(code.bindingExpiresAt)}")
+          Text("版本类型：${featureScopeLabel(code.featureScope)}")
+          Text("时长：${durationLabel(code.durationMonths)}")
+          Text("售价：${formatMoney(code.saleAmountCents, code.saleCurrency)}")
+          Text("绑定角色：${code.bindingRoleName ?: "--"}")
+          Text("绑定用户：${code.bindingUsername ?: "--"}")
+          Text("到期时间：${formatDateTime(code.bindingExpiresAt)}")
           Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (code.bindingActive || !code.bindingRoleName.isNullOrBlank()) {
               OutlinedButton(
@@ -960,10 +959,10 @@ fun AdminFeedbackTicketsScreen(
       items(uiState.feedbacks, key = { it.id }) { ticket ->
         AdminCardSection(
           title = ticket.title,
-          subtitle = "${ticket.type} · ${ticket.username ?: "--"} · ${formatDateTime(ticket.createdAt)}",
+          subtitle = "${feedbackTypeLabel(ticket.type)} · ${ticket.username ?: "--"} · ${formatDateTime(ticket.createdAt)}",
         ) {
           XyzwExpandableText(ticket.content)
-          XyzwStatusChip(status = ticket.status, label = ticket.status)
+          XyzwStatusChip(status = ticket.status, label = statusLabel(ticket.status))
           Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf("open" to "待处理", "in_progress" to "处理中", "resolved" to "已完成").forEach { (value, label) ->
               FilterChip(
@@ -1031,36 +1030,36 @@ fun AdminTaskControlLogsScreen(
       item {
         AdminCardSection(
           title = "筛选",
-          subtitle = "支持 username / taskName / status / taskId / message / limit。",
+          subtitle = "支持用户名、任务名、状态、任务编号、消息和数量筛选。",
         ) {
           OutlinedTextField(
             value = filters.username,
             onValueChange = { filters = filters.copy(username = it) },
-            label = { Text("username") },
+            label = { Text("用户名") },
             modifier = Modifier.fillMaxWidth(),
           )
           OutlinedTextField(
             value = filters.taskName,
             onValueChange = { filters = filters.copy(taskName = it) },
-            label = { Text("taskName") },
+            label = { Text("任务名") },
             modifier = Modifier.fillMaxWidth(),
           )
           OutlinedTextField(
             value = filters.status,
             onValueChange = { filters = filters.copy(status = it) },
-            label = { Text("status") },
+            label = { Text("状态") },
             modifier = Modifier.fillMaxWidth(),
           )
           OutlinedTextField(
             value = filters.taskId,
             onValueChange = { filters = filters.copy(taskId = it) },
-            label = { Text("taskId") },
+            label = { Text("任务编号") },
             modifier = Modifier.fillMaxWidth(),
           )
           OutlinedTextField(
             value = filters.message,
             onValueChange = { filters = filters.copy(message = it) },
-            label = { Text("message") },
+            label = { Text("消息") },
             modifier = Modifier.fillMaxWidth(),
           )
           OutlinedTextField(
@@ -1068,7 +1067,7 @@ fun AdminTaskControlLogsScreen(
             onValueChange = {
               filters = filters.copy(limit = it.filter(Char::isDigit).toIntOrNull() ?: filters.limit)
             },
-            label = { Text("limit") },
+            label = { Text("数量上限") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             modifier = Modifier.fillMaxWidth(),
           )
@@ -1085,7 +1084,7 @@ fun AdminTaskControlLogsScreen(
         AdminStatsRow(
           stats = listOf(
             "日志数" to uiState.logs.size.toString(),
-            "limit" to filters.limit.toString(),
+            "数量上限" to filters.limit.toString(),
           ),
         )
       }
@@ -1093,9 +1092,9 @@ fun AdminTaskControlLogsScreen(
       items(uiState.logs, key = { it.id }) { log ->
         AdminCardSection(
           title = log.taskName ?: log.taskId ?: "任务日志",
-          subtitle = "${log.username ?: log.userId ?: "--"} · ${log.status} · ${formatDateTime(log.createdAt)}",
+          subtitle = "${log.username ?: log.userId ?: "--"} · ${statusLabel(log.status)} · ${formatDateTime(log.createdAt)}",
         ) {
-          Text("taskId: ${log.taskId ?: "--"}")
+          Text("任务编号：${log.taskId ?: "--"}")
           XyzwExpandableText(log.message)
         }
       }
@@ -1181,7 +1180,7 @@ fun AdminChangelogBroadcastScreen(
       }
       AdminCardSection(
         title = "发送预览",
-        subtitle = "用户点击通知后会进入 /changelog。",
+        subtitle = "用户点击通知后会进入更新日志页面。",
       ) {
         Text("标题：${if (title.isBlank()) "更新日志 ${version.ifBlank { "--" }}" else title}")
         Text("内容：${if (content.isBlank()) "已发布 ${version.ifBlank { "新版本" }}，点击查看详情" else content}")
@@ -1259,7 +1258,7 @@ fun AdminWechatContactsScreen(
           modifier = Modifier.verticalScroll(rememberScrollState()),
           verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-          OutlinedTextField(value = slug, onValueChange = { slug = it.trim() }, label = { Text("slug") }, modifier = Modifier.fillMaxWidth())
+          OutlinedTextField(value = slug, onValueChange = { slug = it.trim() }, label = { Text("短链接标识") }, modifier = Modifier.fillMaxWidth())
           OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("标题") }, modifier = Modifier.fillMaxWidth())
           OutlinedTextField(value = subtitle, onValueChange = { subtitle = it }, label = { Text("副标题") }, modifier = Modifier.fillMaxWidth())
           Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1268,21 +1267,21 @@ fun AdminWechatContactsScreen(
             }
           }
           if (contactType == "landing_qr") {
-            OutlinedTextField(value = wechatId, onValueChange = { wechatId = it }, label = { Text("wechatId") }, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(value = wechatId, onValueChange = { wechatId = it }, label = { Text("微信号") }, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(
               value = qrImageDataUrl,
               onValueChange = { qrImageDataUrl = it },
-              label = { Text("qrImageDataUrl") },
+              label = { Text("二维码图片数据") },
               modifier = Modifier.fillMaxWidth(),
               minLines = 4,
             )
           } else {
-            OutlinedTextField(value = targetUrl, onValueChange = { targetUrl = it }, label = { Text("targetUrl") }, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(value = targetUrl, onValueChange = { targetUrl = it }, label = { Text("目标链接") }, modifier = Modifier.fillMaxWidth())
           }
           OutlinedTextField(
             value = sortOrder,
             onValueChange = { sortOrder = it.filter(Char::isDigit) },
-            label = { Text("sortOrder") },
+            label = { Text("排序值") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             modifier = Modifier.fillMaxWidth(),
           )
@@ -1354,13 +1353,13 @@ fun AdminWechatContactsScreen(
       items(uiState.contacts, key = { it.id }) { contact ->
         AdminCardSection(
           title = contact.title,
-          subtitle = "${contact.slug} · ${contact.contactType}",
+          subtitle = "${contact.slug} · ${contactTypeLabel(contact.contactType)}",
         ) {
-          Text("subtitle: ${contact.subtitle ?: "--"}")
-          Text("targetUrl: ${contact.targetUrl ?: "--"}")
-          Text("wechatId: ${contact.wechatId ?: "--"}")
-          Text("sortOrder: ${contact.sortOrder}")
-          Text("价格菜单: ${if (contact.showInPricing) "显示" else "隐藏"} / ${if (contact.isActive) "启用" else "停用"}")
+          Text("副标题：${contact.subtitle ?: "--"}")
+          Text("目标链接：${contact.targetUrl ?: "--"}")
+          Text("微信号：${contact.wechatId ?: "--"}")
+          Text("排序值：${contact.sortOrder}")
+          Text("价格菜单：${if (contact.showInPricing) "显示" else "隐藏"} / ${if (contact.isActive) "启用" else "停用"}")
           OutlinedButton(
             onClick = { openEditor(contact) },
             modifier = Modifier.fillMaxWidth(),
@@ -1434,7 +1433,7 @@ fun AdminReferralsScreen(
           OutlinedTextField(
             value = markPaidSettlementRef,
             onValueChange = { markPaidSettlementRef = it },
-            label = { Text("settlementRef") },
+            label = { Text("结算单号") },
             modifier = Modifier.fillMaxWidth(),
           )
           OutlinedTextField(
@@ -1540,12 +1539,12 @@ fun AdminReferralsScreen(
       }
       items(uiState.attributions, key = { "attr-${it.id}" }) { attribution ->
         AdminCardSection(
-          title = "${attribution.referrerUsername} -> ${attribution.referredUsername}",
+          title = "${attribution.referrerUsername} 到 ${attribution.referredUsername}",
           subtitle = formatDateTime(attribution.registeredAt),
         ) {
-          Text("referralCode: ${attribution.referralCodeSnapshot}")
-          Text("inviteCode: ${attribution.inviteCodeMask ?: "--"}")
-          Text("registerIp: ${attribution.registerIp ?: "--"}")
+          Text("推广码：${attribution.referralCodeSnapshot}")
+          Text("邀请码：${attribution.inviteCodeMask ?: "--"}")
+          Text("注册地址：${attribution.registerIp ?: "--"}")
         }
       }
       item {
@@ -1558,14 +1557,14 @@ fun AdminReferralsScreen(
       }
       items(uiState.conversions, key = { "conv-${it.id}" }) { conversion ->
         AdminCardSection(
-          title = "${conversion.referrerUsername} -> ${conversion.referredUsername}",
-          subtitle = "${conversion.rewardStatus} · ${formatMoney(conversion.rewardAmountCents)}",
+          title = "${conversion.referrerUsername} 到 ${conversion.referredUsername}",
+          subtitle = "${rewardStatusLabel(conversion.rewardStatus)} · ${formatMoney(conversion.rewardAmountCents)}",
         ) {
-          Text("activationCode: ${conversion.activationCodeMask ?: "--"}")
-          Text("featureScope: ${featureScopeLabel(conversion.featureScope)} / ${durationLabel(conversion.durationMonths)}")
-          Text("结算渠道: ${conversion.settlementChannel ?: "--"}")
-          Text("结算单号: ${conversion.settlementRef ?: "--"}")
-          XyzwExpandableText("备注: ${conversion.note ?: "--"}")
+          Text("激活码：${conversion.activationCodeMask ?: "--"}")
+          Text("版本范围：${featureScopeLabel(conversion.featureScope)} / ${durationLabel(conversion.durationMonths)}")
+          Text("结算渠道：${settlementChannelLabel(conversion.settlementChannel)}")
+          Text("结算单号：${conversion.settlementRef ?: "--"}")
+          XyzwExpandableText("备注：${conversion.note ?: "--"}")
           if (conversion.rewardStatus == "pending") {
             OutlinedButton(
               onClick = {
@@ -1590,16 +1589,62 @@ fun AdminReferralsScreen(
   }
 }
 
-private fun formatDateTime(value: String?): String {
-  val text = value?.trim().orEmpty()
-  if (text.isBlank()) return "--"
-  return runCatching {
-    OffsetDateTime.parse(text).format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
-  }.getOrElse { text }
-}
+private fun formatDateTime(value: String?): String =
+  formatDisplayDateTime(value)
 
 private fun featureScopeLabel(value: String?): String =
   if (value == "task_control_only") "普通版" else "全功能"
+
+private fun accessScopeLabel(value: String?): String =
+  when (value) {
+    "task_control_only" -> "普通版"
+    "full" -> "全功能"
+    else -> value?.takeIf { it.isNotBlank() } ?: "--"
+  }
+
+private fun statusLabel(value: String?): String =
+  when (value) {
+    "open" -> "待处理"
+    "in_progress" -> "处理中"
+    "resolved" -> "已完成"
+    "success" -> "成功"
+    "failed" -> "失败"
+    "running" -> "运行中"
+    "info" -> "信息"
+    else -> value?.takeIf { it.isNotBlank() } ?: "--"
+  }
+
+private fun rewardStatusLabel(value: String?): String =
+  when (value) {
+    "pending" -> "待结算"
+    "paid" -> "已支付"
+    "rejected" -> "已驳回"
+    else -> value?.takeIf { it.isNotBlank() } ?: "--"
+  }
+
+private fun feedbackTypeLabel(value: String?): String =
+  when (value) {
+    "bug" -> "问题反馈"
+    "feature" -> "功能建议"
+    "contact" -> "联系请求"
+    else -> value?.takeIf { it.isNotBlank() } ?: "--"
+  }
+
+private fun contactTypeLabel(value: String?): String =
+  when (value) {
+    "wechat" -> "微信"
+    "url" -> "链接"
+    "qr" -> "二维码"
+    else -> value?.takeIf { it.isNotBlank() } ?: "--"
+  }
+
+private fun settlementChannelLabel(value: String?): String =
+  when (value) {
+    "wechat_manual" -> "微信手动结算"
+    "alipay_manual" -> "支付宝手动结算"
+    "bank_manual" -> "银行手动结算"
+    else -> value?.takeIf { it.isNotBlank() } ?: "--"
+  }
 
 private fun durationLabel(months: Int): String =
   when (months) {

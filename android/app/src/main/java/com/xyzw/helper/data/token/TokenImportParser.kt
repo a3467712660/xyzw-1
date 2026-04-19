@@ -28,7 +28,7 @@ object TokenImportParser {
   ): ImportedGameToken {
     val normalized = rawToken.trim()
     require(normalized.isNotBlank()) {
-      "Token 不能为空"
+      "令牌不能为空"
     }
 
     val payload = decodeTokenPayload(normalized)
@@ -44,7 +44,7 @@ object TokenImportParser {
       directValue(payload, "roleName"),
       directValue(payload, "name"),
       if (roleId.isBlank()) "" else "角色 $roleId",
-      "未命名 Token",
+      "未命名令牌",
     )
     val region = firstNonBlank(
       directValue(payload, "activationRegion"),

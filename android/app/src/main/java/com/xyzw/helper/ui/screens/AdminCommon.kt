@@ -225,7 +225,7 @@ fun AdminConfirmDialog(
             FilterChip(
               selected = mode == "totp",
               onClick = { mode = "totp" },
-              label = { Text("TOTP") },
+              label = { Text("动态验证码") },
             )
             FilterChip(
               selected = mode == "recovery",
@@ -246,7 +246,7 @@ fun AdminConfirmDialog(
             OutlinedTextField(
               value = totpCode,
               onValueChange = { totpCode = it.filter(Char::isDigit) },
-              label = { Text("TOTP 验证码") },
+              label = { Text("动态验证码") },
               keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                 keyboardType = KeyboardType.Number,
               ),

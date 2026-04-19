@@ -86,9 +86,44 @@ class MainShellSmokeTest {
       }
     }
 
-    composeRule.onNodeWithText("Token 管理").performScrollTo().assertIsDisplayed()
+    composeRule.onNodeWithText("令牌管理").performScrollTo().assertIsDisplayed()
     composeRule.onNodeWithText("日常任务").performScrollTo().assertIsDisplayed()
     composeRule.onNodeWithText("管理员中心").performScrollTo().assertIsDisplayed()
+  }
+
+  @Test
+  fun `dashboard version and admin labels are localized`() {
+    composeRule.setContent {
+      XyzwTheme(themeMode = ThemeMode.LIGHT) {
+        DashboardScreen(
+          uiState = DashboardUiState(
+            user = AuthUser(id = "u-1", username = "alice", isAdmin = true),
+            roleCount = 2,
+            tokenCount = 1,
+            unreadNotificationCount = 3,
+            taskCompletionPercent = 50,
+            taskSummaryText = "1/2",
+            isLoading = false,
+          ),
+          showAdminEntry = true,
+          onRefresh = {},
+          onOpenTokens = {},
+          onOpenRoles = {},
+          onOpenGameHub = {},
+          onOpenDailyTasks = {},
+          onOpenFeedback = {},
+          onOpenReferral = {},
+          onOpenNotifications = {},
+          onOpenAdminHub = {},
+        )
+      }
+    }
+
+    composeRule.onNodeWithText("令牌管理").performScrollTo().assertIsDisplayed()
+    composeRule.onNodeWithText("管理员中心").performScrollTo().assertIsDisplayed()
+    composeRule.onNodeWithText("应用版本：--").performScrollTo().assertIsDisplayed()
+    composeRule.onNodeWithText("后端版本：--").performScrollTo().assertIsDisplayed()
+    composeRule.onNodeWithText("代码提交：--").performScrollTo().assertIsDisplayed()
   }
 
   @Test
@@ -96,15 +131,15 @@ class MainShellSmokeTest {
     composeRule.setContent {
       XyzwTheme(themeMode = ThemeMode.LIGHT) {
         XyzwEmptyState(
-          title = "暂无 Token",
-          description = "暂无 Token，立即导入",
+          title = "暂无令牌",
+          description = "暂无令牌，立即导入",
           primaryActionLabel = "立即导入",
           onPrimaryAction = {},
         )
       }
     }
 
-    composeRule.onNodeWithText("暂无 Token").assertIsDisplayed()
+    composeRule.onNodeWithText("暂无令牌").assertIsDisplayed()
     composeRule.onNodeWithText("立即导入").assertIsDisplayed()
   }
 

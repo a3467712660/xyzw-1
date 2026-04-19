@@ -43,6 +43,7 @@ import com.xyzw.helper.ui.components.XyzwPage
 import com.xyzw.helper.ui.components.XyzwSection
 import com.xyzw.helper.ui.components.XyzwStatCard
 import com.xyzw.helper.ui.components.XyzwStatusChip
+import com.xyzw.helper.ui.formatters.formatDisplayDateTime
 import kotlinx.coroutines.launch
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.decodeFromString
@@ -63,15 +64,15 @@ fun GameHubScreen(
     onBack = onBack,
   ) {
     XyzwStatCard(
-      label = "可用 Token",
+      label = "可用令牌",
       value = tokenCount.toString(),
-      supportingText = "游戏功能使用服务端 BIN，不在 App 内暴露 raw token。",
+      supportingText = "游戏功能使用服务端二进制文件，不在应用内暴露原始令牌。",
     )
-    XyzwSection(title = "功能入口", subtitle = "所有入口均为 Android 原生页面。") {
+    XyzwSection(title = "功能入口", subtitle = "所有入口均为安卓原生页面。") {
       XyzwActionCard(
         icon = Icons.Outlined.SportsEsports,
         title = "游戏功能",
-        subtitle = "查看当前 BIN 状态并执行已允许的游戏命令。",
+        subtitle = "查看当前二进制文件状态并执行已允许的游戏命令。",
         onClick = onOpenGameFeatures,
       )
       XyzwActionCard(
@@ -132,7 +133,7 @@ fun GameFeaturesScreenContent(
 ) {
   XyzwPage(
     title = "游戏功能",
-    subtitle = "只执行后端 allowlist 内的游戏命令。",
+    subtitle = "只执行后端允许列表内的游戏命令。",
     onBack = onBack,
     onRefresh = onRefresh,
     snackbarHostState = snackbarHostState,
@@ -145,7 +146,7 @@ fun GameFeaturesScreenContent(
       XyzwSection(title = "当前状态", subtitle = summary.recommendedAction.ifBlank { "等待操作" }) {
         XyzwStatusChip(
           status = if (summary.binAvailable) "active" else "warning",
-          label = if (summary.binAvailable) "BIN 可用" else "请先上传 BIN",
+          label = if (summary.binAvailable) "二进制文件可用" else "请先上传二进制文件",
         )
         Text(summary.roleName.ifBlank { "未读取角色名" }, style = MaterialTheme.typography.titleLarge)
         Text(summary.serverName.ifBlank { "服务器信息待读取" })
@@ -159,7 +160,7 @@ fun GameFeaturesScreenContent(
         onPrimaryAction = onRefresh,
       )
     } else {
-      XyzwSection(title = "可执行功能", subtitle = "点击后由后端使用服务端 BIN 执行。") {
+      XyzwSection(title = "可执行功能", subtitle = "点击后由后端使用服务端二进制文件执行。") {
         state.catalog.features.forEach { item ->
           XyzwActionCard(
             icon = Icons.Outlined.PlayArrow,
@@ -208,7 +209,7 @@ fun LegionWarScreenContent(
 ) {
   XyzwPage(
     title = "军团战",
-    subtitle = "原生列表与摘要视图，不嵌入 Web canvas。",
+    subtitle = "原生列表与摘要视图，不嵌入网页画布。",
     onBack = onBack,
     onRefresh = onRefresh,
     snackbarHostState = snackbarHostState,
@@ -228,7 +229,7 @@ fun LegionWarScreenContent(
         XyzwStatCard("节点数", snapshot.nodes.size.toString())
         XyzwStatCard("战队数", snapshot.legions.size.toString())
       }
-      XyzwSection(title = "节点", subtitle = "点击 Web canvas 的交互已改为原生可读列表。") {
+      XyzwSection(title = "节点", subtitle = "网页画布的交互已改为原生可读列表。") {
         snapshot.nodes.forEach { node ->
           XyzwCard {
             Text(node.id, style = MaterialTheme.typography.titleMedium)
@@ -305,7 +306,7 @@ fun LineupAssistantScreenContent(
       if (state.lineups.isEmpty()) {
         XyzwEmptyState(
           title = "暂无阵容",
-          description = "可导入 JSON 或刷新后保存当前返回的阵容方案。",
+          description = "可导入配置文本，或刷新后保存当前返回的阵容方案。",
         )
       }
       state.lineups.forEach { lineup ->
@@ -323,12 +324,12 @@ fun LineupAssistantScreenContent(
         }
       }
     }
-    XyzwSection(title = "导入导出", subtitle = "JSON 留在 App 和后端保存接口之间，不上传 raw token。") {
+    XyzwSection(title = "导入导出", subtitle = "配置文本只在应用和后端保存接口之间传递，不上传原始令牌。") {
       OutlinedTextField(
         value = jsonDraft,
         onValueChange = { jsonDraft = it },
         modifier = Modifier.fillMaxWidth(),
-        label = { Text("阵容 JSON") },
+        label = { Text("阵容配置文本") },
         minLines = 4,
       )
       Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -337,7 +338,7 @@ fun LineupAssistantScreenContent(
             jsonDraft = NetworkFactory.json.encodeToString(ListSerializer(GameLineup.serializer()), state.lineups)
           },
         ) {
-          Text("导出 JSON")
+          Text("导出配置文本")
         }
         Button(
           onClick = {
@@ -349,7 +350,7 @@ fun LineupAssistantScreenContent(
           },
           enabled = jsonDraft.isNotBlank(),
         ) {
-          Text("导入 JSON")
+          Text("导入配置文本")
         }
       }
     }
@@ -402,7 +403,7 @@ fun BattleReportsScreenContent(
   var manualText by rememberSaveable { mutableStateOf("") }
   XyzwPage(
     title = "战报功能",
-    subtitle = "查询战报或粘贴 JSON 解析，详情使用原生页面展示。",
+    subtitle = "查询战报或粘贴配置文本解析，详情使用原生页面展示。",
     onBack = onBack,
     onRefresh = onRefresh,
     snackbarHostState = snackbarHostState,
@@ -429,12 +430,12 @@ fun BattleReportsScreenContent(
         Text("查询战报")
       }
     }
-    XyzwSection(title = "手动解析", subtitle = "用于本地粘贴 JSON 战报。") {
+    XyzwSection(title = "手动解析", subtitle = "用于本地粘贴战报配置文本。") {
       OutlinedTextField(
         value = manualText,
         onValueChange = { manualText = it },
         modifier = Modifier.fillMaxWidth(),
-        label = { Text("战报 JSON") },
+        label = { Text("战报配置文本") },
         minLines = 4,
       )
       OutlinedButton(
@@ -449,7 +450,7 @@ fun BattleReportsScreenContent(
       if (state.reports.isEmpty() && !state.isLoading) {
         XyzwEmptyState(
           title = "暂无战报",
-          description = "请先查询或粘贴 JSON 解析。",
+          description = "请先查询或粘贴配置文本解析。",
           primaryActionLabel = "刷新",
           onPrimaryAction = onRefresh,
         )
@@ -483,7 +484,7 @@ fun BattleReportDetailScreen(
         description = "请返回战报列表重新选择。",
       )
     } else {
-      XyzwSection(title = report.title, subtitle = report.createdAt ?: "时间未知") {
+      XyzwSection(title = report.title, subtitle = formatDisplayDateTime(report.createdAt)) {
         Text(report.summary.ifBlank { "暂无摘要" }, style = MaterialTheme.typography.titleMedium)
         Text(
           text = report.detail?.toString() ?: "{}",
@@ -500,11 +501,11 @@ private fun TokenPicker(
   selectedTokenId: String,
   onSelectToken: (String) -> Unit,
 ) {
-  XyzwSection(title = "Token", subtitle = "仅使用已保存的服务端 BIN。") {
+  XyzwSection(title = "令牌", subtitle = "仅使用已保存的服务端二进制文件。") {
     if (tokens.isEmpty()) {
       XyzwEmptyState(
-        title = "暂无 Token",
-        description = "请先在 Token 管理中导入 Token 并上传 BIN。",
+        title = "暂无令牌",
+        description = "请先在令牌管理中导入令牌并上传二进制文件。",
       )
     } else {
       tokens.forEach { token ->

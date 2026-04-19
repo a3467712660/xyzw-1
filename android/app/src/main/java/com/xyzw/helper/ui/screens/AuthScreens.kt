@@ -39,8 +39,8 @@ fun LoginScreen(
   var rememberMe by rememberSaveable { mutableStateOf(false) }
 
   AuthFormShell(
-    title = "XYZW Helper",
-    subtitle = "使用现有后端 /api/v1 会话登录原生 Android 客户端。",
+    title = "XYZW 助手",
+    subtitle = "使用现有后端会话登录原生安卓客户端。",
     errorMessage = uiState.errorMessage,
   ) {
     OutlinedTextField(
@@ -93,11 +93,11 @@ fun MfaVerifyScreen(
   onToggleRecoveryMode: () -> Unit,
 ) {
   var code by rememberSaveable { mutableStateOf("") }
-  val label = if (uiState.useRecoveryCode) "恢复码" else "TOTP 验证码"
+  val label = if (uiState.useRecoveryCode) "恢复码" else "动态验证码"
 
   AuthFormShell(
     title = "二步验证",
-    subtitle = "登录要求 MFA。支持 TOTP 或恢复码。",
+    subtitle = "登录要求多重验证。支持动态验证码或恢复码。",
     errorMessage = uiState.errorMessage,
   ) {
     OutlinedTextField(
@@ -120,7 +120,7 @@ fun MfaVerifyScreen(
       onClick = onToggleRecoveryMode,
       modifier = Modifier.fillMaxWidth(),
     ) {
-      Text(if (uiState.useRecoveryCode) "改用 TOTP" else "改用恢复码")
+      Text(if (uiState.useRecoveryCode) "改用动态验证码" else "改用恢复码")
     }
   }
 }
@@ -198,27 +198,27 @@ fun ForgotPasswordScreen(
 
   AuthFormShell(
     title = "重置密码",
-    subtitle = "使用 identity + shortCode + newPassword 调后端密码重置接口。",
+    subtitle = "使用账号、短验证码和新密码调用后端密码重置接口。",
     errorMessage = uiState.errorMessage,
   ) {
     OutlinedTextField(
       value = identity,
       onValueChange = { identity = it },
-      label = { Text("identity") },
+      label = { Text("账号或邮箱") },
       modifier = Modifier.fillMaxWidth(),
       singleLine = true,
     )
     OutlinedTextField(
       value = shortCode,
       onValueChange = { shortCode = it.uppercase() },
-      label = { Text("shortCode") },
+      label = { Text("短验证码") },
       modifier = Modifier.fillMaxWidth(),
       singleLine = true,
     )
     OutlinedTextField(
       value = newPassword,
       onValueChange = { newPassword = it },
-      label = { Text("newPassword") },
+      label = { Text("新密码") },
       modifier = Modifier.fillMaxWidth(),
       singleLine = true,
       visualTransformation = PasswordVisualTransformation(),

@@ -57,7 +57,7 @@ fun DashboardScreen(
       Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
         XyzwStatusChip(
           status = if (uiState.wsConnected) "active" else "disabled",
-          label = if (uiState.wsConnected) "WebSocket 已连接" else "WebSocket 未连接",
+          label = if (uiState.wsConnected) "实时连接已建立" else "实时连接未建立",
         )
         XyzwStatusChip(
           status = if (showAdminEntry) "admin" else "user",
@@ -69,7 +69,7 @@ fun DashboardScreen(
     XyzwTwoColumnStats(
       stats = listOf(
         Triple("角色数", uiState.roleCount.toString(), "已创建角色"),
-        Triple("Token 数", uiState.tokenCount.toString(), "本机加密工作区"),
+        Triple("令牌数", uiState.tokenCount.toString(), "本机加密工作区"),
         Triple("任务完成率", uiState.taskCompletionPercent?.let { "$it%" } ?: "--", uiState.taskSummaryText),
         Triple("未读通知", uiState.unreadNotificationCount.toString(), "通知中心"),
       ),
@@ -81,8 +81,8 @@ fun DashboardScreen(
     ) {
       XyzwActionCard(
         icon = Icons.Outlined.Key,
-        title = "Token 管理",
-        subtitle = "导入、上传 BIN、下载和删除 Token 文件。",
+        title = "令牌管理",
+        subtitle = "导入、上传二进制文件、导出和删除令牌文件。",
         badge = uiState.tokenCount.toString(),
         onClick = onOpenTokens,
       )
@@ -130,7 +130,7 @@ fun DashboardScreen(
           icon = Icons.Outlined.AdminPanelSettings,
           title = "管理员中心",
           subtitle = "处理账号、邀请码、激活码、工单和推广数据。",
-          badge = "Admin",
+          badge = "管理员",
           onClick = onOpenAdminHub,
         )
       }
@@ -138,11 +138,11 @@ fun DashboardScreen(
 
     XyzwSection(
       title = "版本信息",
-      subtitle = "当前 App 访问的后端构建信息。",
+      subtitle = "当前应用访问的后端构建信息。",
     ) {
-      Text("App: ${uiState.versionInfo?.appVersion ?: "--"}")
-      Text("Backend: ${uiState.versionInfo?.backendVersion ?: "--"}")
-      Text("Git SHA: ${uiState.versionInfo?.gitSha ?: "--"}")
+      Text("应用版本：${uiState.versionInfo?.appVersion ?: "--"}")
+      Text("后端版本：${uiState.versionInfo?.backendVersion ?: "--"}")
+      Text("代码提交：${uiState.versionInfo?.gitSha ?: "--"}")
       Button(onClick = onRefresh, modifier = Modifier.fillMaxWidth()) {
         Text(if (uiState.isLoading) "刷新中..." else "刷新")
       }
