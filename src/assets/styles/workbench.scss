@@ -44,6 +44,7 @@
 
 .workbench-page-toolbar {
   width: 100%;
+  min-width: 0;
 }
 
 .workbench-page-toolbar__group {
@@ -107,6 +108,8 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--spacing-sm);
+  min-width: 0;
+  max-width: 100%;
 }
 
 .workbench-status-pill {
@@ -170,6 +173,7 @@
 .workbench-status-pill__label {
   min-width: 0;
   word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .workbench-page-hero :is(.n-button, .arco-btn),
@@ -284,6 +288,12 @@
 
   .workbench-page-toolbar__group {
     align-items: stretch;
+  }
+
+  .workbench-page-toolbar__group > :is(.n-button, .arco-btn, button),
+  .workbench-section-card__extra > :is(.n-button, .arco-btn, button) {
+    flex: 1 1 100%;
+    width: 100%;
   }
 
   .workbench-page-hero__actions {

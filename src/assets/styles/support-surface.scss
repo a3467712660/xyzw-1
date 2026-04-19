@@ -25,6 +25,10 @@
   margin: 0 auto;
 }
 
+.public-support-page :is(.public-support-shell, .public-support-panel, .public-support-side, .public-support-surface, .public-support-actions) {
+  min-width: 0;
+}
+
 .public-support-page .public-support-title {
   max-width: 16ch;
 }
@@ -67,6 +71,7 @@
 .public-support-page .support-chip {
   display: inline-flex;
   align-items: center;
+  max-width: 100%;
   min-height: 30px;
   padding: 0 12px;
   border-radius: 999px;
@@ -75,6 +80,7 @@
   color: var(--primary-color);
   font-size: 12px;
   font-weight: 700;
+  overflow-wrap: anywhere;
 }
 
 .public-support-page .support-chip--accent {

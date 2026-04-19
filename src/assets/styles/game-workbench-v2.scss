@@ -29,6 +29,11 @@
   isolation: isolate;
 }
 
+.game-workbench-v2,
+.game-workbench-v2 * {
+  min-width: 0;
+}
+
 [data-theme="dark"] .game-workbench-v2 {
   --gwb2-panel: color-mix(in srgb, var(--bg-elevated) 84%, #081421 16%);
   --gwb2-panel-strong: color-mix(in srgb, var(--bg-elevated) 78%, #0b1726 22%);
@@ -202,6 +207,7 @@
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 10px;
+  max-width: 100%;
 }
 
 .game-command-bar__action-stack > * {
@@ -266,6 +272,7 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  max-width: 100%;
   min-height: 42px;
   padding: 0 14px;
   border-radius: 999px;
@@ -759,6 +766,8 @@
   padding: 14px;
   border-radius: 24px;
   z-index: calc(var(--z-fixed) + 2);
+  max-height: calc(100dvh - 132px - env(safe-area-inset-bottom));
+  overflow-y: auto;
 }
 
 .game-module-dock__panel-head {
@@ -1102,6 +1111,7 @@
   color: var(--text-secondary);
   line-height: 1.6;
   margin-bottom: 0;
+  overflow-wrap: anywhere;
 }
 
 .game-workbench-v2 .gwb2-mini-card__metric {
@@ -1220,7 +1230,9 @@
 }
 
 .game-workbench-v2 :is(.resource-changes-card, .gold-fish-calc-card, .ten-hall-card) :is(.table-wrap, .member-table) {
+  max-width: 100%;
   overflow: auto;
+  overscroll-behavior-inline: contain;
   border: 1px solid rgba(78, 94, 116, 0.12);
   border-radius: 16px;
   background: rgba(214, 223, 232, 0.2);
@@ -1730,6 +1742,14 @@
   border: 1px solid var(--gwb2-console-border);
   background: var(--gwb2-console-panel-muted);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  max-width: 100%;
+}
+
+.game-workbench-v2 .n-data-table-wrapper,
+.route-game-workbench-v2-active .n-modal .n-data-table-wrapper {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
 }
 
 .game-workbench-v2 .n-data-table .n-data-table-th,
@@ -1911,6 +1931,11 @@
     width: 100%;
   }
 
+  .game-command-bar__action-stack > :is(.n-button, .arco-btn, button) {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+
   .game-command-bar__signal-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1972,6 +1997,7 @@
 
   .game-module-dock__bar {
     gap: 6px;
+    padding-bottom: max(10px, env(safe-area-inset-bottom));
   }
 
   .game-module-dock__group {

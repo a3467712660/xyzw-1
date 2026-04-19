@@ -884,6 +884,15 @@ body {
   min-width: 0;
 }
 
+.app-page,
+.app-page *,
+.app-shell__content,
+.app-shell__content *,
+.public-support-page,
+.public-support-page * {
+  min-width: 0;
+}
+
 .app-page__hero,
 .app-section-card,
 .app-surface {
@@ -971,6 +980,8 @@ body {
   gap: var(--spacing-sm);
   flex-wrap: wrap;
   justify-content: flex-end;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .app-page__summary,
@@ -1058,11 +1069,37 @@ body {
   flex-wrap: wrap;
   gap: var(--spacing-sm);
   min-width: 0;
+  max-width: 100%;
 }
 
 .app-scroll-x {
+  max-width: 100%;
   overflow-x: auto;
+  overscroll-behavior-inline: contain;
   scrollbar-width: thin;
+}
+
+.app-scroll-x > :where(table, .n-data-table, .arco-table),
+.app-shell__content :is(.n-data-table-wrapper, .arco-table-container, .table-wrap, .members-table-wrapper, .style2-table-wrapper) {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+}
+
+.app-shell__content :is(.n-button, .arco-btn, button),
+.public-support-page :is(.n-button, .arco-btn, button) {
+  max-width: 100%;
+}
+
+.app-shell__content :is(.n-button__content, .arco-btn-content),
+.public-support-page :is(.n-button__content, .arco-btn-content) {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.app-shell__content :is(.n-card, .arco-card, .n-modal, .arco-modal, .n-drawer, .n-popover),
+.public-support-page :is(.n-card, .arco-card, .n-modal, .arco-modal, .n-drawer, .n-popover) {
+  max-width: 100%;
 }
 
 .app-empty-card {
@@ -1694,6 +1731,12 @@ body {
     justify-content: flex-start;
   }
 
+  .app-page__actions > *,
+  .app-toolbar__group > *,
+  .public-support-actions > * {
+    min-width: 0;
+  }
+
   .app-shell__content :is(.desktop-table-card__header, .list-card__head, .bin-files-header, .toolbar, .summary-bar) {
     flex-direction: column;
     align-items: stretch;
@@ -1727,6 +1770,13 @@ body {
 
   .public-support-actions {
     align-items: stretch;
+  }
+
+  .app-page__actions > :is(.n-button, .arco-btn, button),
+  .app-toolbar__group > :is(.n-button, .arco-btn, button),
+  .public-support-actions > :is(.n-button, .arco-btn, button) {
+    flex: 1 1 100%;
+    width: 100%;
   }
 
   .app-page__hero,

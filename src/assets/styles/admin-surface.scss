@@ -41,6 +41,7 @@
   display: grid;
   gap: 16px;
   width: min(1360px, calc(100% - 24px));
+  min-width: 0;
   margin: 0 auto;
 }
 
@@ -113,6 +114,7 @@
   justify-content: flex-end;
   gap: 12px;
   min-width: min(100%, 520px);
+  max-width: 100%;
   margin-left: auto;
 }
 
@@ -190,6 +192,7 @@
 .admin-surface-page :is(.submit-card, .notify-card, .share-card) .n-card__content {
   display: grid;
   gap: 16px;
+  min-width: 0;
 }
 
 .admin-surface-page :is(.desktop-table-card__header, .list-card__head, .notify-card__head, .share-card__head) {
@@ -277,6 +280,8 @@
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .admin-surface-page :is(.ticket-item__button-row, .contact-card__toggles, .mobile-user-card__switch, .mobile-user-card__scope) {
@@ -292,6 +297,7 @@
 }
 
 .admin-surface-page :is(.share-card__value, .broadcast-preview__title, .broadcast-preview__content, .ticket-item__title, .feedback-item__title) {
+  overflow-wrap: anywhere;
   word-break: break-word;
 }
 
@@ -306,6 +312,13 @@
 .admin-surface-page :is(.n-data-table, .arco-table) {
   border-radius: 18px;
   overflow: hidden;
+  max-width: 100%;
+}
+
+.admin-surface-page :is(.n-data-table-wrapper, .arco-table-container) {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
 }
 
 .admin-surface-page :is(.n-data-table .n-data-table-th, .arco-table-th) {
@@ -359,6 +372,11 @@
 
   .admin-surface-page :is(.toolbar, .status-list, .list-toolbar, .submit-card__actions, .ticket-item__actions, .contact-card__actions, .mobile-actions, .mobile-user-card__actions, .feedback-item__actions, .admin-actions) {
     align-items: stretch;
+  }
+
+  .admin-surface-page :is(.ticket-item__actions, .contact-card__actions, .mobile-actions, .mobile-user-card__actions, .feedback-item__actions, .admin-actions) > :is(.n-button, .arco-btn, button) {
+    flex: 1 1 100%;
+    width: 100%;
   }
 
   .admin-surface-page :is(.toolbar__field, .toolbar__field--compact, .toolbar__field--wide) {

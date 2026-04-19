@@ -91,7 +91,6 @@ import {
   Add,
   CalendarClear,
   Cube,
-  DownloadOutline,
   Settings,
 } from "@vicons/ionicons5";
 
@@ -165,13 +164,6 @@ const quickActions = computed(() => {
       description: "集中管理主题、账号安全和偏好配置。",
       action: "open-settings",
     },
-    {
-      id: 6,
-      icon: DownloadOutline,
-      title: "下载 Android App",
-      description: "打开原生客户端下载页，安装到手机后继续使用当前账号体系。",
-      action: "download-android-app",
-    },
   ];
 
   if (canOpenWorkbenchFeatures.value) {
@@ -216,9 +208,6 @@ const handleQuickAction = (action) => {
       break;
     case "open-settings":
       router.push("/admin/profile");
-      break;
-    case "download-android-app":
-      router.push("/android-app");
       break;
   }
 };

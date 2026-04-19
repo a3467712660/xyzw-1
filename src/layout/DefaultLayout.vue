@@ -214,8 +214,6 @@ import {
   APP_SIDER_WIDTH,
 } from "@/constants/ui";
 import {
-  ANDROID_APP_MENU_ROUTE,
-  ANDROID_APP_USER_ACTION,
   createSupportMenuOptions,
   createUserMenuOptions,
 } from "@/layout/appShellNavigation";
@@ -427,9 +425,6 @@ const handleUserAction = async (key) => {
   switch (key) {
     case "profile":
       router.push("/admin/profile");
-      break;
-    case ANDROID_APP_USER_ACTION:
-      router.push(ANDROID_APP_MENU_ROUTE);
       break;
     case "logout-account":
       await authStore.logout();
@@ -650,7 +645,7 @@ onUnmounted(() => {
 
 <style scoped lang="scss">
 .app-shell {
-  min-height: 100vh;
+  min-height: 100dvh;
   background: transparent;
 }
 
@@ -857,7 +852,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 16px 24px;
+  padding: 16px max(24px, env(safe-area-inset-right)) 16px max(24px, env(safe-area-inset-left));
 }
 
 .app-shell__header-left,
@@ -865,6 +860,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 12px;
+  min-width: 0;
 }
 
 .app-shell__header-left {
@@ -992,9 +988,18 @@ onUnmounted(() => {
 
 .notify-panel__head {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
+  gap: 8px;
   margin-bottom: 8px;
+}
+
+.notify-panel__head-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
 }
 
 .notify-panel__list {
@@ -1077,6 +1082,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 12px;
+  min-width: 0;
   margin-bottom: 18px;
 }
 
@@ -1120,7 +1126,7 @@ onUnmounted(() => {
 
 @media (max-width: 959px) {
   .app-shell__header {
-    padding: 12px 16px;
+    padding: 12px max(16px, env(safe-area-inset-right)) 12px max(16px, env(safe-area-inset-left));
   }
 
   .app-shell__content {
@@ -1156,6 +1162,11 @@ onUnmounted(() => {
 
   .app-shell__header-right {
     gap: 8px;
+    flex-shrink: 0;
+  }
+
+  .app-shell__page-copy {
+    max-width: calc(100vw - 180px);
   }
 
   .app-shell__page-kicker,

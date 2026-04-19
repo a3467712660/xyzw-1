@@ -82,11 +82,9 @@ export const publicRoutes = [
   },
   {
     path: "/android-app",
-    name: "AndroidAppDownload",
-    component: () => import("@/views/AndroidAppDownload.vue"),
+    redirect: "/",
     meta: withRouteMeta({
-      title: "Android App",
-      layout: "public",
+      hidden: true,
     }),
   },
   {

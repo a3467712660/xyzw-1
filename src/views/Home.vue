@@ -27,9 +27,6 @@
 
         <div class="nav-actions">
           <template v-if="!authStore.isAuthenticated">
-            <n-button quaternary type="primary" @click="router.push('/android-app')">
-              {{ t("homePage.nav.androidApp") }}
-            </n-button>
             <n-button quaternary type="primary" @click="router.push('/pricing')">
               {{ t("homePage.nav.pricing") }}
             </n-button>
@@ -41,9 +38,6 @@
             </n-button>
           </template>
           <template v-else>
-            <n-button quaternary type="primary" @click="router.push('/android-app')">
-              {{ t("homePage.nav.androidApp") }}
-            </n-button>
             <n-button type="primary" @click="router.push('/admin/dashboard')">
               {{ t("homePage.actions.enterDashboard") }}
             </n-button>
@@ -71,14 +65,6 @@
             <n-icon><LockClosed></LockClosed></n-icon>
             <span>{{ t("homePage.nav.security") }}</span>
           </button>
-          <router-link
-            class="drawer-item"
-            to="/android-app"
-            @click="isMobileMenuOpen = false"
-          >
-            <n-icon><LogoAndroid></LogoAndroid></n-icon>
-            <span>{{ t("homePage.nav.androidApp") }}</span>
-          </router-link>
           <router-link
             class="drawer-item"
             to="/pricing"
@@ -149,14 +135,6 @@
           >
             <n-icon><PersonCircle></PersonCircle></n-icon>
             <span>{{ t("homePage.nav.tokens") }}</span>
-          </router-link>
-          <router-link
-            class="drawer-item"
-            to="/android-app"
-            @click="isMobileMenuOpen = false"
-          >
-            <n-icon><LogoAndroid></LogoAndroid></n-icon>
-            <span>{{ t("homePage.nav.androidApp") }}</span>
           </router-link>
           <router-link
             class="drawer-item"
@@ -247,26 +225,6 @@
                 </n-icon>
                 <span>{{ item.label }}</span>
               </div>
-            </div>
-            <div class="hero-download-card public-brand-soft-card">
-              <div class="hero-download-card__icon">
-                <n-icon>
-                  <LogoAndroid></LogoAndroid>
-                </n-icon>
-              </div>
-              <div class="hero-download-card__copy">
-                <span>{{ t("homePage.hero.androidAppKicker") }}</span>
-                <strong>{{ t("homePage.hero.androidAppTitle") }}</strong>
-                <p>{{ t("homePage.hero.androidAppDescription") }}</p>
-              </div>
-              <n-button
-                quaternary
-                class="hero-download-card__action"
-                type="primary"
-                @click="router.push('/android-app')"
-              >
-                {{ t("homePage.actions.downloadAndroidApp") }}
-              </n-button>
             </div>
           </div>
 
@@ -426,12 +384,6 @@
         <div class="footer-links">
           <router-link
             class="footer-link"
-            to="/android-app"
-          >
-            {{ t("homePage.nav.androidApp") }}
-          </router-link>
-          <router-link
-            class="footer-link"
             to="/changelog"
           >
             {{ t("homePage.nav.changelog") }}
@@ -457,7 +409,6 @@ import {
   Flash,
   Key,
   LockClosed,
-  LogoAndroid,
   Menu,
   PersonCircle,
   Pricetag,
