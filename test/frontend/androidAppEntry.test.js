@@ -1,6 +1,7 @@
 /* eslint-disable test/no-import-node-test */
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import jiti from "jiti";
 
 const loadModule = jiti(import.meta.url, { interopDefault: true });
@@ -55,4 +56,11 @@ test("authenticated shell exposes android app entry in support and user menus", 
   assert.ok(
     userOptions.some(item => item.key === ANDROID_APP_USER_ACTION && item.label === "Android App 下载"),
   );
+});
+
+test("app shell does not render a nested app mount id", () => {
+  const appSource = fs.readFileSync(new URL("../../src/App.vue", import.meta.url), "utf8");
+
+  assert.equal(appSource.includes("<div id=\"app\">"), false);
+  assert.ok(appSource.includes("class=\"app-root\""));
 });

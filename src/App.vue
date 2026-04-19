@@ -8,7 +8,7 @@
       <n-loading-bar-provider>
         <n-notification-provider>
           <n-dialog-provider>
-            <div id="app">
+            <div class="app-root">
               <a class="app-skip-link" href="#app-main">跳到主要内容</a>
               <div aria-hidden="true" class="app-flow-bg">
                 <span class="flow-orb flow-orb--a"></span>
@@ -253,7 +253,7 @@ html[data-theme="dark"] {
   color-scheme: dark;
 }
 
-#app {
+.app-root {
   min-height: 100dvh;
   position: relative;
   overflow-x: hidden;
