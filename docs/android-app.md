@@ -18,14 +18,14 @@
 Android 端把服务端根地址视为 `API_BASE_URL`，例如：
 
 - Debug 默认：`http://10.0.2.2:8787`
-- Release 必须是：`https://your-domain.example`
+- Release 默认：`https://xyzw.xq5007.fun`
 
 构建时可通过 Gradle 属性覆盖：
 
 ```bash
 cd android
 ./gradlew assembleDebug -PAPI_BASE_URL=http://10.0.2.2:8787
-./gradlew assembleRelease -PAPI_BASE_URL=https://your-domain.example
+./gradlew assembleRelease -PAPI_BASE_URL=https://xyzw.xq5007.fun
 ```
 
 ## WS_ORIGIN 配置
@@ -45,14 +45,14 @@ Android 原生 `/ws` 握手现在会显式发送 `Origin` header。
 ```bash
 cd android
 ./gradlew assembleDebug -PAPI_BASE_URL=http://10.0.2.2:8787 -PwsOrigin=http://localhost:3000
-./gradlew assembleRelease -PAPI_BASE_URL=https://your-domain.example -PwsOrigin=https://app.example.com
+./gradlew assembleRelease -PAPI_BASE_URL=https://xyzw.xq5007.fun -PwsOrigin=https://xyzw.xq5007.fun
 ```
 
 约束：
 
 - Android `/ws` 的 `Origin` 必须位于后端 `CORS_ORIGINS` allowlist 中
 - Debug 推荐使用 `http://localhost:3000`
-- Release 必须使用 HTTPS Origin，且必须与生产环境 `CORS_ORIGINS` 保持一致
+- Release 默认使用 `https://xyzw.xq5007.fun`，且必须与生产环境 `CORS_ORIGINS` 保持一致
 - Release 默认不会回退到 `http://10.0.2.2` 这类 loopback HTTP Origin
 
 应用启动时会把默认值写入 DataStore：
@@ -81,6 +81,17 @@ WebSocket 实际访问的是：
 - Release 构建禁止明文 HTTP
 - `AppContainer` 会校验 Release 环境下的 `API_BASE_URL` 必须是 HTTPS
 - 若仍提供 HTTP 地址，应用会在启动容器时直接拒绝使用
+
+### Release 签名
+
+本机 release 签名配置从 `android/local.properties` 读取：
+
+- `RELEASE_STORE_FILE`
+- `RELEASE_STORE_PASSWORD`
+- `RELEASE_KEY_ALIAS`
+- `RELEASE_KEY_PASSWORD`
+
+签名 keystore 应放在 `android/.release-signing/` 下。该目录已被 `.gitignore` 忽略，不要提交到仓库。后续升级同一个安装包时必须继续使用同一个 keystore，否则用户手机上会被视为不同签名应用。
 
 ## Cookie 与 CSRF
 
@@ -141,9 +152,25 @@ Android 端已提供 `WsSessionManager` 基础设施，复用同一个 OkHttpCli
 
 - Android 构建配置出来的 `Origin` 必须位于 `CORS_ORIGINS` 白名单中
 - Debug 推荐配置为本地前端开发地址 `http://localhost:3000`
-- Release 必须配置为生产 HTTPS Origin，不能使用 `http://10.0.2.2`
+- Release 默认配置为生产 HTTPS Origin `https://xyzw.xq5007.fun`，不能使用 `http://10.0.2.2`
 - 无 `Origin` + Bearer-only 的握手不作为 Android 正式认证方案
 - Android 正式方案仍是登录后复用 access cookie 进行 WS 握手
+
+## Web 下载入口
+
+Web 端公开下载页为 `/android-app`。生产构建通过 `.env.production.local` 中的配置开放下载按钮：
+
+```env
+VITE_ANDROID_APP_DOWNLOAD_URL=/downloads/xyzw-helper.apk
+```
+
+构建 release 后，把 signed APK 复制到：
+
+- `public/downloads/xyzw-helper.apk`
+
+执行 `npm run build` 后，Vite 会把它复制到：
+
+- `dist/downloads/xyzw-helper.apk`
 
 ## 本地构建
 
@@ -151,6 +178,7 @@ Android 端已提供 `WsSessionManager` 基础设施，复用同一个 OkHttpCli
 cd android
 ./gradlew testDebugUnitTest
 ./gradlew assembleDebug
+./gradlew assembleRelease
 ```
 
 当前工程默认包名：

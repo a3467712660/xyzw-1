@@ -17,6 +17,7 @@ build/
 android/.gradle/
 android/**/build/
 android/local.properties
+android/.release-signing/
 artifacts/
 artifacts/sbom/
 

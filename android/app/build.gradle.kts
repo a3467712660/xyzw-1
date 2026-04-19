@@ -51,13 +51,23 @@ val configuredApiBaseUrl = resolveGradleProperty("API_BASE_URL")
   .ifBlank { resolveLocalProperty("API_BASE_URL") }
 val configuredWsOrigin = resolveGradleProperty("wsOrigin", "WS_ORIGIN")
   .ifBlank { resolveLocalProperty("wsOrigin", "WS_ORIGIN") }
+val releaseStoreFile = resolveLocalProperty("RELEASE_STORE_FILE")
+val releaseStorePassword = resolveLocalProperty("RELEASE_STORE_PASSWORD")
+val releaseKeyAlias = resolveLocalProperty("RELEASE_KEY_ALIAS")
+val releaseKeyPassword = resolveLocalProperty("RELEASE_KEY_PASSWORD")
+val hasReleaseSigningConfig = listOf(
+  releaseStoreFile,
+  releaseStorePassword,
+  releaseKeyAlias,
+  releaseKeyPassword,
+).all { it.isNotBlank() } && rootProject.file(releaseStoreFile).exists()
 
 val debugApiBaseUrl = configuredApiBaseUrl.ifBlank { "http://10.0.2.2:8787" }
-val releaseApiBaseUrl = configuredApiBaseUrl.ifBlank { "https://example.invalid" }
+val releaseApiBaseUrl = configuredApiBaseUrl.ifBlank { "https://xyzw.xq5007.fun" }
 val debugWsOrigin = configuredWsOrigin.ifBlank { "http://localhost:3000" }
 val releaseWsOrigin = extractHttpsOriginOrNull(configuredWsOrigin)
   ?: extractHttpsOriginOrNull(releaseApiBaseUrl)
-  ?: "https://example.invalid"
+  ?: "https://xyzw.xq5007.fun"
 
 android {
   namespace = "com.xyzw.helper"
@@ -71,6 +81,17 @@ android {
     versionName = "1.0.0"
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     vectorDrawables.useSupportLibrary = true
+  }
+
+  signingConfigs {
+    if (hasReleaseSigningConfig) {
+      create("release") {
+        storeFile = rootProject.file(releaseStoreFile)
+        storePassword = releaseStorePassword
+        keyAlias = releaseKeyAlias
+        keyPassword = releaseKeyPassword
+      }
+    }
   }
 
   buildTypes {
@@ -87,6 +108,9 @@ android {
         getDefaultProguardFile("proguard-android-optimize.txt"),
         "proguard-rules.pro",
       )
+      if (hasReleaseSigningConfig) {
+        signingConfig = signingConfigs.getByName("release")
+      }
       buildConfigField("String", "DEFAULT_API_BASE_URL", toBuildConfigString(releaseApiBaseUrl))
       buildConfigField("String", "DEFAULT_WS_PATH", "\"/ws\"")
       buildConfigField("String", "DEFAULT_WS_ORIGIN", toBuildConfigString(releaseWsOrigin))
