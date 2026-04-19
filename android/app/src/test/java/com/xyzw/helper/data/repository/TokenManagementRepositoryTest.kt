@@ -7,6 +7,8 @@ import com.xyzw.helper.data.network.ApiResultParser
 import com.xyzw.helper.data.network.TokenManagementApi
 import com.xyzw.helper.data.session.UserSensitiveActionSession
 import com.xyzw.helper.data.storage.SecureTokenWorkspaceStore
+import com.xyzw.helper.data.token.MAX_BIN_UPLOAD_BYTES
+import com.xyzw.helper.data.token.validateBinUploadSize
 import kotlinx.coroutines.runBlocking
 import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
@@ -20,6 +22,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import retrofit2.create
+import java.io.ByteArrayInputStream
 
 @RunWith(RobolectricTestRunner::class)
 class TokenManagementRepositoryTest {
@@ -115,5 +118,52 @@ class TokenManagementRepositoryTest {
     assertTrue(downloadResult is ApiResult.Success<*>)
     downloadResult as ApiResult.Success
     assertEquals(4, downloadResult.data.size)
+  }
+
+  @Test
+  fun `bin upload streams request body and preserves content length`() = runBlocking {
+    server.dispatcher = object : Dispatcher() {
+      override fun dispatch(request: RecordedRequest): MockResponse =
+        when (request.path) {
+          "/api/v1/bin-files/token-1" -> {
+            assertEquals("PUT", request.method)
+            assertEquals("4", request.getHeader("Content-Length"))
+            assertEquals("bin!", request.body.readUtf8())
+            jsonResponse(
+              200,
+              """{"success":true,"data":{"tokenId":"token-1","size":4,"checksum":"ok"}}""",
+            )
+          }
+          else -> MockResponse().setResponseCode(404)
+        }
+    }
+
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val preferences = context.getSharedPreferences("tm_repo_test_3", Context.MODE_PRIVATE).apply {
+      edit().clear().commit()
+    }
+    val harness = createRepositoryHarness(server.url("/api/v1/"))
+    val repository = TokenManagementRepository(
+      api = harness.retrofit.create(),
+      parser = ApiResultParser(),
+      store = SecureTokenWorkspaceStore(context, preferences),
+      sensitiveActionSession = UserSensitiveActionSession(),
+    )
+
+    val result = repository.uploadBinFile(
+      tokenId = "token-1",
+      contentLength = 4,
+      inputStreamProvider = { ByteArrayInputStream("bin!".toByteArray()) },
+    )
+
+    assertTrue(result is ApiResult.Success<*>)
+  }
+
+  @Test
+  fun `bin upload policy rejects files above max size but allows unknown size`() {
+    assertEquals(null, validateBinUploadSize(null))
+    assertEquals(null, validateBinUploadSize(-1))
+    assertEquals(null, validateBinUploadSize(MAX_BIN_UPLOAD_BYTES))
+    assertEquals("BIN 文件超过 32MB 上限，请选择更小的文件", validateBinUploadSize(MAX_BIN_UPLOAD_BYTES + 1))
   }
 }

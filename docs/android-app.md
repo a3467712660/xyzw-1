@@ -210,6 +210,20 @@ V2 继续保持原生 Android 实现，不使用 WebView、Capacitor 或 Cordova
 - 管理员模块：入口分区、非管理员拦截、用户搜索/筛选、权限和上限调整、重置密码、吊销会话、删除用户、邀请码/激活码创建禁用解绑删除、reveal 410 友好提示、工单处理、任务日志筛选、更新广播、微信联系人维护、推广归因和转化处理。
 - 统一错误处理：401 仍由 `SessionAuthenticator` refresh 一次；403/404/409/429/500 和非标准错误 body 会显示面向用户的友好文案。
 
+## V2.1 修复清单
+
+V2.1 是在 V2 主体功能上的收口修复，仍然保持原生 Android 实现，不改变现有 Web 前端和后端安全基线。
+
+已修复：
+
+- 密码和恢复码输入默认隐藏：Profile 当前密码、新密码、用户二次确认密码、管理员确认密码、恢复码、MFA 恢复码均不明文显示。
+- 反馈提交失败不清空表单：只有后端返回成功后才清空标题和内容；失败会保留用户输入并显示错误反馈。
+- 危险操作确认：角色删除、BIN 删除、通知清空、任务日志清空、退出登录均需要二次确认。
+- 日常任务配置：移动端只展示后端模型已有的 `enabled`、`autoExecute`、`delay`、`cronExpr`、`notification` 字段，保存后刷新任务列表和状态。
+- BIN 上传：继续使用 Android scoped storage，不读取文件绝对路径；上传前检查文件大小，超过 32MB 会给出友好提示；正常上传使用 streaming `RequestBody`，避免一次性读入内存。
+- 推广分享：推广中心使用系统 `Intent.ACTION_SEND` 分享推广链接或推广码，不使用 WebView。
+- 敏感内容展示：Token 内容默认脱敏，只能通过眼睛按钮临时显示。
+
 尚未实现或受后端限制：
 
 - 管理员后台没有追求 Web 后台的全量复杂配置项，只覆盖移动端高频操作。
@@ -244,9 +258,14 @@ cd android
 - 冷启动后进入登录页，登录成功后进入五 tab 主界面。
 - 控制台能显示用户、角色数、Token 数、未读通知数、任务完成率和后端版本。
 - Token 页面能手动导入、URL 导入、上传 BIN、下载 BIN、删除前弹确认。
+- Token 手动输入和列表展示不暴露完整敏感值；需要查看时必须点击眼睛按钮。
+- BIN 上传大文件时显示大小上限提示，正常大小文件可通过系统文件选择器上传。
 - 无角色时日常任务页显示创建角色引导；有角色时能加载状态、列表和历史。
+- 日常任务配置能保存 delay、cronExpr 和通知开关，保存后列表与状态刷新。
 - 通知 WebSocket 消息到达后通知中心刷新，底部导航未读 badge 更新。
+- 反馈提交失败时标题和内容仍保留，成功后才清空。
 - Profile 修改密码前必须出现二次确认，退出登录后 Cookie、session 和 WebSocket 都被清理。
+- Profile 当前密码、新密码、确认密码和恢复码输入必须隐藏显示。
 - 非管理员不能进入管理员中心；管理员高危写操作必须先完成管理员确认。
 - 深色/浅色/跟随系统主题切换后主要文本和状态 chip 仍可读。
 
@@ -255,6 +274,8 @@ cd android
 - `API_BASE_URL` 写成 `/api/v1`：应填写服务端根地址，例如 `https://your-domain.example`。
 - `wsOrigin` 写成 `wss://`：Origin 是 HTTP Origin，应写 `https://your-domain.example`。
 - `CORS_ORIGINS` 未包含 `wsOrigin`：后端会拒绝 Android `/ws` 握手。
+- 反馈提交失败后表单被清空：这是异常行为，V2.1 要求失败保留标题和内容，成功后才清空。
+- 密码输入明文显示：这是异常行为，Profile、管理员确认、恢复码等敏感输入都必须隐藏。
 - Cookie secure 配置错误：HTTPS 生产环境必须正确设置 secure cookie；HTTP debug 环境不要误用生产 secure 策略。
 - ngrok 返回 warning HTML：后端 API 会收到 HTML 而非 JSON，Android 会显示解析/服务器异常；需要配置 ngrok 跳过 warning 或使用稳定域名。
 - App 保存了旧 `api_base_url`：Debug 包可在个人中心修改；也可以清除 App 数据后重新启动写入默认值。

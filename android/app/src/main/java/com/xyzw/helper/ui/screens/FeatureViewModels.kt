@@ -43,6 +43,7 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
+import java.io.InputStream
 import java.io.OutputStream
 import java.net.URI
 import java.time.Instant
@@ -204,9 +205,21 @@ class TokenManagementViewModel(
   }
 
   fun uploadBinFile(tokenId: String, bytes: ByteArray) {
+    uploadBinFile(
+      tokenId = tokenId,
+      contentLength = bytes.size.toLong(),
+      inputStreamProvider = { bytes.inputStream() },
+    )
+  }
+
+  fun uploadBinFile(
+    tokenId: String,
+    contentLength: Long?,
+    inputStreamProvider: () -> InputStream,
+  ) {
     viewModelScope.launch {
       mutableState.value = mutableState.value.copy(isMutating = true, errorMessage = null)
-      when (val result = repository.uploadBinFile(tokenId, bytes)) {
+      when (val result = repository.uploadBinFile(tokenId, contentLength, inputStreamProvider)) {
         is ApiResult.Success -> {
           repository.updateImportedToken(tokenId) { current ->
             current.copy(
@@ -715,6 +728,8 @@ class TaskControlViewModel(
 data class FeedbackUiState(
   val feedbacks: List<FeedbackItem> = emptyList(),
   val isLoading: Boolean = true,
+  val isSubmitting: Boolean = false,
+  val clearDraftSignal: Int = 0,
   val errorMessage: String? = null,
   val actionMessage: String? = null,
 )
@@ -747,12 +762,20 @@ class FeedbackViewModel(
 
   fun submitFeedback(type: String, title: String, content: String) {
     viewModelScope.launch {
+      mutableState.value = mutableState.value.copy(isSubmitting = true, errorMessage = null)
       when (val result = repository.createFeedback(type, title, content)) {
         is ApiResult.Success -> {
-          mutableState.value = mutableState.value.copy(actionMessage = result.message ?: "反馈已提交")
+          mutableState.value = mutableState.value.copy(
+            isSubmitting = false,
+            clearDraftSignal = mutableState.value.clearDraftSignal + 1,
+            actionMessage = result.message ?: "反馈已提交",
+          )
           refresh()
         }
-        is ApiResult.Failure -> mutableState.value = mutableState.value.copy(errorMessage = result.error.message)
+        is ApiResult.Failure -> mutableState.value = mutableState.value.copy(
+          isSubmitting = false,
+          errorMessage = result.error.message,
+        )
       }
     }
   }

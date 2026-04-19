@@ -14,8 +14,12 @@ import com.xyzw.helper.data.session.UserSensitiveActionSession
 import com.xyzw.helper.data.storage.SecureTokenWorkspaceStore
 import com.xyzw.helper.data.token.TokenImportParser
 import kotlinx.serialization.json.JsonElement
+import okio.BufferedSink
+import okio.source
 import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.RequestBody
+import java.io.ByteArrayInputStream
+import java.io.InputStream
 
 class TokenManagementRepository(
   private val api: TokenManagementApi,
@@ -71,12 +75,47 @@ class TokenManagementRepository(
     tokenId: String,
     bytes: ByteArray,
   ): ApiResult<BinFileUploadResult> =
-    parser.parse(
-      api.uploadBinFile(
-        tokenId = tokenId,
-        requestBody = bytes.toRequestBody("application/octet-stream".toMediaType()),
-      ),
+    uploadBinFile(
+      tokenId = tokenId,
+      contentLength = bytes.size.toLong(),
+      inputStreamProvider = { ByteArrayInputStream(bytes) },
     )
+
+  suspend fun uploadBinFile(
+    tokenId: String,
+    contentLength: Long?,
+    inputStreamProvider: () -> InputStream,
+  ): ApiResult<BinFileUploadResult> =
+    runCatching {
+      parser.parse(
+        api.uploadBinFile(
+          tokenId = tokenId,
+          requestBody = streamingBinRequestBody(contentLength, inputStreamProvider),
+        ),
+      )
+    }.getOrElse { error ->
+      ApiResult.Failure(
+        ApiError.local(
+          message = error.message ?: "BIN 文件读取失败",
+        ),
+      )
+    }
+
+  private fun streamingBinRequestBody(
+    contentLength: Long?,
+    inputStreamProvider: () -> InputStream,
+  ): RequestBody =
+    object : RequestBody() {
+      override fun contentType() = "application/octet-stream".toMediaType()
+
+      override fun contentLength(): Long = contentLength ?: -1L
+
+      override fun writeTo(sink: BufferedSink) {
+        inputStreamProvider().use { input ->
+          sink.writeAll(input.source())
+        }
+      }
+    }
 
   suspend fun createDownloadTicket(
     tokenId: String,

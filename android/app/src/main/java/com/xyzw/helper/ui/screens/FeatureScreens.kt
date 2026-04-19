@@ -8,6 +8,7 @@ package com.xyzw.helper.ui.screens
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import com.xyzw.helper.BuildConfig
@@ -57,6 +58,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -67,12 +69,14 @@ import com.xyzw.helper.data.network.ApiResult
 import com.xyzw.helper.data.network.GameRoleUpsertRequest
 import com.xyzw.helper.data.storage.AppPreferences
 import com.xyzw.helper.data.storage.ThemeMode
+import com.xyzw.helper.data.token.validateBinUploadSize
 import com.xyzw.helper.ui.components.SensitiveValueText
 import com.xyzw.helper.ui.components.XyzwActionCard
 import com.xyzw.helper.ui.components.XyzwConfirmDialog
 import com.xyzw.helper.ui.components.XyzwEmptyState
 import com.xyzw.helper.ui.components.XyzwErrorState
 import com.xyzw.helper.ui.components.XyzwExpandableText
+import com.xyzw.helper.ui.components.XyzwFormField
 import com.xyzw.helper.ui.components.XyzwLoadingState
 import com.xyzw.helper.ui.components.XyzwPage
 import com.xyzw.helper.ui.components.XyzwSection
@@ -155,14 +159,20 @@ fun TokenManagementScreen(
     val tokenId = uploadTargetTokenId
     uploadTargetTokenId = null
     if (uri == null || tokenId == null) return@rememberLauncherForActivityResult
-    val bytes = runCatching {
-      context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-    }.getOrNull()
-    if (bytes == null || bytes.isEmpty()) {
-      scope.launch { snackbarHostState.showSnackbar("BIN 文件读取失败") }
+    val sizeBytes = queryContentSize(context, uri)
+    val sizeError = validateBinUploadSize(sizeBytes)
+    if (sizeError != null) {
+      scope.launch { snackbarHostState.showSnackbar(sizeError) }
       return@rememberLauncherForActivityResult
     }
-    viewModel.uploadBinFile(tokenId, bytes)
+    viewModel.uploadBinFile(
+      tokenId = tokenId,
+      contentLength = sizeBytes?.takeIf { it >= 0 },
+      inputStreamProvider = {
+        context.contentResolver.openInputStream(uri)
+          ?: throw IOException("无法打开 BIN 文件")
+      },
+    )
   }
 
   val createDocumentLauncher = rememberLauncherForActivityResult(
@@ -217,12 +227,13 @@ fun TokenManagementScreen(
             label = { Text("Token 名称") },
             singleLine = true,
           )
-          OutlinedTextField(
+          XyzwFormField(
             value = manualToken,
             onValueChange = { manualToken = it },
-            modifier = Modifier.fillMaxWidth(),
             minLines = 4,
-            label = { Text("Token") },
+            label = "Token",
+            password = true,
+            helper = "敏感内容默认隐藏，确认无误后再导入。",
           )
           Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Button(
@@ -510,11 +521,8 @@ fun RoleManagementScreen(
   }
 
   if (confirmDeleteRole != null) {
-    XyzwConfirmDialog(
-      title = "删除角色",
-      message = "确认删除角色“${confirmDeleteRole?.name}”？删除后需要重新创建。",
-      confirmLabel = "删除",
-      destructive = true,
+    RoleDeleteConfirmDialog(
+      roleName = confirmDeleteRole?.name.orEmpty(),
       onConfirm = {
         val target = confirmDeleteRole
         confirmDeleteRole = null
@@ -525,6 +533,22 @@ fun RoleManagementScreen(
       onDismiss = { confirmDeleteRole = null },
     )
   }
+}
+
+@Composable
+internal fun RoleDeleteConfirmDialog(
+  roleName: String,
+  onConfirm: () -> Unit,
+  onDismiss: () -> Unit,
+) {
+  XyzwConfirmDialog(
+    title = "删除角色",
+    message = "确认删除角色“$roleName”？删除后需要重新创建。",
+    confirmLabel = "删除",
+    destructive = true,
+    onConfirm = onConfirm,
+    onDismiss = onDismiss,
+  )
 }
 
 @Composable
@@ -873,6 +897,7 @@ fun ProfileSettingsScreen(
   var newPassword by rememberSaveable { mutableStateOf("") }
   var showConfirmPasswordChange by rememberSaveable { mutableStateOf(false) }
   var showConfirmRemoteBin by rememberSaveable { mutableStateOf(false) }
+  var showConfirmLogout by rememberSaveable { mutableStateOf(false) }
   var targetRemoteBinState by rememberSaveable { mutableStateOf(false) }
 
   LaunchedEffect(uiState.actionMessage, uiState.errorMessage) {
@@ -921,24 +946,13 @@ fun ProfileSettingsScreen(
       description = "修改密码、远程 BIN 开关和安全事件。",
     ) {
       Text("MFA：${if (uiState.profile?.mfaEnabled == true) "已启用" else "未启用"}")
-      OutlinedTextField(
-        value = currentPassword,
-        onValueChange = { currentPassword = it },
-        modifier = Modifier.fillMaxWidth(),
-        label = { Text("当前密码") },
+      ProfilePasswordFields(
+        currentPassword = currentPassword,
+        newPassword = newPassword,
+        onCurrentPasswordChange = { currentPassword = it },
+        onNewPasswordChange = { newPassword = it },
+        onSubmit = { showConfirmPasswordChange = true },
       )
-      OutlinedTextField(
-        value = newPassword,
-        onValueChange = { newPassword = it },
-        modifier = Modifier.fillMaxWidth(),
-        label = { Text("新密码") },
-      )
-      Button(
-        onClick = { showConfirmPasswordChange = true },
-        enabled = currentPassword.isNotBlank() && newPassword.isNotBlank(),
-      ) {
-        Text("修改密码")
-      }
 
       Row(
         modifier = Modifier.fillMaxWidth(),
@@ -1014,7 +1028,7 @@ fun ProfileSettingsScreen(
       ) {
         OutlinedButton(onClick = onOpenReferral) { Text("推广中心") }
         OutlinedButton(onClick = onOpenFeedback) { Text("反馈中心") }
-        OutlinedButton(onClick = onLogout) { Text("退出登录") }
+        OutlinedButton(onClick = { showConfirmLogout = true }) { Text("退出登录") }
       }
     }
   }
@@ -1052,6 +1066,20 @@ fun ProfileSettingsScreen(
           }
         }
       },
+    )
+  }
+
+  if (showConfirmLogout) {
+    XyzwConfirmDialog(
+      title = "退出登录",
+      message = "确认退出当前账号？退出后会清除本机会话并关闭 WebSocket。",
+      confirmLabel = "退出登录",
+      destructive = true,
+      onConfirm = {
+        showConfirmLogout = false
+        onLogout()
+      },
+      onDismiss = { showConfirmLogout = false },
     )
   }
 }
@@ -1112,13 +1140,10 @@ fun ReferralScreen(
           } else {
             Text("推广码：${profile.referralCode}")
             Text("分享链接：${profile.shareUrl}")
-            OutlinedButton(
-              onClick = {
-                val shareText = if (profile.shareUrl.isNotBlank()) {
-                  "使用我的推广链接注册：${profile.shareUrl}"
-                } else {
-                  "使用我的推广码注册：${profile.referralCode}"
-                }
+            ReferralShareButton(
+              referralCode = profile.referralCode,
+              shareUrl = profile.shareUrl,
+              onShare = { shareText ->
                 context.startActivity(
                   Intent.createChooser(
                     Intent(Intent.ACTION_SEND).apply {
@@ -1129,10 +1154,7 @@ fun ReferralScreen(
                   ),
                 )
               },
-              modifier = Modifier.fillMaxWidth(),
-            ) {
-              Text("系统分享")
-            }
+            )
           }
         }
       }
@@ -1169,6 +1191,57 @@ fun ReferralScreen(
 }
 
 @Composable
+internal fun ReferralShareButton(
+  referralCode: String,
+  shareUrl: String,
+  onShare: (String) -> Unit,
+) {
+  OutlinedButton(
+    onClick = {
+      val shareText = if (shareUrl.isNotBlank()) {
+        "使用我的推广链接注册：$shareUrl"
+      } else {
+        "使用我的推广码注册：$referralCode"
+      }
+      onShare(shareText)
+    },
+    modifier = Modifier.fillMaxWidth(),
+  ) {
+    Text("系统分享")
+  }
+}
+
+@Composable
+internal fun ProfilePasswordFields(
+  currentPassword: String,
+  newPassword: String,
+  onCurrentPasswordChange: (String) -> Unit,
+  onNewPasswordChange: (String) -> Unit,
+  onSubmit: () -> Unit,
+) {
+  XyzwFormField(
+    value = currentPassword,
+    onValueChange = onCurrentPasswordChange,
+    label = "当前密码",
+    modifier = Modifier.testTag("profile-current-password"),
+    password = true,
+  )
+  XyzwFormField(
+    value = newPassword,
+    onValueChange = onNewPasswordChange,
+    label = "新密码",
+    modifier = Modifier.testTag("profile-new-password"),
+    password = true,
+  )
+  Button(
+    onClick = onSubmit,
+    enabled = currentPassword.isNotBlank() && newPassword.isNotBlank(),
+  ) {
+    Text("修改密码")
+  }
+}
+
+@Composable
 fun FeedbackScreen(
   viewModel: FeedbackViewModel,
   onBack: () -> Unit,
@@ -1178,6 +1251,13 @@ fun FeedbackScreen(
   var type by rememberSaveable { mutableStateOf("bug") }
   var title by rememberSaveable { mutableStateOf("") }
   var content by rememberSaveable { mutableStateOf("") }
+
+  LaunchedEffect(uiState.clearDraftSignal) {
+    if (uiState.clearDraftSignal > 0) {
+      title = ""
+      content = ""
+    }
+  }
 
   LaunchedEffect(uiState.actionMessage, uiState.errorMessage) {
     uiState.actionMessage?.let { snackbarHostState.showSnackbar(it) }
@@ -1209,38 +1289,16 @@ fun FeedbackScreen(
           title = "提交反馈",
           description = "普通用户只在这里创建和查看自己的反馈，管理员处理仍留在管理员工单页。",
         ) {
-          FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf("bug" to "Bug", "feature" to "功能建议", "other" to "其他").forEach { (value, label) ->
-              FilterChip(
-                selected = type == value,
-                onClick = { type = value },
-                label = { Text(label) },
-              )
-            }
-          }
-          OutlinedTextField(
-            value = title,
-            onValueChange = { title = it },
-            modifier = Modifier.fillMaxWidth(),
-            label = { Text("标题") },
+          FeedbackSubmitForm(
+            type = type,
+            title = title,
+            content = content,
+            isSubmitting = uiState.isSubmitting,
+            onTypeChange = { type = it },
+            onTitleChange = { title = it },
+            onContentChange = { content = it },
+            onSubmit = { viewModel.submitFeedback(type, title, content) },
           )
-          OutlinedTextField(
-            value = content,
-            onValueChange = { content = it },
-            modifier = Modifier.fillMaxWidth(),
-            minLines = 4,
-            label = { Text("内容") },
-          )
-          Button(
-            onClick = {
-              viewModel.submitFeedback(type, title, content)
-              title = ""
-              content = ""
-            },
-            enabled = title.isNotBlank() && content.isNotBlank(),
-          ) {
-            Text("提交反馈")
-          }
         }
       }
       item {
@@ -1285,6 +1343,48 @@ fun FeedbackScreen(
         }
       }
     }
+  }
+}
+
+@Composable
+internal fun FeedbackSubmitForm(
+  type: String,
+  title: String,
+  content: String,
+  isSubmitting: Boolean,
+  onTypeChange: (String) -> Unit,
+  onTitleChange: (String) -> Unit,
+  onContentChange: (String) -> Unit,
+  onSubmit: () -> Unit,
+) {
+  FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    listOf("bug" to "Bug", "feature" to "功能建议", "other" to "其他").forEach { (value, label) ->
+      FilterChip(
+        selected = type == value,
+        onClick = { onTypeChange(value) },
+        label = { Text(label) },
+      )
+    }
+  }
+  OutlinedTextField(
+    value = title,
+    onValueChange = onTitleChange,
+    modifier = Modifier.fillMaxWidth().testTag("feedback-title"),
+    label = { Text("标题") },
+  )
+  OutlinedTextField(
+    value = content,
+    onValueChange = onContentChange,
+    modifier = Modifier.fillMaxWidth().testTag("feedback-content"),
+    minLines = 4,
+    label = { Text("内容") },
+  )
+  Button(
+    onClick = onSubmit,
+    modifier = Modifier.testTag("feedback-submit"),
+    enabled = title.isNotBlank() && content.isNotBlank() && !isSubmitting,
+  ) {
+    Text(if (isSubmitting) "提交中…" else "提交反馈")
   }
 }
 
@@ -1516,7 +1616,7 @@ private fun TaskControlCronDialog(
 }
 
 @Composable
-private fun DailyTaskConfigDialog(
+internal fun DailyTaskConfigDialog(
   task: DailyTaskEntry,
   onDismiss: () -> Unit,
   onSave: (enabled: Boolean, autoExecute: Boolean, notification: Boolean, delay: Int, cronExpr: String) -> Unit,
@@ -1543,20 +1643,24 @@ private fun DailyTaskConfigDialog(
         }
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
           Text("通知")
-          Switch(checked = notification, onCheckedChange = { notification = it })
+          Switch(
+            checked = notification,
+            onCheckedChange = { notification = it },
+            modifier = Modifier.testTag("daily-task-notification"),
+          )
         }
         OutlinedTextField(
           value = delay,
           onValueChange = { delay = it.filter(Char::isDigit) },
           label = { Text("延迟（秒）") },
-          modifier = Modifier.fillMaxWidth(),
+          modifier = Modifier.fillMaxWidth().testTag("daily-task-delay"),
           singleLine = true,
         )
         OutlinedTextField(
           value = cronExpr,
           onValueChange = { cronExpr = it },
           label = { Text("cronExpr") },
-          modifier = Modifier.fillMaxWidth(),
+          modifier = Modifier.fillMaxWidth().testTag("daily-task-cron"),
           singleLine = true,
         )
       }
@@ -1566,6 +1670,7 @@ private fun DailyTaskConfigDialog(
         onClick = {
           onSave(enabled, autoExecute, notification, delay.toIntOrNull() ?: 0, cronExpr.trim())
         },
+        modifier = Modifier.testTag("daily-task-save"),
       ) {
         Text("保存")
       }
@@ -1665,11 +1770,11 @@ private fun SensitiveConfirmDialog(
     text = {
       Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("填写当前密码，或填写 TOTP / 恢复码完成二次确认。")
-        OutlinedTextField(
+        XyzwFormField(
           value = password,
           onValueChange = { password = it },
-          modifier = Modifier.fillMaxWidth(),
-          label = { Text("当前密码") },
+          label = "当前密码",
+          password = true,
         )
         OutlinedTextField(
           value = totpCode,
@@ -1677,11 +1782,11 @@ private fun SensitiveConfirmDialog(
           modifier = Modifier.fillMaxWidth(),
           label = { Text("TOTP 验证码") },
         )
-        OutlinedTextField(
+        XyzwFormField(
           value = recoveryCode,
           onValueChange = { recoveryCode = it },
-          modifier = Modifier.fillMaxWidth(),
-          label = { Text("恢复码") },
+          label = "恢复码",
+          password = true,
         )
       }
     },
@@ -1701,3 +1806,24 @@ private fun writePendingDownload(
     viewModel.cancelPendingDownload()
   }
 }
+
+private fun queryContentSize(
+  context: Context,
+  uri: Uri,
+): Long? =
+  runCatching {
+    context.contentResolver.query(
+      uri,
+      arrayOf(OpenableColumns.SIZE),
+      null,
+      null,
+      null,
+    )?.use { cursor ->
+      val index = cursor.getColumnIndex(OpenableColumns.SIZE)
+      if (index >= 0 && cursor.moveToFirst() && !cursor.isNull(index)) {
+        cursor.getLong(index)
+      } else {
+        null
+      }
+    }
+  }.getOrNull()

@@ -81,4 +81,38 @@ class DailyTaskRepositoryTest {
 
     assertTrue(repository.completeTask("task-1", "role-1") is ApiResult.Success<*>)
   }
+
+  @Test
+  fun `update task sends delay cron and notification fields`() = runBlocking {
+    server.dispatcher = object : Dispatcher() {
+      override fun dispatch(request: RecordedRequest): MockResponse =
+        when (request.path) {
+          "/api/v1/daily-tasks/task-1" -> {
+            assertEquals("PUT", request.method)
+            val body = request.body.readUtf8()
+            assertTrue(body.contains("\"roleId\":\"role-1\""))
+            assertTrue(body.contains("\"delay\":30"))
+            assertTrue(body.contains("\"notification\":false"))
+            assertTrue(body.contains("\"cronExpr\":\"*/10 * * * *\""))
+            jsonResponse(200, """{"success":true,"message":"saved"}""")
+          }
+          else -> MockResponse().setResponseCode(404)
+        }
+    }
+
+    val harness = createRepositoryHarness(server.url("/api/v1/"))
+    val repository = DailyTaskRepository(harness.retrofit.create(), ApiResultParser())
+
+    assertTrue(
+      repository.updateTask(
+        taskId = "task-1",
+        roleId = "role-1",
+        enabled = true,
+        autoExecute = true,
+        delay = 30,
+        notification = false,
+        cronExpr = "*/10 * * * *",
+      ) is ApiResult.Success<*>,
+    )
+  }
 }

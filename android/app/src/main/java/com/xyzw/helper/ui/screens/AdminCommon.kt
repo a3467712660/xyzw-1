@@ -258,6 +258,7 @@ fun AdminConfirmDialog(
               label = { Text("恢复码（可选）") },
               modifier = Modifier.fillMaxWidth(),
               singleLine = true,
+              visualTransformation = PasswordVisualTransformation(),
             )
           }
 
@@ -268,6 +269,7 @@ fun AdminConfirmDialog(
               label = { Text("恢复码") },
               modifier = Modifier.fillMaxWidth(),
               singleLine = true,
+              visualTransformation = PasswordVisualTransformation(),
             )
           }
 
