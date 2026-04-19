@@ -18,6 +18,25 @@ const actionBodySchema = z.object({
   actionId: z.enum(GAME_FEATURE_ACTION_IDS),
 });
 
+const workbenchSectionBodySchema = z.object({
+  sectionId: z.string().trim().min(1).max(80),
+});
+
+const workbenchActionBodySchema = z.object({
+  sectionId: z.string().trim().max(80).optional().default(""),
+  cardId: z.string().trim().max(120).optional().default(""),
+  actionId: z.enum(GAME_FEATURE_ACTION_IDS),
+  payload: z.any().optional().default({}),
+});
+
+const replayRenderBodySchema = z.object({
+  payload: z.any().optional().default({}),
+});
+
+const renderImageParamSchema = z.object({
+  renderId: z.string().trim().min(1).max(128).regex(/^[a-zA-Z0-9_-]+$/),
+});
+
 const lineupSlotSchema = z.object({
   position: z.coerce.number().int().min(1).max(12),
   heroId: z.string().trim().max(64).optional().default(""),
@@ -62,6 +81,30 @@ export const createGameFeatureRoutes = ({ gameService = gameCommandService } = {
   router.get("/game-features/catalog", (_req, res) =>
     sendSuccess(res, gameService.getCatalog()));
 
+  router.get("/game-features/workbench/catalog", (_req, res) =>
+    sendSuccess(res, gameService.getWorkbenchCatalog()));
+
+  router.get(
+    "/game-features/rendered-replays/:renderId/image",
+    validateRequest({ params: renderImageParamSchema }),
+    async (req, res) => {
+      try {
+        const image = await gameService.getRenderedReplayImage({
+          user: req.auth.user,
+          renderId: req.params.renderId,
+        });
+        if (!image) {
+          return errorResponse(res, 404, "REPLAY_RENDER_NOT_FOUND", "回放渲染结果不存在或已过期");
+        }
+        res.setHeader("Content-Type", image.contentType || "image/svg+xml");
+        res.setHeader("Cache-Control", "private, max-age=60");
+        return res.send(image.body);
+      } catch (error) {
+        return handleRouteError(res, error, "回放渲染图读取失败");
+      }
+    },
+  );
+
   router.post(
     "/game-features/:tokenId/summary",
     validateRequest({ params: tokenIdParamSchema }),
@@ -74,6 +117,76 @@ export const createGameFeatureRoutes = ({ gameService = gameCommandService } = {
         return sendSuccess(res, data);
       } catch (error) {
         return handleRouteError(res, error, "游戏摘要获取失败");
+      }
+    },
+  );
+
+  router.post(
+    "/game-features/:tokenId/workbench/bootstrap",
+    validateRequest({ params: tokenIdParamSchema }),
+    async (req, res) => {
+      try {
+        const data = await gameService.getWorkbenchBootstrap({
+          user: req.auth.user,
+          tokenId: req.params.tokenId,
+        });
+        return sendSuccess(res, data);
+      } catch (error) {
+        return handleRouteError(res, error, "游戏工作台初始化失败");
+      }
+    },
+  );
+
+  router.post(
+    "/game-features/:tokenId/workbench/section",
+    validateRequest({ params: tokenIdParamSchema, body: workbenchSectionBodySchema }),
+    async (req, res) => {
+      try {
+        const data = await gameService.getWorkbenchSection({
+          user: req.auth.user,
+          tokenId: req.params.tokenId,
+          sectionId: req.body.sectionId,
+        });
+        return sendSuccess(res, data);
+      } catch (error) {
+        return handleRouteError(res, error, "游戏工作台分区读取失败");
+      }
+    },
+  );
+
+  router.post(
+    "/game-features/:tokenId/workbench/action",
+    validateRequest({ params: tokenIdParamSchema, body: workbenchActionBodySchema }),
+    async (req, res) => {
+      try {
+        const data = await gameService.runWorkbenchAction({
+          user: req.auth.user,
+          tokenId: req.params.tokenId,
+          sectionId: req.body.sectionId,
+          cardId: req.body.cardId,
+          actionId: req.body.actionId,
+          payload: req.body.payload,
+        });
+        return sendSuccess(res, data, "游戏工作台动作已执行");
+      } catch (error) {
+        return handleRouteError(res, error, "游戏工作台动作执行失败");
+      }
+    },
+  );
+
+  router.post(
+    "/game-features/:tokenId/workbench/replay-render",
+    validateRequest({ params: tokenIdParamSchema, body: replayRenderBodySchema }),
+    async (req, res) => {
+      try {
+        const data = await gameService.renderWorkbenchReplay({
+          user: req.auth.user,
+          tokenId: req.params.tokenId,
+          payload: req.body.payload,
+        });
+        return sendSuccess(res, data, "回放渲染已生成");
+      } catch (error) {
+        return handleRouteError(res, error, "回放渲染失败");
       }
     },
   );

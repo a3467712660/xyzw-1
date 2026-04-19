@@ -1,11 +1,14 @@
 package com.xyzw.helper.ui.screens
 
+import android.graphics.BitmapFactory
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Article
+import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Flag
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.Refresh
@@ -13,12 +16,19 @@ import androidx.compose.material.icons.outlined.Save
 import androidx.compose.material.icons.outlined.SportsEsports
 import androidx.compose.material.icons.outlined.ViewList
 import androidx.compose.material3.Button
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -28,6 +38,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -117,6 +128,10 @@ fun GameFeaturesScreen(
     onBack = onBack,
     onRefresh = viewModel::refresh,
     onRunAction = viewModel::runAction,
+    onRunWorkbenchAction = viewModel::runWorkbenchAction,
+    onRenderReplay = viewModel::renderReplay,
+    onSelectModule = viewModel::selectModule,
+    onSelectSection = viewModel::selectSection,
     onSelectToken = viewModel::selectToken,
     snackbarHostState = snackbarHostState,
   )
@@ -128,6 +143,10 @@ fun GameFeaturesScreenContent(
   onBack: () -> Unit,
   onRefresh: () -> Unit,
   onRunAction: (String) -> Unit,
+  onRunWorkbenchAction: (String, String) -> Unit = { _, _ -> },
+  onRenderReplay: (String) -> Unit = {},
+  onSelectModule: (String) -> Unit = {},
+  onSelectSection: (String) -> Unit = {},
   onSelectToken: (String) -> Unit = {},
   snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
 ) {
@@ -142,39 +161,250 @@ fun GameFeaturesScreenContent(
     if (state.isLoading) {
       XyzwLoadingState("游戏功能加载中...")
     }
-    state.summary?.let { summary ->
-      XyzwSection(title = "当前状态", subtitle = summary.recommendedAction.ifBlank { "等待操作" }) {
-        XyzwStatusChip(
-          status = if (summary.binAvailable) "active" else "warning",
-          label = if (summary.binAvailable) "二进制文件可用" else "请先上传二进制文件",
-        )
-        Text(summary.roleName.ifBlank { "未读取角色名" }, style = MaterialTheme.typography.titleLarge)
-        Text(summary.serverName.ifBlank { "服务器信息待读取" })
-      }
-    }
-    if (state.catalog.features.isEmpty() && !state.isLoading) {
-      XyzwEmptyState(
-        title = "暂无游戏功能",
-        description = "后端暂未返回可用功能。",
-        primaryActionLabel = "重试",
-        onPrimaryAction = onRefresh,
+    WorkbenchCommandBar(state = state, onRefresh = onRefresh)
+    if (state.workbenchCatalog.modules.isNotEmpty()) {
+      WorkbenchModuleRail(
+        state = state,
+        onSelectModule = onSelectModule,
+        onSelectSection = onSelectSection,
       )
+      WorkbenchStageSummary(state = state)
+      WorkbenchSectionContent(
+        state = state,
+        onRunWorkbenchAction = onRunWorkbenchAction,
+        onRenderReplay = onRenderReplay,
+      )
+      state.renderedReplay?.let { replay ->
+        XyzwSection(title = "回放渲染结果", subtitle = "由后端生成截图和诊断，安卓端只做原生展示。") {
+          XyzwCard {
+            state.renderedReplayImageBytes?.let { bytes ->
+              val bitmap = remember(bytes) {
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+              }
+              if (bitmap != null) {
+                Image(
+                  bitmap = bitmap.asImageBitmap(),
+                  contentDescription = "回放渲染图",
+                  modifier = Modifier.fillMaxWidth(),
+                )
+              }
+            }
+            Text(replay.summary.ifBlank { "渲染已生成" }, style = MaterialTheme.typography.titleMedium)
+            Text("渲染编号：${replay.renderId}")
+            Text("图片地址：${replay.imageUrl}")
+            replay.expiresAt.takeIf { it.isNotBlank() }?.let {
+              Text("过期时间：${formatDisplayDateTime(it)}")
+            }
+          }
+        }
+      }
     } else {
-      XyzwSection(title = "可执行功能", subtitle = "点击后由后端使用服务端二进制文件执行。") {
-        state.catalog.features.forEach { item ->
-          XyzwActionCard(
-            icon = Icons.Outlined.PlayArrow,
-            title = item.title,
-            subtitle = item.description,
-            enabled = item.enabled && !state.isMutating && state.summary?.binAvailable != false,
-            onClick = { onRunAction(item.id) },
+      state.summary?.let { summary ->
+        XyzwSection(title = "当前状态", subtitle = summary.recommendedAction.ifBlank { "等待操作" }) {
+          XyzwStatusChip(
+            status = if (summary.binAvailable) "active" else "warning",
+            label = if (summary.binAvailable) "二进制文件可用" else "请先上传二进制文件",
           )
+          Text(summary.roleName.ifBlank { "未读取角色名" }, style = MaterialTheme.typography.titleLarge)
+          Text(summary.serverName.ifBlank { "服务器信息待读取" })
+        }
+      }
+      if (state.catalog.features.isEmpty() && !state.isLoading) {
+        XyzwEmptyState(
+          title = "暂无游戏功能",
+          description = "后端暂未返回可用功能。",
+          primaryActionLabel = "重试",
+          onPrimaryAction = onRefresh,
+        )
+      } else {
+        XyzwSection(title = "可执行功能", subtitle = "点击后由后端使用服务端二进制文件执行。") {
+          state.catalog.features.forEach { item ->
+            XyzwActionCard(
+              icon = Icons.Outlined.PlayArrow,
+              title = item.title,
+              subtitle = item.description,
+              enabled = item.enabled && !state.isMutating && state.summary?.binAvailable != false,
+              onClick = { onRunAction(item.id) },
+            )
+          }
         }
       }
     }
     state.errorMessage?.let { XyzwErrorState(message = it, onRetry = onRefresh) }
   }
 }
+
+@Composable
+private fun WorkbenchCommandBar(
+  state: GameFeaturesUiState,
+  onRefresh: () -> Unit,
+) {
+  val summary = state.summary
+  XyzwSection(title = "游戏工作台", subtitle = summary?.recommendedAction ?: "与网页端工作台一致的原生模块视图。") {
+    XyzwStatusChip(
+      status = if (summary?.binAvailable == true) "active" else "warning",
+      label = if (summary?.binAvailable == true) "二进制文件可用" else "请先上传或恢复二进制文件",
+    )
+    Text(summary?.roleName?.ifBlank { null } ?: state.tokens.firstOrNull { it.id == state.selectedTokenId }?.displayName ?: "未选择角色", style = MaterialTheme.typography.titleLarge)
+    Text(summary?.serverName?.ifBlank { "服务器信息待读取" } ?: "服务器信息待读取")
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+      XyzwStatCard("连接状态", summary?.connectionStatus?.ifBlank { "--" } ?: "--")
+      XyzwStatCard("角色数", state.tokens.size.toString())
+    }
+    OutlinedButton(onClick = onRefresh, modifier = Modifier.fillMaxWidth()) {
+      Icon(Icons.Outlined.Refresh, contentDescription = null)
+      Text("刷新工作台")
+    }
+  }
+}
+
+@Composable
+private fun WorkbenchModuleRail(
+  state: GameFeaturesUiState,
+  onSelectModule: (String) -> Unit,
+  onSelectSection: (String) -> Unit,
+) {
+  XyzwSection(title = "模块导航", subtitle = "运营、战斗、分析分组与网页端保持一致。") {
+    state.workbenchCatalog.groups.forEach { group ->
+      Text(group.label, style = MaterialTheme.typography.titleMedium)
+      group.caption.takeIf { it.isNotBlank() }?.let {
+        Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant)
+      }
+      state.workbenchCatalog.modules.filter { it.groupId == group.id }.forEach { module ->
+        FilterChip(
+          selected = state.selectedModuleId == module.id,
+          onClick = { onSelectModule(module.id) },
+          label = { Text(module.label) },
+          modifier = Modifier.fillMaxWidth(),
+        )
+      }
+    }
+    val selectedModule = state.workbenchCatalog.modules.firstOrNull { it.id == state.selectedModuleId }
+    if (selectedModule != null && selectedModule.sections.size > 1) {
+      Text("子区域", style = MaterialTheme.typography.titleMedium)
+      selectedModule.sections.forEach { section ->
+        FilterChip(
+          selected = state.selectedSectionId == section.id,
+          onClick = { onSelectSection(section.id) },
+          label = { Text(section.label) },
+          modifier = Modifier.fillMaxWidth(),
+        )
+      }
+    }
+  }
+}
+
+@Composable
+private fun WorkbenchStageSummary(state: GameFeaturesUiState) {
+  val group = state.workbenchCatalog.groups.firstOrNull { it.id == state.workbenchCatalog.modules.firstOrNull { module -> module.id == state.selectedModuleId }?.groupId }
+  val module = state.workbenchCatalog.modules.firstOrNull { it.id == state.selectedModuleId }
+  val section = module?.sections?.firstOrNull { it.id == state.selectedSectionId }
+  XyzwSection(title = "阶段摘要", subtitle = "当前分组、当前模块和建议动作。") {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+      XyzwStatCard("当前分组", group?.label ?: "--")
+      XyzwStatCard("当前模块", module?.label ?: "--")
+    }
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+      XyzwStatCard("当前区域", section?.label ?: state.sectionSnapshot?.title ?: "--")
+      XyzwStatCard("建议动作", state.summary?.recommendedAction?.ifBlank { "检查连接" } ?: "检查连接")
+    }
+  }
+}
+
+@Composable
+private fun WorkbenchSectionContent(
+  state: GameFeaturesUiState,
+  onRunWorkbenchAction: (String, String) -> Unit,
+  onRenderReplay: (String) -> Unit,
+) {
+  val snapshot = state.sectionSnapshot
+  XyzwSection(
+    title = snapshot?.title ?: "功能面板",
+    subtitle = snapshot?.subtitle?.ifBlank { "按网页端功能卡片迁移为原生视图。" } ?: "按网页端功能卡片迁移为原生视图。",
+  ) {
+    if (snapshot == null && !state.isLoading) {
+      XyzwEmptyState(
+        title = "暂无模块数据",
+        description = "请刷新工作台或切换模块后重试。",
+      )
+    }
+    snapshot?.cards.orEmpty().forEach { card ->
+      WorkbenchFeatureCard(
+        card = card,
+        isMutating = state.isMutating,
+        onRunWorkbenchAction = onRunWorkbenchAction,
+        onRenderReplay = onRenderReplay,
+      )
+    }
+  }
+}
+
+@Composable
+private fun WorkbenchFeatureCard(
+  card: com.xyzw.helper.data.model.GameWorkbenchCard,
+  isMutating: Boolean,
+  onRunWorkbenchAction: (String, String) -> Unit,
+  onRenderReplay: (String) -> Unit,
+) {
+  XyzwCard {
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+      Icon(workbenchIcon(card.iconKey, card.type), contentDescription = null)
+      Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(card.title.ifBlank { card.id }, style = MaterialTheme.typography.titleMedium)
+        card.subtitle.takeIf { it.isNotBlank() }?.let {
+          Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+      }
+    }
+    XyzwStatusChip(status = card.status.ifBlank { card.tone }, label = workbenchStatusLabel(card.status, card.tone))
+    if (card.metrics.isNotEmpty()) {
+      Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        card.metrics.take(2).forEach { metric ->
+          XyzwStatCard(metric.label, metric.value)
+        }
+      }
+      card.metrics.drop(2).forEach { metric ->
+        Text("${metric.label}：${metric.value}")
+      }
+    }
+    card.actions.forEach { action ->
+      Button(
+        onClick = {
+          if (action.id == "render-replay" || card.type == "replay") {
+            onRenderReplay(card.id)
+          } else {
+            onRunWorkbenchAction(card.id, action.id)
+          }
+        },
+        enabled = action.enabled && !isMutating,
+        modifier = Modifier.fillMaxWidth(),
+      ) {
+        Text(if (isMutating) "执行中..." else action.label)
+      }
+    }
+    if (card.actions.isEmpty()) {
+      Text("此卡片当前为信息展示模式", color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+  }
+}
+
+private fun workbenchIcon(iconKey: String, type: String) =
+  when {
+    iconKey.contains("rank", ignoreCase = true) || type == "rank" -> Icons.Outlined.ViewList
+    iconKey.contains("pvp", ignoreCase = true) || type == "pvp" -> Icons.Outlined.SportsEsports
+    iconKey.contains("replay", ignoreCase = true) || type == "replay" -> Icons.Outlined.Article
+    iconKey.contains("calendar", ignoreCase = true) -> Icons.Outlined.CalendarMonth
+    else -> Icons.Outlined.PlayArrow
+  }
+
+private fun workbenchStatusLabel(status: String, tone: String): String =
+  when (status.ifBlank { tone }) {
+    "ready", "success", "active" -> "可用"
+    "disabled", "missing-bin" -> "不可用"
+    "warning" -> "需注意"
+    "danger" -> "高风险"
+    else -> "信息"
+  }
 
 @Composable
 fun LegionWarScreen(
@@ -387,6 +617,7 @@ fun BattleReportsScreen(
   )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BattleReportsScreenContent(
   state: BattleReportsUiState,
@@ -401,6 +632,11 @@ fun BattleReportsScreenContent(
   snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
 ) {
   var manualText by rememberSaveable { mutableStateOf("") }
+  var showDatePicker by rememberSaveable { mutableStateOf(false) }
+  val queryTypes = remember(state.catalog.types) {
+    state.catalog.types.filter { isDateBackedBattleReportType(it.id) }
+      .ifEmpty { state.catalog.types }
+  }
   XyzwPage(
     title = "战报功能",
     subtitle = "查询战报或粘贴配置文本解析，详情使用原生页面展示。",
@@ -410,8 +646,8 @@ fun BattleReportsScreenContent(
   ) {
     TokenPicker(state.tokens, state.selectedTokenId, onSelectToken)
     if (state.isLoading) XyzwLoadingState("战报加载中...")
-    XyzwSection(title = "查询入口", subtitle = "选择战报类型和日期后刷新。") {
-      state.catalog.types.forEach { type ->
+    XyzwSection(title = "查询入口", subtitle = "选择战报类型和比赛日期后刷新。") {
+      queryTypes.forEach { type ->
         FilterChip(
           selected = state.selectedReportType == type.id,
           onClick = { onSelectType(type.id) },
@@ -419,12 +655,11 @@ fun BattleReportsScreenContent(
           modifier = Modifier.fillMaxWidth(),
         )
       }
-      OutlinedTextField(
-        value = state.queryDate,
-        onValueChange = onDateChange,
-        modifier = Modifier.fillMaxWidth(),
-        label = { Text("日期，例如 2026-04-19") },
-        singleLine = true,
+      BattleReportDatePickerRow(
+        reportType = state.selectedReportType,
+        queryDate = state.queryDate,
+        onDateChange = onDateChange,
+        onOpenDatePicker = { showDatePicker = true },
       )
       Button(onClick = onQuery, modifier = Modifier.fillMaxWidth()) {
         Text("查询战报")
@@ -465,6 +700,92 @@ fun BattleReportsScreenContent(
       }
     }
     state.errorMessage?.let { XyzwErrorState(message = it, onRetry = onRefresh) }
+  }
+
+  if (showDatePicker) {
+    BattleReportDatePickerDialog(
+      reportType = state.selectedReportType,
+      queryDate = state.queryDate,
+      onDismiss = { showDatePicker = false },
+      onDateSelected = { selected ->
+        onDateChange(selected)
+        showDatePicker = false
+      },
+    )
+  }
+}
+
+@Composable
+private fun BattleReportDatePickerRow(
+  reportType: String,
+  queryDate: String,
+  onDateChange: (String) -> Unit,
+  onOpenDatePicker: () -> Unit,
+) {
+  val defaultDate = defaultBattleReportDate(reportType)
+  val visibleDate = queryDate.ifBlank { defaultDate }
+  Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Text("比赛日期", style = MaterialTheme.typography.labelMedium)
+    OutlinedButton(
+      onClick = onOpenDatePicker,
+      modifier = Modifier.fillMaxWidth(),
+    ) {
+      Icon(Icons.Outlined.CalendarMonth, contentDescription = null)
+      Text("选择日期：$visibleDate")
+    }
+    OutlinedButton(
+      onClick = { onDateChange(defaultDate) },
+      modifier = Modifier.fillMaxWidth(),
+      enabled = visibleDate != defaultDate,
+    ) {
+      Text("回到最近比赛日")
+    }
+  }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun BattleReportDatePickerDialog(
+  reportType: String,
+  queryDate: String,
+  onDismiss: () -> Unit,
+  onDateSelected: (String) -> Unit,
+) {
+  val initialDateMillis = battleReportDateToUtcMillis(queryDate)
+    ?: battleReportDateToUtcMillis(defaultBattleReportDate(reportType))
+  val selectableDates = remember(reportType) {
+    object : SelectableDates {
+      override fun isSelectableDate(utcTimeMillis: Long): Boolean =
+        isSelectableBattleReportDate(
+          reportType = reportType,
+          date = battleReportDateFromUtcMillisToLocalDate(utcTimeMillis),
+        )
+    }
+  }
+  val pickerState = rememberDatePickerState(
+    initialSelectedDateMillis = initialDateMillis,
+    selectableDates = selectableDates,
+  )
+  DatePickerDialog(
+    onDismissRequest = onDismiss,
+    confirmButton = {
+      TextButton(
+        onClick = {
+          pickerState.selectedDateMillis?.let { millis ->
+            onDateSelected(battleReportDateFromUtcMillis(millis))
+          } ?: onDismiss()
+        },
+      ) {
+        Text("确定")
+      }
+    },
+    dismissButton = {
+      TextButton(onClick = onDismiss) {
+        Text("取消")
+      }
+    },
+  ) {
+    DatePicker(state = pickerState)
   }
 }
 

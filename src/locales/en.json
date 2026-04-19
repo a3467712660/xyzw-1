@@ -3649,7 +3649,7 @@
     },
     "highlights": {
       "package": {
-        "value": "15M",
+        "value": "15.5M",
         "label": "Package size"
       },
       "session": {
@@ -3662,7 +3662,7 @@
       }
     },
     "preview": {
-      "release": "Release 1.0.0",
+      "release": "Release 1.0.4",
       "kicker": "XYZW Helper",
       "title": "Mobile Workbench",
       "packageLabel": "Package",

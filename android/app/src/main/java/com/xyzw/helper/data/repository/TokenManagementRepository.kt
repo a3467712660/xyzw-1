@@ -4,6 +4,7 @@ import com.xyzw.helper.data.model.BinDownloadTicket
 import com.xyzw.helper.data.model.BinFileItem
 import com.xyzw.helper.data.model.BinFileUploadResult
 import com.xyzw.helper.data.model.ImportedGameToken
+import com.xyzw.helper.data.model.TokenImportSource
 import com.xyzw.helper.data.model.TokenActivationStatus
 import com.xyzw.helper.data.model.UserTokenActivationBinding
 import com.xyzw.helper.data.network.ApiError
@@ -22,6 +23,7 @@ import okhttp3.RequestBody
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
+import java.time.Instant
 
 class TokenManagementRepository(
   private val api: TokenManagementApi,
@@ -70,8 +72,13 @@ class TokenManagementRepository(
     }
   }
 
-  suspend fun listBinFiles(): ApiResult<List<BinFileItem>> =
-    parser.parse(api.listBinFiles())
+  suspend fun listBinFiles(): ApiResult<List<BinFileItem>> {
+    val result = parser.parse(api.listBinFiles())
+    if (result is ApiResult.Success) {
+      syncLocalTokensWithRemoteBins(result.data)
+    }
+    return result
+  }
 
   suspend fun uploadBinFile(
     tokenId: String,
@@ -186,6 +193,77 @@ class TokenManagementRepository(
 
   suspend fun listActivationBindings(): ApiResult<List<UserTokenActivationBinding>> =
     parser.parse(api.listActivationBindings())
+
+  private suspend fun syncLocalTokensWithRemoteBins(files: List<BinFileItem>) {
+    val fileTokenIds = files.map { it.tokenId }.toSet()
+    val bindingByTokenId = when (val bindings = listActivationBindings()) {
+      is ApiResult.Success -> bindings.data
+        .filter { it.tokenId.isNotBlank() }
+        .associateBy { it.tokenId }
+      is ApiResult.Failure -> emptyMap()
+    }
+    val now = Instant.now().toString()
+    val existingTokens = tokens.value
+    val existingTokenIds = existingTokens.map { it.id }.toSet()
+    val mergedExisting = existingTokens.map { token ->
+      val binding = bindingByTokenId[token.id]
+      val binPresent = token.id in fileTokenIds
+      token.copy(
+        displayName = token.displayName.ifBlank { restoredDisplayName(token.id, null, binding) },
+        roleId = token.roleId.ifBlank { binding?.roleId.orEmpty() },
+        roleName = token.roleName.ifBlank { binding?.roleName.orEmpty() },
+        region = token.region.ifBlank { binding?.region.orEmpty() },
+        roleIndex = token.roleIndex.ifBlank { binding?.roleIndex.orEmpty() },
+        activationBound = binding?.let { true } ?: token.activationBound,
+        activationActive = binding?.active ?: token.activationActive,
+        activationExpiresAt = binding?.expiresAt ?: token.activationExpiresAt,
+        activationBoundAt = binding?.boundAt ?: token.activationBoundAt,
+        binFilePresent = binPresent,
+        lastSyncAt = now,
+        updatedAt = now,
+      )
+    }
+    val restoredTokens = files
+      .filter { it.tokenId !in existingTokenIds }
+      .map { file ->
+        val binding = bindingByTokenId[file.tokenId]
+        ImportedGameToken(
+          id = file.tokenId,
+          rawToken = "",
+          displayName = restoredDisplayName(file.tokenId, file.fileName, binding),
+          roleId = binding?.roleId.orEmpty(),
+          sessId = "",
+          region = binding?.region.orEmpty(),
+          roleName = binding?.roleName.orEmpty(),
+          roleIndex = binding?.roleIndex.orEmpty(),
+          source = TokenImportSource.MANUAL,
+          importedAt = file.createdAt.ifBlank { now },
+          updatedAt = now,
+          activationBound = binding != null,
+          activationActive = binding?.active ?: false,
+          activationExpiresAt = binding?.expiresAt,
+          activationBoundAt = binding?.boundAt,
+          binFilePresent = true,
+          lastSyncAt = now,
+          lastError = null,
+        )
+      }
+    val nextTokens = mergedExisting + restoredTokens
+    if (nextTokens != existingTokens) {
+      store.replaceAll(nextTokens)
+    }
+  }
+
+  private fun restoredDisplayName(
+    tokenId: String,
+    fileName: String?,
+    binding: UserTokenActivationBinding?,
+  ): String =
+    binding?.roleName?.takeIf { it.isNotBlank() }
+      ?: fileName
+        ?.removeSuffix(".bin")
+        ?.takeIf { it.isNotBlank() }
+      ?: "远程二进制文件 $tokenId"
 
   private fun errorMessageFromBody(rawBody: String?): String {
     val raw = rawBody.orEmpty()

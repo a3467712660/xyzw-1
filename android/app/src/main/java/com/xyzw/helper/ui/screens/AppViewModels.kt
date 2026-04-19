@@ -258,6 +258,9 @@ class DashboardViewModel(
         mutableState.value = mutableState.value.copy(tokenCount = tokens.size)
       }
     }
+    viewModelScope.launch {
+      tokenManagementRepository.listBinFiles()
+    }
     refresh()
   }
 

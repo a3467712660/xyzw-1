@@ -3625,7 +3625,7 @@
     },
     "highlights": {
       "package": {
-        "value": "15M",
+        "value": "15.5M",
         "label": "安装包大小"
       },
       "session": {
@@ -3638,7 +3638,7 @@
       }
     },
     "preview": {
-      "release": "Release 1.0.0",
+      "release": "Release 1.0.4",
       "kicker": "XYZW Helper",
       "title": "移动端工作台",
       "packageLabel": "安装包",

@@ -195,3 +195,156 @@ test("battle report routes support query and reject invalid parse payloads", asy
   assert.equal(parseText.includes("token"), false);
   assert.equal(parseText.includes("cookie"), false);
 });
+
+test("game workbench routes expose native modules, cards, allowlisted actions, and replay renders", async (t) => {
+  await initDatabase();
+
+  const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const userId = `workbench_user_${suffix}`;
+  const username = `workbench_user_${suffix}`;
+  createUser({ id: userId, username, password: "Workbench123!Aa" });
+  t.after(() => run(`DELETE FROM users WHERE id = $userId`, { $userId: userId }));
+
+  const calls = [];
+  const server = await createServer({
+    gameService: {
+      getCatalog: () => ({}),
+      getSummary: async () => ({}),
+      runAction: async () => ({}),
+      getLegionWarSnapshot: async () => ({}),
+      getLineups: async () => ({}),
+      saveLineups: async () => ({}),
+      applyLineup: async () => ({}),
+      getWorkbenchCatalog: () => ({
+        modules: [
+          {
+            id: "daily",
+            label: "日常",
+            groupId: "operations",
+            sections: [{ id: "daily", label: "日常" }],
+          },
+          {
+            id: "dataAnalysis",
+            label: "数据分析",
+            groupId: "analysis",
+            sections: [{ id: "rankGroup", label: "榜单" }],
+          },
+        ],
+      }),
+      getWorkbenchBootstrap: async ({ tokenId, user }) => ({
+        tokenId,
+        selectedModuleId: "daily",
+        selectedSectionId: "daily",
+        connectionStatus: "ready",
+        roleName: "Alice",
+        userIdSeen: user.id,
+        token: "should-not-leak",
+      }),
+      getWorkbenchSection: async ({ sectionId }) => ({
+        moduleId: "daily",
+        sectionId,
+        title: "日常",
+        cards: [
+          {
+            id: "daily-task-status",
+            type: "task",
+            title: "日常任务",
+            status: "ready",
+            metrics: [{ label: "进度", value: "3/5" }],
+            actions: [{ id: "daily-tasks", label: "领取奖励", enabled: true }],
+            detail: { cookie: "should-not-leak" },
+          },
+        ],
+      }),
+      runWorkbenchAction: async ({ tokenId, actionId }) => {
+        calls.push({ tokenId, actionId });
+        return {
+          actionId,
+          status: "success",
+          message: "已执行",
+          card: { id: "daily-task-status", title: "日常任务" },
+          token: "should-not-leak",
+        };
+      },
+      renderWorkbenchReplay: async ({ tokenId, payload }) => ({
+        renderId: `render-${tokenId}`,
+        imageUrl: `/api/v1/game-features/rendered-replays/render-${tokenId}/image`,
+        summary: "胜利",
+        diagnostics: { payloadShape: payload?.shape || "empty", signature: "should-not-leak" },
+        expiresAt: "2099-01-01T00:00:00.000Z",
+      }),
+      getRenderedReplayImage: async ({ renderId }) => ({
+        renderId,
+        contentType: "image/svg+xml",
+        body: Buffer.from("<svg xmlns=\"http://www.w3.org/2000/svg\"></svg>"),
+      }),
+    },
+    battleService: {
+      getCatalog: () => ({ types: [] }),
+      queryReports: async () => ({ reports: [] }),
+      parseReport: async () => ({ report: null }),
+    },
+  });
+  t.after(async () => {
+    await new Promise((resolve) => server.close(resolve));
+  });
+
+  const baseUrl = makeBaseUrl(server);
+  const headers = authHeaders({ userId, username });
+
+  const catalog = await fetch(`${baseUrl}/api/v1/game-features/workbench/catalog`, { headers });
+  assert.equal(catalog.status, 200);
+  const catalogPayload = await catalog.json();
+  assert.deepEqual(catalogPayload.data.modules.map((item) => item.id), ["daily", "dataAnalysis"]);
+
+  const bootstrap = await fetch(`${baseUrl}/api/v1/game-features/token-1/workbench/bootstrap`, {
+    method: "POST",
+    headers,
+    body: "{}",
+  });
+  assert.equal(bootstrap.status, 200);
+  const bootstrapText = JSON.stringify(await bootstrap.json());
+  assert.equal(bootstrapText.includes("should-not-leak"), false);
+  assert.match(bootstrapText, /daily/);
+
+  const section = await fetch(`${baseUrl}/api/v1/game-features/token-1/workbench/section`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ sectionId: "daily" }),
+  });
+  assert.equal(section.status, 200);
+  const sectionText = JSON.stringify(await section.json());
+  assert.match(sectionText, /daily-task-status/);
+  assert.equal(sectionText.includes("should-not-leak"), false);
+
+  const invalidAction = await fetch(`${baseUrl}/api/v1/game-features/token-1/workbench/action`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ actionId: "raw-token-dump" }),
+  });
+  assert.equal(invalidAction.status, 400);
+
+  const action = await fetch(`${baseUrl}/api/v1/game-features/token-1/workbench/action`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ sectionId: "daily", cardId: "daily-task-status", actionId: "daily-tasks" }),
+  });
+  assert.equal(action.status, 200);
+  const actionText = JSON.stringify(await action.json());
+  assert.equal(actionText.includes("should-not-leak"), false);
+  assert.deepEqual(calls, [{ tokenId: "token-1", actionId: "daily-tasks" }]);
+
+  const replay = await fetch(`${baseUrl}/api/v1/game-features/token-1/workbench/replay-render`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ payload: { shape: "fight-pvp", token: "should-not-leak" } }),
+  });
+  assert.equal(replay.status, 200);
+  const replayPayload = await replay.json();
+  assert.equal(replayPayload.data.imageUrl, "/api/v1/game-features/rendered-replays/render-token-1/image");
+  assert.equal(JSON.stringify(replayPayload).includes("should-not-leak"), false);
+
+  const image = await fetch(`${baseUrl}${replayPayload.data.imageUrl}`, { headers });
+  assert.equal(image.status, 200);
+  assert.equal(image.headers.get("content-type"), "image/svg+xml");
+});

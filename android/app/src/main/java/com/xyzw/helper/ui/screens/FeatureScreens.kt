@@ -1501,7 +1501,11 @@ private fun TokenCard(
     ) {
       Text(token.displayName, style = MaterialTheme.typography.titleMedium)
       Text("令牌编号：${token.id}")
-      SensitiveValueText(label = "令牌内容", value = token.rawToken)
+      if (token.rawToken.isBlank() && token.binFilePresent) {
+        Text("令牌明文未保存在本机，已从远程二进制文件恢复可用状态。")
+      } else {
+        SensitiveValueText(label = "令牌内容", value = token.rawToken)
+      }
       if (token.roleId.isNotBlank()) {
         Text("角色编号：${token.roleId}")
       }

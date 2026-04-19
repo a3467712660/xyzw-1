@@ -101,4 +101,67 @@ class GameFeatureRepositoryTest {
     assertTrue(repository.saveLineups("token-1", emptyList()) is ApiResult.Failure)
     assertTrue(repository.applyLineup("token-1", "missing") is ApiResult.Failure)
   }
+
+  @Test
+  fun `workbench catalog section action and replay render parse successfully`() = runBlocking {
+    server.dispatcher = object : Dispatcher() {
+      override fun dispatch(request: RecordedRequest): MockResponse =
+        when (request.path) {
+          "/api/v1/game-features/workbench/catalog" -> jsonResponse(
+            200,
+            """{"success":true,"data":{"groups":[{"id":"operations","label":"运营","caption":"日常和工具"}],"modules":[{"id":"daily","label":"日常","groupId":"operations","description":"日常模块","defaultSectionId":"daily","sections":[{"id":"daily","label":"日常","description":"日常任务"}]}],"defaultModuleId":"daily","defaultSectionId":"daily"}}""",
+          )
+          "/api/v1/game-features/token-1/workbench/bootstrap" -> jsonResponse(
+            200,
+            """{"success":true,"data":{"tokenId":"token-1","roleName":"Alice","serverName":"一区","binAvailable":true,"connectionStatus":"ready","selectedModuleId":"daily","selectedSectionId":"daily","recommendation":"可以执行游戏功能","groups":[],"modules":[]}}""",
+          )
+          "/api/v1/game-features/token-1/workbench/section" -> {
+            assertTrue(request.body.readUtf8().contains("\"sectionId\":\"daily\""))
+            jsonResponse(
+              200,
+              """{"success":true,"data":{"tokenId":"token-1","moduleId":"daily","sectionId":"daily","title":"日常","subtitle":"日常任务","status":"ready","cards":[{"id":"daily-task-status","type":"task","title":"日常任务","subtitle":"领取奖励","status":"ready","tone":"success","iconKey":"task","metrics":[{"label":"进度","value":"3/5","tone":"neutral"}],"actions":[{"id":"daily-tasks","label":"领取奖励","enabled":true}],"detail":{"safe":true}}],"updatedAt":"2026-04-19T00:00:00Z"}}""",
+            )
+          }
+          "/api/v1/game-features/token-1/workbench/action" -> {
+            val body = request.body.readUtf8()
+            assertTrue(body.contains("\"actionId\":\"daily-tasks\""))
+            jsonResponse(
+              200,
+              """{"success":true,"message":"游戏工作台动作已执行","data":{"actionId":"daily-tasks","status":"success","message":"已执行","sectionId":"daily","cardId":"daily-task-status","card":{"id":"daily-task-status","title":"日常任务"}}}""",
+            )
+          }
+          "/api/v1/game-features/token-1/workbench/replay-render" -> jsonResponse(
+            200,
+            """{"success":true,"data":{"renderId":"render-1","imageUrl":"/api/v1/game-features/rendered-replays/render-1/image","summary":"胜利","diagnostics":{"renderer":"fake"},"expiresAt":"2099-01-01T00:00:00Z"}}""",
+          )
+          "/api/v1/game-features/rendered-replays/render-1/image" -> MockResponse()
+            .setResponseCode(200)
+            .setHeader("Content-Type", "image/svg+xml")
+            .setBody("<svg></svg>")
+          else -> MockResponse().setResponseCode(404)
+        }
+    }
+
+    val harness = createRepositoryHarness(server.url("/api/v1/"))
+    val repository = GameFeatureRepository(harness.retrofit.create(), ApiResultParser())
+
+    val catalog = repository.getWorkbenchCatalog()
+    val bootstrap = repository.getWorkbenchBootstrap("token-1")
+    val section = repository.getWorkbenchSection("token-1", "daily")
+    val action = repository.runWorkbenchAction("token-1", "daily", "daily-task-status", "daily-tasks")
+    val replay = repository.renderWorkbenchReplay("token-1", mapOf("shape" to "fight-pvp"))
+
+    assertTrue(catalog is ApiResult.Success<*>)
+    assertTrue(bootstrap is ApiResult.Success<*>)
+    assertTrue(section is ApiResult.Success<*>)
+    assertTrue(action is ApiResult.Success<*>)
+    assertTrue(replay is ApiResult.Success<*>)
+    replay as ApiResult.Success
+    val image = repository.downloadRenderedReplayImage(replay.data.imageUrl)
+    assertTrue(image is ApiResult.Success<*>)
+    image as ApiResult.Success<ByteArray>
+    assertEquals("<svg></svg>", image.data.decodeToString())
+    section as ApiResult.Success
+    assertEquals("daily-task-status", section.data.cards.single().id)
+  }
 }

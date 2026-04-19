@@ -267,6 +267,50 @@ class TokenManagementRepositoryTest {
   }
 
   @Test
+  fun `list bin files restores missing local token shells from remote bins`() = runBlocking {
+    server.dispatcher = object : Dispatcher() {
+      override fun dispatch(request: RecordedRequest): MockResponse =
+        when (request.path) {
+          "/api/v1/bin-files" -> jsonResponse(
+            200,
+            """{"success":true,"data":[{"tokenId":"token-1","fileName":"token-1.bin","size":4,"createdAt":"2026-04-19T00:00:00Z","updatedAt":"2026-04-19T01:00:00Z"}]}""",
+          )
+          "/api/v1/token-activations/my" -> jsonResponse(
+            200,
+            """{"success":true,"data":[{"id":"bind-1","tokenId":"token-1","roleId":"role-1","roleName":"Alice","region":"一区","roleIndex":"1","expiresAt":"2099-01-01T00:00:00Z","boundAt":"2026-04-19T00:00:00Z","active":true}]}""",
+          )
+          else -> MockResponse().setResponseCode(404)
+        }
+    }
+
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val preferences = context.getSharedPreferences("tm_repo_test_restore_remote_bins", Context.MODE_PRIVATE).apply {
+      edit().clear().commit()
+    }
+    val harness = createRepositoryHarness(server.url("/api/v1/"))
+    val repository = TokenManagementRepository(
+      api = harness.retrofit.create(),
+      parser = ApiResultParser(),
+      store = SecureTokenWorkspaceStore(context, preferences),
+      sensitiveActionSession = UserSensitiveActionSession(),
+    )
+
+    val result = repository.listBinFiles()
+
+    assertTrue(result is ApiResult.Success<*>)
+    val restored = repository.tokens.value.single()
+    assertEquals("token-1", restored.id)
+    assertEquals("", restored.rawToken)
+    assertEquals("Alice", restored.displayName)
+    assertEquals("role-1", restored.roleId)
+    assertEquals("一区", restored.region)
+    assertEquals("1", restored.roleIndex)
+    assertEquals(true, restored.activationActive)
+    assertEquals(true, restored.activationBound)
+    assertEquals(true, restored.binFilePresent)
+  }
+
+  @Test
   fun `bin upload policy rejects files above max size but allows unknown size`() {
     assertEquals(null, validateBinUploadSize(null))
     assertEquals(null, validateBinUploadSize(-1))

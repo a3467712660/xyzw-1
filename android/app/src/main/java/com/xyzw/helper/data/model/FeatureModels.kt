@@ -127,6 +127,112 @@ data class GameFeatureActionResult(
 )
 
 @Serializable
+data class GameWorkbenchGroup(
+  val id: String,
+  val label: String,
+  val caption: String = "",
+)
+
+@Serializable
+data class GameWorkbenchSection(
+  val id: String,
+  val label: String,
+  val description: String = "",
+)
+
+@Serializable
+data class GameWorkbenchModule(
+  val id: String,
+  val label: String,
+  val groupId: String,
+  val description: String = "",
+  val defaultSectionId: String = "",
+  val sections: List<GameWorkbenchSection> = emptyList(),
+)
+
+@Serializable
+data class GameWorkbenchCatalog(
+  val groups: List<GameWorkbenchGroup> = emptyList(),
+  val modules: List<GameWorkbenchModule> = emptyList(),
+  val defaultModuleId: String = "daily",
+  val defaultSectionId: String = "daily",
+)
+
+@Serializable
+data class GameWorkbenchBootstrap(
+  val tokenId: String,
+  val roleName: String = "",
+  val serverName: String = "",
+  val binAvailable: Boolean = false,
+  val connectionStatus: String = "",
+  val selectedModuleId: String = "daily",
+  val selectedSectionId: String = "daily",
+  val recommendation: String = "",
+  val groups: List<GameWorkbenchGroup> = emptyList(),
+  val modules: List<GameWorkbenchModule> = emptyList(),
+)
+
+@Serializable
+data class GameWorkbenchMetric(
+  val label: String,
+  val value: String,
+  val tone: String = "neutral",
+)
+
+@Serializable
+data class GameWorkbenchCardAction(
+  val id: String,
+  val label: String,
+  val enabled: Boolean = true,
+)
+
+@Serializable
+data class GameWorkbenchCard(
+  val id: String,
+  val type: String = "rawDetail",
+  val title: String = "",
+  val subtitle: String = "",
+  val status: String = "",
+  val tone: String = "neutral",
+  val iconKey: String = "",
+  val metrics: List<GameWorkbenchMetric> = emptyList(),
+  val actions: List<GameWorkbenchCardAction> = emptyList(),
+  val detail: JsonElement? = null,
+)
+
+@Serializable
+data class GameWorkbenchSectionSnapshot(
+  val tokenId: String,
+  val moduleId: String,
+  val sectionId: String,
+  val title: String,
+  val subtitle: String = "",
+  val status: String = "",
+  val cards: List<GameWorkbenchCard> = emptyList(),
+  val updatedAt: String = "",
+)
+
+@Serializable
+data class GameWorkbenchActionResult(
+  val actionId: String,
+  val status: String = "",
+  val message: String = "",
+  val sectionId: String = "",
+  val cardId: String = "",
+  val card: GameWorkbenchCard? = null,
+  val detail: JsonElement? = null,
+)
+
+@Serializable
+data class RenderedReplayResult(
+  val renderId: String,
+  val imageUrl: String,
+  val summary: String = "",
+  val diagnostics: JsonElement? = null,
+  val expiresAt: String = "",
+)
+
+@Serializable
 data class LegionWarNode(
   val id: String,
   val typeName: String = "",

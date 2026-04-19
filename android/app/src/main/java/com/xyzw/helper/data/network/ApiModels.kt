@@ -153,6 +153,24 @@ data class GameFeatureActionRequest(
 )
 
 @Serializable
+data class GameWorkbenchSectionRequest(
+  val sectionId: String,
+)
+
+@Serializable
+data class GameWorkbenchActionRequest(
+  val sectionId: String = "",
+  val cardId: String = "",
+  val actionId: String,
+  val payload: JsonElement? = null,
+)
+
+@Serializable
+data class GameWorkbenchReplayRenderRequest(
+  val payload: JsonElement? = null,
+)
+
+@Serializable
 data class GameLineupsSaveRequest(
   val saved: List<GameLineup>,
 )

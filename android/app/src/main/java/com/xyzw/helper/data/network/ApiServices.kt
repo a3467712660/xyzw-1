@@ -43,7 +43,12 @@ import com.xyzw.helper.data.model.GameFeatureSummary
 import com.xyzw.helper.data.model.GameLineup
 import com.xyzw.helper.data.model.GameLineupApplyResult
 import com.xyzw.helper.data.model.GameLineupsPayload
+import com.xyzw.helper.data.model.GameWorkbenchActionResult
+import com.xyzw.helper.data.model.GameWorkbenchBootstrap
+import com.xyzw.helper.data.model.GameWorkbenchCatalog
+import com.xyzw.helper.data.model.GameWorkbenchSectionSnapshot
 import com.xyzw.helper.data.model.LegionWarSnapshot
+import com.xyzw.helper.data.model.RenderedReplayResult
 import com.xyzw.helper.data.model.TokenActivationStatus
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -61,6 +66,8 @@ import retrofit2.http.POST
 import retrofit2.http.PUT
 import retrofit2.http.Path
 import retrofit2.http.Query
+import retrofit2.http.Streaming
+import retrofit2.http.Url
 
 interface AuthApi {
   @GET("auth/csrf")
@@ -327,6 +334,9 @@ interface GameFeatureApi {
   @GET("game-features/catalog")
   suspend fun getCatalog(): Response<ApiEnvelope<GameFeatureCatalog>>
 
+  @GET("game-features/workbench/catalog")
+  suspend fun getWorkbenchCatalog(): Response<ApiEnvelope<GameWorkbenchCatalog>>
+
   @POST("game-features/{tokenId}/summary")
   suspend fun getSummary(
     @Path("tokenId") tokenId: String,
@@ -338,6 +348,36 @@ interface GameFeatureApi {
     @Path("tokenId") tokenId: String,
     @Body request: GameFeatureActionRequest,
   ): Response<ApiEnvelope<GameFeatureActionResult>>
+
+  @POST("game-features/{tokenId}/workbench/bootstrap")
+  suspend fun getWorkbenchBootstrap(
+    @Path("tokenId") tokenId: String,
+    @Body request: EmptyRequest = EmptyRequest(),
+  ): Response<ApiEnvelope<GameWorkbenchBootstrap>>
+
+  @POST("game-features/{tokenId}/workbench/section")
+  suspend fun getWorkbenchSection(
+    @Path("tokenId") tokenId: String,
+    @Body request: GameWorkbenchSectionRequest,
+  ): Response<ApiEnvelope<GameWorkbenchSectionSnapshot>>
+
+  @POST("game-features/{tokenId}/workbench/action")
+  suspend fun runWorkbenchAction(
+    @Path("tokenId") tokenId: String,
+    @Body request: GameWorkbenchActionRequest,
+  ): Response<ApiEnvelope<GameWorkbenchActionResult>>
+
+  @POST("game-features/{tokenId}/workbench/replay-render")
+  suspend fun renderWorkbenchReplay(
+    @Path("tokenId") tokenId: String,
+    @Body request: GameWorkbenchReplayRenderRequest,
+  ): Response<ApiEnvelope<RenderedReplayResult>>
+
+  @GET
+  @Streaming
+  suspend fun downloadRenderedReplayImage(
+    @Url imageUrl: String,
+  ): Response<ResponseBody>
 
   @POST("game-features/{tokenId}/legion-war/snapshot")
   suspend fun getLegionWarSnapshot(

@@ -5,6 +5,7 @@ import { readBinFile } from "./binStorageService.js";
 import { userPreferenceRepository } from "../repositories/userPreferenceRepository.js";
 import { sanitizeTaskControlLogMessage } from "./taskControlScheduler/taskControlSchedulerHelpers.js";
 import { g_utils } from "../../../shared/bonProtocol.js";
+import { gameReplayRenderService } from "./gameReplayRenderService.js";
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 const WS_CONNECT_TIMEOUT_MS = 12_000;
@@ -65,6 +66,402 @@ export const GAME_FEATURE_ACTIONS = Object.freeze([
 
 const GAME_ACTION_BY_ID = new Map(GAME_FEATURE_ACTIONS.map((item) => [item.id, item]));
 export const GAME_FEATURE_ACTION_IDS = [...GAME_ACTION_BY_ID.keys()];
+
+const GAME_WORKBENCH_GROUPS = Object.freeze([
+  { id: "operations", label: "运营", caption: "日常、活动和工具面板" },
+  { id: "battle", label: "战斗", caption: "军团、切磋和竞技场" },
+  { id: "analysis", label: "分析", caption: "榜单、资源和推演" },
+]);
+
+const GAME_WORKBENCH_MODULES = Object.freeze([
+  {
+    id: "daily",
+    label: "日常",
+    groupId: "operations",
+    description: "阵容、日常任务、塔和挂机收益。",
+    defaultSectionId: "daily",
+    sections: [{ id: "daily", label: "日常", description: "阵容、任务和基础收益。" }],
+  },
+  {
+    id: "legionOps",
+    label: "军团",
+    groupId: "battle",
+    description: "俱乐部报名、签到和军团信息。",
+    defaultSectionId: "club",
+    sections: [{ id: "club", label: "俱乐部", description: "军团报名、签到、信息和车王。" }],
+  },
+  {
+    id: "activity",
+    label: "活动",
+    groupId: "operations",
+    description: "月任务、答题、皮肤和消耗进度。",
+    defaultSectionId: "activity",
+    sections: [{ id: "activity", label: "活动", description: "限时活动和阶段进度。" }],
+  },
+  {
+    id: "tools",
+    label: "工具",
+    groupId: "operations",
+    description: "箱子、鱼灵、招募、升星等辅助工具。",
+    defaultSectionId: "tools",
+    sections: [{ id: "tools", label: "工具", description: "高频助手面板集合。" }],
+  },
+  {
+    id: "pvp",
+    label: "PVP",
+    groupId: "battle",
+    description: "切磋、竞技场和回放渲染结果。",
+    defaultSectionId: "fightPvp",
+    sections: [
+      { id: "fightPvp", label: "切磋", description: "切磋目标、结果和回放。" },
+      { id: "arenaPvp", label: "竞技场", description: "竞技场目标和挑战结果。" },
+    ],
+  },
+  {
+    id: "dataAnalysis",
+    label: "数据分析",
+    groupId: "analysis",
+    description: "榜单、资源变化、金鱼计算和十殿分析。",
+    defaultSectionId: "rankGroup",
+    sections: [
+      { id: "rankGroup", label: "榜单", description: "区服、巅峰、俱乐部和黄金榜。" },
+      { id: "resourceChanges", label: "资源变化", description: "资源流水和差异摘要。" },
+      { id: "goldFishCalc", label: "金鱼计算", description: "金鱼资源估算。" },
+      { id: "tenHall", label: "十殿", description: "十殿战斗分析。" },
+    ],
+  },
+]);
+
+const SECTION_MODULE_ID = new Map(
+  GAME_WORKBENCH_MODULES.flatMap((module) =>
+    module.sections.map((section) => [section.id, module.id])),
+);
+
+const makeMetric = (label, value, tone = "neutral") => ({ label, value: String(value), tone });
+const makeActionRef = (id, label, enabled = true) => ({ id, label, enabled });
+
+const SECTION_CARDS = Object.freeze({
+  daily: [
+    {
+      id: "team-formation",
+      type: "formation",
+      title: "阵容",
+      subtitle: "当前上阵与阵容槽概览",
+      tone: "info",
+      iconKey: "formation",
+      metrics: [makeMetric("槽位", "--"), makeMetric("主将", "待刷新")],
+      actions: [makeActionRef("power-switch", "刷新阵容")],
+    },
+    {
+      id: "daily-task-status",
+      type: "task",
+      title: "日常任务",
+      subtitle: "领取日常奖励并刷新任务状态",
+      tone: "success",
+      iconKey: "task",
+      metrics: [makeMetric("完成", "--"), makeMetric("奖励", "可检查")],
+      actions: [makeActionRef("daily-tasks", "领取日常奖励")],
+    },
+    {
+      id: "tower-status",
+      type: "helper",
+      title: "咸将塔",
+      subtitle: "塔层状态与挑战入口",
+      tone: "warning",
+      iconKey: "tower",
+      metrics: [makeMetric("层数", "--"), makeMetric("状态", "待刷新")],
+      actions: [makeActionRef("tower-challenge", "发起挑战")],
+    },
+    {
+      id: "hangup-status",
+      type: "helper",
+      title: "挂机收益",
+      subtitle: "挂机奖励领取和收益状态",
+      tone: "info",
+      iconKey: "reward",
+      metrics: [makeMetric("收益", "待领取")],
+      actions: [makeActionRef("idle-time", "领取挂机收益")],
+    },
+  ],
+  club: [
+    {
+      id: "legion-match",
+      type: "action",
+      title: "俱乐部报名",
+      subtitle: "军团赛报名状态",
+      tone: "warning",
+      iconKey: "club",
+      metrics: [makeMetric("报名", "待检查")],
+      actions: [makeActionRef("club-ranking", "报名")],
+    },
+    {
+      id: "legion-signin",
+      type: "action",
+      title: "俱乐部签到",
+      subtitle: "每日军团签到",
+      tone: "success",
+      iconKey: "checkin",
+      metrics: [makeMetric("签到", "待检查")],
+      actions: [makeActionRef("club-checkin", "签到")],
+    },
+    {
+      id: "club-info",
+      type: "list",
+      title: "俱乐部信息",
+      subtitle: "成员、排行和俱乐部摘要",
+      tone: "info",
+      iconKey: "info",
+      metrics: [makeMetric("成员", "--"), makeMetric("活跃", "--")],
+      actions: [makeActionRef("power-switch", "刷新信息")],
+    },
+    {
+      id: "club-car-king",
+      type: "rank",
+      title: "俱乐部车王",
+      subtitle: "车王活动摘要",
+      tone: "neutral",
+      iconKey: "rank",
+      metrics: [makeMetric("排名", "--")],
+      actions: [],
+    },
+  ],
+  activity: [
+    {
+      id: "monthly-tasks",
+      type: "task",
+      title: "月任务",
+      subtitle: "月度任务和阶段奖励",
+      tone: "info",
+      iconKey: "calendar",
+      metrics: [makeMetric("进度", "--")],
+      actions: [makeActionRef("daily-tasks", "刷新任务")],
+    },
+    {
+      id: "study-challenge",
+      type: "helper",
+      title: "答题/研习",
+      subtitle: "研习挑战状态",
+      tone: "success",
+      iconKey: "study",
+      metrics: [makeMetric("题目", "--")],
+      actions: [],
+    },
+    {
+      id: "skin-challenge",
+      type: "helper",
+      title: "皮肤活动",
+      subtitle: "皮肤挑战进度",
+      tone: "warning",
+      iconKey: "skin",
+      metrics: [makeMetric("进度", "--")],
+      actions: [],
+    },
+    {
+      id: "consumption-progress",
+      type: "chart",
+      title: "消耗进度",
+      subtitle: "活动消耗与阶段目标",
+      tone: "info",
+      iconKey: "chart",
+      metrics: [makeMetric("消耗", "--")],
+      actions: [],
+    },
+  ],
+  tools: [
+    {
+      id: "bottle-helper",
+      type: "helper",
+      title: "盐罐助手",
+      subtitle: "盐罐奖励领取",
+      tone: "success",
+      iconKey: "bottle",
+      metrics: [makeMetric("状态", "可检查")],
+      actions: [makeActionRef("salt-robot", "领取奖励")],
+    },
+    {
+      id: "box-helper",
+      type: "helper",
+      title: "箱子助手",
+      subtitle: "宝箱和资源辅助",
+      tone: "info",
+      iconKey: "box",
+      metrics: [makeMetric("箱子", "--")],
+      actions: [],
+    },
+    {
+      id: "fish-helper",
+      type: "helper",
+      title: "鱼灵助手",
+      subtitle: "鱼灵和鱼珠状态",
+      tone: "info",
+      iconKey: "fish",
+      metrics: [makeMetric("鱼灵", "--")],
+      actions: [],
+    },
+    {
+      id: "recruit-helper",
+      type: "helper",
+      title: "招募助手",
+      subtitle: "招募活动和资源",
+      tone: "warning",
+      iconKey: "recruit",
+      metrics: [makeMetric("招募", "--")],
+      actions: [],
+    },
+    {
+      id: "star-upgrade",
+      type: "helper",
+      title: "升星助手",
+      subtitle: "升星材料和目标",
+      tone: "success",
+      iconKey: "star",
+      metrics: [makeMetric("材料", "--")],
+      actions: [],
+    },
+    {
+      id: "fight-helper",
+      type: "pvp",
+      title: "战斗助手",
+      subtitle: "战斗前置状态",
+      tone: "danger",
+      iconKey: "battle",
+      metrics: [makeMetric("战斗", "待命")],
+      actions: [makeActionRef("team-challenge", "竞技场挑战")],
+    },
+    {
+      id: "dream-helper",
+      type: "helper",
+      title: "梦境助手",
+      subtitle: "梦境商店与战斗",
+      tone: "info",
+      iconKey: "dream",
+      metrics: [makeMetric("梦境", "--")],
+      actions: [],
+    },
+    {
+      id: "hero-upgrade",
+      type: "helper",
+      title: "武将升级",
+      subtitle: "武将升级和材料",
+      tone: "success",
+      iconKey: "hero",
+      metrics: [makeMetric("武将", "--")],
+      actions: [],
+    },
+    {
+      id: "refine-helper",
+      type: "helper",
+      title: "淬炼助手",
+      subtitle: "淬炼条件和装备槽",
+      tone: "warning",
+      iconKey: "refine",
+      metrics: [makeMetric("槽位", "--")],
+      actions: [],
+    },
+    {
+      id: "boss-tower",
+      type: "helper",
+      title: "Boss 塔",
+      subtitle: "Boss 塔状态",
+      tone: "danger",
+      iconKey: "boss",
+      metrics: [makeMetric("状态", "--")],
+      actions: [],
+    },
+  ],
+  fightPvp: [
+    {
+      id: "fight-pvp-target",
+      type: "pvp",
+      title: "切磋目标",
+      subtitle: "对手信息、阵容和战力",
+      tone: "danger",
+      iconKey: "pvp",
+      metrics: [makeMetric("目标", "待选择"), makeMetric("胜率", "--")],
+      actions: [makeActionRef("team-challenge", "发起切磋")],
+    },
+    {
+      id: "fight-pvp-replay",
+      type: "replay",
+      title: "回放渲染",
+      subtitle: "后端生成回放截图和诊断",
+      tone: "info",
+      iconKey: "replay",
+      metrics: [makeMetric("渲染", "待生成")],
+      actions: [makeActionRef("render-replay", "生成渲染图")],
+    },
+  ],
+  arenaPvp: [
+    {
+      id: "arena-targets",
+      type: "pvp",
+      title: "竞技场目标",
+      subtitle: "目标参考、挑战结果和历史记录",
+      tone: "danger",
+      iconKey: "arena",
+      metrics: [makeMetric("目标", "--"), makeMetric("积分", "--")],
+      actions: [makeActionRef("team-challenge", "挑战目标")],
+    },
+  ],
+  rankGroup: [
+    {
+      id: "rank-server",
+      type: "rank",
+      title: "区服榜",
+      subtitle: "区服排行和巅峰榜入口",
+      tone: "info",
+      iconKey: "rank",
+      metrics: [makeMetric("榜单", "区服")],
+      actions: [],
+    },
+    {
+      id: "rank-club",
+      type: "rank",
+      title: "俱乐部榜",
+      subtitle: "俱乐部、黄金积分和大路榜",
+      tone: "success",
+      iconKey: "club-rank",
+      metrics: [makeMetric("榜单", "俱乐部")],
+      actions: [],
+    },
+  ],
+  resourceChanges: [
+    {
+      id: "resource-change",
+      type: "list",
+      title: "资源变化",
+      subtitle: "资源流水、差值和趋势",
+      tone: "info",
+      iconKey: "resource",
+      metrics: [makeMetric("记录", "--")],
+      actions: [],
+    },
+  ],
+  goldFishCalc: [
+    {
+      id: "gold-fish-calc",
+      type: "chart",
+      title: "金鱼计算",
+      subtitle: "金鱼资源和投入估算",
+      tone: "warning",
+      iconKey: "calculator",
+      metrics: [makeMetric("估算", "待输入")],
+      actions: [],
+    },
+  ],
+  tenHall: [
+    {
+      id: "ten-hall-team-battle",
+      type: "pvp",
+      title: "十殿战斗",
+      subtitle: "十殿队伍和战斗分析",
+      tone: "danger",
+      iconKey: "ten-hall",
+      metrics: [makeMetric("队伍", "--")],
+      actions: [],
+    },
+  ],
+});
 
 const SENSITIVE_KEY_PATTERN = /token|cookie|seed|signature|secret|password/i;
 
@@ -333,6 +730,7 @@ const withGameConnection = async ({ user, tokenId, fetchImpl, WebSocketImpl, fn 
 export const createGameCommandService = ({
   fetchImpl = fetch,
   WebSocketImpl = WebSocket,
+  replayRenderService = gameReplayRenderService,
 } = {}) => {
   const executeAllowedCommand = async ({ user, tokenId, cmd, params = {}, timeout = DEFAULT_TIMEOUT_MS }) =>
     withGameConnection({
@@ -354,6 +752,31 @@ export const createGameCommandService = ({
         })),
         legionWar: { enabled: true, title: "军团战" },
         lineupAssistant: { enabled: true, title: "阵容助手" },
+      };
+    },
+
+    getWorkbenchCatalog() {
+      return {
+        groups: GAME_WORKBENCH_GROUPS,
+        modules: GAME_WORKBENCH_MODULES,
+        defaultModuleId: "daily",
+        defaultSectionId: "daily",
+      };
+    },
+
+    async getWorkbenchBootstrap({ user, tokenId }) {
+      const summary = await this.getSummary({ user, tokenId });
+      return {
+        tokenId,
+        roleName: summary.roleName || "",
+        serverName: summary.serverName || "",
+        binAvailable: Boolean(summary.binAvailable),
+        connectionStatus: summary.connectionStatus || "unknown",
+        selectedModuleId: "daily",
+        selectedSectionId: "daily",
+        recommendation: summary.recommendedAction || "检查连接状态",
+        groups: GAME_WORKBENCH_GROUPS,
+        modules: GAME_WORKBENCH_MODULES,
       };
     },
 
@@ -425,6 +848,56 @@ export const createGameCommandService = ({
         message: "命令已发送",
         detail: stripSensitiveGamePayload(data),
       };
+    },
+
+    async getWorkbenchSection({ user, tokenId, sectionId }) {
+      const normalizedSectionId = String(sectionId || "daily").trim() || "daily";
+      const moduleId = SECTION_MODULE_ID.get(normalizedSectionId);
+      if (!moduleId) {
+        throw new GameCommandError("不支持的游戏功能分区", {
+          status: 400,
+          code: "GAME_WORKBENCH_SECTION_NOT_ALLOWED",
+        });
+      }
+      const summary = await this.getSummary({ user, tokenId });
+      const cards = (SECTION_CARDS[normalizedSectionId] || []).map((card) => ({
+        ...card,
+        status: summary.binAvailable ? "ready" : "disabled",
+        actions: (card.actions || []).map((action) => ({
+          ...action,
+          enabled: Boolean(action.enabled) && Boolean(summary.binAvailable),
+        })),
+      }));
+      const module = GAME_WORKBENCH_MODULES.find((item) => item.id === moduleId) || null;
+      const section = module?.sections?.find((item) => item.id === normalizedSectionId) || null;
+      return {
+        tokenId,
+        moduleId,
+        sectionId: normalizedSectionId,
+        title: section?.label || normalizedSectionId,
+        subtitle: section?.description || "",
+        status: summary.binAvailable ? "ready" : "missing-bin",
+        cards,
+        updatedAt: nowIso(),
+      };
+    },
+
+    async runWorkbenchAction({ user, tokenId, actionId, sectionId = "", cardId = "", payload = {} }) {
+      const result = await this.runAction({ user, tokenId, actionId });
+      return {
+        ...result,
+        sectionId,
+        cardId,
+        payload: stripSensitiveGamePayload(payload),
+      };
+    },
+
+    async renderWorkbenchReplay({ user, tokenId, payload = {} }) {
+      return replayRenderService.renderReplay({ user, tokenId, payload });
+    },
+
+    async getRenderedReplayImage({ user, renderId }) {
+      return replayRenderService.getRenderedReplayImage({ user, renderId });
     },
 
     async getLegionWarSnapshot({ user, tokenId }) {
