@@ -177,6 +177,7 @@ import {
   useMessage,
 } from "naive-ui/es";
 import { Copy, Refresh } from "@vicons/ionicons5";
+import api from "@/api";
 import { useTokenStore } from "@/stores/tokenStore";
 import ClubMemberDetailModal from "./info/ClubMemberDetailModal.vue";
 import ClubMemberListPanel from "./info/ClubMemberListPanel.vue";
@@ -185,8 +186,7 @@ import PeachFightActionPanel from "./info/PeachFightActionPanel.vue";
 import PeachFightProgressPanel from "./info/PeachFightProgressPanel.vue";
 import PeachFightResultPanel from "./info/PeachFightResultPanel.vue";
 import ClubRankHeroDetailModal from "./rank/ClubRankHeroDetailModal.vue";
-import { captureWithHtml2canvas } from "@/utils/html2canvasLoader";
-import { downloadCanvasAsPagedImages } from "@/utils/imageExport";
+import { downloadBlobAsImage } from "@/utils/imageExport";
 import {
   getLineupType,
   HERO_DICT,
@@ -408,6 +408,47 @@ const formatBattlePowerLabel = (value) =>
 
 const formatBattleDieLabel = (count) =>
   t("peachInfo.duel.dieHeroCount", { count });
+
+const toExportText = (value, maxLength, fallback = "-") => {
+  const text = String(value ?? "").trim() || fallback;
+  const chars = Array.from(text);
+  return chars.length > maxLength ? chars.slice(0, maxLength).join("") : text;
+};
+
+const formatExportDateTime = (date = new Date()) => {
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
+
+const buildPeachInfoExportPayload = (exportedAt) => {
+  const exportMembers = opponentMembers.value.slice(0, 220);
+  const opponentClubName = battleInfo.value?.opponentClub?.name;
+  const title = opponentClubName
+    ? `${opponentClubName} ${queryDate.value}`
+    : t("peachInfo.table.title");
+
+  return {
+    clubName: toExportText(title, 80, t("peachInfo.table.title")),
+    exportedAt,
+    memberCount: exportMembers.length,
+    members: exportMembers.map((member, index) => ({
+      index: index + 1,
+      name: toExportText(member.name, 80, t("peachInfo.common.unknown")),
+      roleId: toExportText(member.id, 64, "unknown"),
+      powerText: toExportText(formatPower(member.power), 32),
+      redQuenchText: toExportText(
+        t("peachInfo.labels.redQuench", { count: member.redQuench || 0 }),
+        32,
+      ),
+      lineupType: toExportText(
+        member.lineupType || t("peachInfo.common.unknown"),
+        32,
+      ),
+      jobLabel: "成员",
+      avatarText: toExportText(getClubMemberAvatarFallback(member.name), 8, "?"),
+    })),
+  };
+};
 
 // 武将详情模态框状态
 const showHeroModal = ref(false);
@@ -1336,118 +1377,33 @@ const fetchBattleInfo = async () => {
 };
 
 const handleExportImage = async () => {
-  // 校验：确保DOM已正确绑定
-  if (!exportDom.value) {
+  const tokenId = tokenStore.selectedToken?.id;
+  if (!tokenId) {
+    message.warning("请先选择游戏角色");
+    return;
+  }
+  if (!opponentMembers.value.length) {
     message.error(t("peachInfo.messages.exportTargetMissing"));
     return;
   }
 
-  const tableContainer = exportDom.value.querySelector(".n-data-table");
-  const membersTable = exportDom.value.querySelector(".members-table");
-  const rollbackStyleTasks = [];
-  const applyTempStyle = (el, stylePatch = {}) => {
-    if (!el) return;
-    const prev = {};
-    Object.keys(stylePatch).forEach((key) => {
-      prev[key] = el.style[key];
-      el.style[key] = stylePatch[key];
-    });
-    rollbackStyleTasks.push(() => {
-      Object.keys(stylePatch).forEach((key) => {
-        if (prev[key]) {
-          el.style[key] = prev[key];
-        } else {
-          el.style.removeProperty(key.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`));
-        }
-      });
-    });
-  };
-
   try {
     message.loading(t("peachInfo.messages.exportGenerating"));
-
-    // 逐层展开容器，防止导出时只截到可视区域
-    applyTempStyle(exportDom.value, {
-      height: "auto",
-      maxHeight: "none",
-      overflow: "visible",
-    });
-    applyTempStyle(membersTable, {
-      height: "auto",
-      maxHeight: "none",
-      overflow: "visible",
-      flex: "0 0 auto",
-    });
-    applyTempStyle(tableContainer, {
-      height: "auto",
-      maxHeight: "none",
-      overflow: "visible",
-    });
-
-    if (tableContainer) {
-      applyTempStyle(
-        tableContainer.querySelector(".n-data-table-wrapper"),
-        {
-          height: "auto",
-          maxHeight: "none",
-          overflow: "visible",
-        },
-      );
-      applyTempStyle(
-        tableContainer.querySelector(".n-data-table-base-table"),
-        {
-          height: "auto",
-          maxHeight: "none",
-          overflow: "visible",
-        },
-      );
-      applyTempStyle(
-        tableContainer.querySelector(".n-data-table-base-table-body"),
-        {
-          height: "auto",
-          maxHeight: "none",
-          overflow: "visible",
-        },
-      );
-    }
-
-    // 等待DOM更新
-    await nextTick();
-    await new Promise((resolve) => setTimeout(resolve, 300));
-
-    const renderedRows = exportDom.value.querySelectorAll(
-      ".n-data-table-tbody .n-data-table-tr",
-    ).length;
-    console.info("[PeachInfo export]", {
-      opponentClubMemberCount: battleInfo.value?.opponentClub?.memberCount || 0,
-      opponentMembersLength: opponentMembers.value.length,
-      renderedRows,
-    });
-
-    // 5. 用html2canvas渲染DOM为Canvas
-    const canvas = await captureWithHtml2canvas(exportDom.value, {
-      scale: 2, // 放大2倍，解决图片模糊问题
-      useCORS: true, // 允许跨域图片
-      backgroundColor: "#ffffff", // 避免透明背景
-      logging: false, // 关闭控制台日志
-      allowTaint: true, // 允许跨域图片污染画布
-    });
-
-    // 6. Canvas转图片链接并下载
-    const filenameBase = `${t("peachInfo.export.filenamePrefix")}_${queryDate.value.replace(/\//g, "-")}`;
-    const pageCount = downloadCanvasAsPagedImages(canvas, filenameBase, {
-      maxHeight: 4200,
-    });
-    message.success(
-      pageCount > 1
-        ? t("peachInfo.messages.exportSuccessWithPages", { count: pageCount })
-        : t("peachInfo.messages.exportSuccess"),
+    const exportedAt = formatExportDateTime();
+    const result = await api.gameFeatures.exportClubMembersImage(
+      tokenId,
+      buildPeachInfoExportPayload(exportedAt),
     );
+    if (!result?.success || !result.data) {
+      throw new Error(result?.message || "后端图片生成失败");
+    }
+    const blob = new Blob([result.data], { type: "image/png" });
+    const filenameBase = `${t("peachInfo.export.filenamePrefix")}_${queryDate.value.replace(/\//g, "-")}`;
+    downloadBlobAsImage(blob, `${filenameBase}.png`);
+    message.success(t("peachInfo.messages.exportSuccess"));
   } catch (err) {
-    console.error("DOM转图片失败：", err);
+    console.error("导出桃园敌方信息图片失败：", err);
     message.error(t("peachInfo.messages.exportFailed"));
-  } finally {
-    rollbackStyleTasks.reverse().forEach((fn) => fn());
   }
 };
 
