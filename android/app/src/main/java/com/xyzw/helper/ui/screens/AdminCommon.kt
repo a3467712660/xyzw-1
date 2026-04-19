@@ -36,12 +36,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.xyzw.helper.data.model.AdminConfirmCredential
 import com.xyzw.helper.data.model.AuthUser
 import com.xyzw.helper.data.network.ApiResult
+import com.xyzw.helper.ui.components.XyzwFormField
 
 data class AdminConfirmDialogRequest(
   val actionLabel: String,
@@ -252,35 +253,32 @@ fun AdminConfirmDialog(
               modifier = Modifier.fillMaxWidth(),
               singleLine = true,
             )
-            OutlinedTextField(
+            XyzwFormField(
               value = recoveryCode,
               onValueChange = { recoveryCode = it.trim() },
-              label = { Text("恢复码（可选）") },
-              modifier = Modifier.fillMaxWidth(),
-              singleLine = true,
-              visualTransformation = PasswordVisualTransformation(),
+              label = "恢复码（可选）",
+              modifier = Modifier.testTag("admin-confirm-recovery-optional"),
+              password = true,
             )
           }
 
           "recovery" -> {
-            OutlinedTextField(
+            XyzwFormField(
               value = recoveryCode,
               onValueChange = { recoveryCode = it.trim() },
-              label = { Text("恢复码") },
-              modifier = Modifier.fillMaxWidth(),
-              singleLine = true,
-              visualTransformation = PasswordVisualTransformation(),
+              label = "恢复码",
+              modifier = Modifier.testTag("admin-confirm-recovery"),
+              password = true,
             )
           }
 
           else -> {
-            OutlinedTextField(
+            XyzwFormField(
               value = password,
               onValueChange = { password = it },
-              label = { Text("当前管理员密码") },
-              visualTransformation = PasswordVisualTransformation(),
-              modifier = Modifier.fillMaxWidth(),
-              singleLine = true,
+              label = "当前管理员密码",
+              modifier = Modifier.testTag("admin-confirm-password"),
+              password = true,
             )
           }
         }

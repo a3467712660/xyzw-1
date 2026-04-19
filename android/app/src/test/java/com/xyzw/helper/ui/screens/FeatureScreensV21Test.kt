@@ -13,6 +13,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
+import com.xyzw.helper.data.model.AuthUser
 import com.xyzw.helper.data.model.DailyTaskEntry
 import com.xyzw.helper.data.model.DailyTaskSettings
 import com.xyzw.helper.data.storage.ThemeMode
@@ -99,6 +100,60 @@ class FeatureScreensV21Test {
     assertEquals(false, confirmed)
     composeRule.onNodeWithText("删除").performClick()
     assertEquals(true, confirmed)
+  }
+
+  @Test
+  fun `token delete confirm dialog requires explicit confirmation`() {
+    var confirmed = false
+    composeRule.setContent {
+      XyzwTheme(themeMode = ThemeMode.LIGHT) {
+        TokenDeleteConfirmDialog(
+          onConfirm = { confirmed = true },
+          onDismiss = {},
+        )
+      }
+    }
+
+    composeRule.onNodeWithText("确认从本机加密工作区移除该 Token？服务端 BIN 文件不会自动删除。").assertIsDisplayed()
+    assertEquals(false, confirmed)
+    composeRule.onNodeWithText("删除").performClick()
+    assertEquals(true, confirmed)
+  }
+
+  @Test
+  fun `bin delete confirm dialog requires explicit confirmation`() {
+    var confirmed = false
+    composeRule.setContent {
+      XyzwTheme(themeMode = ThemeMode.LIGHT) {
+        BinDeleteConfirmDialog(
+          onConfirm = { confirmed = true },
+          onDismiss = {},
+        )
+      }
+    }
+
+    composeRule.onNodeWithText("确认删除服务端保存的 BIN 文件？删除后需要重新上传。").assertIsDisplayed()
+    assertEquals(false, confirmed)
+    composeRule.onNodeWithText("删除").performClick()
+    assertEquals(true, confirmed)
+  }
+
+  @Test
+  fun `admin confirm password field hides typed text`() {
+    composeRule.setContent {
+      XyzwTheme(themeMode = ThemeMode.LIGHT) {
+        AdminConfirmDialog(
+          currentUser = AuthUser(id = "admin-1", username = "admin", isAdmin = true, mfaEnabled = false),
+          request = AdminConfirmDialogRequest("危险操作") {},
+          onDismiss = {},
+          onConfirm = { _, _ -> },
+        )
+      }
+    }
+
+    composeRule.onNodeWithTag("admin-confirm-password").performTextInput("admin-secret")
+
+    composeRule.onAllNodesWithText("admin-secret").assertCountEquals(0)
   }
 
   @Test

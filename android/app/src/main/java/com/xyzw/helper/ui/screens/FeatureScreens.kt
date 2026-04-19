@@ -357,11 +357,7 @@ fun TokenManagementScreen(
   }
 
   if (confirmRemoveTokenId != null) {
-    XyzwConfirmDialog(
-      title = "删除 Token",
-      message = "确认从本机加密工作区移除该 Token？服务端 BIN 文件不会自动删除。",
-      confirmLabel = "删除",
-      destructive = true,
+    TokenDeleteConfirmDialog(
       onConfirm = {
         val tokenId = confirmRemoveTokenId
         confirmRemoveTokenId = null
@@ -374,11 +370,7 @@ fun TokenManagementScreen(
   }
 
   if (confirmDeleteBinTokenId != null) {
-    XyzwConfirmDialog(
-      title = "删除 BIN 文件",
-      message = "确认删除服务端保存的 BIN 文件？删除后需要重新上传。",
-      confirmLabel = "删除",
-      destructive = true,
+    BinDeleteConfirmDialog(
       onConfirm = {
         val tokenId = confirmDeleteBinTokenId
         confirmDeleteBinTokenId = null
@@ -389,6 +381,36 @@ fun TokenManagementScreen(
       onDismiss = { confirmDeleteBinTokenId = null },
     )
   }
+}
+
+@Composable
+internal fun TokenDeleteConfirmDialog(
+  onConfirm: () -> Unit,
+  onDismiss: () -> Unit,
+) {
+  XyzwConfirmDialog(
+    title = "删除 Token",
+    message = "确认从本机加密工作区移除该 Token？服务端 BIN 文件不会自动删除。",
+    confirmLabel = "删除",
+    destructive = true,
+    onConfirm = onConfirm,
+    onDismiss = onDismiss,
+  )
+}
+
+@Composable
+internal fun BinDeleteConfirmDialog(
+  onConfirm: () -> Unit,
+  onDismiss: () -> Unit,
+) {
+  XyzwConfirmDialog(
+    title = "删除 BIN 文件",
+    message = "确认删除服务端保存的 BIN 文件？删除后需要重新上传。",
+    confirmLabel = "删除",
+    destructive = true,
+    onConfirm = onConfirm,
+    onDismiss = onDismiss,
+  )
 }
 
 @Composable

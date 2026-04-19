@@ -20,7 +20,7 @@ import com.xyzw.helper.data.model.TaskControlTaskRow
 import com.xyzw.helper.data.network.ApiResult
 import com.xyzw.helper.data.network.GameRoleUpsertRequest
 import com.xyzw.helper.data.repository.DailyTaskRepository
-import com.xyzw.helper.data.repository.FeedbackUserRepository
+import com.xyzw.helper.data.repository.FeedbackUserDataSource
 import com.xyzw.helper.data.repository.GameRoleRepository
 import com.xyzw.helper.data.repository.ProfileRepository
 import com.xyzw.helper.data.repository.ReferralRepository
@@ -735,7 +735,7 @@ data class FeedbackUiState(
 )
 
 class FeedbackViewModel(
-  private val repository: FeedbackUserRepository,
+  private val repository: FeedbackUserDataSource,
 ) : ViewModel() {
   private val mutableState = MutableStateFlow(FeedbackUiState())
   val uiState: StateFlow<FeedbackUiState> = mutableState.asStateFlow()
