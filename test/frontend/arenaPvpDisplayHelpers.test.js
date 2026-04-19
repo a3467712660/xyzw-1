@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import test from "node:test";
 import {
   buildArenaBattleRunResultView,
@@ -6,6 +7,15 @@ import {
   buildArenaManualTargetOptions,
   buildArenaTargetListView,
 } from "../../src/components/cards/pvp/arenaPvpDisplayHelpers.js";
+
+test("arena pvp toolbar receives skip lineup options from parent", () => {
+  const source = fs.readFileSync(
+    new URL("../../src/components/cards/ArenaPvp.vue", import.meta.url),
+    "utf8",
+  );
+
+  assert.ok(source.includes(":skip-lineup-options=\"skipLineupOptions\""));
+});
 
 test("arena pvp display helpers keep manual target options and entries stable", () => {
   assert.deepEqual(

@@ -54,6 +54,7 @@
         :my-arena-rank-display="myArenaRankDisplay"
         :my-arena-score-display="myArenaScoreDisplay"
         :running="running"
+        :skip-lineup-options="skipLineupOptions"
         :t="t"
         :today-arena-score-delta="todayArenaScoreDelta"
         @refresh="refreshArenaData()"
