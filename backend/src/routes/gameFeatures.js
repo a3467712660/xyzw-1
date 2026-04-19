@@ -43,10 +43,13 @@ const clubMemberExportItemSchema = z.object({
   lineupType: z.string().trim().max(32).optional().default("-"),
   jobLabel: z.string().trim().min(1).max(32),
   avatarText: z.string().trim().max(8).optional().default("?"),
+  avatarUrl: z.string().trim().max(2048).optional().default(""),
+  avatarDataUrl: z.string().trim().max(90000).optional().default(""),
 }).strict();
 
 const clubMemberExportBodySchema = z.object({
   clubName: z.string().trim().min(1).max(80),
+  subtitle: z.string().trim().max(120).optional().default(""),
   exportedAt: z.string().trim().min(1).max(64),
   memberCount: z.coerce.number().int().min(0).max(220),
   members: z.array(clubMemberExportItemSchema).max(220),
@@ -140,7 +143,7 @@ export const createGameFeatureRoutes = ({
     validateRequest({ params: tokenIdParamSchema, body: clubMemberExportBodySchema }),
     async (req, res) => {
       try {
-        const body = clubMemberImageService.renderClubMembersImage(req.body);
+        const body = await clubMemberImageService.renderClubMembersImage(req.body);
         res.setHeader("Content-Type", "image/png");
         res.setHeader("Cache-Control", "no-store");
         res.setHeader("X-Content-Type-Options", "nosniff");

@@ -420,15 +420,96 @@ const formatExportDateTime = (date = new Date()) => {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 };
 
-const buildPeachInfoExportPayload = (exportedAt) => {
+const normalizeAvatarExportUrl = (value) => {
+  const raw = String(value || "")
+    .replace(/`/g, "")
+    .replace(/^["']+|["']+$/g, "")
+    .trim();
+  if (!raw) return "";
+  if (raw.startsWith("//")) {
+    return toExportText(`https:${raw}`, 2048, "");
+  }
+  if (raw.startsWith("/")) {
+    const origin = typeof window !== "undefined" ? window.location?.origin : "";
+    return toExportText(origin ? `${origin}${raw}` : raw, 2048, "");
+  }
+  return toExportText(raw, 2048, "");
+};
+
+const AVATAR_EXPORT_DATA_URL_MAX_BYTES = 60 * 1024;
+const AVATAR_EXPORT_DATA_URL_TOTAL_BUDGET = 2 * 1024 * 1024;
+const AVATAR_EXPORT_CONCURRENCY = 4;
+
+const blobToDataUrl = (blob) =>
+  new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => resolve("");
+    reader.readAsDataURL(blob);
+  });
+
+const fetchAvatarDataUrlForExport = async (avatarUrl) => {
+  if (!avatarUrl || !/^https?:\/\//i.test(avatarUrl)) return "";
+  try {
+    const response = await fetch(avatarUrl, {
+      credentials: "omit",
+      mode: "cors",
+      referrerPolicy: "no-referrer",
+    });
+    if (!response.ok) return "";
+    const blob = await response.blob();
+    const type = String(blob.type || "").split(";")[0].trim().toLowerCase();
+    if (!["image/png", "image/jpeg", "image/jpg", "image/webp"].includes(type)) {
+      return "";
+    }
+    if (!blob.size || blob.size > AVATAR_EXPORT_DATA_URL_MAX_BYTES) {
+      return "";
+    }
+    return await blobToDataUrl(blob);
+  } catch {
+    return "";
+  }
+};
+
+const resolveExportAvatarDataUrls = async (members) => {
+  const output = new Array(members.length).fill("");
+  let cursor = 0;
+  let totalSize = 0;
+  const workers = Array.from(
+    { length: Math.min(AVATAR_EXPORT_CONCURRENCY, members.length) },
+    async () => {
+      while (cursor < members.length) {
+        const index = cursor;
+        cursor += 1;
+        if (totalSize >= AVATAR_EXPORT_DATA_URL_TOTAL_BUDGET) continue;
+        const avatarDataUrl = await fetchAvatarDataUrlForExport(
+          normalizeAvatarExportUrl(members[index]?.headImg),
+        );
+        if (!avatarDataUrl) continue;
+        const nextSize = avatarDataUrl.length;
+        if (totalSize + nextSize > AVATAR_EXPORT_DATA_URL_TOTAL_BUDGET) {
+          continue;
+        }
+        totalSize += nextSize;
+        output[index] = avatarDataUrl;
+      }
+    },
+  );
+  await Promise.all(workers);
+  return output;
+};
+
+const buildPeachInfoExportPayload = async (exportedAt) => {
   const exportMembers = opponentMembers.value.slice(0, 220);
+  const avatarDataUrls = await resolveExportAvatarDataUrls(exportMembers);
   const opponentClubName = battleInfo.value?.opponentClub?.name;
-  const title = opponentClubName
-    ? `${opponentClubName} ${queryDate.value}`
-    : t("peachInfo.table.title");
+  const subtitle = opponentClubName
+    ? `${opponentClubName} · ${queryDate.value}`
+    : queryDate.value;
 
   return {
-    clubName: toExportText(title, 80, t("peachInfo.table.title")),
+    clubName: "蟠桃园敌对情况",
+    subtitle: toExportText(subtitle, 120, t("peachInfo.table.title")),
     exportedAt,
     memberCount: exportMembers.length,
     members: exportMembers.map((member, index) => ({
@@ -446,6 +527,8 @@ const buildPeachInfoExportPayload = (exportedAt) => {
       ),
       jobLabel: "成员",
       avatarText: toExportText(getClubMemberAvatarFallback(member.name), 8, "?"),
+      avatarUrl: normalizeAvatarExportUrl(member.headImg),
+      avatarDataUrl: avatarDataUrls[index] || "",
     })),
   };
 };
@@ -1390,9 +1473,10 @@ const handleExportImage = async () => {
   try {
     message.loading(t("peachInfo.messages.exportGenerating"));
     const exportedAt = formatExportDateTime();
+    const payload = await buildPeachInfoExportPayload(exportedAt);
     const result = await api.gameFeatures.exportClubMembersImage(
       tokenId,
-      buildPeachInfoExportPayload(exportedAt),
+      payload,
     );
     if (!result?.success || !result.data) {
       throw new Error(result?.message || "后端图片生成失败");
