@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer";
 import { Resvg } from "@resvg/resvg-js";
 import {
   fetchProxyResource,
@@ -8,7 +9,6 @@ import { getArenaLineupClass } from "../../../src/components/cards/pvp/arenaPvpF
 const IMAGE_WIDTH = 1200;
 const PAGE_PADDING_X = 40;
 const HEADER_HEIGHT = 156;
-const SUMMARY_HEIGHT = 94;
 const TABLE_HEADER_HEIGHT = 50;
 const ROW_HEIGHT = 58;
 const BOTTOM_PADDING = 32;
@@ -16,6 +16,7 @@ const TABLE_WIDTH = IMAGE_WIDTH - PAGE_PADDING_X * 2;
 const AVATAR_FETCH_TIMEOUT_MS = 1500;
 const AVATAR_MAX_BYTES = 180 * 1024;
 const AVATAR_CONCURRENCY = 6;
+const WATERMARK_TEXT = "传说专用";
 
 const COLUMNS = [
   { key: "index", label: "序号", width: 70, align: "center" },
@@ -147,12 +148,19 @@ const renderDefs = () => `
     <filter id="softShadow" x="-8%" y="-20%" width="116%" height="140%">
       <feDropShadow dx="0" dy="10" stdDeviation="10" flood-color="#0f172a" flood-opacity="0.10" />
     </filter>
+    <pattern id="exportWatermark" width="520" height="260" patternUnits="userSpaceOnUse" patternTransform="rotate(-24)">
+      <text x="42" y="138" fill="#64748b" fill-opacity="0.11" font-size="42" font-weight="850" letter-spacing="6">${svgEscape(WATERMARK_TEXT)}</text>
+    </pattern>
   </defs>
 `;
 
+const renderBackground = (height) => `
+  <rect x="0" y="0" width="${IMAGE_WIDTH}" height="${height}" fill="url(#pageBg)" />
+  <rect x="-220" y="-180" width="${IMAGE_WIDTH + 440}" height="${height + 360}" fill="url(#exportWatermark)" />
+`;
+
 const renderHeader = ({ clubName, exportedAt, memberCount, subtitle }) => `
-  <rect x="0" y="0" width="${IMAGE_WIDTH}" height="100%" fill="url(#pageBg)" />
-  <rect x="32" y="24" width="${IMAGE_WIDTH - 64}" height="108" rx="18" fill="#ffffff" stroke="#dbe7fb" filter="url(#softShadow)" />
+  <rect x="32" y="24" width="${IMAGE_WIDTH - 64}" height="108" rx="18" fill="#ffffff" fill-opacity="0.97" stroke="#dbe7fb" filter="url(#softShadow)" />
   <rect x="32" y="24" width="${IMAGE_WIDTH - 64}" height="8" rx="4" fill="url(#headerAccent)" />
   <text x="58" y="64" fill="#0f172a" font-size="30" font-weight="850">${svgEscape(truncateText(clubName, 34))}</text>
   <text x="58" y="92" fill="#475569" font-size="15">${svgEscape(truncateText(subtitle, 52))}</text>
@@ -161,30 +169,6 @@ const renderHeader = ({ clubName, exportedAt, memberCount, subtitle }) => `
   <text x="1023" y="68" text-anchor="middle" fill="#9a3412" font-size="13" font-weight="700">成员总数</text>
   <text x="1023" y="88" text-anchor="middle" fill="#0f172a" font-size="20" font-weight="850">${memberCount} 人</text>
 `;
-
-const renderSummary = ({ y, members }) => {
-  const withLineupCount = members.filter((member) => member.lineupType && member.lineupType !== "-").length;
-  const avatarCount = members.filter((member) => member.avatarDataUrl).length;
-  const items = [
-    { label: "成员数量", value: `${members.length}`, accent: "#2563eb", meta: "当前导出" },
-    { label: "已识别阵容", value: `${withLineupCount}`, accent: "#059669", meta: "阵容标签" },
-    { label: "头像展示", value: `${avatarCount}`, accent: "#f97316", meta: "真实头像" },
-  ];
-  return `
-    <g transform="translate(${PAGE_PADDING_X}, ${y})">
-      ${items.map((item, index) => {
-        const x = index * 262;
-        return `
-          <rect x="${x}" y="0" width="238" height="70" rx="16" fill="#ffffff" stroke="#dbe7fb" filter="url(#softShadow)" />
-          <rect x="${x}" y="0" width="6" height="70" rx="3" fill="${item.accent}" />
-          <text x="${x + 22}" y="25" fill="#64748b" font-size="13" font-weight="650">${svgEscape(item.label)}</text>
-          <text x="${x + 22}" y="54" fill="#0f172a" font-size="26" font-weight="850">${svgEscape(item.value)}</text>
-          <text x="${x + 188}" y="54" text-anchor="end" fill="${item.accent}" font-size="12" font-weight="700">${svgEscape(item.meta)}</text>
-        `;
-      }).join("")}
-    </g>
-  `;
-};
 
 const renderTableHeader = (y) => {
   let x = PAGE_PADDING_X;
@@ -203,6 +187,29 @@ const renderTableHeader = (y) => {
   `;
 };
 
+const renderTableBodyWatermark = ({ y, height }) => {
+  const rowCount = Math.max(1, Math.ceil(height / 220) + 1);
+  const columnCount = 3;
+  const watermarks = Array.from({ length: rowCount }, (_, rowIndex) =>
+    Array.from({ length: columnCount }, (__, columnIndex) => {
+      const x = -60 + columnIndex * 500 + (rowIndex % 2) * 180;
+      const textY = 110 + rowIndex * 220;
+      return `
+        <text x="${x}" y="${textY}" fill="#475569" font-size="46" font-weight="850" letter-spacing="6">${svgEscape(WATERMARK_TEXT)}</text>
+      `;
+    }).join(""));
+  return `
+    <clipPath id="tableBodyWatermarkClip">
+      <rect x="${PAGE_PADDING_X}" y="${y}" width="${TABLE_WIDTH}" height="${height}" />
+    </clipPath>
+    <g clip-path="url(#tableBodyWatermarkClip)" opacity="0.09">
+      <g transform="translate(${PAGE_PADDING_X}, ${y}) rotate(-20, ${TABLE_WIDTH / 2}, ${height / 2})">
+        ${watermarks.join("")}
+      </g>
+    </g>
+  `;
+};
+
 const renderRows = ({ y, members }) =>
   members.map((member, rowIndex) => {
     const rowY = y + rowIndex * ROW_HEIGHT;
@@ -210,7 +217,7 @@ const renderRows = ({ y, members }) =>
     const isEven = rowIndex % 2 === 0;
     const cells = COLUMNS.map((column) => {
       const base = `
-        <rect x="${x}" y="${rowY}" width="${column.width}" height="${ROW_HEIGHT}" fill="${isEven ? "#ffffff" : "#fbfdff"}" />
+        <rect x="${x}" y="${rowY}" width="${column.width}" height="${ROW_HEIGHT}" fill="${isEven ? "#ffffff" : "#fbfdff"}" fill-opacity="0.96" />
         <line x1="${x}" y1="${rowY + ROW_HEIGHT}" x2="${x + column.width}" y2="${rowY + ROW_HEIGHT}" stroke="#e5edf8" />
       `;
       let content = "";
@@ -281,7 +288,7 @@ function sniffImageDataPrefix(buffer) {
   if (buffer.subarray(0, 8).toString("hex") === "89504e470d0a1a0a") {
     return "image/png";
   }
-  if (buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+  if (buffer[0] === 0xFF && buffer[1] === 0xD8 && buffer[2] === 0xFF) {
     return "image/jpeg";
   }
   if (
@@ -379,9 +386,10 @@ export const createClubMemberExportImageService = () => ({
     const memberCount = Number.isFinite(Number(payload.memberCount))
       ? Number(payload.memberCount)
       : members.length;
-    const tableY = HEADER_HEIGHT + SUMMARY_HEIGHT;
+    const tableY = HEADER_HEIGHT;
     const rowsY = tableY + TABLE_HEADER_HEIGHT;
     const height = rowsY + Math.max(1, members.length) * ROW_HEIGHT + BOTTOM_PADDING;
+    const tableBodyHeight = Math.max(1, members.length) * ROW_HEIGHT;
     const rowsSvg = members.length
       ? renderRows({ y: rowsY, members })
       : `<text x="${IMAGE_WIDTH / 2}" y="${rowsY + 34}" text-anchor="middle" fill="#64748b" font-size="16">暂无成员数据</text>`;
@@ -391,11 +399,12 @@ export const createClubMemberExportImageService = () => ({
         <style>
           text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", Arial, sans-serif; }
         </style>
+        ${renderBackground(height)}
         ${renderHeader({ clubName, exportedAt, memberCount, subtitle })}
-        ${renderSummary({ y: HEADER_HEIGHT, members })}
-        <rect x="${PAGE_PADDING_X}" y="${tableY}" width="${TABLE_WIDTH}" height="${TABLE_HEADER_HEIGHT + Math.max(1, members.length) * ROW_HEIGHT}" rx="14" fill="#ffffff" stroke="#dbe7fb" />
+        <rect x="${PAGE_PADDING_X}" y="${tableY}" width="${TABLE_WIDTH}" height="${TABLE_HEADER_HEIGHT + Math.max(1, members.length) * ROW_HEIGHT}" rx="16" fill="#ffffff" fill-opacity="0.97" stroke="#dbe7fb" filter="url(#softShadow)" />
         ${renderTableHeader(tableY)}
         ${rowsSvg}
+        ${renderTableBodyWatermark({ y: rowsY, height: tableBodyHeight })}
       </svg>
     `;
 

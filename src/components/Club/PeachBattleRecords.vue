@@ -28,7 +28,7 @@
       :can-export="Boolean(battleRecords)"
       :current-style="currentStyle"
       :disabled-date="disabledDate"
-      :loading="loading"
+      :loading="loading || isExporting"
       :query-date="queryDate"
       :style-options="styleOptions"
       @change-date="fetchBattleRecordsByDate"
@@ -237,9 +237,10 @@ import {
   getClubBattleTopRows,
   normalizeClubBattleRows,
 } from "@/components/Club/records/useClubBattleRecordRows.js";
+import api from "@/api";
 import { useTokenStore } from "@/stores/tokenStore";
-import { captureWithHtml2canvas } from "@/utils/html2canvasLoader";
-import { downloadCanvasAsPagedImages } from "@/utils/imageExport";
+import { downloadBlobAsImage } from "@/utils/imageExport";
+import { resolveExportAvatarDataUrls } from "@/utils/exportAvatarDataUrls";
 import {
   getStringPreference,
   setStringPreference,
@@ -298,10 +299,24 @@ const message = useMessage();
 const tokenStore = useTokenStore();
 
 const loading = ref(false);
+const isExporting = ref(false);
 const battleRecords = ref(null);
 const queryDate = ref(getLastSunday());
 
 const formatDateToShort = formatClubBattleCompactDate;
+
+const toExportText = (value, maxLength = 32, fallback = "-") => {
+  const text = String(value ?? "").trim() || fallback;
+  return Array.from(text).slice(0, maxLength).join("");
+};
+
+const getAvatarFallback = (name) =>
+  Array.from(String(name || "?").trim() || "?").slice(0, 2).join("");
+
+const formatExportDateTime = (date = new Date()) => {
+  const pad = (value) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+};
 
 // 处理图片加载错误
 const handleImageError = (event) => {
@@ -671,54 +686,111 @@ const handleExport = async () => {
   }
 };
 
+const buildBattleReportExportRows = async (rows) => {
+  const exportRows = rows.slice(0, 220);
+  const avatarDataUrls = await resolveExportAvatarDataUrls(exportRows, {
+    urlGetter: (row) => row.avatar,
+  });
+  return exportRows.map((row, index) => ({
+    index: index + 1,
+    name: toExportText(row.name, 80, "未知成员"),
+    roleId: toExportText(row.raw?.roleId || row.roleId || row.key, 64),
+    avatarText: toExportText(getAvatarFallback(row.name), 8, "?"),
+    avatarUrl: toExportText(row.avatar, 2048, ""),
+    avatarDataUrl: avatarDataUrls[index] || "",
+    killText: toExportText(row.killCnt, 32, "0"),
+    metric2Text: toExportText(row.reviveCnt, 32, "0"),
+    metric3Text: toExportText(row.killStreakCnt, 32, "0"),
+    kdText: toExportText(row.kd, 32, "0.00"),
+    noteText: toExportText(`战车 ${row.occupyCnt || 0}`, 32),
+  }));
+};
+
+const buildPeachBattleSection = async ({
+  rows,
+  stats,
+  subtitle,
+  title,
+  tone,
+}) => ({
+  title,
+  subtitle,
+  tone,
+  primaryLabel: "击杀",
+  metric2Label: "复活",
+  metric3Label: "连杀",
+  stats,
+  rows: await buildBattleReportExportRows(rows),
+});
+
+const buildPeachBattleReportExportPayload = async (exportedAt) => {
+  const ownClub = battleRecords.value?.ownClub;
+  const opponentClub = battleRecords.value?.opponentClub;
+  const ownName = ownClub?.name || "我方俱乐部";
+  const opponentName = opponentClub?.name || "敌方俱乐部";
+  const [ownSection, opponentSection] = await Promise.all([
+    buildPeachBattleSection({
+      rows: ownClubView.value.rows,
+      stats: [
+        { label: "参战人数", value: String(ownClub?.memberCount || 0) },
+        { label: "总击杀", value: String(ownClub?.totalKills || 0) },
+        { label: "总复活", value: String(ownClub?.totalRevives || 0) },
+        { label: "总 K/D", value: String(ownClub?.totalKD || 0) },
+      ],
+      subtitle: `我方战绩 · 共 ${ownClubView.value.rows.length} 人`,
+      title: ownName,
+      tone: "own",
+    }),
+    buildPeachBattleSection({
+      rows: opponentClubView.value.rows,
+      stats: [
+        { label: "参战人数", value: String(opponentClub?.memberCount || 0) },
+        { label: "总击杀", value: String(opponentClub?.totalKills || 0) },
+        { label: "总复活", value: String(opponentClub?.totalRevives || 0) },
+        { label: "总 K/D", value: String(opponentClub?.totalKD || 0) },
+      ],
+      subtitle: `敌方战绩 · 共 ${opponentClubView.value.rows.length} 人`,
+      title: opponentName,
+      tone: "opponent",
+    }),
+  ]);
+  return {
+    reportType: "peach-garden",
+    title: `${queryDate.value} 蟠桃园战报`,
+    subtitle: `${ownName} VS ${opponentName}`,
+    reportDate: queryDate.value,
+    exportedAt,
+    sections: [ownSection, opponentSection],
+  };
+};
+
 const exportToImage = async () => {
-  // 校验：确保DOM已正确绑定
-  if (!exportDom.value) {
-    throw new Error("未找到要导出的DOM元素");
+  const tokenId = tokenStore.selectedToken?.id;
+  if (!tokenId) {
+    throw new Error("请先选择游戏角色");
   }
 
   try {
-    // 临时移除战神榜内容区域的最大高度限制，确保所有内容都可见
-    const godRankingContents = exportDom.value.querySelectorAll(
-      ".god-ranking-content",
+    isExporting.value = true;
+    message.loading("正在生成战报图片，请稍候...");
+    const exportedAt = formatExportDateTime();
+    const payload = await buildPeachBattleReportExportPayload(exportedAt);
+    const result = await api.battleReports.exportImage(
+      tokenId,
+      payload,
     );
-    const originalStyles = [];
-
-    godRankingContents.forEach((content) => {
-      originalStyles.push({
-        element: content,
-        maxHeight: content.style.maxHeight,
-        overflow: content.style.overflow,
-      });
-      content.style.maxHeight = "none";
-      content.style.overflow = "visible";
-    });
-
-    // 5. 用html2canvas渲染DOM为Canvas
-    const canvas = await captureWithHtml2canvas(exportDom.value, {
-      scale: 2, // 放大2倍，解决图片模糊问题
-      useCORS: true, // 允许跨域图片（若DOM内有远程图片，需开启）
-      backgroundColor: "#ffffff", // 避免透明背景（默认透明）
-      logging: false, // 关闭控制台日志
-    });
-
-    // 恢复战神榜内容区域的原始样式
-    originalStyles.forEach(({ element, maxHeight, overflow }) => {
-      element.style.maxHeight = maxHeight;
-      element.style.overflow = overflow;
-    });
-
-    // 6. Canvas转图片链接并下载
-    const filenameBase = `${queryDate.value.replace("/", "年").replace("/", "月")}日蟠桃园战报`;
-    const pageCount = downloadCanvasAsPagedImages(canvas, filenameBase, {
-      maxHeight: 4200,
-    });
-    message.success(
-      pageCount > 1 ? `导出成功，共 ${pageCount} 张图片` : "导出成功",
-    );
+    if (!result?.success || !result.data) {
+      throw new Error(result?.message || "后端图片生成失败");
+    }
+    const blob = new Blob([result.data], { type: "image/png" });
+    const filename = `${queryDate.value.replace("/", "年").replace("/", "月")}日蟠桃园战报.png`;
+    downloadBlobAsImage(blob, filename);
+    message.success("导出成功");
   } catch (err) {
-    console.error("DOM转图片失败：", err);
+    console.error("后端生成战报图片失败：", err);
     throw new Error("导出图片失败，请重试");
+  } finally {
+    isExporting.value = false;
   }
 };
 

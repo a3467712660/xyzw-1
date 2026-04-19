@@ -60,7 +60,7 @@
           <n-button
             class="action-btn refresh-btn"
             size="small"
-            :disabled="loading1"
+            :disabled="loading1 || isExporting1"
             @click="handleRefresh1"
           >
             <template #icon>
@@ -73,7 +73,7 @@
             class="action-btn export-btn"
             size="small"
             type="primary"
-            :disabled="!battleRecords1 || loading1"
+            :disabled="!battleRecords1 || loading1 || isExporting1"
             @click="handleExport1"
           >
             <template #icon>
@@ -496,8 +496,8 @@ import { useTokenStore } from "@/stores/tokenStore";
 import { useClubWarrankRecords } from "@/composables/useClubWarrankRecords";
 import { useClubWarrankRanking } from "@/composables/useClubWarrankRanking";
 import { useClubWarrankDuel } from "@/composables/useClubWarrankDuel";
-import { captureWithHtml2canvas } from "@/utils/html2canvasLoader";
-import { downloadCanvasAsImage } from "@/utils/imageExport";
+import api from "@/api";
+import { downloadBlobAsImage } from "@/utils/imageExport";
 import { Copy, CreateOutline, DocumentText, Refresh } from "@vicons/ionicons5";
 import {
   copyToClipboard,
@@ -535,13 +535,14 @@ const {
   handleExport1,
   handleRefresh1,
   inputDate1,
+  isExporting1,
   loading1,
   queryDate,
 } = useClubWarrankRecords({
+  api,
   allianceincludes,
-  captureWithHtml2canvas,
   copyToClipboard,
-  downloadCanvasAsImage,
+  downloadBlobAsImage,
   formatTimestamp1,
   formatWarrankRecordsForExport,
   getLastSaturday,

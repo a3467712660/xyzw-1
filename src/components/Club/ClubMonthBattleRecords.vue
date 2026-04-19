@@ -19,7 +19,7 @@
         <ClubBattleRecordToolbar
           :can-export="Object.keys(monthlyBattleRecords || {}).length > 0"
           :current-style="currentStyle"
-          :loading="loading"
+          :loading="loading || isExporting"
           :show-date-picker="false"
           :style-options="styleOptions"
           @export="handleExport"
@@ -331,9 +331,10 @@ import {
   getClubBattleTopRows,
   normalizeClubBattleRows,
 } from "@/components/Club/records/useClubBattleRecordRows.js";
+import api from "@/api";
 import { useTokenStore } from "@/stores/tokenStore";
-import { captureWithHtml2canvas } from "@/utils/html2canvasLoader";
-import { downloadCanvasAsImage } from "@/utils/imageExport";
+import { downloadBlobAsImage } from "@/utils/imageExport";
+import { resolveExportAvatarDataUrls } from "@/utils/exportAvatarDataUrls";
 import {
   getStringPreference,
   setStringPreference,
@@ -352,8 +353,22 @@ const message = useMessage();
 const tokenStore = useTokenStore();
 
 const loading = ref(false);
+const isExporting = ref(false);
 const monthlyBattleRecords = ref({});
 const battleDates = ref([]);
+
+const toExportText = (value, maxLength = 32, fallback = "-") => {
+  const text = String(value ?? "").trim() || fallback;
+  return Array.from(text).slice(0, maxLength).join("");
+};
+
+const getAvatarFallback = (name) =>
+  Array.from(String(name || "?").trim() || "?").slice(0, 2).join("");
+
+const formatExportDateTime = (date = new Date()) => {
+  const pad = (value) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+};
 
 // 计算当月的5个战斗日期
 const getCurrentMonthBattleDates = () => {
@@ -839,8 +854,7 @@ const handleExport = async () => {
   }
 
   try {
-    // 导出图片
-    exportToImage();
+    await exportToImage();
     message.success("导出成功");
   } catch (error) {
     console.error("导出失败:", error);
@@ -848,30 +862,154 @@ const handleExport = async () => {
   }
 };
 
+const buildMonthlyBattleReportExportRows = async () => {
+  const rows = monthlyPlayerRows.value.slice(0, 220);
+  const avatarDataUrls = await resolveExportAvatarDataUrls(rows, {
+    urlGetter: (row) => row.avatar,
+  });
+  return rows.map((row, index) => ({
+    index: index + 1,
+    name: toExportText(row.name, 80, "未知成员"),
+    roleId: toExportText(row.roleId || row.raw?.roleId || row.key, 64),
+    avatarText: toExportText(getAvatarFallback(row.name), 8, "?"),
+    avatarUrl: toExportText(row.avatar, 2048, ""),
+    avatarDataUrl: avatarDataUrls[index] || "",
+    killText: toExportText(row.killCnt, 32, "0"),
+    metric2Text: toExportText(row.deathCnt, 32, "0"),
+    metric3Text: toExportText(row.occupyCnt, 32, "0"),
+    kdText: toExportText(row.kd, 32, "0.00"),
+    reviveText: toExportText(row.reviveCnt, 32, "0"),
+    noteText: toExportText(`复活丹 ${row.reviveCnt || 0}`, 32),
+  }));
+};
+
+const buildMonthlyBattleReportExportPayload = async (exportedAt) => {
+  const rows = await buildMonthlyBattleReportExportRows();
+  const clubName = club.value?.name || "俱乐部";
+  const totalKDText = formatClubBattleKD(
+    monthlyStats.value.totalKills,
+    monthlyStats.value.totalDeaths,
+  );
+  return {
+    reportType: "salt-field",
+    title: `${currentMonthDisplay.value} ${clubName}盐场月战报`,
+    subtitle: `${clubName} · 盐场月战绩总览`,
+    reportDate: currentMonthDisplay.value,
+    exportedAt,
+    badgeLabel: "总 K/D",
+    badgeValue: totalKDText,
+    sections: [
+      {
+        title: `${clubName} 盐场月战报明细`,
+        subtitle: `统计 ${battleDates.value.length} 个战斗日 · 共 ${rows.length} 人`,
+        tone: "salt",
+        layout: "tactical",
+        statusLabel: "总 K/D",
+        statusValue: totalKDText,
+        primaryLabel: "击杀",
+        metric2Label: "死亡",
+        metric3Label: "攻城",
+        metrics: [
+          {
+            label: "总击杀",
+            meta: "",
+            value: String(monthlyStats.value.totalKills),
+          },
+          {
+            label: "总死亡",
+            meta: "",
+            value: String(monthlyStats.value.totalDeaths),
+          },
+          {
+            label: "总攻城",
+            meta: "",
+            value: String(monthlyStats.value.totalBuilding),
+          },
+          {
+            label: "总胜率",
+            meta: "击杀 / 击杀+死亡",
+            value: `${totalWinRate.value}%`,
+          },
+        ],
+        rankPanels: [
+          {
+            key: "kill",
+            title: "击杀尖兵",
+            items: monthlyKillRank.value.map((item) => ({
+              name: toExportText(item.name, 80, "未知成员"),
+              value: toExportText(item.killCnt, 32, "0"),
+            })),
+          },
+          {
+            key: "occupy",
+            title: "攻城骨干",
+            items: monthlyOccupyRank.value.map((item) => ({
+              name: toExportText(item.name, 80, "未知成员"),
+              value: toExportText(item.occupyCnt, 32, "0"),
+            })),
+          },
+          {
+            key: "kd",
+            title: "K/D前三",
+            items: monthlyKDRank.value.map((item) => ({
+              name: toExportText(item.name, 80, "未知成员"),
+              value: toExportText(item.kd, 32, "0"),
+            })),
+          },
+          {
+            key: "revive",
+            title: "复活消耗",
+            items: monthlyReviveRank.value.map((item) => ({
+              name: toExportText(item.name, 80, "未知成员"),
+              value: toExportText(item.reviveCnt, 32, "0"),
+            })),
+          },
+        ],
+        stats: [
+          { label: "参战人数", value: String(rows.length) },
+          { label: "总击杀", value: String(monthlyStats.value.totalKills) },
+          { label: "总死亡", value: String(monthlyStats.value.totalDeaths) },
+          { label: "总攻城", value: String(monthlyStats.value.totalBuilding) },
+          { label: "总复活丹", value: String(monthlyStats.value.totalResurrection) },
+          {
+            label: "总 K/D",
+            value: totalKDText,
+          },
+        ],
+        rows,
+      },
+    ],
+  };
+};
+
 const exportToImage = async () => {
-  // 校验：确保DOM已正确绑定
-  if (!exportDom.value) {
-    throw new Error("未找到要导出的DOM元素");
+  const tokenId = tokenStore.selectedToken?.id;
+  if (!tokenId) {
+    throw new Error("请先选择游戏角色");
   }
 
   try {
-    // 用html2canvas渲染DOM为Canvas
-    const canvas = await captureWithHtml2canvas(exportDom.value, {
-      scale: 2, // 放大2倍，解决图片模糊问题
-      useCORS: true, // 允许跨域图片（若DOM内有远程图片，需开启）
-      backgroundColor: "#ffffff", // 避免透明背景（默认透明）
-      logging: false, // 关闭控制台日志
-    });
-
-    // Canvas转图片链接并下载
+    isExporting.value = true;
+    message.loading("正在生成战报图片，请稍候...");
+    const exportedAt = formatExportDateTime();
+    const result = await api.battleReports.exportImage(
+      tokenId,
+      await buildMonthlyBattleReportExportPayload(exportedAt),
+    );
+    if (!result?.success || !result.data) {
+      throw new Error(result?.message || "后端图片生成失败");
+    }
+    const blob = new Blob([result.data], { type: "image/png" });
     const monthYear = currentMonthDisplay.value
       .replace("年", "-")
       .replace("月", "");
     const filename = `${monthYear}月盐场战绩总览.png`;
-    downloadCanvasAsImage(canvas, filename);
+    downloadBlobAsImage(blob, filename);
   } catch (err) {
-    console.error("DOM转图片失败：", err);
+    console.error("后端生成月战绩图片失败：", err);
     throw new Error("导出图片失败，请重试");
+  } finally {
+    isExporting.value = false;
   }
 };
 

@@ -1,4 +1,8 @@
 import { ref } from "vue";
+import {
+  normalizeExportAvatarUrl,
+  resolveExportAvatarDataUrls,
+} from "@/utils/exportAvatarDataUrls";
 
 function createEmptyClubRecord(club) {
   return {
@@ -63,10 +67,10 @@ function sortClubsByAlliance(clubsWithAlliance) {
 }
 
 export function useClubWarrankRecords({
+  api,
   allianceincludes,
-  captureWithHtml2canvas,
   copyToClipboard,
-  downloadCanvasAsImage,
+  downloadBlobAsImage,
   formatTimestamp1,
   formatWarrankRecordsForExport,
   getLastSaturday,
@@ -78,9 +82,103 @@ export function useClubWarrankRecords({
   const exportmethod = ref(["2"]);
   const exportDom = ref(null);
   const loading1 = ref(false);
+  const isExporting1 = ref(false);
   const battleRecords1 = ref(null);
   const queryDate = ref("");
   const inputDate1 = ref(getLastSaturday());
+
+  const isExportSafeTextCodePoint = (code) => {
+    if (!Number.isFinite(code) || code < 32 || (code >= 127 && code <= 159)) return false;
+    if (code === 0xFFFD) return false;
+    if (code >= 0xE000 && code <= 0xF8FF) return false;
+    if (code >= 0x25A0 && code <= 0x25FF) return false;
+    if (code >= 0x1F000 && code <= 0x1FAFF) return false;
+    if (code >= 0x2600 && code <= 0x27BF) return false;
+    return (
+      (code >= 0x20 && code <= 0x7E) ||
+      (code >= 0x00B7 && code <= 0x00B7) ||
+      (code >= 0x2010 && code <= 0x2026) ||
+      (code >= 0x3000 && code <= 0x303F) ||
+      (code >= 0x3040 && code <= 0x30FF) ||
+      (code >= 0x3400 && code <= 0x4DBF) ||
+      (code >= 0x4E00 && code <= 0x9FFF) ||
+      (code >= 0xAC00 && code <= 0xD7AF) ||
+      (code >= 0xFF00 && code <= 0xFFEF)
+    );
+  };
+
+  const stripUnsafeTextChars = (value) =>
+    Array.from(String(value ?? ""))
+      .map((char) => (isExportSafeTextCodePoint(char.codePointAt(0)) ? char : " "))
+      .join("");
+
+  const isPlaceholderTextChar = (char) =>
+    char === "?" || char === "？" || char === "□" || char === "■";
+
+  const stripPlaceholderRuns = (value) => {
+    const chars = Array.from(String(value ?? ""));
+    let output = "";
+    let run = "";
+    const flushRun = () => {
+      if (!run) return;
+      output += run.length >= 2 ? " " : run;
+      run = "";
+    };
+    chars.forEach((char) => {
+      if (isPlaceholderTextChar(char)) {
+        run += char;
+        return;
+      }
+      flushRun();
+      output += char;
+    });
+    flushRun();
+    return output;
+  };
+
+  const isMostlyPlaceholderText = (value) => {
+    const chars = Array.from(String(value ?? "").replace(/\s+/g, ""));
+    if (chars.length < 2) return false;
+    const placeholderCount = chars.filter(isPlaceholderTextChar).length;
+    return placeholderCount >= 2 && placeholderCount / chars.length >= 0.5;
+  };
+
+  const toExportText = (value, maxLength = 32, fallback = "-") => {
+    const raw = stripUnsafeTextChars(value);
+    const text = stripPlaceholderRuns(raw)
+      .replace(/\s+/g, " ")
+      .trim() || fallback;
+    if (isMostlyPlaceholderText(raw) || isMostlyPlaceholderText(text)) {
+      return fallback;
+    }
+    return Array.from(text).slice(0, maxLength).join("");
+  };
+
+  const getAvatarFallback = (name) =>
+    Array.from(String(name || "?").trim() || "?").slice(0, 2).join("");
+
+  const formatExportDateTime = (date = new Date()) => {
+    const pad = (value) => String(value).padStart(2, "0");
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+  };
+
+  const formatPowerText = (power) => {
+    const value = Number(power) || 0;
+    if (value >= 100000000) {
+      return `${(value / 100000000).toFixed(2)}亿`;
+    }
+    if (value >= 10000) {
+      return `${(value / 10000).toFixed(2)}万`;
+    }
+    return String(value);
+  };
+
+  const formatScoreText = (score) => {
+    if (Number(score) === -1) {
+      return "-";
+    }
+    return Number(score || 0).toFixed(0);
+  };
 
   const disabledDate = (current) => {
     return current.getDay() !== 6 || current > Date.now();
@@ -270,65 +368,119 @@ export function useClubWarrankRecords({
     fetchBattleRecords1();
   };
 
+  const buildWarrankExportPayload = async (exportedAt) => {
+    const clubs = (battleRecords1.value?.legionRankList || []).slice(0, 220);
+    const clubAvatarDataUrls = await resolveExportAvatarDataUrls(clubs, {
+      urlGetter: (club) => club.logo,
+    });
+    const flattenedHeroes = clubs.flatMap((club, clubIndex) =>
+      (club.topHeroes || []).slice(0, 3).map((hero, heroIndex) => ({
+        clubIndex,
+        hero,
+        heroIndex,
+      })));
+    const heroAvatarDataUrls = await resolveExportAvatarDataUrls(flattenedHeroes, {
+      maxBytes: 45 * 1024,
+      urlGetter: (item) => item.hero?.headImg || "",
+    });
+    const heroAvatarByKey = new Map(
+      flattenedHeroes.map((item, index) => [
+        `${item.clubIndex}:${item.heroIndex}`,
+        heroAvatarDataUrls[index] || "",
+      ]),
+    );
+    const rows = clubs.map((club, index) => {
+      const allianceText = allianceincludes(club.announcement || "");
+      const redQuenchText = toExportText(club.redQuench || 0, 32, "0");
+      const powerText = toExportText(formatPowerText(club.power), 32, "0");
+      return {
+        index: index + 1,
+        name: toExportText(club.name, 80, "未知俱乐部"),
+        roleId: toExportText(club.id, 64),
+        avatarText: toExportText(getAvatarFallback(club.name), 8, "?"),
+        avatarUrl: toExportText(normalizeExportAvatarUrl(club.logo), 2048, ""),
+        avatarDataUrl: clubAvatarDataUrls[index] || "",
+        killText: redQuenchText,
+        metric2Text: powerText,
+        metric3Text: toExportText(formatScoreText(club.sRScore), 32, "-"),
+        kdText: toExportText(club.level || 30, 32, "30"),
+        noteText: toExportText(allianceText, 32),
+        serverText: toExportText(club.serverId || 0, 32, "0"),
+        redQuenchText,
+        powerText,
+        announcementText: toExportText(club.announcement || "暂无公告", 120),
+        allianceText: toExportText(allianceText, 32),
+        topHeroes: (club.topHeroes || []).slice(0, 3).map((hero, heroIndex) => ({
+          name: toExportText(hero.name, 80, "未知"),
+          avatarText: toExportText(getAvatarFallback(hero.name), 8, "?"),
+          avatarUrl: toExportText(normalizeExportAvatarUrl(hero.headImg), 2048, ""),
+          avatarDataUrl: heroAvatarByKey.get(`${index}:${heroIndex}`) || "",
+          holyBeastText: toExportText(hero.holyBeast || 0, 16, "0"),
+          redQuenchText: toExportText(`${hero.redQuench || 0}红`, 16, "0红"),
+        })),
+      };
+    });
+    const allianceCounts = rows.reduce((acc, row) => {
+      acc[row.noteText] = (acc[row.noteText] || 0) + 1;
+      return acc;
+    }, {});
+    const stats = [
+      { label: "俱乐部数", value: String(rows.length) },
+      { label: "大联盟", value: String(allianceCounts["大联盟"] || 0) },
+      { label: "梦盟", value: String(allianceCounts["梦盟"] || 0) },
+      { label: "正义联盟", value: String(allianceCounts["正义联盟"] || 0) },
+      { label: "龙盟", value: String(allianceCounts["龙盟"] || 0) },
+      { label: "未知联盟", value: String(allianceCounts["未知联盟"] || 0) },
+    ];
+    return {
+      reportType: "salt-field",
+      title: `${queryDate.value} 盐场匹配信息`,
+      subtitle: ScoreShow.value === 1 ? "实时匹配详情" : "历史匹配详情",
+      badgeLabel: "俱乐部数",
+      badgeValue: `${rows.length} 家`,
+      reportDate: queryDate.value,
+      exportedAt,
+      sections: [
+        {
+          title: "盐场匹配信息详情",
+          subtitle: `共 ${rows.length} 家俱乐部`,
+          tone: "salt",
+          layout: "warrank",
+          primaryLabel: "红淬",
+          metric2Label: "战力",
+          metric3Label: "积分",
+          stats,
+          rows,
+        },
+      ],
+    };
+  };
+
   const exportToImage = async () => {
-    if (!exportDom.value) {
-      throw new Error("未找到要导出的DOM元素");
+    const tokenId = tokenStore.selectedToken?.id;
+    if (!tokenId) {
+      throw new Error("请先选择游戏角色");
     }
 
-    const tableContainer = exportDom.value.querySelector(".table-container");
-    const scrollTop = tableContainer ? tableContainer.scrollTop : 0;
-
     try {
-      exportDom.value.style.height = "auto";
-      exportDom.value.style.overflow = "visible";
-
-      if (tableContainer) {
-        tableContainer.dataset.originalHeight = tableContainer.style.height;
-        tableContainer.dataset.originalOverflow = tableContainer.style.overflow;
-        tableContainer.style.height = "auto";
-        tableContainer.style.overflow = "visible";
+      isExporting1.value = true;
+      message.loading("正在生成战报图片，请稍候...");
+      const exportedAt = formatExportDateTime();
+      const result = await api.battleReports.exportImage(
+        tokenId,
+        await buildWarrankExportPayload(exportedAt),
+      );
+      if (!result?.success || !result.data) {
+        throw new Error(result?.message || "后端图片生成失败");
       }
-
-      await new Promise((resolve) => setTimeout(resolve, 100));
-
-      const canvas = await captureWithHtml2canvas(exportDom.value, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: "#ffffff",
-        logging: false,
-        height: exportDom.value.scrollHeight,
-        width: exportDom.value.scrollWidth,
-        windowWidth: exportDom.value.scrollWidth,
-        windowHeight: exportDom.value.scrollHeight,
-        allowTaint: true,
-      });
-
+      const blob = new Blob([result.data], { type: "image/png" });
       const filename = `${queryDate.value.replace("/", "年").replace("/", "月")}日盐场匹配信息.png`;
-      downloadCanvasAsImage(canvas, filename);
+      downloadBlobAsImage(blob, filename);
     } catch (error) {
-      console.error("DOM转图片失败：", error);
+      console.error("后端生成盐场匹配图片失败：", error);
       throw new Error("导出图片失败，请重试");
     } finally {
-      exportDom.value.style.removeProperty("height");
-      exportDom.value.style.removeProperty("overflow");
-
-      if (tableContainer) {
-        if (tableContainer.dataset.originalHeight) {
-          tableContainer.style.height = tableContainer.dataset.originalHeight;
-        } else {
-          tableContainer.style.removeProperty("height");
-        }
-
-        if (tableContainer.dataset.originalOverflow) {
-          tableContainer.style.overflow = tableContainer.dataset.originalOverflow;
-        } else {
-          tableContainer.style.removeProperty("overflow");
-        }
-
-        delete tableContainer.dataset.originalHeight;
-        delete tableContainer.dataset.originalOverflow;
-        tableContainer.scrollTop = scrollTop;
-      }
+      isExporting1.value = false;
     }
   };
 
@@ -367,6 +519,7 @@ export function useClubWarrankRecords({
     handleExport1,
     handleRefresh1,
     inputDate1,
+    isExporting1,
     loading1,
     queryDate,
   };

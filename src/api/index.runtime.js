@@ -507,6 +507,17 @@ const api = {
       ),
   },
 
+  battleReports: {
+    exportImage: (tokenId, payload) =>
+      request.post(
+        `/battle-reports/${encodeURIComponent(tokenId)}/export-image`,
+        payload,
+        {
+          responseType: "arraybuffer",
+        },
+      ),
+  },
+
   feedback: {
     list: (status) =>
       request.get(

@@ -35,7 +35,7 @@
       :current-style="currentStyle"
       :disabled-date="disabledDate"
       :export-methods="exportmethod"
-      :loading="loading"
+      :loading="loading || isExporting"
       :query-date="queryDate"
       :show-export-methods="true"
       :style-options="styleOptions"
@@ -212,9 +212,10 @@ import {
   getClubBattleTopRows,
   normalizeClubBattleRows,
 } from "@/components/Club/records/useClubBattleRecordRows.js";
+import api from "@/api";
 import { useTokenStore } from "@/stores/tokenStore";
-import { captureWithHtml2canvas } from "@/utils/html2canvasLoader";
-import { downloadCanvasAsImage } from "@/utils/imageExport";
+import { downloadBlobAsImage } from "@/utils/imageExport";
+import { resolveExportAvatarDataUrls } from "@/utils/exportAvatarDataUrls";
 import {
   getStringPreference,
   setStringPreference,
@@ -250,8 +251,22 @@ const info = computed(() => tokenStore.gameData?.legionInfo || null);
 const club = computed(() => info.value?.info || null);
 
 const loading = ref(false);
+const isExporting = ref(false);
 const battleRecords = ref(null);
 const queryDate = ref(getLastSaturday());
+
+const toExportText = (value, maxLength = 32, fallback = "-") => {
+  const text = String(value ?? "").trim() || fallback;
+  return Array.from(text).slice(0, maxLength).join("");
+};
+
+const getAvatarFallback = (name) =>
+  Array.from(String(name || "?").trim() || "?").slice(0, 2).join("");
+
+const formatExportDateTime = (date = new Date()) => {
+  const pad = (value) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+};
 
 const playerRows = computed(() => {
   return normalizeClubBattleRows(battleRecords.value?.roleDetailsList || [], {
@@ -536,7 +551,7 @@ const style4RankPanels = computed(() => [
     icon: "📈",
     key: "kd",
     players: kdRank.value,
-    title: "效率核心",
+    title: "K/D前三",
   },
   {
     getValue: (player) => player.reviveCnt,
@@ -660,49 +675,104 @@ const handleExport = async () => {
   }
 };
 
+const buildBattleReportExportRows = async (rows) => {
+  const exportRows = rows.slice(0, 220);
+  const avatarDataUrls = await resolveExportAvatarDataUrls(exportRows, {
+    urlGetter: (row) => row.avatar,
+  });
+  return exportRows.map((row, index) => ({
+    index: index + 1,
+    name: toExportText(row.name, 80, "未知成员"),
+    roleId: toExportText(row.roleId || row.raw?.roleId || row.key, 64),
+    avatarText: toExportText(getAvatarFallback(row.name), 8, "?"),
+    avatarUrl: toExportText(row.avatar, 2048, ""),
+    avatarDataUrl: avatarDataUrls[index] || "",
+    killText: toExportText(row.killCnt, 32, "0"),
+    metric2Text: toExportText(row.deathCnt, 32, "0"),
+    metric3Text: toExportText(row.occupyCnt, 32, "0"),
+    kdText: toExportText(row.kd, 32, "0.00"),
+    reviveText: toExportText(row.reviveCnt, 32, "0"),
+    noteText: toExportText(`复活丹 ${row.reviveCnt || 0}`, 32),
+  }));
+};
+
+const buildSaltBattleReportExportPayload = async (exportedAt) => {
+  const clubName = club.value?.name || "俱乐部";
+  const rows = await buildBattleReportExportRows(playerRows.value);
+  return {
+    reportType: "salt-field",
+    title: `${queryDate.value} ${clubName}盐场战报`,
+    subtitle: `${clubName} · 盐场周战绩`,
+    reportDate: queryDate.value,
+    exportedAt,
+    badgeLabel: "总 K/D",
+    badgeValue: String(totalKD.value),
+    sections: [
+      {
+        title: `${clubName} 盐场战报明细`,
+        subtitle: `按击杀数排序 · 共 ${rows.length} 人`,
+        tone: "salt",
+        layout: "tactical",
+        statusLabel: "总 K/D",
+        statusValue: String(totalKD.value),
+        primaryLabel: "击杀",
+        metric2Label: "死亡",
+        metric3Label: "攻城",
+        metrics: style4Metrics.value.map((metric) => ({
+          label: toExportText(metric.label, 24),
+          meta: ["总击杀", "总死亡", "总攻城"].includes(metric.label)
+            ? ""
+            : toExportText(metric.meta, 48, ""),
+          value: toExportText(metric.value, 32, "0"),
+        })),
+        rankPanels: style4DisplayPanels.value.map((panel) => ({
+          key: toExportText(panel.key, 32, "rank"),
+          title: toExportText(panel.title, 32, "榜单"),
+          items: (panel.items || []).slice(0, 3).map((item) => ({
+            name: toExportText(item.name, 80, "未知成员"),
+            value: toExportText(item.value, 32, "0"),
+          })),
+        })),
+        stats: [
+          { label: "参战人数", value: String(rows.length) },
+          { label: "总击杀", value: String(totalKills.value) },
+          { label: "总死亡", value: String(totalDeaths.value) },
+          { label: "总攻城", value: String(totalBuilding.value) },
+          { label: "总复活丹", value: String(totalRevives.value) },
+          { label: "总 K/D", value: String(totalKD.value) },
+        ],
+        rows,
+      },
+    ],
+  };
+};
+
 const exportToImage = async () => {
-  // 校验：确保DOM已正确绑定
-  if (!exportDom.value) {
-    throw new Error("未找到要导出的DOM元素");
+  const tokenId = tokenStore.selectedToken?.id;
+  if (!tokenId) {
+    throw new Error("请先选择游戏角色");
   }
 
   try {
-    // 临时移除战神榜内容区域的最大高度限制，确保所有内容都可见
-    const godRankingContents = exportDom.value.querySelectorAll(
-      ".god-ranking-content",
+    isExporting.value = true;
+    message.loading("正在生成战报图片，请稍候...");
+    const exportedAt = formatExportDateTime();
+    const payload = await buildSaltBattleReportExportPayload(exportedAt);
+    const result = await api.battleReports.exportImage(
+      tokenId,
+      payload,
     );
-    const originalStyles = [];
-
-    godRankingContents.forEach((content) => {
-      originalStyles.push({
-        element: content,
-        maxHeight: content.style.maxHeight,
-        overflow: content.style.overflow,
-      });
-      content.style.maxHeight = "none";
-      content.style.overflow = "visible";
-    });
-
-    // 5. 用html2canvas渲染DOM为Canvas
-    const canvas = await captureWithHtml2canvas(exportDom.value, {
-      scale: 2, // 放大2倍，解决图片模糊问题
-      useCORS: true, // 允许跨域图片（若DOM内有远程图片，需开启）
-      backgroundColor: "#ffffff", // 避免透明背景（默认透明）
-      logging: false, // 关闭控制台日志
-    });
-
-    // 恢复战神榜内容区域的原始样式
-    originalStyles.forEach(({ element, maxHeight, overflow }) => {
-      element.style.maxHeight = maxHeight;
-      element.style.overflow = overflow;
-    });
-
-    // 6. Canvas转图片链接并下载
+    if (!result?.success || !result.data) {
+      throw new Error(result?.message || "后端图片生成失败");
+    }
+    const blob = new Blob([result.data], { type: "image/png" });
     const filename = `${queryDate.value.replace("/", "年").replace("/", "月")}日盐场战报.png`;
-    downloadCanvasAsImage(canvas, filename);
+    downloadBlobAsImage(blob, filename);
   } catch (err) {
-    console.error("DOM转图片失败：", err);
+    console.error("后端生成战报图片失败：", err);
     throw new Error("导出图片失败，请重试");
+  } finally {
+    isExporting.value = false;
   }
 };
 

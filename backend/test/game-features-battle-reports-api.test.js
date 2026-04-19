@@ -82,6 +82,53 @@ const createClubMemberExportPayload = (overrides = {}) => ({
   ...overrides,
 });
 
+const createBattleReportExportPayload = (overrides = {}) => ({
+  reportType: "salt-field",
+  title: "测试盐场战报",
+  subtitle: "测试俱乐部 · 盐场周战绩",
+  reportDate: "2026/04/18",
+  exportedAt: "2026-04-19 12:00",
+  sections: [
+    {
+      title: "测试俱乐部 盐场周报",
+      subtitle: "按击杀数排序 · 共 2 人",
+      tone: "salt",
+      metric2Label: "死亡",
+      metric3Label: "攻城",
+      stats: [
+        { label: "参战人数", value: "2" },
+        { label: "总击杀", value: "30" },
+        { label: "总死亡", value: "10" },
+      ],
+      rows: [
+        {
+          index: 1,
+          name: "战报成员甲",
+          roleId: "200001",
+          avatarText: "甲",
+          killText: "20",
+          metric2Text: "4",
+          metric3Text: "8",
+          kdText: "5.00",
+          noteText: "复活丹 0",
+        },
+        {
+          index: 2,
+          name: "战报成员乙",
+          roleId: "200002",
+          avatarText: "乙",
+          killText: "10",
+          metric2Text: "6",
+          metric3Text: "2",
+          kdText: "1.67",
+          noteText: "复活丹 1",
+        },
+      ],
+    },
+  ],
+  ...overrides,
+});
+
 test("club member export image route renders fixed-width PNG and rejects unsafe payloads", async (t) => {
   await initDatabase();
 
@@ -335,6 +382,81 @@ test("battle report routes support query and reject invalid parse payloads", asy
   const parseText = JSON.stringify(await parseRes.json());
   assert.equal(parseText.includes("token"), false);
   assert.equal(parseText.includes("cookie"), false);
+
+  const exportUrl = `${baseUrl}/api/v1/battle-reports/token-1/export-image`;
+  const deniedExport = await fetch(exportUrl, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(createBattleReportExportPayload()),
+  });
+  assert.equal(deniedExport.status, 401);
+
+  const exportImage = await fetch(exportUrl, {
+    method: "POST",
+    headers: authHeaders({ userId, username }),
+    body: JSON.stringify(createBattleReportExportPayload()),
+  });
+  assert.equal(exportImage.status, 200);
+  assert.equal(exportImage.headers.get("content-type"), "image/png");
+  assert.equal(exportImage.headers.get("cache-control"), "no-store");
+  const exportImageBody = Buffer.from(await exportImage.arrayBuffer());
+  assert.equal(exportImageBody.subarray(0, 8).toString("hex"), "89504e470d0a1a0a");
+  assert.equal(exportImageBody.readUInt32BE(16), 1200);
+  assert.equal(exportImageBody.includes(Buffer.from("token")), false);
+  assert.equal(exportImageBody.includes(Buffer.from("cookie")), false);
+  assert.equal(exportImageBody.includes(Buffer.from("password")), false);
+
+  const tooManyRows = Array.from({ length: 221 }, (_, index) => ({
+    index: index + 1,
+    name: `成员${index + 1}`,
+    roleId: `${200000 + index}`,
+    avatarText: "员",
+    killText: "1",
+    metric2Text: "0",
+    metric3Text: "0",
+    kdText: "0.00",
+    noteText: "-",
+  }));
+  const tooMany = await fetch(exportUrl, {
+    method: "POST",
+    headers: authHeaders({ userId, username }),
+    body: JSON.stringify(createBattleReportExportPayload({
+      sections: [
+        {
+          ...createBattleReportExportPayload().sections[0],
+          rows: tooManyRows,
+        },
+      ],
+    })),
+  });
+  assert.equal(tooMany.status, 400);
+
+  const extraSensitiveField = await fetch(exportUrl, {
+    method: "POST",
+    headers: authHeaders({ userId, username }),
+    body: JSON.stringify(createBattleReportExportPayload({
+      sections: [
+        {
+          ...createBattleReportExportPayload().sections[0],
+          rows: [
+            {
+              ...createBattleReportExportPayload().sections[0].rows[0],
+              token: "should-not-be-accepted",
+            },
+          ],
+        },
+      ],
+      cookie: "should-not-be-accepted",
+    })),
+  });
+  assert.equal(extraSensitiveField.status, 400);
+
+  const badTokenId = await fetch(`${baseUrl}/api/v1/battle-reports/bad!/export-image`, {
+    method: "POST",
+    headers: authHeaders({ userId, username }),
+    body: JSON.stringify(createBattleReportExportPayload()),
+  });
+  assert.equal(badTokenId.status, 400);
 });
 
 test("battle report query maps game 200020 to friendly empty state", async (t) => {

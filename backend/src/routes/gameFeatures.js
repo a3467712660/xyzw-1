@@ -12,7 +12,7 @@ import {
 import { clubMemberExportImageService } from "../services/clubMemberExportImageService.js";
 
 const tokenIdParamSchema = z.object({
-  tokenId: z.string().trim().min(1).max(128).regex(/^[a-zA-Z0-9_-]+$/),
+  tokenId: z.string().trim().min(1).max(128).regex(/^[\w-]+$/),
 });
 
 const actionBodySchema = z.object({
@@ -56,7 +56,7 @@ const clubMemberExportBodySchema = z.object({
 }).strict();
 
 const renderImageParamSchema = z.object({
-  renderId: z.string().trim().min(1).max(128).regex(/^[a-zA-Z0-9_-]+$/),
+  renderId: z.string().trim().min(1).max(128).regex(/^[\w-]+$/),
 });
 
 const lineupSlotSchema = z.object({
