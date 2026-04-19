@@ -1046,4 +1046,192 @@ onMounted(() => {
     font-size: 24px;
   }
 }
+
+@media (min-width: 981px) {
+  .register-page {
+    padding: 48px;
+    background:
+      radial-gradient(circle at 14% 80%, rgba(37, 99, 235, 0.1), transparent 30%),
+      radial-gradient(circle at 88% 12%, rgba(8, 145, 178, 0.09), transparent 28%),
+      linear-gradient(180deg, rgba(248, 251, 255, 0.98), rgba(237, 244, 252, 0.92));
+  }
+
+  .register-shell {
+    width: min(1180px, 100%);
+    grid-template-columns: minmax(0, 0.92fr) minmax(500px, 1.08fr);
+    gap: 22px;
+    align-items: stretch;
+  }
+
+  .register-intro,
+  .register-card {
+    border-radius: 36px;
+    border-color: rgba(37, 99, 235, 0.13);
+    background:
+      linear-gradient(145deg, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.68)),
+      rgba(255, 255, 255, 0.82);
+    box-shadow:
+      0 34px 80px rgba(15, 23, 42, 0.12),
+      inset 0 1px 0 rgba(255, 255, 255, 0.78);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+  }
+
+  .register-intro {
+    padding: 38px;
+    overflow: hidden;
+  }
+
+  .register-intro::after {
+    content: "";
+    position: absolute;
+    right: -88px;
+    bottom: -110px;
+    width: 340px;
+    height: 340px;
+    border-radius: 999px;
+    background: radial-gradient(circle, rgba(249, 115, 22, 0.16), transparent 68%);
+  }
+
+  .register-intro h1 {
+    max-width: 9ch;
+    font-size: clamp(3.1rem, 5vw, 5.6rem);
+    line-height: 0.94;
+    letter-spacing: -0.065em;
+  }
+
+  .register-intro > p {
+    max-width: 620px;
+    font-size: 17px;
+    line-height: 1.86;
+  }
+
+  .intro-points {
+    gap: 14px;
+  }
+
+  .point-item {
+    border-color: rgba(37, 99, 235, 0.12);
+    background: rgba(255, 255, 255, 0.78);
+    transition:
+      transform 180ms ease,
+      border-color 180ms ease,
+      box-shadow 180ms ease;
+  }
+
+  .point-item:hover {
+    transform: translateY(-4px);
+    border-color: rgba(37, 99, 235, 0.24);
+    box-shadow: 0 18px 36px rgba(37, 99, 235, 0.1);
+  }
+
+  .register-card {
+    padding: 34px;
+  }
+
+  .card-header h2 {
+    font-size: 30px;
+    letter-spacing: -0.035em;
+  }
+
+  .register-card :deep(.n-input),
+  .register-card :deep(.n-input-wrapper) {
+    border-radius: 16px;
+  }
+
+  .register-button {
+    min-height: 50px;
+    border-radius: 16px;
+    box-shadow: 0 16px 32px rgba(37, 99, 235, 0.24);
+  }
+
+  [data-theme="dark"] .register-intro,
+  [data-theme="dark"] .register-card,
+  [data-theme="dark"] .point-item {
+    background: rgba(8, 22, 41, 0.78);
+    border-color: rgba(148, 163, 184, 0.18);
+  }
+}
+
+/* Public refactor v2 */
+@media (min-width: 981px) {
+  .register-page {
+    padding: 52px;
+    background:
+      radial-gradient(circle at 12% 80%, rgba(37, 99, 235, 0.12), transparent 30%),
+      radial-gradient(circle at 88% 12%, rgba(8, 145, 178, 0.1), transparent 28%),
+      linear-gradient(180deg, #edf5ff 0%, #f8fafc 52%, #f2eee7 100%);
+  }
+
+  .register-shell {
+    width: min(1160px, 100%);
+    grid-template-columns: minmax(0, 0.86fr) minmax(520px, 1fr);
+    gap: 24px;
+  }
+
+  .register-intro,
+  .register-card {
+    border-radius: 30px;
+    border: 1px solid #d8e2ef;
+    background:
+      linear-gradient(145deg, rgba(255, 253, 248, 0.98), rgba(255, 255, 255, 0.92)),
+      #ffffff;
+    box-shadow:
+      0 28px 70px rgba(15, 23, 42, 0.12),
+      inset 0 1px 0 rgba(255, 255, 255, 0.92);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  .register-intro {
+    padding: 42px;
+  }
+
+  .register-intro h1 {
+    max-width: 9ch;
+    font-size: clamp(3rem, 4.8vw, 5.25rem);
+    line-height: 0.94;
+    letter-spacing: -0.075em;
+  }
+
+  .register-intro > p {
+    max-width: 560px;
+    color: #475569;
+    font-size: 17px;
+    line-height: 1.84;
+  }
+
+  .point-item {
+    background: #ffffff;
+    border: 1px solid #d8e2ef;
+    border-radius: 18px;
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
+  }
+
+  .register-card {
+    padding: 36px;
+  }
+
+  .card-header h2 {
+    color: #101828;
+    font-size: 32px;
+    letter-spacing: -0.045em;
+  }
+
+  .card-header p {
+    color: #475569;
+  }
+
+  .register-card :deep(.n-input) {
+    min-height: 46px;
+    border-radius: 14px;
+    background: #ffffff;
+  }
+
+  .register-button {
+    min-height: 50px;
+    border-radius: 14px;
+    box-shadow: 0 16px 32px rgba(37, 99, 235, 0.22);
+  }
+}
 </style>

@@ -3623,6 +3623,35 @@
       "download": "下载 Android App",
       "backHome": "返回首页"
     },
+    "highlights": {
+      "package": {
+        "value": "15M",
+        "label": "安装包大小"
+      },
+      "session": {
+        "value": "Cookie",
+        "label": "沿用当前账号会话"
+      },
+      "realtime": {
+        "value": "/ws",
+        "label": "实时通知链路"
+      }
+    },
+    "preview": {
+      "release": "Release 1.0.0",
+      "kicker": "XYZW Helper",
+      "title": "移动端工作台",
+      "packageLabel": "安装包",
+      "packageValue": "已签名 · 可直接安装",
+      "secureLabel": "安全链路",
+      "secureValue": "Cookie + CSRF",
+      "sessionLabel": "当前状态",
+      "sessionValue": "登录、角色、通知继续复用",
+      "apiLabel": "API",
+      "apiValue": "/api/v1",
+      "wsLabel": "WebSocket",
+      "wsValue": "/ws"
+    },
     "features": {
       "native": {
         "title": "真正的原生界面",

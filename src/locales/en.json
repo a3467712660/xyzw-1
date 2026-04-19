@@ -3647,6 +3647,35 @@
       "download": "Download Android App",
       "backHome": "Back Home"
     },
+    "highlights": {
+      "package": {
+        "value": "15M",
+        "label": "Package size"
+      },
+      "session": {
+        "value": "Cookie",
+        "label": "Same account session"
+      },
+      "realtime": {
+        "value": "/ws",
+        "label": "Realtime notification path"
+      }
+    },
+    "preview": {
+      "release": "Release 1.0.0",
+      "kicker": "XYZW Helper",
+      "title": "Mobile Workbench",
+      "packageLabel": "Package",
+      "packageValue": "Signed · Ready to install",
+      "secureLabel": "Secure path",
+      "secureValue": "Cookie + CSRF",
+      "sessionLabel": "Current state",
+      "sessionValue": "Login, roles, and notifications stay aligned",
+      "apiLabel": "API",
+      "apiValue": "/api/v1",
+      "wsLabel": "WebSocket",
+      "wsValue": "/ws"
+    },
     "features": {
       "native": {
         "title": "Real native interface",
