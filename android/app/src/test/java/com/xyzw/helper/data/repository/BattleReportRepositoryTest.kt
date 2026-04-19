@@ -70,6 +70,31 @@ class BattleReportRepositoryTest {
   }
 
   @Test
+  fun `query reports maps 200020 error body to no data success`() = runBlocking {
+    server.dispatcher = object : Dispatcher() {
+      override fun dispatch(request: RecordedRequest): MockResponse =
+        when (request.path) {
+          "/api/v1/battle-reports/token-1/query" -> jsonResponse(
+            400,
+            """{"success":false,"message":"200020","error":{"code":"200020","message":"200020"}}""",
+          )
+          else -> MockResponse().setResponseCode(404)
+        }
+    }
+
+    val harness = createRepositoryHarness(server.url("/api/v1/"))
+    val repository = BattleReportRepository(harness.retrofit.create(), ApiResultParser())
+
+    val result = repository.queryReports("token-1", "peach-garden", "2026-04-19")
+
+    assertTrue(result is ApiResult.Success)
+    val payload = (result as ApiResult.Success).data
+    assertTrue(payload.reports.isEmpty())
+    assertEquals("200020", payload.businessCode)
+    assertEquals("当天暂无战报，可能未参加或战报尚未生成", payload.emptyReason)
+  }
+
+  @Test
   fun `parse and network failures are surfaced`() = runBlocking {
     server.dispatcher = object : Dispatcher() {
       override fun dispatch(request: RecordedRequest): MockResponse =
@@ -88,5 +113,26 @@ class BattleReportRepositoryTest {
 
     assertTrue(repository.parseReport("not-json") is ApiResult.Failure)
     assertTrue(repository.queryReports("token-1", "salt-field", "2026-04-19") is ApiResult.Failure)
+  }
+
+  @Test
+  fun `invalid parse failure uses friendly battle report message`() = runBlocking {
+    server.dispatcher = object : Dispatcher() {
+      override fun dispatch(request: RecordedRequest): MockResponse =
+        when (request.path) {
+          "/api/v1/battle-reports/parse" -> jsonResponse(
+            400,
+            """{"success":false,"error":{"code":"BATTLE_REPORT_UNSUPPORTED","message":"raw json invalid"}}""",
+          )
+          else -> MockResponse().setResponseCode(404)
+        }
+    }
+
+    val harness = createRepositoryHarness(server.url("/api/v1/"))
+    val repository = BattleReportRepository(harness.retrofit.create(), ApiResultParser())
+    val result = repository.parseReport("not-json")
+
+    assertTrue(result is ApiResult.Failure)
+    assertEquals("战报格式不支持，请检查粘贴内容", (result as ApiResult.Failure).error.message)
   }
 }

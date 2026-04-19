@@ -213,6 +213,59 @@ test("battle report routes support query and reject invalid parse payloads", asy
   assert.equal(parseText.includes("cookie"), false);
 });
 
+test("battle report query maps game 200020 to friendly empty state", async (t) => {
+  await initDatabase();
+
+  const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const userId = `battle_empty_user_${suffix}`;
+  const username = `battle_empty_user_${suffix}`;
+  createUser({ id: userId, username, password: "BattleEmpty123!Aa" });
+  t.after(() => run(`DELETE FROM users WHERE id = $userId`, { $userId: userId }));
+
+  const noDataError = new Error("服务器错误: 200020 - 无战报");
+  noDataError.code = "200020";
+  noDataError.payload = { errCode: 200020 };
+
+  const server = await createServer({
+    gameService: {
+      getCatalog: () => ({}),
+      getSummary: async () => ({}),
+      runAction: async () => ({}),
+      getLegionWarSnapshot: async () => ({}),
+      broadcastLegionWarReviveInfo: async () => ({}),
+      getLineups: async () => ({}),
+      saveLineups: async () => ({}),
+      applyLineup: async () => ({}),
+    },
+    battleService: {
+      getCatalog: () => ({
+        types: [{ id: "peach-garden", title: "蟠桃园战报" }],
+      }),
+      queryReports: async () => {
+        throw noDataError;
+      },
+      parseReport: async () => ({ report: null }),
+    },
+  });
+  t.after(async () => {
+    await new Promise((resolve) => server.close(resolve));
+  });
+
+  const baseUrl = makeBaseUrl(server);
+  const queryRes = await fetch(`${baseUrl}/api/v1/battle-reports/token-1/query`, {
+    method: "POST",
+    headers: authHeaders({ userId, username }),
+    body: JSON.stringify({ reportType: "peach-garden", date: "2026-04-19" }),
+  });
+
+  assert.equal(queryRes.status, 200);
+  const payload = await queryRes.json();
+  assert.equal(payload.success, true);
+  assert.deepEqual(payload.data.reports, []);
+  assert.equal(payload.data.businessCode, "200020");
+  assert.equal(payload.data.emptyReason, "当天暂无战报，可能未参加或战报尚未生成");
+});
+
 test("game workbench routes expose native modules, cards, allowlisted actions, and replay renders", async (t) => {
   await initDatabase();
 

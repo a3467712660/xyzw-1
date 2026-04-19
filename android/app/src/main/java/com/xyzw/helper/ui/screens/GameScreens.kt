@@ -4,6 +4,7 @@ import android.graphics.BitmapFactory
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Article
@@ -29,6 +31,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SelectableDates
@@ -37,6 +40,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -51,6 +55,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -240,6 +246,9 @@ private fun GameFeaturesWorkbench(
   val selectedModule = state.workbenchCatalog.modules.firstOrNull { it.id == state.selectedModuleId }
   val selectedGroup = state.workbenchCatalog.groups.firstOrNull { it.id == selectedModule?.groupId }
   val section = selectedModule?.sections?.firstOrNull { it.id == state.selectedSectionId }
+  val sectionSnapshot = state.sectionSnapshot?.takeIf { snapshot ->
+    snapshot.moduleId == selectedModule?.id && snapshot.sectionId == section?.id
+  }
   val summary = state.summary
   val tokenName = summary?.roleName?.ifBlank { null }
     ?: state.tokens.firstOrNull { it.id == state.selectedTokenId }?.displayName
@@ -268,6 +277,24 @@ private fun GameFeaturesWorkbench(
     onSelectModule = onSelectModule,
     onSelectSection = onSelectSection,
   )
+  if (selectedModule == null) {
+    XyzwEmptyState(
+      title = "模块不可用",
+      description = "当前选中的模块不在工作台目录中，请刷新工作台或重新选择模块。",
+      primaryActionLabel = "刷新工作台",
+      onPrimaryAction = onRefresh,
+    )
+    return
+  }
+  if (section == null) {
+    XyzwEmptyState(
+      title = "暂无分区数据",
+      description = "当前模块暂未返回可用分区，请刷新工作台或切换其他模块。",
+      primaryActionLabel = "刷新工作台",
+      onPrimaryAction = onRefresh,
+    )
+    return
+  }
   WorkbenchHintCard(
     title = "权限与连接提示",
     description = when {
@@ -282,17 +309,17 @@ private fun GameFeaturesWorkbench(
   GameStage(
     eyebrow = "当前阶段",
     groupLabel = selectedGroup?.label.orEmpty(),
-    moduleName = section?.label ?: state.sectionSnapshot?.title ?: selectedModule?.label ?: "游戏工作台",
-    moduleDescription = section?.description ?: selectedModule?.description.orEmpty(),
-    statusText = state.sectionSnapshot?.status?.ifBlank { connectionLabel(summary?.connectionStatus.orEmpty(), binAvailable) }
+    moduleName = section.label.ifBlank { sectionSnapshot?.title ?: selectedModule.label.ifBlank { "游戏工作台" } },
+    moduleDescription = section.description.ifBlank { selectedModule.description },
+    statusText = sectionSnapshot?.status?.ifBlank { connectionLabel(summary?.connectionStatus.orEmpty(), binAvailable) }
       ?: connectionLabel(summary?.connectionStatus.orEmpty(), binAvailable),
-    statusTone = connectionTone(state.sectionSnapshot?.status ?: summary?.connectionStatus.orEmpty(), binAvailable),
+    statusTone = connectionTone(sectionSnapshot?.status ?: summary?.connectionStatus.orEmpty(), binAvailable),
     overview = {
       WorkbenchSummaryGrid(
         listOf(
           WorkbenchSignal("当前分组", selectedGroup?.label ?: "--", selectedGroup?.caption.orEmpty(), "info"),
-          WorkbenchSignal("当前模块", selectedModule?.label ?: "--", selectedModule?.description.orEmpty(), "info"),
-          WorkbenchSignal("当前区域", section?.label ?: state.sectionSnapshot?.title ?: "--", section?.description.orEmpty(), "success"),
+          WorkbenchSignal("当前模块", selectedModule.label.ifBlank { "--" }, selectedModule.description, "info"),
+          WorkbenchSignal("当前区域", section.label.ifBlank { sectionSnapshot?.title ?: "--" }, section.description, "success"),
           WorkbenchSignal("建议动作", summary?.recommendedAction?.ifBlank { "检查连接和 BIN" } ?: "检查连接和 BIN", "由后端受控执行", if (binAvailable) "success" else "warning"),
         ),
       )
@@ -300,17 +327,17 @@ private fun GameFeaturesWorkbench(
         title = "模块详情",
         subtitle = "与 Web 工作台一致保留分组、模块、分区和建议动作。",
         rows = listOf(
-          WorkbenchSignal("模块 ID", selectedModule?.id ?: "--", selectedModule?.description.orEmpty(), "info"),
-          WorkbenchSignal("分区 ID", section?.id ?: state.selectedSectionId.ifBlank { "--" }, section?.description.orEmpty(), "success"),
-          WorkbenchSignal("卡片数量", state.sectionSnapshot?.cards?.size?.toString() ?: "0", "由后端工作台 DTO 返回", "info"),
+          WorkbenchSignal("模块 ID", selectedModule.id.ifBlank { "--" }, selectedModule.description, "info"),
+          WorkbenchSignal("分区 ID", section.id.ifBlank { state.selectedSectionId.ifBlank { "--" } }, section.description, "success"),
+          WorkbenchSignal("卡片数量", sectionSnapshot?.cards?.size?.toString() ?: "0", "由后端工作台 DTO 返回", "info"),
           WorkbenchSignal("连接状态", connectionLabel(summary?.connectionStatus.orEmpty(), binAvailable), "动作按钮会随 BIN 和连接状态禁用", connectionTone(summary?.connectionStatus.orEmpty(), binAvailable)),
         ),
       )
       WorkbenchTimeline(
         title = "最近活动",
         items = buildList {
-          state.sectionSnapshot?.updatedAt?.takeIf { it.isNotBlank() }?.let {
-            add(WorkbenchSignal("模块刷新", formatDisplayDateTime(it), state.sectionSnapshot.title, "success"))
+          sectionSnapshot?.updatedAt?.takeIf { it.isNotBlank() }?.let {
+            add(WorkbenchSignal("模块刷新", formatDisplayDateTime(it), sectionSnapshot.title, "success"))
           }
           state.actionMessage?.takeIf { it.isNotBlank() }?.let {
             add(WorkbenchSignal("动作结果", it, "后端 allowlist 执行结果", "success"))
@@ -322,7 +349,7 @@ private fun GameFeaturesWorkbench(
       )
     },
   ) {
-    val snapshot = state.sectionSnapshot
+    val snapshot = sectionSnapshot
     if (snapshot == null && !state.isLoading) {
       XyzwEmptyState(
         title = "暂无模块数据",
@@ -407,7 +434,7 @@ private fun GameFeaturesWorkbench(
       WorkbenchSignal("角色", tokenName, summary?.serverName.orEmpty(), if (state.selectedTokenId.isBlank()) "warning" else "success"),
       WorkbenchSignal("BIN 状态", if (binAvailable) "已就绪" else "待上传/恢复", "远程 BIN 仅走服务端安全链路", if (binAvailable) "success" else "warning"),
       WorkbenchSignal("连接状态", connectionLabel(summary?.connectionStatus.orEmpty(), binAvailable), "动作由后端 allowlist 执行", connectionTone(summary?.connectionStatus.orEmpty(), binAvailable)),
-      WorkbenchSignal("模块", selectedModule?.label ?: "--", section?.label.orEmpty(), "info"),
+      WorkbenchSignal("模块", selectedModule.label.ifBlank { "--" }, section.label, "info"),
     ),
     recommendationTitle = summary?.recommendedAction?.ifBlank { "先刷新工作台状态" } ?: "先刷新工作台状态",
     recommendationDetail = "如果 BIN 缺失，请先到 Token 管理上传或恢复 BIN；Android 不直接暴露 token、cookie、seed 或 signature。",
@@ -1207,6 +1234,12 @@ fun BattleReportsScreen(
       viewModel.consumeMessage()
     }
   }
+  LaunchedEffect(state.parsedReport?.id) {
+    state.parsedReport?.let { report ->
+      onOpenDetail(report)
+      viewModel.consumeParsedReport()
+    }
+  }
   BattleReportsScreenContent(
     state = state,
     onBack = onBack,
@@ -1237,153 +1270,90 @@ fun BattleReportsScreenContent(
 ) {
   var manualText by rememberSaveable { mutableStateOf("") }
   var showDatePicker by rememberSaveable { mutableStateOf(false) }
-  var activeReportModule by rememberSaveable { mutableStateOf("saltField") }
-  var saltFieldSubTab by rememberSaveable { mutableStateOf("warrank") }
-  var peachSubTab by rememberSaveable { mutableStateOf("peach") }
-  var legionWarSubTab by rememberSaveable { mutableStateOf("legionWarSummary") }
+  var showManualSheet by rememberSaveable { mutableStateOf(false) }
+  val manualSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
   val queryTypes = remember(state.catalog.types) {
     state.catalog.types.filter { isDateBackedBattleReportType(it.id) }
       .ifEmpty { state.catalog.types }
   }
-  val selectedToken = state.tokens.firstOrNull { it.id == state.selectedTokenId }
-  val selectedModule = reportModules().firstOrNull { it.id == activeReportModule } ?: reportModules().first()
-  val activeSubTab = when (activeReportModule) {
-    "peachGarden" -> peachSubTab
-    "legionWarReports" -> legionWarSubTab
-    else -> saltFieldSubTab
+  LaunchedEffect(state.parsedReport?.id) {
+    if (state.parsedReport != null) {
+      showManualSheet = false
+      manualText = ""
+    }
   }
   XyzwPage(
-    title = "战报功能",
-    subtitle = "战报工作区，盐场与蟠桃模块结构对齐网页端。",
+    title = "战报",
     onBack = onBack,
     onRefresh = onRefresh,
     snackbarHostState = snackbarHostState,
   ) {
-    GameCommandBar(
-      eyebrow = "Report Center",
-      title = "战报功能",
-      description = "匹配详情、周月战绩、实时态势、蟠桃概览和对战战报统一放进原生工作区。",
-      activeGroupName = "战报",
-      activeModuleName = selectedModule.label,
-      connectionStatusText = if (selectedToken?.binFilePresent == true) "BIN 已就绪" else "等待 BIN",
-      connectionTone = if (selectedToken?.binFilePresent == true) "success" else "warning",
-      binAvailable = selectedToken?.binFilePresent == true,
-      tokenName = selectedToken?.displayName ?: selectedToken?.roleName ?: "未选择角色",
-      tokenCount = state.tokens.size,
-      onRefresh = onRefresh,
-    )
-    TokenPicker(state.tokens, state.selectedTokenId, onSelectToken)
+    CompactTokenPicker(state.tokens, state.selectedTokenId, onSelectToken)
     if (state.isLoading) XyzwLoadingState("战报加载中...")
-    GameModuleRail(
-      groups = listOf(WorkbenchNavItem("reports", "战报导航", "盐场、蟠桃战报统一入口")),
-      modules = reportModules().map { WorkbenchNavItem(it.id, it.label, it.description, "reports") },
-      selectedModuleId = activeReportModule,
-      selectedSectionId = activeSubTab,
-      sectionItems = selectedModule.subTabs.map { WorkbenchNavItem(it.id, it.label, it.description) },
-      onSelectModule = { moduleId ->
-        activeReportModule = moduleId
-        val module = reportModules().firstOrNull { it.id == moduleId } ?: return@GameModuleRail
-        onSelectType(module.reportType)
-      },
-      onSelectSection = { sectionId ->
-        when (activeReportModule) {
-          "peachGarden" -> peachSubTab = sectionId
-          "legionWarReports" -> legionWarSubTab = sectionId
-          else -> saltFieldSubTab = sectionId
-        }
-      },
+    BattleReportTypeSegment(
+      queryTypes = queryTypes,
+      selectedReportType = state.selectedReportType,
+      onSelectType = onSelectType,
+      onOpenManual = { showManualSheet = true },
     )
-    WorkbenchSummaryGrid(
-      listOf(
-        WorkbenchSignal("当前模块", selectedModule.label, selectedModule.description, "info"),
-        WorkbenchSignal("当前视图", selectedModule.subTabs.firstOrNull { it.id == activeSubTab }?.label ?: "--", "对应 Web 子标签", "success"),
-        WorkbenchSignal("比赛日期", state.queryDate.ifBlank { defaultBattleReportDate(state.selectedReportType) }, "默认最近可查询比赛日", "warning"),
-        WorkbenchSignal("战报数量", state.reports.size.toString(), "列表和详情均为原生展示", "info"),
-      ),
+    XyzwSection(title = "查询", subtitle = "选择比赛日后查询当前角色战报。") {
+      BattleReportDatePickerRow(
+        reportType = state.selectedReportType,
+        queryDate = state.queryDate,
+        onDateChange = onDateChange,
+        onOpenDatePicker = { showDatePicker = true },
+      )
+      WorkbenchPrimaryButton(
+        text = if (state.isLoading) "查询中..." else "查询战报",
+        enabled = state.selectedTokenId.isNotBlank() && !state.isLoading && state.selectedReportType != "manual",
+        onClick = onQuery,
+        modifier = Modifier.fillMaxWidth(),
+      )
+    }
+    BattleReportCompactList(
+      state = state,
+      onOpenDetail = onOpenDetail,
+      onResetDate = { onDateChange(defaultBattleReportDate(state.selectedReportType)) },
     )
-    WorkbenchInfoPanel(
-      title = "战报专属卡片",
-      subtitle = "盐场、蟠桃、军团战三个子域都保留独立入口和移动端卡片语义。",
-      rows = listOf(
-        WorkbenchSignal("盐场入口", "盐场", "匹配详情、周战绩、月战绩、实时地图、实时战况", "success"),
-        WorkbenchSignal("蟠桃概览卡", "蟠桃园", "蟠桃概览和对战战报", "warning"),
-        WorkbenchSignal("军团战摘要", "军团战", "军团战地图、节点和统计摘要", "info"),
-      ),
+    WorkbenchSecondaryButton(
+      text = "粘贴解析",
+      enabled = !state.isLoading,
+      onClick = { showManualSheet = true },
+      modifier = Modifier.fillMaxWidth(),
     )
-    GameStage(
-      eyebrow = selectedModule.label,
-      groupLabel = "战报工作区",
-      moduleName = selectedModule.subTabs.firstOrNull { it.id == activeSubTab }?.label ?: selectedModule.label,
-      moduleDescription = selectedModule.subTabs.firstOrNull { it.id == activeSubTab }?.description ?: selectedModule.description,
-      statusText = if (state.reports.isNotEmpty()) "有数据" else "等待查询",
-      statusTone = if (state.reports.isNotEmpty()) "success" else "warning",
-      overview = {
-        BattleReportDatePickerRow(
-          reportType = state.selectedReportType,
-          queryDate = state.queryDate,
-          onDateChange = onDateChange,
-          onOpenDatePicker = { showDatePicker = true },
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-          WorkbenchPrimaryButton(
-            text = "查询战报",
-            enabled = state.selectedTokenId.isNotBlank() && !state.isLoading,
-            onClick = onQuery,
-            modifier = Modifier.weight(1f),
-          )
-          WorkbenchSecondaryButton(
-            text = "回到最近比赛日",
-            enabled = true,
-            onClick = { onDateChange(defaultBattleReportDate(state.selectedReportType)) },
-            modifier = Modifier.weight(1f),
-          )
-        }
-      },
+    state.errorMessage?.let { XyzwErrorState(message = it, onRetry = onRefresh) }
+  }
+
+  if (showManualSheet) {
+    ModalBottomSheet(
+      onDismissRequest = { showManualSheet = false },
+      sheetState = manualSheetState,
     ) {
-      if (queryTypes.size > 1) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-          queryTypes.forEach { type ->
-            FilterChip(
-              selected = state.selectedReportType == type.id,
-              onClick = {
-                onSelectType(type.id)
-                activeReportModule = if (type.id == "peach-garden") "peachGarden" else "saltField"
-              },
-              label = { Text(type.title) },
-            )
-          }
+      Column(
+        modifier = Modifier
+          .fillMaxWidth()
+          .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+      ) {
+        Text("粘贴解析", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        OutlinedTextField(
+          value = manualText,
+          onValueChange = { manualText = it },
+          modifier = Modifier.fillMaxWidth(),
+          label = { Text("战报 JSON") },
+          minLines = 6,
+        )
+        WorkbenchPrimaryButton(
+          text = if (state.isLoading) "解析中..." else "解析战报",
+          enabled = manualText.isNotBlank() && !state.isLoading,
+          onClick = { onParse(manualText) },
+          modifier = Modifier.fillMaxWidth(),
+        )
+        state.errorMessage?.let {
+          Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
         }
       }
-      BattleReportPanel(
-        moduleId = activeReportModule,
-        subTab = activeSubTab,
-        reports = state.reports,
-        onOpenDetail = onOpenDetail,
-      )
     }
-    GameStage(
-      eyebrow = "手动解析",
-      groupLabel = "战报工作区",
-      moduleName = "战报配置文本",
-      moduleDescription = "用于本地粘贴战报 JSON，错误态保持原生提示。",
-      statusText = if (manualText.isBlank()) "待输入" else "可解析",
-      statusTone = if (manualText.isBlank()) "warning" else "success",
-    ) {
-      OutlinedTextField(
-        value = manualText,
-        onValueChange = { manualText = it },
-        modifier = Modifier.fillMaxWidth(),
-        label = { Text("战报配置文本") },
-        minLines = 4,
-      )
-      WorkbenchSecondaryButton(
-        text = "解析战报",
-        enabled = manualText.isNotBlank(),
-        onClick = { onParse(manualText) },
-        modifier = Modifier.fillMaxWidth(),
-      )
-    }
-    state.errorMessage?.let { XyzwErrorState(message = it, onRetry = onRefresh) }
   }
 
   if (showDatePicker) {
@@ -1449,6 +1419,115 @@ private fun reportModules(): List<ReportWorkbenchModule> = listOf(
     ),
   ),
 )
+
+@Composable
+private fun CompactTokenPicker(
+  tokens: List<com.xyzw.helper.data.model.ImportedGameToken>,
+  selectedTokenId: String,
+  onSelectToken: (String) -> Unit,
+) {
+  if (tokens.isEmpty()) {
+    XyzwEmptyState(
+      title = "暂无令牌",
+      description = "请先在令牌管理中导入令牌并上传 BIN。",
+    )
+    return
+  }
+  Row(
+    modifier = Modifier
+      .fillMaxWidth()
+      .horizontalScroll(rememberScrollState()),
+    horizontalArrangement = Arrangement.spacedBy(8.dp),
+  ) {
+    tokens.forEach { token ->
+      FilterChip(
+        selected = token.id == selectedTokenId,
+        onClick = { onSelectToken(token.id) },
+        label = {
+          Text(token.displayName.ifBlank { token.roleName.ifBlank { token.id } })
+        },
+      )
+    }
+  }
+}
+
+@Composable
+private fun BattleReportTypeSegment(
+  queryTypes: List<com.xyzw.helper.data.model.BattleReportType>,
+  selectedReportType: String,
+  onSelectType: (String) -> Unit,
+  onOpenManual: () -> Unit,
+) {
+  val defaultTypes = listOf(
+    com.xyzw.helper.data.model.BattleReportType("salt-field", "盐场"),
+    com.xyzw.helper.data.model.BattleReportType("peach-garden", "蟠桃园"),
+  )
+  val available = (queryTypes + defaultTypes)
+    .filter { it.id != "manual" }
+    .distinctBy { it.id }
+  Row(
+    modifier = Modifier.fillMaxWidth(),
+    horizontalArrangement = Arrangement.spacedBy(8.dp),
+  ) {
+    available.forEach { type ->
+      FilterChip(
+        selected = selectedReportType == type.id,
+        onClick = { onSelectType(type.id) },
+        modifier = Modifier.weight(1f),
+        label = {
+          Text(
+            when (type.id) {
+              "salt-field" -> "盐场"
+              "peach-garden" -> "蟠桃园"
+              else -> type.title.ifBlank { "战报" }
+            },
+          )
+        },
+      )
+    }
+    FilterChip(
+      selected = selectedReportType == "manual",
+      onClick = {
+        onSelectType("manual")
+        onOpenManual()
+      },
+      modifier = Modifier.weight(1f),
+      label = { Text("手动") },
+    )
+  }
+}
+
+@Composable
+private fun BattleReportCompactList(
+  state: BattleReportsUiState,
+  onOpenDetail: (BattleReportItem) -> Unit,
+  onResetDate: () -> Unit,
+) {
+  XyzwSection(title = "结果", subtitle = "${state.reports.size} 条战报") {
+    if (state.reports.isEmpty()) {
+      val reason = state.emptyReason.ifBlank { "暂无战报" }
+      val isNoData = state.businessCode == "200020"
+      XyzwEmptyState(
+        title = reason,
+        description = if (isNoData) {
+          "可尝试切换到最近比赛日"
+        } else {
+          "请选择比赛日期并查询，或使用粘贴解析。"
+        },
+        primaryActionLabel = if (state.selectedReportType != "manual") "回到最近比赛日" else null,
+        onPrimaryAction = if (state.selectedReportType != "manual") onResetDate else null,
+      )
+      if (isNoData) {
+        Text("确认该角色是否参加", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("确认 BIN 是否属于当前角色", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+      }
+      return@XyzwSection
+    }
+    state.reports.forEach { report ->
+      BattleReportCompactSummaryCard(report = report, onOpenDetail = onOpenDetail)
+    }
+  }
+}
 
 @Composable
 private fun BattleReportPanel(
@@ -1613,9 +1692,10 @@ fun BattleReportDetailScreen(
   report: BattleReportItem?,
   onBack: () -> Unit,
 ) {
+  var showRawData by rememberSaveable { mutableStateOf(false) }
+  val clipboard = LocalClipboardManager.current
   XyzwPage(
     title = "战报详情",
-    subtitle = report?.reportType ?: "未选择战报",
     onBack = onBack,
   ) {
     if (report == null) {
@@ -1624,13 +1704,36 @@ fun BattleReportDetailScreen(
         description = "请返回战报列表重新选择。",
       )
     } else {
-      XyzwSection(title = report.title, subtitle = formatDisplayDateTime(report.createdAt)) {
-        Text(report.summary.ifBlank { "暂无摘要" }, style = MaterialTheme.typography.titleMedium)
-        Text(
-          text = report.detail?.toString() ?: "{}",
-          style = MaterialTheme.typography.bodySmall,
+      BattleReportImageLikeCard(report = report)
+      Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+        WorkbenchPrimaryButton(
+          text = "复制摘要",
+          enabled = true,
+          onClick = {
+            clipboard.setText(
+              AnnotatedString(
+                listOf(
+                  report.title,
+                  report.summary,
+                  formatDisplayDateTime(report.createdAt),
+                ).filter { it.isNotBlank() && it != "--" }.joinToString(" / "),
+              ),
+            )
+          },
+          modifier = Modifier.weight(1f),
+        )
+        WorkbenchSecondaryButton(
+          text = if (showRawData) "收起原始数据" else "查看原始数据",
+          enabled = report.detail != null,
+          onClick = { showRawData = !showRawData },
+          modifier = Modifier.weight(1f),
         )
       }
+      BattleReportDebugJsonSheet(
+        report = report,
+        expanded = showRawData,
+        onToggle = { showRawData = !showRawData },
+      )
     }
   }
 }

@@ -160,6 +160,76 @@ class GameFeaturesViewModelTest {
   }
 
   @Test
+  fun `game features ignores stale section response after fast module switch`() {
+    server.dispatcher = object : Dispatcher() {
+      override fun dispatch(request: RecordedRequest): MockResponse =
+        when (request.path) {
+          "/api/v1/bin-files" -> jsonResponse(200, """{"success":true,"data":[]}""")
+          "/api/v1/game-features/workbench/catalog" -> jsonResponse(
+            200,
+            """{"success":true,"data":{"groups":[{"id":"operations","label":"运营"}],"modules":[{"id":"daily","label":"日常","groupId":"operations","defaultSectionId":"daily","sections":[{"id":"daily","label":"日常"}]},{"id":"arena","label":"竞技","groupId":"operations","defaultSectionId":"arena","sections":[{"id":"arena","label":"竞技"}]}],"defaultModuleId":"daily","defaultSectionId":"daily"}}""",
+          )
+          "/api/v1/game-features/token-1/workbench/bootstrap" -> jsonResponse(
+            200,
+            """{"success":true,"data":{"tokenId":"token-1","roleName":"Alice","binAvailable":true,"connectionStatus":"ready","selectedModuleId":"daily","selectedSectionId":"daily"}}""",
+          )
+          "/api/v1/game-features/token-1/workbench/section" -> {
+            val body = request.body.readUtf8()
+            if (body.contains("\"sectionId\":\"daily\"")) {
+              Thread.sleep(160)
+              jsonResponse(
+                200,
+                """{"success":true,"data":{"tokenId":"token-1","moduleId":"daily","sectionId":"daily","title":"日常","cards":[{"id":"daily-card","title":"日常卡"}]}}""",
+              )
+            } else {
+              jsonResponse(
+                200,
+                """{"success":true,"data":{"tokenId":"token-1","moduleId":"arena","sectionId":"arena","title":"竞技","cards":[{"id":"arena-card","title":"竞技卡"}]}}""",
+              )
+            }
+          }
+          else -> MockResponse().setResponseCode(404)
+        }
+    }
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val preferences = context.getSharedPreferences("game_features_vm_stale_section", Context.MODE_PRIVATE).apply {
+      edit().clear().commit()
+    }
+    val harness = createRepositoryHarness(server.url("/api/v1/"))
+    val parser = ApiResultParser()
+    val tokenRepository = TokenManagementRepository(
+      api = harness.retrofit.create<TokenManagementApi>(),
+      parser = parser,
+      store = SecureTokenWorkspaceStore(context, preferences),
+      sensitiveActionSession = UserSensitiveActionSession(),
+    )
+    tokenRepository.saveImportedToken(
+      com.xyzw.helper.data.model.ImportedGameToken(
+        id = "token-1",
+        rawToken = "",
+        displayName = "Alice",
+        importedAt = "2026-04-19T00:00:00Z",
+        updatedAt = "2026-04-19T00:00:00Z",
+        binFilePresent = true,
+      ),
+    )
+    val viewModel = GameFeaturesViewModel(
+      repository = GameFeatureRepository(harness.retrofit.create<GameFeatureApi>(), parser),
+      tokenRepository = tokenRepository,
+    )
+
+    assertTrue(waitUntil { viewModel.uiState.value.workbenchCatalog.modules.size == 2 })
+    viewModel.selectModule("arena")
+    assertTrue(waitUntil { viewModel.uiState.value.sectionSnapshot?.sectionId == "arena" })
+    Thread.sleep(220)
+    shadowOf(Looper.getMainLooper()).idle()
+
+    assertEquals("arena", viewModel.uiState.value.selectedModuleId)
+    assertEquals("arena", viewModel.uiState.value.selectedSectionId)
+    assertEquals("arena-card", viewModel.uiState.value.sectionSnapshot?.cards?.singleOrNull()?.id)
+  }
+
+  @Test
   fun `lineup assistant stores apply stages for debug panel`() {
     server.dispatcher = object : Dispatcher() {
       override fun dispatch(request: RecordedRequest): MockResponse =

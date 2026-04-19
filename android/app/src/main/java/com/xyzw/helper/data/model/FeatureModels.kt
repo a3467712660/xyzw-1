@@ -110,7 +110,7 @@ data class GameFeatureCatalog(
 
 @Serializable
 data class GameFeatureSummary(
-  val tokenId: String,
+  val tokenId: String = "",
   val roleName: String = "",
   val serverName: String = "",
   val binAvailable: Boolean = false,
@@ -128,23 +128,23 @@ data class GameFeatureActionResult(
 
 @Serializable
 data class GameWorkbenchGroup(
-  val id: String,
-  val label: String,
+  val id: String = "",
+  val label: String = "",
   val caption: String = "",
 )
 
 @Serializable
 data class GameWorkbenchSection(
-  val id: String,
-  val label: String,
+  val id: String = "",
+  val label: String = "",
   val description: String = "",
 )
 
 @Serializable
 data class GameWorkbenchModule(
-  val id: String,
-  val label: String,
-  val groupId: String,
+  val id: String = "",
+  val label: String = "",
+  val groupId: String = "",
   val description: String = "",
   val defaultSectionId: String = "",
   val sections: List<GameWorkbenchSection> = emptyList(),
@@ -174,21 +174,21 @@ data class GameWorkbenchBootstrap(
 
 @Serializable
 data class GameWorkbenchMetric(
-  val label: String,
-  val value: String,
+  val label: String = "",
+  val value: String = "",
   val tone: String = "neutral",
 )
 
 @Serializable
 data class GameWorkbenchCardAction(
-  val id: String,
-  val label: String,
+  val id: String = "",
+  val label: String = "",
   val enabled: Boolean = true,
 )
 
 @Serializable
 data class GameWorkbenchCard(
-  val id: String,
+  val id: String = "",
   val type: String = "rawDetail",
   val title: String = "",
   val subtitle: String = "",
@@ -202,10 +202,10 @@ data class GameWorkbenchCard(
 
 @Serializable
 data class GameWorkbenchSectionSnapshot(
-  val tokenId: String,
-  val moduleId: String,
-  val sectionId: String,
-  val title: String,
+  val tokenId: String = "",
+  val moduleId: String = "",
+  val sectionId: String = "",
+  val title: String = "",
   val subtitle: String = "",
   val status: String = "",
   val cards: List<GameWorkbenchCard> = emptyList(),
@@ -305,8 +305,8 @@ data class GameLineupApplyResult(
 
 @Serializable
 data class BattleReportType(
-  val id: String,
-  val title: String,
+  val id: String = "",
+  val title: String = "",
   val description: String = "",
 )
 
@@ -317,9 +317,9 @@ data class BattleReportCatalog(
 
 @Serializable
 data class BattleReportItem(
-  val id: String,
-  val reportType: String,
-  val title: String,
+  val id: String = "",
+  val reportType: String = "",
+  val title: String = "",
   val summary: String = "",
   val createdAt: String? = null,
   val detail: JsonElement? = null,
@@ -328,6 +328,8 @@ data class BattleReportItem(
 @Serializable
 data class BattleReportListPayload(
   val reports: List<BattleReportItem> = emptyList(),
+  val emptyReason: String = "",
+  val businessCode: String = "",
 )
 
 @Serializable

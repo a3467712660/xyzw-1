@@ -15,8 +15,10 @@ import com.xyzw.helper.data.model.GameWorkbenchSectionSnapshot
 import com.xyzw.helper.data.model.ImportedGameToken
 import com.xyzw.helper.data.model.LegionWarSnapshot
 import com.xyzw.helper.data.model.RenderedReplayResult
+import com.xyzw.helper.data.network.ApiError
 import com.xyzw.helper.data.network.ApiResult
 import com.xyzw.helper.data.repository.BattleReportRepository
+import com.xyzw.helper.data.repository.BattleReportErrorMapper
 import com.xyzw.helper.data.repository.GameFeatureRepository
 import com.xyzw.helper.data.repository.TokenManagementRepository
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -72,6 +74,8 @@ data class BattleReportsUiState(
   val queryDate: String = defaultBattleReportDate("salt-field"),
   val reports: List<BattleReportItem> = emptyList(),
   val parsedReport: BattleReportItem? = null,
+  val emptyReason: String = "",
+  val businessCode: String = "",
   val isLoading: Boolean = true,
   val errorMessage: String? = null,
   val actionMessage: String? = null,
@@ -94,6 +98,8 @@ class GameFeaturesViewModel(
 ) : ViewModel() {
   private val mutableState = MutableStateFlow(GameFeaturesUiState())
   val uiState: StateFlow<GameFeaturesUiState> = mutableState.asStateFlow()
+  private var workbenchRequestVersion = 0
+  private var sectionRequestVersion = 0
 
   init {
     restoreRemoteBinTokens(tokenRepository)
@@ -106,7 +112,7 @@ class GameFeaturesViewModel(
           selectedTokenId = nextTokenId,
         )
         if (previousTokenId.isBlank() && nextTokenId.isNotBlank()) {
-          refreshSummary()
+          refreshWorkbench()
         }
       }
     }
@@ -114,53 +120,85 @@ class GameFeaturesViewModel(
   }
 
   fun selectToken(tokenId: String) {
-    mutableState.value = mutableState.value.copy(selectedTokenId = tokenId)
+    workbenchRequestVersion += 1
+    sectionRequestVersion += 1
+    mutableState.value = mutableState.value.copy(
+      selectedTokenId = tokenId,
+      sectionSnapshot = null,
+      renderedReplay = null,
+      renderedReplayImageBytes = null,
+    )
     refreshWorkbench()
   }
 
   fun selectModule(moduleId: String) {
     val module = mutableState.value.workbenchCatalog.modules.firstOrNull { it.id == moduleId }
-    val sectionId = module?.defaultSectionId?.takeIf { it.isNotBlank() }
-      ?: module?.sections?.firstOrNull()?.id
-      ?: mutableState.value.selectedSectionId
+    val sectionId = module?.sections
+      ?.firstOrNull { it.id == module.defaultSectionId && it.id.isNotBlank() }
+      ?.id
+      ?: module?.sections?.firstOrNull { it.id.isNotBlank() }?.id
+      ?: ""
+    sectionRequestVersion += 1
     mutableState.value = mutableState.value.copy(
       selectedModuleId = moduleId,
       selectedSectionId = sectionId,
       sectionSnapshot = null,
+      renderedReplay = null,
+      renderedReplayImageBytes = null,
+      isLoading = sectionId.isNotBlank(),
     )
-    refreshSection()
+    if (module != null && sectionId.isNotBlank()) {
+      refreshSection()
+    }
   }
 
   fun selectSection(sectionId: String) {
     val moduleId = moduleForSection(mutableState.value.workbenchCatalog.modules, sectionId)
-      ?: mutableState.value.selectedModuleId
+    sectionRequestVersion += 1
     mutableState.value = mutableState.value.copy(
-      selectedModuleId = moduleId,
+      selectedModuleId = moduleId ?: mutableState.value.selectedModuleId,
       selectedSectionId = sectionId,
       sectionSnapshot = null,
+      renderedReplay = null,
+      renderedReplayImageBytes = null,
+      isLoading = moduleId != null,
     )
-    refreshSection()
+    if (moduleId != null) {
+      refreshSection()
+    }
   }
 
   fun refresh() {
     viewModelScope.launch {
       mutableState.value = mutableState.value.copy(isLoading = true, errorMessage = null)
-      when (val catalog = repository.getWorkbenchCatalog()) {
+      val catalog = runCatching { repository.getWorkbenchCatalog() }.getOrElse { error ->
+        ApiResult.Failure(ApiError.local(error.message ?: "游戏工作台加载失败"))
+      }
+      when (catalog) {
         is ApiResult.Success -> {
-          val defaultModuleId = catalog.data.defaultModuleId.ifBlank { catalog.data.modules.firstOrNull()?.id.orEmpty() }
-          val defaultSectionId = catalog.data.defaultSectionId.ifBlank {
-            catalog.data.modules.firstOrNull { it.id == defaultModuleId }?.defaultSectionId.orEmpty()
-          }
+          val modules = catalog.data.modules
+          val defaultModuleId = catalog.data.defaultModuleId
+            .takeIf { id -> modules.any { it.id == id } }
+            ?: modules.firstOrNull { it.id.isNotBlank() }?.id.orEmpty()
+          val defaultModule = modules.firstOrNull { it.id == defaultModuleId }
+          val defaultSectionId = catalog.data.defaultSectionId
+            .takeIf { id -> defaultModule?.sections?.any { it.id == id } == true }
+            ?: defaultModule?.defaultSectionId?.takeIf { id -> defaultModule.sections.any { it.id == id } }
+            ?: defaultModule?.sections?.firstOrNull { it.id.isNotBlank() }?.id.orEmpty()
           mutableState.value = mutableState.value.copy(
             workbenchCatalog = catalog.data,
             selectedModuleId = mutableState.value.selectedModuleId.takeIf { current ->
-              catalog.data.modules.any { it.id == current }
+              modules.any { it.id == current }
             } ?: defaultModuleId,
             selectedSectionId = mutableState.value.selectedSectionId.takeIf { current ->
-              catalog.data.modules.any { module -> module.sections.any { it.id == current } }
-            } ?: defaultSectionId.ifBlank { "daily" },
+              modules.any { module -> module.sections.any { it.id == current } }
+            } ?: defaultSectionId,
           )
-          refreshWorkbench(keepLoading = true)
+          if (modules.isEmpty()) {
+            mutableState.value = mutableState.value.copy(isLoading = false, sectionSnapshot = null)
+          } else {
+            refreshWorkbench(keepLoading = true)
+          }
         }
         is ApiResult.Failure -> loadLegacyGameFeatures(catalog.error.message)
       }
@@ -188,7 +226,10 @@ class GameFeaturesViewModel(
     }
     viewModelScope.launch {
       if (!keepLoading) mutableState.value = mutableState.value.copy(isLoading = true, errorMessage = null)
-      when (val result = repository.getSummary(tokenId)) {
+      val result = runCatching { repository.getSummary(tokenId) }.getOrElse { error ->
+        ApiResult.Failure(ApiError.local(error.message ?: "游戏功能状态加载失败"))
+      }
+      when (result) {
         is ApiResult.Success -> mutableState.value = mutableState.value.copy(
           isLoading = false,
           summary = result.data,
@@ -207,14 +248,26 @@ class GameFeaturesViewModel(
       mutableState.value = mutableState.value.copy(isLoading = false, summary = null, sectionSnapshot = null)
       return
     }
+    val requestVersion = ++workbenchRequestVersion
     viewModelScope.launch {
       if (!keepLoading) mutableState.value = mutableState.value.copy(isLoading = true, errorMessage = null)
-      when (val bootstrap = repository.getWorkbenchBootstrap(tokenId)) {
+      val bootstrap = runCatching { repository.getWorkbenchBootstrap(tokenId) }.getOrElse { error ->
+        ApiResult.Failure(ApiError.local(error.message ?: "游戏工作台加载失败"))
+      }
+      if (requestVersion != workbenchRequestVersion || tokenId != mutableState.value.selectedTokenId) return@launch
+      when (bootstrap) {
         is ApiResult.Success -> {
-          val nextModuleId = bootstrap.data.selectedModuleId.ifBlank { mutableState.value.selectedModuleId }
-          val nextSectionId = bootstrap.data.selectedSectionId.ifBlank { mutableState.value.selectedSectionId }
+          val modules = mutableState.value.workbenchCatalog.modules
+          val nextModuleId = mutableState.value.selectedModuleId.takeIf { id -> modules.any { it.id == id } }
+            ?: bootstrap.data.selectedModuleId.takeIf { id -> modules.any { it.id == id } }
+            ?: modules.firstOrNull { it.id.isNotBlank() }?.id.orEmpty()
+          val module = modules.firstOrNull { it.id == nextModuleId }
+          val nextSectionId = mutableState.value.selectedSectionId.takeIf { id -> module?.sections?.any { it.id == id } == true }
+            ?: bootstrap.data.selectedSectionId.takeIf { id -> module?.sections?.any { it.id == id } == true }
+            ?: module?.defaultSectionId?.takeIf { id -> module.sections.any { it.id == id } }
+            ?: module?.sections?.firstOrNull { it.id.isNotBlank() }?.id.orEmpty()
           mutableState.value = mutableState.value.copy(
-            isLoading = false,
+            isLoading = nextSectionId.isNotBlank(),
             workbenchBootstrap = bootstrap.data,
             selectedModuleId = nextModuleId,
             selectedSectionId = nextSectionId,
@@ -227,7 +280,11 @@ class GameFeaturesViewModel(
               recommendedAction = bootstrap.data.recommendation,
             ),
           )
-          refreshSection()
+          if (nextSectionId.isNotBlank()) {
+            refreshSection()
+          } else {
+            mutableState.value = mutableState.value.copy(isLoading = false, sectionSnapshot = null)
+          }
         }
         is ApiResult.Failure -> refreshSummary(keepLoading = keepLoading)
       }
@@ -238,18 +295,39 @@ class GameFeaturesViewModel(
     val state = mutableState.value
     val tokenId = state.selectedTokenId
     val sectionId = state.selectedSectionId
-    if (tokenId.isBlank() || sectionId.isBlank()) return
+    val selectedModuleId = state.selectedModuleId
+    if (tokenId.isBlank() || sectionId.isBlank()) {
+      mutableState.value = mutableState.value.copy(isLoading = false, sectionSnapshot = null)
+      return
+    }
+    val requestVersion = ++sectionRequestVersion
     viewModelScope.launch {
       mutableState.value = mutableState.value.copy(isLoading = true, errorMessage = null)
-      when (val result = repository.getWorkbenchSection(tokenId, sectionId)) {
-        is ApiResult.Success -> mutableState.value = mutableState.value.copy(
-          isLoading = false,
-          sectionSnapshot = result.data,
-          selectedModuleId = result.data.moduleId,
-          selectedSectionId = result.data.sectionId,
-        )
+      val result = runCatching { repository.getWorkbenchSection(tokenId, sectionId) }.getOrElse { error ->
+        ApiResult.Failure(ApiError.local(error.message ?: "模块数据加载失败"))
+      }
+      if (
+        requestVersion != sectionRequestVersion ||
+        tokenId != mutableState.value.selectedTokenId ||
+        sectionId != mutableState.value.selectedSectionId
+      ) return@launch
+      when (result) {
+        is ApiResult.Success -> {
+          val resultModuleId = result.data.moduleId.ifBlank { selectedModuleId }
+          if (resultModuleId != mutableState.value.selectedModuleId) return@launch
+          mutableState.value = mutableState.value.copy(
+            isLoading = false,
+            sectionSnapshot = result.data.copy(
+              moduleId = resultModuleId,
+              sectionId = result.data.sectionId.ifBlank { sectionId },
+            ),
+            selectedModuleId = resultModuleId,
+            selectedSectionId = result.data.sectionId.ifBlank { sectionId },
+          )
+        }
         is ApiResult.Failure -> mutableState.value = mutableState.value.copy(
           isLoading = false,
+          sectionSnapshot = null,
           errorMessage = result.error.message,
         )
       }
@@ -555,6 +633,10 @@ class BattleReportsViewModel(
     mutableState.value = mutableState.value.copy(
       selectedReportType = reportType,
       queryDate = nextDate,
+      reports = emptyList(),
+      emptyReason = "",
+      businessCode = "",
+      actionMessage = if (nextDate != mutableState.value.queryDate) "已切换到最近比赛日" else mutableState.value.actionMessage,
     )
   }
 
@@ -577,11 +659,13 @@ class BattleReportsViewModel(
             catalog = result.data,
             selectedReportType = firstReportType,
             queryDate = defaultBattleReportDate(firstReportType),
+            emptyReason = "",
+            businessCode = "",
           )
         }
         is ApiResult.Failure -> mutableState.value = mutableState.value.copy(
           isLoading = false,
-          errorMessage = result.error.message,
+          errorMessage = BattleReportErrorMapper.friendlyMessage(result.error),
         )
       }
     }
@@ -600,11 +684,15 @@ class BattleReportsViewModel(
         is ApiResult.Success -> mutableState.value = mutableState.value.copy(
           isLoading = false,
           reports = result.data.reports,
-          actionMessage = "战报已刷新",
+          emptyReason = result.data.emptyReason,
+          businessCode = result.data.businessCode,
+          actionMessage = if (result.data.emptyReason.isBlank()) "战报已刷新" else null,
         )
         is ApiResult.Failure -> mutableState.value = mutableState.value.copy(
           isLoading = false,
-          errorMessage = result.error.message,
+          errorMessage = BattleReportErrorMapper.friendlyMessage(result.error),
+          emptyReason = "",
+          businessCode = "",
         )
       }
     }
@@ -618,14 +706,20 @@ class BattleReportsViewModel(
           isLoading = false,
           parsedReport = result.data.report,
           reports = result.data.report?.let { listOf(it) }.orEmpty(),
+          emptyReason = "",
+          businessCode = "",
           actionMessage = "战报已解析",
         )
         is ApiResult.Failure -> mutableState.value = mutableState.value.copy(
           isLoading = false,
-          errorMessage = result.error.message,
+          errorMessage = BattleReportErrorMapper.friendlyMessage(result.error),
         )
       }
     }
+  }
+
+  fun consumeParsedReport() {
+    mutableState.value = mutableState.value.copy(parsedReport = null)
   }
 
   fun consumeMessage() {

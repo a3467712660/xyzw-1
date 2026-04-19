@@ -39,6 +39,9 @@ const sendSuccess = (res, data, message = undefined) =>
 
 const handleRouteError = (res, error, fallbackMessage) => {
   const normalized = normalizeBattleReportError(error, fallbackMessage);
+  if (normalized.status === 200 && normalized.data) {
+    return sendSuccess(res, normalized.data);
+  }
   return errorResponse(res, normalized.status, normalized.code, normalized.message);
 };
 

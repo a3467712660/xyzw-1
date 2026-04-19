@@ -24,6 +24,48 @@ const BATTLE_REPORT_TYPES = Object.freeze([
 ]);
 
 export const BATTLE_REPORT_TYPE_IDS = BATTLE_REPORT_TYPES.map((item) => item.id);
+export const BATTLE_REPORT_NO_DATA_CODE = "200020";
+export const BATTLE_REPORT_NO_DATA_MESSAGE = "当天暂无战报，可能未参加或战报尚未生成";
+
+export const battleReportNoDataPayload = () => ({
+  reports: [],
+  emptyReason: BATTLE_REPORT_NO_DATA_MESSAGE,
+  businessCode: BATTLE_REPORT_NO_DATA_CODE,
+});
+
+const collectCodeLikeValues = (value, output = [], depth = 0) => {
+  if (depth > 4 || value == null) return output;
+  if (typeof value === "string" || typeof value === "number") {
+    output.push(String(value));
+    return output;
+  }
+  if (Array.isArray(value)) {
+    value.forEach((item) => collectCodeLikeValues(item, output, depth + 1));
+    return output;
+  }
+  if (typeof value === "object") {
+    ["code", "errCode", "errorCode", "businessCode", "status", "message", "hint"].forEach((key) => {
+      if (Object.prototype.hasOwnProperty.call(value, key)) {
+        collectCodeLikeValues(value[key], output, depth + 1);
+      }
+    });
+    collectCodeLikeValues(value.error, output, depth + 1);
+    collectCodeLikeValues(value.payload, output, depth + 1);
+  }
+  return output;
+};
+
+export const isBattleReportNoDataError = (value) => {
+  const values = collectCodeLikeValues(value);
+  if (value?.message) values.push(String(value.message));
+  if (value?.publicMessage) values.push(String(value.publicMessage));
+  return values.some((item) => {
+    const text = String(item || "").trim();
+    return text === BATTLE_REPORT_NO_DATA_CODE ||
+      text === "BATTLE_REPORT_NO_DATA" ||
+      text.includes(BATTLE_REPORT_NO_DATA_CODE);
+  });
+};
 
 const summarizePayload = (payload) => {
   if (!payload || typeof payload !== "object") {
@@ -78,13 +120,24 @@ export const createBattleReportService = ({
     }
     const cmd = reportType === "peach-garden" ? "legion_getpayloadrecord" : "legion_getwarrank";
     const params = reportType === "peach-garden" && date ? { date } : {};
-    const raw = await commandService.executeAllowedCommand({
-      user,
-      tokenId,
-      cmd,
-      params,
-      timeout: 12_000,
-    });
+    let raw;
+    try {
+      raw = await commandService.executeAllowedCommand({
+        user,
+        tokenId,
+        cmd,
+        params,
+        timeout: 12_000,
+      });
+    } catch (error) {
+      if (isBattleReportNoDataError(error)) {
+        return battleReportNoDataPayload();
+      }
+      throw error;
+    }
+    if (isBattleReportNoDataError(raw)) {
+      return battleReportNoDataPayload();
+    }
     const safe = stripSensitiveGamePayload(raw);
     return {
       reports: [
@@ -119,6 +172,14 @@ export const createBattleReportService = ({
 export const battleReportService = createBattleReportService();
 
 export const normalizeBattleReportError = (error, fallbackMessage = "战报处理失败") => {
+  if (isBattleReportNoDataError(error)) {
+    return {
+      status: 200,
+      code: "BATTLE_REPORT_NO_DATA",
+      message: BATTLE_REPORT_NO_DATA_MESSAGE,
+      data: battleReportNoDataPayload(),
+    };
+  }
   if (error?.status) {
     return {
       status: error.status,

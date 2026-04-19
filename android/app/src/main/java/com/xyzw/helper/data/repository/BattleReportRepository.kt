@@ -21,8 +21,28 @@ class BattleReportRepository(
     reportType: String,
     date: String = "",
   ): ApiResult<BattleReportListPayload> =
-    parser.parse(api.queryReports(tokenId, BattleReportQueryRequest(reportType, date)))
+    when (val result = parser.parse(api.queryReports(tokenId, BattleReportQueryRequest(reportType, date)))) {
+      is ApiResult.Success -> {
+        if (BattleReportErrorMapper.isNoData(result.data.businessCode, result.data.emptyReason)) {
+          ApiResult.Success(BattleReportErrorMapper.noDataPayload(), result.message)
+        } else {
+          result
+        }
+      }
+      is ApiResult.Failure -> {
+        if (BattleReportErrorMapper.isNoData(result.error)) {
+          ApiResult.Success(BattleReportErrorMapper.noDataPayload())
+        } else {
+          ApiResult.Failure(result.error.copy(message = BattleReportErrorMapper.friendlyMessage(result.error)))
+        }
+      }
+    }
 
   suspend fun parseReport(rawText: String): ApiResult<BattleReportParsePayload> =
-    parser.parse(api.parseReport(BattleReportParseRequest(rawText)))
+    when (val result = parser.parse(api.parseReport(BattleReportParseRequest(rawText)))) {
+      is ApiResult.Success -> result
+      is ApiResult.Failure -> ApiResult.Failure(
+        result.error.copy(message = BattleReportErrorMapper.friendlyMessage(result.error)),
+      )
+    }
 }

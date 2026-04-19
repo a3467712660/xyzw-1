@@ -5,6 +5,7 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import com.xyzw.helper.data.model.BattleReportCatalog
 import com.xyzw.helper.data.model.BattleReportItem
@@ -33,6 +34,8 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 
 @RunWith(RobolectricTestRunner::class)
 class GameAndBattleScreensSmokeTest {
@@ -124,6 +127,133 @@ class GameAndBattleScreensSmokeTest {
   }
 
   @Test
+  fun `game features empty catalog does not crash`() {
+    composeRule.setContent {
+      XyzwTheme(themeMode = ThemeMode.LIGHT) {
+        GameFeaturesScreenContent(
+          state = GameFeaturesUiState(isLoading = false),
+          onBack = {},
+          onRefresh = {},
+          onRunAction = {},
+        )
+      }
+    }
+
+    composeRule.onNodeWithText("暂无游戏功能").performScrollTo().assertIsDisplayed()
+  }
+
+  @Test
+  fun `game features module without section does not crash`() {
+    composeRule.setContent {
+      XyzwTheme(themeMode = ThemeMode.LIGHT) {
+        GameFeaturesScreenContent(
+          state = GameFeaturesUiState(
+            isLoading = false,
+            workbenchCatalog = GameWorkbenchCatalog(
+              groups = listOf(GameWorkbenchGroup("operations", "运营")),
+              modules = listOf(
+                GameWorkbenchModule(
+                  id = "daily",
+                  label = "日常",
+                  groupId = "operations",
+                  sections = emptyList(),
+                ),
+              ),
+            ),
+            selectedModuleId = "daily",
+            selectedSectionId = "missing",
+          ),
+          onBack = {},
+          onRefresh = {},
+          onRunAction = {},
+        )
+      }
+    }
+
+    composeRule.onNodeWithText("暂无分区数据").performScrollTo().assertIsDisplayed()
+  }
+
+  @Test
+  fun `game features missing selected module does not crash`() {
+    composeRule.setContent {
+      XyzwTheme(themeMode = ThemeMode.LIGHT) {
+        GameFeaturesScreenContent(
+          state = GameFeaturesUiState(
+            isLoading = false,
+            workbenchCatalog = GameWorkbenchCatalog(
+              groups = listOf(GameWorkbenchGroup("operations", "运营")),
+              modules = listOf(
+                GameWorkbenchModule(
+                  id = "daily",
+                  label = "日常",
+                  groupId = "operations",
+                  sections = listOf(GameWorkbenchSection("daily", "日常")),
+                ),
+              ),
+            ),
+            selectedModuleId = "missing",
+            selectedSectionId = "daily",
+          ),
+          onBack = {},
+          onRefresh = {},
+          onRunAction = {},
+        )
+      }
+    }
+
+    composeRule.onNodeWithText("模块不可用").performScrollTo().assertIsDisplayed()
+  }
+
+  @Test
+  fun `game features empty section snapshot does not crash`() {
+    composeRule.setContent {
+      XyzwTheme(themeMode = ThemeMode.LIGHT) {
+        GameFeaturesScreenContent(
+          state = GameFeaturesUiState(
+            isLoading = false,
+            workbenchCatalog = GameWorkbenchCatalog(
+              groups = listOf(GameWorkbenchGroup("operations", "运营")),
+              modules = listOf(
+                GameWorkbenchModule(
+                  id = "daily",
+                  label = "日常",
+                  groupId = "operations",
+                  sections = listOf(GameWorkbenchSection("daily", "日常")),
+                ),
+              ),
+            ),
+            selectedModuleId = "daily",
+            selectedSectionId = "daily",
+            sectionSnapshot = null,
+          ),
+          onBack = {},
+          onRefresh = {},
+          onRunAction = {},
+        )
+      }
+    }
+
+    composeRule.onNodeWithText("暂无模块数据").performScrollTo().assertIsDisplayed()
+  }
+
+  @Test
+  fun `game features backend failure shows error state`() {
+    composeRule.setContent {
+      XyzwTheme(themeMode = ThemeMode.LIGHT) {
+        GameFeaturesScreenContent(
+          state = GameFeaturesUiState(isLoading = false, errorMessage = "服务器异常，请稍后再试"),
+          onBack = {},
+          onRefresh = {},
+          onRunAction = {},
+        )
+      }
+    }
+
+    composeRule.onNodeWithText("加载失败").performScrollTo().assertIsDisplayed()
+    composeRule.onNodeWithText("服务器异常，请稍后再试").performScrollTo().assertIsDisplayed()
+  }
+
+  @Test
   fun `legion war screen shows snapshot`() {
     composeRule.setContent {
       XyzwTheme(themeMode = ThemeMode.LIGHT) {
@@ -194,7 +324,7 @@ class GameAndBattleScreensSmokeTest {
   }
 
   @Test
-  fun `battle reports screen shows list`() {
+  fun `battle reports screen shows compact list`() {
     composeRule.setContent {
       XyzwTheme(themeMode = ThemeMode.LIGHT) {
         BattleReportsScreenContent(
@@ -220,28 +350,75 @@ class GameAndBattleScreensSmokeTest {
         )
       }
     }
-    composeRule.onNodeWithText("Report Center").performScrollTo().assertIsDisplayed()
-    composeRule.onAllNodesWithText("盐场战报").assertCountEquals(4)
-    composeRule.onNodeWithText("匹配详情卡").performScrollTo().assertIsDisplayed()
-    composeRule.onNodeWithText("军团战摘要").performScrollTo().assertIsDisplayed()
-    composeRule.onNodeWithText("蟠桃概览卡").performScrollTo().assertIsDisplayed()
-    composeRule.onNodeWithText("选择日期：2026/04/18").performScrollTo().assertIsDisplayed()
-    composeRule.onAllNodesWithText("日期，例如 2026-04-19").assertCountEquals(0)
     composeRule.onAllNodesWithText("战报").assertCountEquals(2)
-    composeRule.onNodeWithText("查看详情").performScrollTo().assertIsDisplayed()
+    composeRule.onAllNodesWithText("盐场").assertCountEquals(2)
+    composeRule.onNodeWithText("蟠桃园").assertIsDisplayed()
+    composeRule.onNodeWithText("选择日期：2026/04/18").performScrollTo().assertIsDisplayed()
+    composeRule.onNodeWithText("查看").performScrollTo().assertIsDisplayed()
+    composeRule.onNodeWithText("粘贴解析").performScrollTo().assertIsDisplayed()
+    composeRule.onAllNodesWithText("Report Center").assertCountEquals(0)
+    composeRule.onAllNodesWithText("战报专属卡片").assertCountEquals(0)
   }
 
   @Test
-  fun `battle report detail screen shows summary`() {
+  fun `battle reports 200020 shows empty state without raw code error`() {
+    composeRule.setContent {
+      XyzwTheme(themeMode = ThemeMode.LIGHT) {
+        BattleReportsScreenContent(
+          state = BattleReportsUiState(
+            selectedReportType = "peach-garden",
+            queryDate = "2026/04/19",
+            emptyReason = "当天暂无战报，可能未参加或战报尚未生成",
+            businessCode = "200020",
+            isLoading = false,
+          ),
+          onBack = {},
+          onRefresh = {},
+          onQuery = {},
+          onParse = {},
+          onOpenDetail = {},
+        )
+      }
+    }
+
+    composeRule.onNodeWithText("当天暂无战报，可能未参加或战报尚未生成").performScrollTo().assertIsDisplayed()
+    composeRule.onNodeWithText("可尝试切换到最近比赛日").performScrollTo().assertIsDisplayed()
+    composeRule.onAllNodesWithText("加载失败").assertCountEquals(0)
+    composeRule.onAllNodesWithText("200020").assertCountEquals(0)
+  }
+
+  @Test
+  fun `battle report detail screen shows peach garden visual card and hides raw json by default`() {
     composeRule.setContent {
       XyzwTheme(themeMode = ThemeMode.LIGHT) {
         BattleReportDetailScreen(
-          report = BattleReportItem(id = "r-1", reportType = "salt-field", title = "战报", summary = "胜利"),
+          report = BattleReportItem(
+            id = "r-1",
+            reportType = "peach-garden",
+            title = "蟠桃园战报",
+            summary = "胜利",
+            detail = JsonObject(
+              mapOf(
+                "isWin" to JsonPrimitive(true),
+                "score" to JsonPrimitive(1200),
+                "player" to JsonPrimitive("Alice"),
+                "enemy" to JsonPrimitive("Bob"),
+                "debugOnly" to JsonPrimitive("hidden-until-expanded"),
+              ),
+            ),
+          ),
           onBack = {},
         )
       }
     }
     composeRule.onNodeWithText("战报详情").assertIsDisplayed()
-    composeRule.onNodeWithText("胜利").assertIsDisplayed()
+    composeRule.onNodeWithText("蟠桃园战报").performScrollTo().assertIsDisplayed()
+    composeRule.onNodeWithText("后端未返回图像，仅提供结构化数据，已转为原生战报卡").performScrollTo().assertIsDisplayed()
+    composeRule.onNodeWithText("我方").performScrollTo().assertIsDisplayed()
+    composeRule.onNodeWithText("Alice").performScrollTo().assertIsDisplayed()
+    composeRule.onAllNodesWithText("hidden-until-expanded").assertCountEquals(0)
+    composeRule.onNodeWithText("查看原始数据").performScrollTo().performClick()
+    composeRule.onNodeWithText("原始数据").performScrollTo().assertIsDisplayed()
+    composeRule.onNodeWithText("hidden-until-expanded").performScrollTo().assertIsDisplayed()
   }
 }

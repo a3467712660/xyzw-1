@@ -17,6 +17,7 @@ import java.util.concurrent.TimeUnit
 object NetworkFactory {
   val json = Json {
     ignoreUnknownKeys = true
+    coerceInputValues = true
     explicitNulls = false
     isLenient = true
   }
