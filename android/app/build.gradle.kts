@@ -1,3 +1,4 @@
+import java.net.URI
 import java.util.Properties
 
 plugins {
@@ -14,11 +15,49 @@ val localProperties = Properties().apply {
   }
 }
 
-val configuredApiBaseUrl = providers.gradleProperty("API_BASE_URL").orNull
-  ?: localProperties.getProperty("API_BASE_URL").orEmpty()
+fun resolveGradleProperty(vararg names: String): String =
+  names.firstNotNullOfOrNull { name ->
+    providers.gradleProperty(name).orNull?.trim()?.takeIf { it.isNotEmpty() }
+  }.orEmpty()
+
+fun resolveLocalProperty(vararg names: String): String =
+  names.firstNotNullOfOrNull { name ->
+    localProperties.getProperty(name)?.trim()?.takeIf { it.isNotEmpty() }
+  }.orEmpty()
+
+fun extractHttpsOriginOrNull(value: String): String? {
+  val rawValue = value.trim().trimEnd('/')
+  if (rawValue.isBlank()) {
+    return null
+  }
+  val uri = runCatching { URI(rawValue) }.getOrNull() ?: return null
+  val scheme = uri.scheme?.lowercase() ?: return null
+  val host = uri.host ?: return null
+  if (scheme != "https") {
+    return null
+  }
+  val port = uri.port
+  return if (port == -1 || port == 443) {
+    "$scheme://$host"
+  } else {
+    "$scheme://$host:$port"
+  }
+}
+
+fun toBuildConfigString(value: String): String =
+  "\"${value.replace("\\", "\\\\").replace("\"", "\\\"")}\""
+
+val configuredApiBaseUrl = resolveGradleProperty("API_BASE_URL")
+  .ifBlank { resolveLocalProperty("API_BASE_URL") }
+val configuredWsOrigin = resolveGradleProperty("wsOrigin", "WS_ORIGIN")
+  .ifBlank { resolveLocalProperty("wsOrigin", "WS_ORIGIN") }
 
 val debugApiBaseUrl = configuredApiBaseUrl.ifBlank { "http://10.0.2.2:8787" }
 val releaseApiBaseUrl = configuredApiBaseUrl.ifBlank { "https://example.invalid" }
+val debugWsOrigin = configuredWsOrigin.ifBlank { "http://localhost:3000" }
+val releaseWsOrigin = extractHttpsOriginOrNull(configuredWsOrigin)
+  ?: extractHttpsOriginOrNull(releaseApiBaseUrl)
+  ?: "https://example.invalid"
 
 android {
   namespace = "com.xyzw.helper"
@@ -38,8 +77,9 @@ android {
     debug {
       applicationIdSuffix = ".debug"
       versionNameSuffix = "-debug"
-      buildConfigField("String", "DEFAULT_API_BASE_URL", "\"$debugApiBaseUrl\"")
+      buildConfigField("String", "DEFAULT_API_BASE_URL", toBuildConfigString(debugApiBaseUrl))
       buildConfigField("String", "DEFAULT_WS_PATH", "\"/ws\"")
+      buildConfigField("String", "DEFAULT_WS_ORIGIN", toBuildConfigString(debugWsOrigin))
     }
     release {
       isMinifyEnabled = false
@@ -47,8 +87,9 @@ android {
         getDefaultProguardFile("proguard-android-optimize.txt"),
         "proguard-rules.pro",
       )
-      buildConfigField("String", "DEFAULT_API_BASE_URL", "\"$releaseApiBaseUrl\"")
+      buildConfigField("String", "DEFAULT_API_BASE_URL", toBuildConfigString(releaseApiBaseUrl))
       buildConfigField("String", "DEFAULT_WS_PATH", "\"/ws\"")
+      buildConfigField("String", "DEFAULT_WS_ORIGIN", toBuildConfigString(releaseWsOrigin))
     }
   }
 

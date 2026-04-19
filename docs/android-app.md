@@ -28,6 +28,33 @@ cd android
 ./gradlew assembleRelease -PAPI_BASE_URL=https://your-domain.example
 ```
 
+## WS_ORIGIN 配置
+
+Android 原生 `/ws` 握手现在会显式发送 `Origin` header。
+
+`DEFAULT_WS_ORIGIN` 的构建时优先级如下：
+
+1. `-PwsOrigin=...`
+2. `-PWS_ORIGIN=...`
+3. `local.properties` 中的 `wsOrigin=...`
+4. `local.properties` 中的 `WS_ORIGIN=...`
+5. build type 默认值
+
+构建示例：
+
+```bash
+cd android
+./gradlew assembleDebug -PAPI_BASE_URL=http://10.0.2.2:8787 -PwsOrigin=http://localhost:3000
+./gradlew assembleRelease -PAPI_BASE_URL=https://your-domain.example -PwsOrigin=https://app.example.com
+```
+
+约束：
+
+- Android `/ws` 的 `Origin` 必须位于后端 `CORS_ORIGINS` allowlist 中
+- Debug 推荐使用 `http://localhost:3000`
+- Release 必须使用 HTTPS Origin，且必须与生产环境 `CORS_ORIGINS` 保持一致
+- Release 默认不会回退到 `http://10.0.2.2` 这类 loopback HTTP Origin
+
 应用启动时会把默认值写入 DataStore：
 
 - `api_base_url`
@@ -40,6 +67,7 @@ cd android
 WebSocket 实际访问的是：
 
 - `${API_BASE_URL}` 同源下的 `/ws`
+- 握手请求会额外带上构建时注入的 `Origin: ${DEFAULT_WS_ORIGIN}`
 
 ## Debug / Release 约束
 
@@ -107,13 +135,14 @@ Android 端已提供 `WsSessionManager` 基础设施，复用同一个 OkHttpCli
 
 - URL：`/ws`
 - 握手 Cookie 由同一个 `CookieJar` 自动带上
-- 原生客户端默认不主动设置 `Origin`
+- 若 `DEFAULT_WS_ORIGIN` 非空，握手会显式设置 `Origin`
 
 因此后端需要满足：
 
-- 浏览器场景仍然必须带合法 `Origin`，并继续受 `CORS_ORIGINS` 白名单约束
-- 无 `Origin` 的非浏览器客户端仅在携带 access cookie 时才允许握手
-- 无 `Origin` + Bearer-only 的握手不作为 Android 正式认证方案，服务端会拒绝
+- Android 构建配置出来的 `Origin` 必须位于 `CORS_ORIGINS` 白名单中
+- Debug 推荐配置为本地前端开发地址 `http://localhost:3000`
+- Release 必须配置为生产 HTTPS Origin，不能使用 `http://10.0.2.2`
+- 无 `Origin` + Bearer-only 的握手不作为 Android 正式认证方案
 - Android 正式方案仍是登录后复用 access cookie 进行 WS 握手
 
 ## 本地构建

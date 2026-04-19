@@ -96,7 +96,12 @@ class AppContainer(
   private val feedbackApi = retrofit.create<FeedbackApi>()
   private val adminApi = retrofit.create<AdminApi>()
   private val tokenManagementApi = retrofit.create<TokenManagementApi>()
-  val wsSessionManager = WsSessionManager(mainClient, serverBaseUrl, BuildConfig.DEFAULT_WS_PATH)
+  val wsSessionManager = WsSessionManager(
+    client = mainClient,
+    serverBaseUrl = serverBaseUrl,
+    wsPath = BuildConfig.DEFAULT_WS_PATH,
+    wsOrigin = BuildConfig.DEFAULT_WS_ORIGIN,
+  )
   val realtimeCoordinator = RealtimeCoordinator(
     sessionManager = sessionManager,
     wsSessionManager = wsSessionManager,

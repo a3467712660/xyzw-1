@@ -1,6 +1,7 @@
 package com.xyzw.helper.data.network
 
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
+import com.xyzw.helper.BuildConfig
 import com.xyzw.helper.data.session.SecureCookieJar
 import com.xyzw.helper.data.session.SessionManager
 import kotlinx.serialization.json.Json
@@ -46,13 +47,18 @@ object NetworkFactory {
     refreshClient: OkHttpClient,
     dispatcher: Dispatcher? = null,
   ): OkHttpClient {
-    val loggingInterceptor = HttpLoggingInterceptor().apply {
-      level = HttpLoggingInterceptor.Level.BASIC
-    }
     return OkHttpClient.Builder()
       .cookieJar(cookieJar)
       .addInterceptor(CsrfInterceptor(cookieJar))
-      .addInterceptor(loggingInterceptor)
+      .apply {
+        if (BuildConfig.DEBUG) {
+          addInterceptor(
+            HttpLoggingInterceptor().apply {
+              level = HttpLoggingInterceptor.Level.BASIC
+            },
+          )
+        }
+      }
       .authenticator(
         SessionAuthenticator(
           baseUrl = baseUrl,

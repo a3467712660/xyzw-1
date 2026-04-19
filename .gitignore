@@ -100,6 +100,7 @@ server/__pycache__/
 !.github/workflows/codeql.yml
 !.github/workflows/dependency-review.yml
 !.github/workflows/sbom.yml
+!.github/workflows/android.yml
 *.bat
 *.exe
 node_modules/

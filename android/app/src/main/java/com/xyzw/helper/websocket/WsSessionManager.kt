@@ -13,20 +13,33 @@ class WsSessionManager(
   private val client: OkHttpClient,
   private val serverBaseUrl: String,
   private val wsPath: String,
+  private val wsOrigin: String,
 ) {
   fun connect(listener: WebSocketListener): WebSocket =
     client.newWebSocket(createRequest(), listener)
 
-  fun createRequest(): Request {
+  fun createWebSocketUrl(): String {
     val baseUrl = serverBaseUrl.trim().trimEnd('/').toHttpUrl()
     val wsScheme = if (baseUrl.isHttps) "wss" else "ws"
-    val wsUrl = baseUrl.newBuilder()
-      .scheme(wsScheme)
-      .encodedPath(wsPath)
-      .query(null)
-      .build()
+    val normalizedPath = if (wsPath.startsWith("/")) wsPath else "/$wsPath"
+    val defaultPort = if (baseUrl.isHttps) 443 else 80
+    val portSuffix = when {
+      baseUrl.port == defaultPort -> ""
+      else -> ":${baseUrl.port}"
+    }
+    return "$wsScheme://${baseUrl.host}$portSuffix$normalizedPath"
+  }
+
+  fun createRequest(): Request {
+    val wsUrl = createWebSocketUrl()
     return Request.Builder()
       .url(wsUrl)
+      .apply {
+        val normalizedOrigin = wsOrigin.trim().trimEnd('/')
+        if (normalizedOrigin.isNotEmpty()) {
+          header("Origin", normalizedOrigin)
+        }
+      }
       .build()
   }
 
