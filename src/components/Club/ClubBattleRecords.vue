@@ -211,6 +211,7 @@ import {
 import {
   getClubBattleTopRows,
   normalizeClubBattleRows,
+  sortClubBattleRowsByKd,
 } from "@/components/Club/records/useClubBattleRecordRows.js";
 import api from "@/api";
 import { useTokenStore } from "@/stores/tokenStore";
@@ -269,7 +270,7 @@ const formatExportDateTime = (date = new Date()) => {
 };
 
 const playerRows = computed(() => {
-  return normalizeClubBattleRows(battleRecords.value?.roleDetailsList || [], {
+  return sortClubBattleRowsByKd(normalizeClubBattleRows(battleRecords.value?.roleDetailsList || [], {
     extraGetter: (member) => ({
       buildingCnt: member.buildingCnt || 0,
       headImg: member.headImg || "",
@@ -280,7 +281,7 @@ const playerRows = computed(() => {
     }),
     killGetter: (member) => member.winCnt || 0,
     occupyGetter: (member) => member.buildingCnt || 0,
-  });
+  }));
 });
 
 // 计算属性：总击杀
@@ -710,7 +711,7 @@ const buildSaltBattleReportExportPayload = async (exportedAt) => {
     sections: [
       {
         title: `${clubName} 盐场战报明细`,
-        subtitle: `按击杀数排序 · 共 ${rows.length} 人`,
+        subtitle: `按 K/D 排序 · 共 ${rows.length} 人`,
         tone: "salt",
         layout: "tactical",
         statusLabel: "总 K/D",

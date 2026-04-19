@@ -406,6 +406,77 @@ test("battle report routes support query and reject invalid parse payloads", asy
   assert.equal(exportImageBody.includes(Buffer.from("cookie")), false);
   assert.equal(exportImageBody.includes(Buffer.from("password")), false);
 
+  const peachRows = [
+    {
+      index: 1,
+      name: "我方成员甲",
+      roleId: "300001",
+      avatarText: "甲",
+      killText: "20",
+      metric2Text: "4",
+      metric3Text: "8",
+      kdText: "5.00",
+      noteText: "3",
+    },
+    {
+      index: 2,
+      name: "我方成员乙",
+      roleId: "300002",
+      avatarText: "乙",
+      killText: "10",
+      metric2Text: "6",
+      metric3Text: "2",
+      kdText: "1.67",
+      noteText: "1",
+    },
+  ];
+  const peachSection = (title, tone) => ({
+    title,
+    subtitle: `${tone === "own" ? "我方" : "敌方"}战绩 · 共 2 人`,
+    tone,
+    metric2Label: "复活",
+    metric3Label: "连杀",
+    stats: [
+      { label: "总 K/D", value: "3.00" },
+      { label: "总击杀", value: "30" },
+      { label: "总复活", value: "10" },
+      { label: "人均击杀", value: "15.0" },
+    ],
+    rankPanels: [
+      {
+        key: "kill",
+        title: "击杀 Top3",
+        items: peachRows.map((row) => ({ name: row.name, value: row.killText })),
+      },
+      {
+        key: "kd",
+        title: "KD Top3",
+        items: peachRows.map((row) => ({ name: row.name, value: row.kdText })),
+      },
+    ],
+    rows: peachRows,
+  });
+  const peachExport = await fetch(exportUrl, {
+    method: "POST",
+    headers: authHeaders({ userId, username }),
+    body: JSON.stringify(createBattleReportExportPayload({
+      reportType: "peach-garden",
+      title: "测试蟠桃园战报",
+      subtitle: "我方俱乐部 VS 敌方俱乐部",
+      badgeLabel: "对战双方",
+      badgeValue: "2 队",
+      sections: [
+        peachSection("我方俱乐部", "own"),
+        peachSection("敌方俱乐部", "opponent"),
+      ],
+    })),
+  });
+  assert.equal(peachExport.status, 200);
+  assert.equal(peachExport.headers.get("content-type"), "image/png");
+  const peachExportBody = Buffer.from(await peachExport.arrayBuffer());
+  assert.equal(peachExportBody.subarray(0, 8).toString("hex"), "89504e470d0a1a0a");
+  assert.equal(peachExportBody.readUInt32BE(16), 1200);
+
   const tooManyRows = Array.from({ length: 221 }, (_, index) => ({
     index: index + 1,
     name: `成员${index + 1}`,

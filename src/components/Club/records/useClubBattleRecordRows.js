@@ -81,3 +81,18 @@ export const getClubBattleTopRows = (
     })
     .slice(0, limit);
 };
+
+export const sortClubBattleRowsByKd = (rows = []) =>
+  [...rows]
+    .sort((left, right) => {
+      const leftValue = toNumber(left?.kd);
+      const rightValue = toNumber(right?.kd);
+      if (leftValue === rightValue) {
+        return (left?.rank || 0) - (right?.rank || 0);
+      }
+      return rightValue - leftValue;
+    })
+    .map((row, index) => ({
+      ...row,
+      rank: index + 1,
+    }));

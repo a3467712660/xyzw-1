@@ -330,6 +330,7 @@ import {
 import {
   getClubBattleTopRows,
   normalizeClubBattleRows,
+  sortClubBattleRowsByKd,
 } from "@/components/Club/records/useClubBattleRecordRows.js";
 import api from "@/api";
 import { useTokenStore } from "@/stores/tokenStore";
@@ -551,14 +552,14 @@ const sortedMembers = computed(() => {
     }
   });
 
-  // 按击杀数排序
+  // 先按击杀数稳定汇总，最终战报排名由 monthlyPlayerRows 按 K/D 重排
   return Object.values(memberStats).sort(
     (a, b) => b.totalWinCnt - a.totalWinCnt,
   );
 });
 
 const monthlyPlayerRows = computed(() =>
-  normalizeClubBattleRows(sortedMembers.value, {
+  sortClubBattleRowsByKd(normalizeClubBattleRows(sortedMembers.value, {
     deathGetter: (member) => member.totalLoseCnt || 0,
     extraGetter: (member) => ({
       dailyRecords: member.dailyRecords || {},
@@ -573,7 +574,7 @@ const monthlyPlayerRows = computed(() =>
     killGetter: (member) => member.totalWinCnt || 0,
     occupyGetter: (member) => member.totalBuildingCnt || 0,
     reviveGetter: (member) => member.totalResurrection || 0,
-  }),
+  })),
 );
 
 // Style 1 & 2 Support Logic

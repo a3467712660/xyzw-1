@@ -17,6 +17,15 @@ const TABLE_HEADER_HEIGHT = 44;
 const ROW_HEIGHT = 50;
 const WARRANK_ROW_HEIGHT = 78;
 const TACTICAL_ROW_HEIGHT = 48;
+const PEACH_STYLE2_COLUMN_GAP = 16;
+const PEACH_STYLE2_COLUMN_WIDTH = (TABLE_WIDTH - PEACH_STYLE2_COLUMN_GAP) / 2;
+const PEACH_STYLE2_COLUMN_PADDING = 16;
+const PEACH_STYLE2_INNER_WIDTH = PEACH_STYLE2_COLUMN_WIDTH - PEACH_STYLE2_COLUMN_PADDING * 2;
+const PEACH_STYLE2_HEADER_HEIGHT = 62;
+const PEACH_STYLE2_STAT_HEIGHT = 54;
+const PEACH_STYLE2_RANK_CARD_HEIGHT = 98;
+const PEACH_STYLE2_TABLE_HEADER_HEIGHT = 36;
+const PEACH_STYLE2_ROW_HEIGHT = 40;
 const BOTTOM_PADDING = 34;
 const AVATAR_FETCH_TIMEOUT_MS = 1500;
 const AVATAR_MAX_BYTES = 180 * 1024;
@@ -52,6 +61,11 @@ const TONE_COLORS = Object.freeze({
   opponent: { accent: "#dc2626", bg: "#fff1f2", fg: "#be123c", soft: "#ffe4e6" },
   own: { accent: "#059669", bg: "#ecfdf5", fg: "#047857", soft: "#d1fae5" },
   salt: { accent: "#f97316", bg: "#fff7ed", fg: "#c2410c", soft: "#fed7aa" },
+});
+
+const PEACH_STYLE2_TONES = Object.freeze({
+  opponent: { accent: "#e53935", bg: "#fff1f2", fg: "#b91c1c", soft: "#fecaca" },
+  own: { accent: "#4285f4", bg: "#eff6ff", fg: "#1d4ed8", soft: "#bfdbfe" },
 });
 
 const svgEscape = (value) =>
@@ -141,6 +155,11 @@ const textAnchor = (align) => {
   if (align === "right") return "end";
   if (align === "center") return "middle";
   return "start";
+};
+
+const parseExportNumber = (value) => {
+  const parsed = Number(String(value ?? "").replace(/[^\d.-]/g, ""));
+  return Number.isFinite(parsed) ? parsed : 0;
 };
 
 const cellTextX = (x, width, align) => {
@@ -330,6 +349,7 @@ const renderHeader = ({
   exportedAt,
   reportDate,
   sectionCount,
+  showBadge = true,
   subtitle,
   title,
 }) => `
@@ -338,9 +358,13 @@ const renderHeader = ({
   <text x="58" y="64" fill="#0f172a" font-size="30" font-weight="850">${svgEscape(truncateText(title, 34, "战报导出"))}</text>
   <text x="58" y="92" fill="#475569" font-size="15">${svgEscape(truncateText(subtitle, 60, "战报详情"))}</text>
   <text x="58" y="119" fill="#64748b" font-size="13">战报日期：${svgEscape(truncateText(reportDate, 24))} · 导出时间：${svgEscape(truncateText(exportedAt, 32))}</text>
-  <rect x="924" y="48" width="198" height="46" rx="14" fill="#fff7ed" stroke="#fed7aa" />
-  <text x="1023" y="68" text-anchor="middle" fill="#9a3412" font-size="13" font-weight="700">${svgEscape(truncateText(badgeLabel, 8, "报表分组"))}</text>
-  <text x="1023" y="88" text-anchor="middle" fill="#0f172a" font-size="20" font-weight="850">${svgEscape(truncateText(badgeValue, 8, `${sectionCount} 组`))}</text>
+  ${showBadge
+    ? `
+      <rect x="924" y="48" width="198" height="46" rx="14" fill="#fff7ed" stroke="#fed7aa" />
+      <text x="1023" y="68" text-anchor="middle" fill="#9a3412" font-size="13" font-weight="700">${svgEscape(truncateText(badgeLabel, 8, "报表分组"))}</text>
+      <text x="1023" y="88" text-anchor="middle" fill="#0f172a" font-size="20" font-weight="850">${svgEscape(truncateText(badgeValue, 8, `${sectionCount} 组`))}</text>
+    `
+    : ""}
 `;
 
 const renderStats = ({ y, stats }) => {
@@ -835,6 +859,244 @@ const renderTacticalSection = ({ section, y, index }) => {
   };
 };
 
+const peachStyle2Tone = (tone) =>
+  PEACH_STYLE2_TONES[tone] || PEACH_STYLE2_TONES.own;
+
+const renderPeachStyle2Header = ({ color, section, width, x, y }) => `
+  <rect x="${x}" y="${y}" width="${width}" height="${PEACH_STYLE2_HEADER_HEIGHT}" rx="16" fill="#ffffff" stroke="#dbe7fb" />
+  <rect x="${x}" y="${y}" width="${width}" height="5" rx="2.5" fill="${color.accent}" />
+  <circle cx="${x + 35}" cy="${y + 33}" r="18" fill="${color.bg}" stroke="${color.soft}" />
+  <path d="M${x + 27} ${y + 27} h16 v7 c0 5 -4 9 -8 9 s-8 -4 -8 -9z" fill="${color.accent}" fill-opacity="0.9" />
+  <path d="M${x + 30} ${y + 44} h10 v4 h-10z" fill="${color.accent}" fill-opacity="0.9" />
+  <text x="${x + 64}" y="${y + 29}" fill="#0f172a" font-size="18" font-weight="850">${svgEscape(truncateText(section.title, 18, "俱乐部"))}</text>
+  <text x="${x + 64}" y="${y + 50}" fill="#64748b" font-size="12" font-weight="700">${svgEscape(truncateText(section.subtitle, 30, ""))}</text>
+`;
+
+const renderPeachStyle2Stats = ({ color, stats, width, x, y }) => {
+  const safeStats = (stats || []).slice(0, 4);
+  const gap = 10;
+  const cardWidth = (width - gap) / 2;
+  return safeStats.map((stat, index) => {
+    const row = Math.floor(index / 2);
+    const col = index % 2;
+    const cardX = x + col * (cardWidth + gap);
+    const cardY = y + row * (PEACH_STYLE2_STAT_HEIGHT + gap);
+    return `
+      <rect x="${cardX}" y="${cardY}" width="${cardWidth}" height="${PEACH_STYLE2_STAT_HEIGHT}" rx="12" fill="#f8fafc" stroke="#e2e8f0" />
+      <rect x="${cardX}" y="${cardY}" width="5" height="${PEACH_STYLE2_STAT_HEIGHT}" rx="2.5" fill="${color.accent}" fill-opacity="0.88" />
+      <text x="${cardX + 16}" y="${cardY + 21}" fill="#64748b" font-size="11" font-weight="760">${svgEscape(truncateText(stat.label, 10, "指标"))}</text>
+      <text x="${cardX + 16}" y="${cardY + 43}" fill="#0f172a" font-size="18" font-weight="850">${svgEscape(truncateText(stat.value, 12, "0"))}</text>
+    `;
+  }).join("");
+};
+
+const renderPeachStyle2RankPanels = ({ color, panels, width, x, y }) => {
+  const safePanels = (panels || []).slice(0, 4);
+  const gap = 10;
+  const cardWidth = (width - gap) / 2;
+  return safePanels.map((panel, index) => {
+    const row = Math.floor(index / 2);
+    const col = index % 2;
+    const cardX = x + col * (cardWidth + gap);
+    const cardY = y + row * (PEACH_STYLE2_RANK_CARD_HEIGHT + gap);
+    const items = (panel.items || []).slice(0, 3);
+    return `
+      <g>
+        <rect x="${cardX}" y="${cardY}" width="${cardWidth}" height="${PEACH_STYLE2_RANK_CARD_HEIGHT}" rx="12" fill="#ffffff" stroke="#dbe7fb" />
+        <rect x="${cardX}" y="${cardY}" width="${cardWidth}" height="30" rx="12" fill="${color.accent}" />
+        <rect x="${cardX}" y="${cardY + 18}" width="${cardWidth}" height="12" fill="${color.accent}" />
+        <text x="${cardX + cardWidth / 2}" y="${cardY + 21}" text-anchor="middle" fill="#ffffff" font-size="12" font-weight="850">${svgEscape(truncateText(panel.title, 12, "Top3"))}</text>
+        ${items.map((item, itemIndex) => {
+          const itemY = cardY + 48 + itemIndex * 16;
+          return `
+            <text x="${cardX + 12}" y="${itemY}" fill="${color.fg}" font-size="11" font-weight="850">0${itemIndex + 1}</text>
+            <text x="${cardX + 38}" y="${itemY}" fill="#334155" font-size="12" font-weight="760">${svgEscape(truncateText(item.name, 8, "未知成员"))}</text>
+            <text x="${cardX + cardWidth - 12}" y="${itemY}" text-anchor="end" fill="#0f172a" font-size="12" font-weight="850">${svgEscape(truncateText(item.value, 8, "0"))}</text>
+          `;
+        }).join("")}
+      </g>
+    `;
+  }).join("");
+};
+
+const PEACH_STYLE2_TABLE_COLUMNS = [
+  { key: "index", label: "排名", width: 42, align: "center" },
+  { key: "name", label: "成员", width: 150, align: "left" },
+  { key: "killText", label: "击杀", width: 98, align: "right" },
+  { key: "metric3Text", label: "连杀", width: 58, align: "right" },
+  { key: "noteText", label: "抢船", width: 58, align: "right" },
+  { key: "metric2Text", label: "复活", width: 58, align: "right" },
+  { key: "kdText", label: "K/D", width: 56, align: "right" },
+];
+
+const renderPeachStyle2Table = ({ color, maxKill, rows, sectionIndex, width, x, y }) => {
+  let headerX = x;
+  const headerCells = PEACH_STYLE2_TABLE_COLUMNS.map((column) => {
+    const cell = `
+      <rect x="${headerX}" y="${y}" width="${column.width}" height="${PEACH_STYLE2_TABLE_HEADER_HEIGHT}" fill="${color.accent}" />
+      <text x="${cellTextX(headerX, column.width, column.align)}" y="${y + 24}" text-anchor="${textAnchor(column.align)}" fill="#ffffff" font-size="11" font-weight="850">${svgEscape(column.label)}</text>
+    `;
+    headerX += column.width;
+    return cell;
+  }).join("");
+  const bodyY = y + PEACH_STYLE2_TABLE_HEADER_HEIGHT;
+  const bodyHeight = Math.max(1, rows.length) * PEACH_STYLE2_ROW_HEIGHT;
+  const bodyRows = rows.length
+    ? rows.map((row, rowIndex) => {
+        const rowY = bodyY + rowIndex * PEACH_STYLE2_ROW_HEIGHT;
+        let cellX = x;
+        const cells = PEACH_STYLE2_TABLE_COLUMNS.map((column) => {
+          const fill = rowIndex % 2 === 0 ? "#ffffff" : "#fbfdff";
+          let content = "";
+          if (column.key === "index") {
+            const rank = rowIndex < 3 ? `${rowIndex + 1}` : row.index;
+            content = `
+            <rect x="${cellX + column.width / 2 - 14}" y="${rowY + 10}" width="28" height="20" rx="10" fill="${rowIndex < 3 ? "#fff7ed" : "#f8fafc"}" stroke="${rowIndex < 3 ? "#fed7aa" : "#e2e8f0"}" />
+            <text x="${cellX + column.width / 2}" y="${rowY + 24}" text-anchor="middle" fill="${rowIndex < 3 ? "#c2410c" : "#64748b"}" font-size="11" font-weight="850">${svgEscape(truncateText(rank, 4, "0"))}</text>
+          `;
+          } else if (column.key === "name") {
+            content = `
+            ${renderTacticalAvatar({
+              row,
+              x: cellX + 18,
+              y: rowY + 20,
+              rowIndex,
+              sectionIndex,
+            })}
+            <text x="${cellX + 40}" y="${rowY + 25}" fill="#0f172a" font-size="12" font-weight="800">${svgEscape(truncateText(row.name, 10, "未知成员"))}</text>
+          `;
+          } else if (column.key === "killText") {
+            const killValue = parseExportNumber(row.killText);
+            const percent = maxKill > 0 ? Math.min(1, killValue / maxKill) : 0;
+            const barWidth = 48;
+            content = `
+            <text x="${cellX + 28}" y="${rowY + 25}" text-anchor="end" fill="#dc2626" font-size="12" font-weight="850">${svgEscape(truncateText(row.killText, 6, "0"))}</text>
+            <rect x="${cellX + 36}" y="${rowY + 17}" width="${barWidth}" height="5" rx="2.5" fill="#fee2e2" />
+            <rect x="${cellX + 36}" y="${rowY + 17}" width="${Math.max(3, barWidth * percent)}" height="5" rx="2.5" fill="#ef4444" />
+          `;
+          } else {
+            const fillColor = column.key === "kdText" ? "#16a34a" : "#334155";
+            content = `<text x="${cellTextX(cellX, column.width, column.align)}" y="${rowY + 25}" text-anchor="${textAnchor(column.align)}" fill="${fillColor}" font-size="12" font-weight="800">${svgEscape(truncateText(row[column.key], 6, "0"))}</text>`;
+          }
+          const cell = `
+          <rect x="${cellX}" y="${rowY}" width="${column.width}" height="${PEACH_STYLE2_ROW_HEIGHT}" fill="${fill}" fill-opacity="0.97" />
+          <line x1="${cellX}" y1="${rowY + PEACH_STYLE2_ROW_HEIGHT}" x2="${cellX + column.width}" y2="${rowY + PEACH_STYLE2_ROW_HEIGHT}" stroke="#eef2f7" />
+          ${content}
+        `;
+          cellX += column.width;
+          return cell;
+        }).join("");
+        return `<g>${cells}</g>`;
+      }).join("")
+    : `<text x="${x + width / 2}" y="${bodyY + 28}" text-anchor="middle" fill="#94a3b8" font-size="13">暂无战绩数据</text>`;
+  const clipId = `peachStyle2TableClip${sectionIndex}_${Math.round(y)}`;
+  return `
+    <rect x="${x}" y="${y}" width="${width}" height="${PEACH_STYLE2_TABLE_HEADER_HEIGHT + bodyHeight}" rx="13" fill="#ffffff" stroke="#dbe7fb" />
+    <clipPath id="${clipId}">
+      <rect x="${x}" y="${y}" width="${width}" height="${PEACH_STYLE2_TABLE_HEADER_HEIGHT + bodyHeight}" rx="13" />
+    </clipPath>
+    <g clip-path="url(#${clipId})">
+      ${headerCells}
+      ${bodyRows}
+    </g>
+  `;
+};
+
+const renderPeachStyle2Column = ({ section, x, y, index }) => {
+  const color = peachStyle2Tone(section.tone);
+  const innerX = x + PEACH_STYLE2_COLUMN_PADDING;
+  const headerY = y + 16;
+  const statsY = headerY + PEACH_STYLE2_HEADER_HEIGHT + 14;
+  const statsHeight = PEACH_STYLE2_STAT_HEIGHT * 2 + 10;
+  const ranksY = statsY + statsHeight + 14;
+  const ranksHeight = PEACH_STYLE2_RANK_CARD_HEIGHT * 2 + 10;
+  const tableY = ranksY + ranksHeight + 14;
+  const maxKill = Math.max(...section.rows.map((row) => parseExportNumber(row.killText)), 0);
+  const tableHeight = PEACH_STYLE2_TABLE_HEADER_HEIGHT
+    + Math.max(1, section.rows.length) * PEACH_STYLE2_ROW_HEIGHT;
+  const contentHeight = tableY - y + tableHeight + 18;
+  return {
+    height: contentHeight,
+    svg: `
+      <g>
+        <rect x="${x}" y="${y}" width="${PEACH_STYLE2_COLUMN_WIDTH}" height="${contentHeight}" rx="18" fill="#ffffff" fill-opacity="0.97" stroke="#dbe7fb" filter="url(#reportSoftShadow)" />
+        ${renderPeachStyle2Header({
+          color,
+          section,
+          width: PEACH_STYLE2_INNER_WIDTH,
+          x: innerX,
+          y: headerY,
+        })}
+        ${renderPeachStyle2Stats({
+          color,
+          stats: section.stats,
+          width: PEACH_STYLE2_INNER_WIDTH,
+          x: innerX,
+          y: statsY,
+        })}
+        ${renderPeachStyle2RankPanels({
+          color,
+          panels: section.rankPanels,
+          width: PEACH_STYLE2_INNER_WIDTH,
+          x: innerX,
+          y: ranksY,
+        })}
+        ${renderPeachStyle2Table({
+          color,
+          maxKill,
+          rows: section.rows,
+          sectionIndex: index,
+          width: PEACH_STYLE2_INNER_WIDTH,
+          x: innerX,
+          y: tableY,
+        })}
+        ${renderTacticalBodyWatermark({
+          height: tableHeight,
+          index: `peach_${index}`,
+          width: PEACH_STYLE2_INNER_WIDTH,
+          x: innerX,
+          y: tableY,
+        })}
+      </g>
+    `,
+  };
+};
+
+const renderPeachStyle2Sections = ({ sections, y }) => {
+  const ownSection = sections[0] || {
+    rankPanels: [],
+    rows: [],
+    stats: [],
+    subtitle: "我方战绩",
+    title: "我方俱乐部",
+    tone: "own",
+  };
+  const opponentSection = sections[1] || {
+    rankPanels: [],
+    rows: [],
+    stats: [],
+    subtitle: "敌方战绩",
+    title: "敌方俱乐部",
+    tone: "opponent",
+  };
+  const ownColumn = renderPeachStyle2Column({
+    index: 0,
+    section: ownSection,
+    x: PAGE_PADDING_X,
+    y,
+  });
+  const opponentColumn = renderPeachStyle2Column({
+    index: 1,
+    section: opponentSection,
+    x: PAGE_PADDING_X + PEACH_STYLE2_COLUMN_WIDTH + PEACH_STYLE2_COLUMN_GAP,
+    y,
+  });
+  return {
+    height: Math.max(ownColumn.height, opponentColumn.height),
+    svg: `${ownColumn.svg}${opponentColumn.svg}`,
+  };
+};
+
 const renderSection = ({ section, y, index }) => {
   if (section.layout === "tactical") {
     return renderTacticalSection({ section, y, index });
@@ -918,39 +1180,58 @@ const prepareRows = async (rows = []) =>
     };
   });
 
+const sortRowsByKdDesc = (rows = []) =>
+  rows
+    .map((row, order) => ({
+      kdValue: parseExportNumber(row.kdText),
+      order,
+      row,
+    }))
+    .sort((a, b) => b.kdValue - a.kdValue || a.order - b.order)
+    .map(({ row }, index) => ({
+      ...row,
+      index: normalizeText(index + 1),
+    }));
+
 export const createBattleReportExportImageService = () => ({
   async renderBattleReportImage(payload) {
-    const sections = await mapWithConcurrency(payload.sections || [], async (section) => ({
-      metric2Label: normalizeText(section.metric2Label, "指标二"),
-      metric3Label: normalizeText(section.metric3Label, "指标三"),
-      primaryLabel: normalizeText(section.primaryLabel, "击杀"),
-      layout: ["tactical", "warrank"].includes(section.layout)
+    const sections = await mapWithConcurrency(payload.sections || [], async (section) => {
+      const layout = ["tactical", "warrank"].includes(section.layout)
         ? section.layout
-        : "standard",
-      metrics: (section.metrics || []).map((item) => ({
-        label: normalizeText(item.label),
-        meta: normalizeText(item.meta, ""),
-        value: normalizeText(item.value),
-      })),
-      rankPanels: (section.rankPanels || []).map((panel) => ({
-        items: (panel.items || []).map((item) => ({
-          name: normalizeText(item.name, "未知成员"),
-          value: normalizeText(item.value, "0"),
+        : "standard";
+      const preparedRows = await prepareRows(section.rows || []);
+      const shouldSortByKd = ["salt-field", "peach-garden"].includes(payload.reportType)
+        && layout !== "warrank";
+      return {
+        metric2Label: normalizeText(section.metric2Label, "指标二"),
+        metric3Label: normalizeText(section.metric3Label, "指标三"),
+        primaryLabel: normalizeText(section.primaryLabel, "击杀"),
+        layout,
+        metrics: (section.metrics || []).map((item) => ({
+          label: normalizeText(item.label),
+          meta: normalizeText(item.meta, ""),
+          value: normalizeText(item.value),
         })),
-        key: normalizeText(panel.key, "rank"),
-        title: normalizeText(panel.title, "榜单"),
-      })),
-      rows: await prepareRows(section.rows || []),
-      stats: (section.stats || []).map((item) => ({
-        label: normalizeText(item.label),
-        value: normalizeText(item.value),
-      })),
-      statusLabel: normalizeText(section.statusLabel, "总 K/D"),
-      statusValue: normalizeText(section.statusValue, "0.00"),
-      subtitle: normalizeText(section.subtitle, ""),
-      title: normalizeText(section.title, "战报分组"),
-      tone: section.tone || "neutral",
-    }));
+        rankPanels: (section.rankPanels || []).map((panel) => ({
+          items: (panel.items || []).map((item) => ({
+            name: normalizeText(item.name, "未知成员"),
+            value: normalizeText(item.value, "0"),
+          })),
+          key: normalizeText(panel.key, "rank"),
+          title: normalizeText(panel.title, "榜单"),
+        })),
+        rows: shouldSortByKd ? sortRowsByKdDesc(preparedRows) : preparedRows,
+        stats: (section.stats || []).map((item) => ({
+          label: normalizeText(item.label),
+          value: normalizeText(item.value),
+        })),
+        statusLabel: normalizeText(section.statusLabel, "总 K/D"),
+        statusValue: normalizeText(section.statusValue, "0.00"),
+        subtitle: normalizeText(section.subtitle, ""),
+        title: normalizeText(section.title, "战报分组"),
+        tone: section.tone || "neutral",
+      };
+    });
     const title = normalizeText(payload.title, "战报导出");
     const subtitle = normalizeText(payload.subtitle, "战报详情");
     const reportDate = normalizeText(payload.reportDate, "-");
@@ -964,19 +1245,28 @@ export const createBattleReportExportImageService = () => ({
       payload.badgeValue,
       firstTacticalSection?.statusValue || `${sections.length} 组`,
     );
-    let cursorY = HEADER_HEIGHT;
-    const renderedSections = sections.map((section, index) => {
-      const rendered = renderSection({ section, y: cursorY, index });
-      cursorY += rendered.height + SECTION_GAP;
-      return rendered;
-    });
-    const height = cursorY - SECTION_GAP + BOTTOM_PADDING;
+    let height = HEADER_HEIGHT + BOTTOM_PADDING;
+    let renderedSections = [];
+    if (payload.reportType === "peach-garden") {
+      const rendered = renderPeachStyle2Sections({ sections, y: HEADER_HEIGHT });
+      renderedSections = [rendered];
+      height = HEADER_HEIGHT + rendered.height + BOTTOM_PADDING;
+    } else {
+      let cursorY = HEADER_HEIGHT;
+      renderedSections = sections.map((section, index) => {
+        const rendered = renderSection({ section, y: cursorY, index });
+        cursorY += rendered.height + SECTION_GAP;
+        return rendered;
+      });
+      height = cursorY - SECTION_GAP + BOTTOM_PADDING;
+    }
     const headerSvg = renderHeader({
       badgeLabel,
       badgeValue,
       exportedAt,
       reportDate,
       sectionCount: sections.length,
+      showBadge: payload.reportType !== "peach-garden",
       subtitle,
       title,
     });

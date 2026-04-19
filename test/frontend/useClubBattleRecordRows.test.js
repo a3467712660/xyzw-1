@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   getClubBattleTopRows,
   normalizeClubBattleRows,
+  sortClubBattleRowsByKd,
 } from "../../src/components/Club/records/useClubBattleRecordRows.js";
 
 test("club battle rows normalizer keeps single-club member metrics stable", () => {
@@ -98,4 +99,18 @@ test("club battle top rows keep descending and ascending ranking stable", () => 
     getClubBattleTopRows(rows, "kd").map((item) => item.key),
     ["b", "c", "a"],
   );
+});
+
+test("club battle rows can be ranked by kd while preserving tie order", () => {
+  const rows = [
+    { key: "a", kd: "1.20", rank: 1 },
+    { key: "b", kd: "3.40", rank: 2 },
+    { key: "c", kd: "3.40", rank: 3 },
+    { key: "d", kd: "2.10", rank: 4 },
+  ];
+
+  const sorted = sortClubBattleRowsByKd(rows);
+
+  assert.deepEqual(sorted.map((item) => item.key), ["b", "c", "d", "a"]);
+  assert.deepEqual(sorted.map((item) => item.rank), [1, 2, 3, 4]);
 });

@@ -236,6 +236,7 @@ import {
 import {
   getClubBattleTopRows,
   normalizeClubBattleRows,
+  sortClubBattleRowsByKd,
 } from "@/components/Club/records/useClubBattleRecordRows.js";
 import api from "@/api";
 import { useTokenStore } from "@/stores/tokenStore";
@@ -328,7 +329,7 @@ const disabledDate = (current) => {
 };
 
 const buildPeachBattleClubView = (clubData) => {
-  const rows = normalizeClubBattleRows(clubData?.killRank || [], {
+  const rows = sortClubBattleRowsByKd(normalizeClubBattleRows(clubData?.killRank || [], {
     avatarGetter: (player) => player?.roleInfo?.headImg || "",
     deathGetter: (player) => player?.reviveCnt ?? 0,
     extraGetter: (player) => ({
@@ -340,7 +341,7 @@ const buildPeachBattleClubView = (clubData) => {
     nameGetter: (player) => player?.roleInfo?.name || "未知成员",
     occupyGetter: (player) => player?.carCnt ?? 0,
     reviveGetter: (player) => player?.reviveCnt ?? 0,
-  });
+  }));
 
   const maxKill = Math.max(...rows.map((item) => item.killCnt || 0), 0);
 
@@ -702,11 +703,12 @@ const buildBattleReportExportRows = async (rows) => {
     metric2Text: toExportText(row.reviveCnt, 32, "0"),
     metric3Text: toExportText(row.killStreakCnt, 32, "0"),
     kdText: toExportText(row.kd, 32, "0.00"),
-    noteText: toExportText(`战车 ${row.occupyCnt || 0}`, 32),
+    noteText: toExportText(row.occupyCnt, 32, "0"),
   }));
 };
 
 const buildPeachBattleSection = async ({
+  rankPanels,
   rows,
   stats,
   subtitle,
@@ -719,6 +721,14 @@ const buildPeachBattleSection = async ({
   primaryLabel: "击杀",
   metric2Label: "复活",
   metric3Label: "连杀",
+  rankPanels: (rankPanels || []).map((panel) => ({
+    key: toExportText(panel.title, 32, "rank"),
+    title: toExportText(panel.title, 32, "榜单"),
+    items: (panel.items || []).slice(0, 3).map((item) => ({
+      name: toExportText(item.name, 80, "未知成员"),
+      value: toExportText(item.value, 32, "0"),
+    })),
+  })),
   stats,
   rows: await buildBattleReportExportRows(rows),
 });
@@ -730,6 +740,7 @@ const buildPeachBattleReportExportPayload = async (exportedAt) => {
   const opponentName = opponentClub?.name || "敌方俱乐部";
   const [ownSection, opponentSection] = await Promise.all([
     buildPeachBattleSection({
+      rankPanels: ownClubView.value.panels,
       rows: ownClubView.value.rows,
       stats: [
         { label: "参战人数", value: String(ownClub?.memberCount || 0) },
@@ -742,6 +753,7 @@ const buildPeachBattleReportExportPayload = async (exportedAt) => {
       tone: "own",
     }),
     buildPeachBattleSection({
+      rankPanels: opponentClubView.value.panels,
       rows: opponentClubView.value.rows,
       stats: [
         { label: "参战人数", value: String(opponentClub?.memberCount || 0) },
