@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xyzw.helper.data.model.BattleReportItem
 import com.xyzw.helper.data.model.GameLineup
+import com.xyzw.helper.data.model.GameWorkbenchCard
 import com.xyzw.helper.data.model.LegionWarSnapshot
 import com.xyzw.helper.data.network.NetworkFactory
 import com.xyzw.helper.ui.components.XyzwActionCard
@@ -72,6 +73,11 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 
 @Composable
 fun GameHubScreen(
@@ -262,6 +268,17 @@ private fun GameFeaturesWorkbench(
     onSelectModule = onSelectModule,
     onSelectSection = onSelectSection,
   )
+  WorkbenchHintCard(
+    title = "权限与连接提示",
+    description = when {
+      state.selectedTokenId.isBlank() -> "当前没有选中角色，请先到 Token 管理选择可用角色。"
+      !binAvailable -> "当前角色缺少服务端 BIN，请先上传或恢复 BIN 后再执行游戏功能。"
+      summary?.connectionStatus.equals("error", true) -> "连接异常，建议刷新工作台或重新恢复 BIN。"
+      else -> "当前仅通过后端 allowlist 执行动作，Android 不暴露 token、cookie、seed 或 signature。"
+    },
+    meta = "安全链路：登录态 + CSRF + refresh + WebSocket Origin 保持不降级",
+    tone = if (binAvailable) connectionTone(summary?.connectionStatus.orEmpty(), true) else "warning",
+  )
   GameStage(
     eyebrow = "当前阶段",
     groupLabel = selectedGroup?.label.orEmpty(),
@@ -278,6 +295,30 @@ private fun GameFeaturesWorkbench(
           WorkbenchSignal("当前区域", section?.label ?: state.sectionSnapshot?.title ?: "--", section?.description.orEmpty(), "success"),
           WorkbenchSignal("建议动作", summary?.recommendedAction?.ifBlank { "检查连接和 BIN" } ?: "检查连接和 BIN", "由后端受控执行", if (binAvailable) "success" else "warning"),
         ),
+      )
+      WorkbenchInfoPanel(
+        title = "模块详情",
+        subtitle = "与 Web 工作台一致保留分组、模块、分区和建议动作。",
+        rows = listOf(
+          WorkbenchSignal("模块 ID", selectedModule?.id ?: "--", selectedModule?.description.orEmpty(), "info"),
+          WorkbenchSignal("分区 ID", section?.id ?: state.selectedSectionId.ifBlank { "--" }, section?.description.orEmpty(), "success"),
+          WorkbenchSignal("卡片数量", state.sectionSnapshot?.cards?.size?.toString() ?: "0", "由后端工作台 DTO 返回", "info"),
+          WorkbenchSignal("连接状态", connectionLabel(summary?.connectionStatus.orEmpty(), binAvailable), "动作按钮会随 BIN 和连接状态禁用", connectionTone(summary?.connectionStatus.orEmpty(), binAvailable)),
+        ),
+      )
+      WorkbenchTimeline(
+        title = "最近活动",
+        items = buildList {
+          state.sectionSnapshot?.updatedAt?.takeIf { it.isNotBlank() }?.let {
+            add(WorkbenchSignal("模块刷新", formatDisplayDateTime(it), state.sectionSnapshot.title, "success"))
+          }
+          state.actionMessage?.takeIf { it.isNotBlank() }?.let {
+            add(WorkbenchSignal("动作结果", it, "后端 allowlist 执行结果", "success"))
+          }
+          state.renderedReplay?.let {
+            add(WorkbenchSignal("回放渲染", it.renderId, it.summary, "info"))
+          }
+        },
       )
     },
   ) {
@@ -296,6 +337,9 @@ private fun GameFeaturesWorkbench(
         status = card.status,
         tone = card.tone,
         metrics = card.metrics.map { WorkbenchSignal(it.label, it.value, "", it.tone) },
+        detail = {
+          GameWorkbenchCardDetail(card)
+        },
         actions = {
           if (card.actions.isEmpty()) {
             WorkbenchSecondaryButton(
@@ -335,6 +379,10 @@ private fun GameFeaturesWorkbench(
           WorkbenchSignal("过期时间", replay.expiresAt.takeIf { it.isNotBlank() }?.let { formatDisplayDateTime(it) } ?: "--", "", "warning"),
         ),
         detail = {
+          WorkbenchInfoPanel(
+            title = "回放诊断",
+            rows = detailRows(replay.diagnostics, limit = 4),
+          )
           state.renderedReplayImageBytes?.let { bytes ->
             val bitmap = remember(bytes) {
               BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
@@ -366,6 +414,24 @@ private fun GameFeaturesWorkbench(
     isConnected = summary?.connectionStatus.equals("connected", true) || summary?.connectionStatus.equals("ready", true),
     onRefresh = onRefresh,
   )
+}
+
+@Composable
+private fun GameWorkbenchCardDetail(card: GameWorkbenchCard) {
+  val rows = detailRows(card.detail)
+  if (rows.isNotEmpty()) {
+    WorkbenchInfoPanel(
+      title = "卡片详情",
+      subtitle = "优先展示结构化字段，避免在移动端直接铺满原始 JSON。",
+      rows = rows,
+    )
+  } else {
+    WorkbenchHintCard(
+      title = "卡片详情",
+      description = "后端暂未返回该卡片的结构化详情，当前显示指标和动作摘要。",
+      tone = "info",
+    )
+  }
 }
 
 @Composable
@@ -540,6 +606,27 @@ private fun workbenchStatusLabel(status: String, tone: String): String =
     else -> "信息"
   }
 
+private fun detailRows(detail: JsonElement?, limit: Int = 6): List<WorkbenchSignal> =
+  when (detail) {
+    is JsonObject -> detail.entries.take(limit).map { (key, value) ->
+      WorkbenchSignal(key, compactJsonValue(value), "", "info")
+    }
+    is JsonArray -> listOf(
+      WorkbenchSignal("条目数量", detail.size.toString(), "数组详情仅显示摘要", "info"),
+      WorkbenchSignal("预览", detail.take(3).joinToString(" / ") { compactJsonValue(it) }, "", "success"),
+    )
+    is JsonPrimitive -> listOf(WorkbenchSignal("值", detail.contentOrNull ?: detail.toString(), "", "info"))
+    else -> emptyList()
+  }
+
+private fun compactJsonValue(value: JsonElement): String =
+  when (value) {
+    is JsonPrimitive -> value.contentOrNull ?: value.toString()
+    is JsonArray -> "数组 ${value.size} 项"
+    is JsonObject -> "对象 ${value.size} 项"
+    else -> value.toString()
+  }.take(80)
+
 @Composable
 fun LegionWarScreen(
   viewModel: LegionWarViewModel,
@@ -617,6 +704,16 @@ fun LegionWarScreenContent(
           WorkbenchSignal("建筑节点", snapshot.nodes.size.toString(), "已识别 ${snapshot.legions.size} 个战队", "success"),
         ),
       )
+      WorkbenchInfoPanel(
+        title = "实时状态",
+        subtitle = "对应 Web 顶部状态栏和战场摘要。",
+        rows = listOf(
+          WorkbenchSignal("同步状态", "战场数据已同步", "刷新按钮会重新读取服务端安全接口", "success"),
+          WorkbenchSignal("据点总数", snapshot.nodes.size.toString(), "包含营地、据点和路线节点", "info"),
+          WorkbenchSignal("战队数量", snapshot.legions.size.toString(), "免费复活广播以该列表为准", if (snapshot.legions.isNotEmpty()) "success" else "warning"),
+          WorkbenchSignal("当前视角", if (individualMode) "个人战况" else "战队战况", if (distributionMode) "分布布局" else "占领布局", "info"),
+        ),
+      )
       GameStage(
         eyebrow = "战场图示",
         groupLabel = "军团战",
@@ -626,6 +723,30 @@ fun LegionWarScreenContent(
         statusTone = "success",
       ) {
         LegionWarMapPanel(snapshot = snapshot, distributionMode = distributionMode)
+        WorkbenchLegend(
+          title = "地图图例",
+          items = listOf(
+            WorkbenchSignal("已占领/高血量", "绿色", "节点仍可参与态势判断", "success"),
+            WorkbenchSignal("待争夺/低血量", "黄色", "需要关注复活和路线变化", "warning"),
+            WorkbenchSignal("失守/未知", "灰色", "后端未返回完整状态时降级显示", "disabled"),
+          ),
+        )
+        WorkbenchRouteList(
+          title = "路线与据点",
+          routes = snapshot.nodes.take(10).map { node ->
+            WorkbenchSignal(
+              label = node.id,
+              value = node.typeName.ifBlank { "未知节点" },
+              meta = "归属：${node.belongsLegionName.ifBlank { "无所属" }} · 血量：${node.hp}/${node.maxHp}",
+              tone = if (node.hp > 0) "success" else "warning",
+            )
+          },
+        )
+        WorkbenchHintCard(
+          title = "操作面板",
+          description = "布局切换、战况视角、刷新战场和频道广播集中在这里；Android 使用原生控件替代 Web canvas 工具条。",
+          tone = "info",
+        )
         WorkbenchToggleRow(
           title = "地图布局",
           description = "在占领布局与分布布局间切换，不改变底层战场数据。",
@@ -707,6 +828,7 @@ private fun LegionWarMapPanel(
   snapshot: LegionWarSnapshot,
   distributionMode: Boolean,
 ) {
+  val routeColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.26f)
   Surface(
     modifier = Modifier
       .fillMaxWidth()
@@ -738,16 +860,29 @@ private fun LegionWarMapPanel(
           val maxX = coords.maxOf { it.second }.coerceAtLeast(minX + 1f)
           val minY = coords.minOf { it.third }
           val maxY = coords.maxOf { it.third }.coerceAtLeast(minY + 1f)
+          val pointFor = { item: Triple<com.xyzw.helper.data.model.LegionWarNode, Float, Float> ->
+            val normalizedX = (item.second - minX) / (maxX - minX)
+            val normalizedY = (item.third - minY) / (maxY - minY)
+            Offset(
+              22.dp.toPx() + normalizedX * (size.width - 44.dp.toPx()),
+              22.dp.toPx() + normalizedY * (size.height - 44.dp.toPx()),
+            )
+          }
+          coords.zipWithNext().forEach { (from, to) ->
+            drawLine(
+              color = routeColor,
+              start = pointFor(from),
+              end = pointFor(to),
+              strokeWidth = 1.2.dp.toPx(),
+            )
+          }
           coords.forEach { (node, rawX, rawY) ->
-            val normalizedX = (rawX - minX) / (maxX - minX)
-            val normalizedY = (rawY - minY) / (maxY - minY)
-            val x = 22.dp.toPx() + normalizedX * (size.width - 44.dp.toPx())
-            val y = 22.dp.toPx() + normalizedY * (size.height - 44.dp.toPx())
+            val point = pointFor(Triple(node, rawX, rawY))
             val color = if (distributionMode) legionColor(node.belongsLegionId, node.belongsLegionName) else legionColor(node.belongsLegionName, node.id)
             drawCircle(
               color = color.copy(alpha = if (node.hp > 0) 0.86f else 0.38f),
               radius = if (node.typeName.contains("营")) 9.dp.toPx() else 6.dp.toPx(),
-              center = Offset(x, y),
+              center = point,
             )
           }
         }
@@ -844,6 +979,12 @@ fun LineupAssistantScreenContent(
         WorkbenchSignal("当前阵容槽", currentSlotText, "刷新后由后端返回", "info"),
       ),
     )
+    WorkbenchHintCard(
+      title = "云同步状态",
+      description = "保存方案通过服务端偏好接口同步，导入导出只处理阵容 JSON，不携带原始令牌。",
+      meta = if (state.lineups.isEmpty()) "暂无可同步阵容" else "已缓存 ${state.lineups.size} 套阵容",
+      tone = if (state.lineups.isEmpty()) "warning" else "success",
+    )
     GameStage(
       eyebrow = "阵容面板",
       groupLabel = "工具",
@@ -861,6 +1002,15 @@ fun LineupAssistantScreenContent(
         }
       },
     ) {
+      WorkbenchInfoPanel(
+        title = "阵容槽位棋盘",
+        subtitle = "以 1-6 站位为主视图，保留 Web 端槽位密度和鱼灵/鱼珠摘要。",
+        rows = listOf(
+          WorkbenchSignal("当前阵容槽", currentSlotText, "后端返回 currentFormation 后更新", "info"),
+          WorkbenchSignal("已保存方案", state.lineups.size.toString(), "可导出、导入和应用", if (state.lineups.isNotEmpty()) "success" else "warning"),
+          WorkbenchSignal("可应用状态", if (hasBin) "后端可编排" else "等待 BIN", "应用流程不在 Android 直连游戏 WebSocket", if (hasBin) "success" else "warning"),
+        ),
+      )
       if (state.lineups.isEmpty()) {
         XyzwEmptyState(
           title = "暂无阵容",
@@ -880,6 +1030,7 @@ fun LineupAssistantScreenContent(
           ),
           detail = {
             LineupSlotPreview(lineup)
+            LineupEquipmentFishPanel(lineup)
           },
           actions = {
             WorkbenchPrimaryButton(
@@ -912,16 +1063,17 @@ fun LineupAssistantScreenContent(
         if (result.stages.isEmpty()) {
           XyzwEmptyState(title = "暂无阶段明细", description = "后端未返回分步结果。")
         }
-        result.stages.forEach { stage ->
-          GameStatusCard(
-            icon = Icons.Outlined.PlayArrow,
-            title = stage.id,
-            subtitle = stage.message.ifBlank { "等待阶段消息" },
-            status = stage.status.ifBlank { "ready" },
-            tone = connectionTone(stage.status, true),
-            metrics = listOf(WorkbenchSignal("状态", stage.status.ifBlank { "--" }, "", connectionTone(stage.status, true))),
-          )
-        }
+        WorkbenchDebugStageList(
+          title = "调试面板",
+          stages = result.stages.map { stage ->
+            WorkbenchSignal(
+              label = stage.id,
+              value = stage.status.ifBlank { "--" },
+              meta = stage.message.ifBlank { "等待阶段消息" },
+              tone = connectionTone(stage.status, true),
+            )
+          },
+        )
       }
     }
     GameStage(
@@ -1006,6 +1158,41 @@ private fun LineupSlotPreview(lineup: GameLineup) {
 }
 
 @Composable
+private fun LineupEquipmentFishPanel(lineup: GameLineup) {
+  val artifactCount = lineup.slots.count { it.artifactId.isNotBlank() }
+  val pearlCount = lineup.slots.count { it.pearlId.isNotBlank() }
+  Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    WorkbenchInfoPanel(
+      title = "装备/鱼灵诊断",
+      subtitle = "Android 先展示后端已返回的鱼灵/鱼珠字段，装备精炼详情缺失时明确降级。",
+      rows = buildList {
+        add(WorkbenchSignal("鱼灵数量", artifactCount.toString(), "来自 artifactId", if (artifactCount > 0) "success" else "warning"))
+        add(WorkbenchSignal("鱼珠数量", pearlCount.toString(), "来自 pearlId", if (pearlCount > 0) "success" else "warning"))
+        add(WorkbenchSignal("装备详情", "后端未返回装备详情", "等待后端返回 equipment/refine 结构化 DTO", "warning"))
+        lineup.slots.firstOrNull { it.artifactId.isNotBlank() || it.pearlId.isNotBlank() }?.let { slot ->
+          add(
+            WorkbenchSignal(
+              label = "示例槽位 ${slot.position}",
+              value = listOfNotNull(
+                slot.artifactId.takeIf { it.isNotBlank() }?.let { "鱼灵 $it" },
+                slot.pearlId.takeIf { it.isNotBlank() }?.let { "鱼珠 $it" },
+              ).joinToString(" · "),
+              meta = slot.heroName.ifBlank { slot.heroId.ifBlank { "未知英雄" } },
+              tone = "info",
+            ),
+          )
+        }
+      },
+    )
+    WorkbenchHintCard(
+      title = "装备详情缺失提示",
+      description = "后端未返回装备详情，当前仅展示鱼灵和鱼珠摘要，装备/精炼 DTO 补齐前不会伪造数据。",
+      tone = "warning",
+    )
+  }
+}
+
+@Composable
 fun BattleReportsScreen(
   viewModel: BattleReportsViewModel,
   onBack: () -> Unit,
@@ -1053,13 +1240,18 @@ fun BattleReportsScreenContent(
   var activeReportModule by rememberSaveable { mutableStateOf("saltField") }
   var saltFieldSubTab by rememberSaveable { mutableStateOf("warrank") }
   var peachSubTab by rememberSaveable { mutableStateOf("peach") }
+  var legionWarSubTab by rememberSaveable { mutableStateOf("legionWarSummary") }
   val queryTypes = remember(state.catalog.types) {
     state.catalog.types.filter { isDateBackedBattleReportType(it.id) }
       .ifEmpty { state.catalog.types }
   }
   val selectedToken = state.tokens.firstOrNull { it.id == state.selectedTokenId }
   val selectedModule = reportModules().firstOrNull { it.id == activeReportModule } ?: reportModules().first()
-  val activeSubTab = if (activeReportModule == "peachGarden") peachSubTab else saltFieldSubTab
+  val activeSubTab = when (activeReportModule) {
+    "peachGarden" -> peachSubTab
+    "legionWarReports" -> legionWarSubTab
+    else -> saltFieldSubTab
+  }
   XyzwPage(
     title = "战报功能",
     subtitle = "战报工作区，盐场与蟠桃模块结构对齐网页端。",
@@ -1094,7 +1286,11 @@ fun BattleReportsScreenContent(
         onSelectType(module.reportType)
       },
       onSelectSection = { sectionId ->
-        if (activeReportModule == "peachGarden") peachSubTab = sectionId else saltFieldSubTab = sectionId
+        when (activeReportModule) {
+          "peachGarden" -> peachSubTab = sectionId
+          "legionWarReports" -> legionWarSubTab = sectionId
+          else -> saltFieldSubTab = sectionId
+        }
       },
     )
     WorkbenchSummaryGrid(
@@ -1103,6 +1299,15 @@ fun BattleReportsScreenContent(
         WorkbenchSignal("当前视图", selectedModule.subTabs.firstOrNull { it.id == activeSubTab }?.label ?: "--", "对应 Web 子标签", "success"),
         WorkbenchSignal("比赛日期", state.queryDate.ifBlank { defaultBattleReportDate(state.selectedReportType) }, "默认最近可查询比赛日", "warning"),
         WorkbenchSignal("战报数量", state.reports.size.toString(), "列表和详情均为原生展示", "info"),
+      ),
+    )
+    WorkbenchInfoPanel(
+      title = "战报专属卡片",
+      subtitle = "盐场、蟠桃、军团战三个子域都保留独立入口和移动端卡片语义。",
+      rows = listOf(
+        WorkbenchSignal("盐场入口", "盐场", "匹配详情、周战绩、月战绩、实时地图、实时战况", "success"),
+        WorkbenchSignal("蟠桃概览卡", "蟠桃园", "蟠桃概览和对战战报", "warning"),
+        WorkbenchSignal("军团战摘要", "军团战", "军团战地图、节点和统计摘要", "info"),
       ),
     )
     GameStage(
@@ -1232,6 +1437,17 @@ private fun reportModules(): List<ReportWorkbenchModule> = listOf(
       ReportSubTab("peachBattle", "对战战报", "查看蟠桃园对战战报。"),
     ),
   ),
+  ReportWorkbenchModule(
+    id = "legionWarReports",
+    label = "军团战战报",
+    description = "军团战摘要、地图和实时统计。",
+    reportType = "salt-field",
+    subTabs = listOf(
+      ReportSubTab("legionWarSummary", "军团战摘要", "查看军团战总览和关键状态。"),
+      ReportSubTab("legionWarMap", "军团战地图", "复用原生军团战地图摘要入口。"),
+      ReportSubTab("legionWarStatistics", "军团战统计", "展示节点、路线和战队统计。"),
+    ),
+  ),
 )
 
 @Composable
@@ -1246,6 +1462,7 @@ private fun BattleReportPanel(
     ?.subTabs
     ?.firstOrNull { it.id == subTab }
     ?.label ?: "战报列表"
+  BattleReportSpecialCard(moduleId = moduleId, subTab = subTab, reportCount = reports.size)
   if (reports.isEmpty()) {
     XyzwEmptyState(
       title = "暂无$title",
@@ -1274,6 +1491,47 @@ private fun BattleReportPanel(
       },
     )
   }
+}
+
+@Composable
+private fun BattleReportSpecialCard(
+  moduleId: String,
+  subTab: String,
+  reportCount: Int,
+) {
+  val (title, subtitle, tone) = when {
+    moduleId == "peachGarden" && subTab == "peachBattle" ->
+      Triple("蟠桃对战卡", "对齐 Web 蟠桃园对战战报，展示双方结果和摘要。", "warning")
+    moduleId == "peachGarden" ->
+      Triple("蟠桃概览卡", "对齐 Web 蟠桃概览，先展示活动概况，再进入对战列表。", "warning")
+    moduleId == "legionWarReports" && subTab == "legionWarMap" ->
+      Triple("军团战地图卡", "军团战地图在 Android 中使用原生摘要和入口替代 Web canvas。", "info")
+    moduleId == "legionWarReports" && subTab == "legionWarStatistics" ->
+      Triple("军团战统计卡", "展示节点、路线和战队统计，缺失明细时保留空态。", "success")
+    moduleId == "legionWarReports" ->
+      Triple("军团战摘要", "军团战子 tab 复用现有安全接口和战报 detail 能力。", "info")
+    subTab == "weekBattle" ->
+      Triple("周战绩卡", "盐场周战绩列表和胜负摘要。", "success")
+    subTab == "monthBattle" ->
+      Triple("月战绩卡", "盐场月度归档和趋势摘要。", "success")
+    subTab == "legionWarMap" ->
+      Triple("实时地图卡", "盐场实时地图以原生卡片展示地图摘要。", "info")
+    subTab == "legionWarStatistics" ->
+      Triple("实时战况卡", "盐场实时战况与战队结果摘要。", "info")
+    else ->
+      Triple("匹配详情卡", "盐场匹配详情、对手和战况摘要。", "success")
+  }
+  GameStatusCard(
+    icon = Icons.Outlined.Article,
+    title = title,
+    subtitle = subtitle,
+    status = if (reportCount > 0) "ready" else "warning",
+    tone = tone,
+    metrics = listOf(
+      WorkbenchSignal("当前子项", subTab, "对应 Web 子 tab", "info"),
+      WorkbenchSignal("已加载战报", reportCount.toString(), "查询后在下方展示列表", if (reportCount > 0) "success" else "warning"),
+    ),
+  )
 }
 
 @Composable

@@ -367,6 +367,167 @@ fun WorkbenchSummaryGrid(items: List<WorkbenchSignal>, modifier: Modifier = Modi
 }
 
 @Composable
+fun WorkbenchInfoPanel(
+  title: String,
+  rows: List<WorkbenchSignal>,
+  modifier: Modifier = Modifier,
+  subtitle: String = "",
+) {
+  Surface(
+    modifier = modifier.fillMaxWidth(),
+    shape = RoundedCornerShape(8.dp),
+    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.62f),
+  ) {
+    Column(
+      modifier = Modifier.padding(12.dp),
+      verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+      Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+      subtitle.takeIf { it.isNotBlank() }?.let {
+        Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+      }
+      rows.ifEmpty {
+        listOf(WorkbenchSignal("状态", "暂无结构化详情", "等待后端返回可展示字段", "warning"))
+      }.forEach { row ->
+        DenseWorkbenchRow(row)
+      }
+    }
+  }
+}
+
+@Composable
+fun WorkbenchHintCard(
+  title: String,
+  description: String,
+  tone: String,
+  modifier: Modifier = Modifier,
+  meta: String = "",
+) {
+  Surface(
+    modifier = modifier.fillMaxWidth(),
+    shape = RoundedCornerShape(8.dp),
+    color = toneColor(tone).copy(alpha = 0.10f),
+    tonalElevation = 1.dp,
+  ) {
+    Row(
+      modifier = Modifier.padding(12.dp),
+      horizontalArrangement = Arrangement.spacedBy(10.dp),
+      verticalAlignment = Alignment.Top,
+    ) {
+      Box(
+        modifier = Modifier
+          .size(10.dp)
+          .background(toneColor(tone), RoundedCornerShape(5.dp)),
+      )
+      Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        meta.takeIf { it.isNotBlank() }?.let {
+          Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+        }
+      }
+    }
+  }
+}
+
+@Composable
+fun WorkbenchTimeline(
+  title: String,
+  items: List<WorkbenchSignal>,
+  modifier: Modifier = Modifier,
+) {
+  WorkbenchInfoPanel(
+    title = title,
+    subtitle = "记录模块切换、刷新、动作与回放渲染结果。",
+    rows = items.ifEmpty {
+      listOf(WorkbenchSignal("最近记录", "暂无活动", "刷新或执行动作后更新", "warning"))
+    },
+    modifier = modifier,
+  )
+}
+
+@Composable
+fun WorkbenchLegend(
+  title: String,
+  items: List<WorkbenchSignal>,
+  modifier: Modifier = Modifier,
+) {
+  Surface(
+    modifier = modifier.fillMaxWidth(),
+    shape = RoundedCornerShape(8.dp),
+    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.56f),
+  ) {
+    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+      Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+      items.forEach { item ->
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+          Box(
+            modifier = Modifier
+              .size(10.dp)
+              .background(toneColor(item.tone), RoundedCornerShape(5.dp)),
+          )
+          Column(modifier = Modifier.weight(1f)) {
+            Text(item.label, style = MaterialTheme.typography.labelMedium)
+            Text(item.meta.ifBlank { item.value }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+          }
+        }
+      }
+    }
+  }
+}
+
+@Composable
+fun WorkbenchRouteList(
+  title: String,
+  routes: List<WorkbenchSignal>,
+  modifier: Modifier = Modifier,
+) {
+  WorkbenchInfoPanel(
+    title = title,
+    subtitle = "原生列表替代 Web canvas 的节点点击和路线层。",
+    rows = routes,
+    modifier = modifier,
+  )
+}
+
+@Composable
+fun WorkbenchDebugStageList(
+  title: String,
+  stages: List<WorkbenchSignal>,
+  modifier: Modifier = Modifier,
+) {
+  WorkbenchInfoPanel(
+    title = title,
+    subtitle = "展示后端 allowlist 编排返回的每个阶段，便于定位失败步骤。",
+    rows = stages,
+    modifier = modifier,
+  )
+}
+
+@Composable
+private fun DenseWorkbenchRow(row: WorkbenchSignal) {
+  Row(
+    modifier = Modifier.fillMaxWidth(),
+    horizontalArrangement = Arrangement.spacedBy(10.dp),
+    verticalAlignment = Alignment.Top,
+  ) {
+    Box(
+      modifier = Modifier
+        .padding(top = 6.dp)
+        .size(7.dp)
+        .background(toneColor(row.tone), RoundedCornerShape(4.dp)),
+    )
+    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+      Text(row.label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+      Text(row.value.ifBlank { "--" }, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+      row.meta.takeIf { it.isNotBlank() }?.let {
+        Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+      }
+    }
+  }
+}
+
+@Composable
 private fun SummaryTile(item: WorkbenchSignal, modifier: Modifier = Modifier) {
   Surface(
     modifier = modifier.heightIn(min = 86.dp),
@@ -540,4 +701,3 @@ fun connectionLabel(status: String, binAvailable: Boolean = true): String =
     status.isBlank() -> "待连接"
     else -> status
   }
-

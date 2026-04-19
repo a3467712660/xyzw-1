@@ -13,6 +13,8 @@ import com.xyzw.helper.data.model.GameFeatureCatalog
 import com.xyzw.helper.data.model.GameFeatureCatalogItem
 import com.xyzw.helper.data.model.GameFeatureSummary
 import com.xyzw.helper.data.model.GameLineup
+import com.xyzw.helper.data.model.GameLineupApplyResult
+import com.xyzw.helper.data.model.GameLineupApplyStage
 import com.xyzw.helper.data.model.GameLineupSlot
 import com.xyzw.helper.data.model.GameWorkbenchCard
 import com.xyzw.helper.data.model.GameWorkbenchCardAction
@@ -114,8 +116,10 @@ class GameAndBattleScreensSmokeTest {
     composeRule.onNodeWithText("游戏功能工作台").performScrollTo().assertIsDisplayed()
     composeRule.onAllNodesWithText("Alice").assertCountEquals(2)
     composeRule.onNodeWithText("模块导航").performScrollTo().assertIsDisplayed()
-    composeRule.onAllNodesWithText("日常任务").assertCountEquals(2)
-    composeRule.onAllNodesWithText("领取奖励").assertCountEquals(2)
+    composeRule.onNodeWithText("模块详情").performScrollTo().assertIsDisplayed()
+    composeRule.onNodeWithText("最近活动").performScrollTo().assertIsDisplayed()
+    composeRule.onNodeWithText("权限与连接提示").performScrollTo().assertIsDisplayed()
+    composeRule.onNodeWithText("卡片详情").performScrollTo().assertIsDisplayed()
     composeRule.onNodeWithText("回放渲染结果").performScrollTo().assertIsDisplayed()
   }
 
@@ -127,8 +131,14 @@ class GameAndBattleScreensSmokeTest {
           state = LegionWarUiState(
             snapshot = LegionWarSnapshot(
               battlefieldId = "bf-1",
-              nodes = listOf(LegionWarNode(id = "17,20", typeName = "据点", hp = 10, maxHp = 20)),
-              legions = emptyList(),
+              nodes = listOf(
+                LegionWarNode(id = "17,20", typeName = "据点", hp = 10, maxHp = 20, belongsLegionId = "l-1", belongsLegionName = "一队"),
+                LegionWarNode(id = "18,20", typeName = "路线", hp = 0, maxHp = 20, belongsLegionId = "l-2", belongsLegionName = "二队"),
+              ),
+              legions = listOf(
+                com.xyzw.helper.data.model.LegionWarLegion(id = "l-1", name = "一队", reviveLeft = 120),
+                com.xyzw.helper.data.model.LegionWarLegion(id = "l-2", name = "二队", reviveLeft = 90),
+              ),
             ),
           ),
           onBack = {},
@@ -138,6 +148,10 @@ class GameAndBattleScreensSmokeTest {
     }
     composeRule.onNodeWithText("战场态势控制台").performScrollTo().assertIsDisplayed()
     composeRule.onNodeWithText("地图与战况").performScrollTo().assertIsDisplayed()
+    composeRule.onNodeWithText("地图图例").performScrollTo().assertIsDisplayed()
+    composeRule.onNodeWithText("路线与据点").performScrollTo().assertIsDisplayed()
+    composeRule.onNodeWithText("操作面板").performScrollTo().assertIsDisplayed()
+    composeRule.onNodeWithText("实时状态").performScrollTo().assertIsDisplayed()
     composeRule.onNodeWithText("17,20").performScrollTo().assertIsDisplayed()
   }
 
@@ -152,7 +166,14 @@ class GameAndBattleScreensSmokeTest {
                 id = "lineup-1",
                 name = "一队",
                 teamId = 1,
-                slots = listOf(GameLineupSlot(position = 1, heroName = "主将")),
+                slots = listOf(GameLineupSlot(position = 1, heroName = "主将", artifactId = "artifact-1", pearlId = "pearl-1")),
+              ),
+            ),
+            lastApplyResult = GameLineupApplyResult(
+              lineupId = "lineup-1",
+              stages = listOf(
+                GameLineupApplyStage("inspect-current", "success", "已查看当前阵容"),
+                GameLineupApplyStage("equipment-review", "skipped", "后端未返回装备详情"),
               ),
             ),
           ),
@@ -164,6 +185,10 @@ class GameAndBattleScreensSmokeTest {
       }
     }
     composeRule.onNodeWithText("阵容工作台").performScrollTo().assertIsDisplayed()
+    composeRule.onNodeWithText("阵容槽位棋盘").performScrollTo().assertIsDisplayed()
+    composeRule.onNodeWithText("装备/鱼灵诊断").performScrollTo().assertIsDisplayed()
+    composeRule.onNodeWithText("调试面板").performScrollTo().assertIsDisplayed()
+    composeRule.onNodeWithText("装备详情缺失提示").performScrollTo().assertIsDisplayed()
     composeRule.onNodeWithText("一队").performScrollTo().assertIsDisplayed()
     composeRule.onNodeWithText("站位 1").performScrollTo().assertIsDisplayed()
   }
@@ -197,6 +222,9 @@ class GameAndBattleScreensSmokeTest {
     }
     composeRule.onNodeWithText("Report Center").performScrollTo().assertIsDisplayed()
     composeRule.onAllNodesWithText("盐场战报").assertCountEquals(4)
+    composeRule.onNodeWithText("匹配详情卡").performScrollTo().assertIsDisplayed()
+    composeRule.onNodeWithText("军团战摘要").performScrollTo().assertIsDisplayed()
+    composeRule.onNodeWithText("蟠桃概览卡").performScrollTo().assertIsDisplayed()
     composeRule.onNodeWithText("选择日期：2026/04/18").performScrollTo().assertIsDisplayed()
     composeRule.onAllNodesWithText("日期，例如 2026-04-19").assertCountEquals(0)
     composeRule.onAllNodesWithText("战报").assertCountEquals(2)
