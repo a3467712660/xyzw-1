@@ -3,6 +3,7 @@ package com.xyzw.helper.data.repository
 import com.xyzw.helper.data.network.ApiResult
 import com.xyzw.helper.data.network.ApiResultParser
 import com.xyzw.helper.data.network.GameFeatureApi
+import com.xyzw.helper.data.model.LegionWarLegion
 import kotlinx.coroutines.runBlocking
 import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
@@ -163,5 +164,38 @@ class GameFeatureRepositoryTest {
     assertEquals("<svg></svg>", image.data.decodeToString())
     section as ApiResult.Success
     assertEquals("daily-task-status", section.data.cards.single().id)
+  }
+
+  @Test
+  fun `legion war revive broadcast posts sanitized legion summary`() = runBlocking {
+    server.dispatcher = object : Dispatcher() {
+      override fun dispatch(request: RecordedRequest): MockResponse =
+        when (request.path) {
+          "/api/v1/game-features/token-1/legion-war/broadcast-revive" -> {
+            assertEquals("POST", request.method)
+            val body = request.body.readUtf8()
+            assertTrue(body.contains("\"name\":\"一队\""))
+            assertTrue(body.contains("\"reviveLeft\":140"))
+            assertEquals(false, body.contains("rawToken"))
+            jsonResponse(
+              200,
+              """{"success":true,"message":"免费复活信息已发送到战队频道","data":{"status":"success","sentCount":1,"messages":["一队:剩140"]}}""",
+            )
+          }
+          else -> MockResponse().setResponseCode(404)
+        }
+    }
+
+    val harness = createRepositoryHarness(server.url("/api/v1/"))
+    val repository = GameFeatureRepository(harness.retrofit.create(), ApiResultParser())
+
+    val result = repository.broadcastLegionWarReviveInfo(
+      "token-1",
+      listOf(LegionWarLegion(id = "l-1", name = "一队", reviveLeft = 140)),
+    )
+
+    assertTrue(result is ApiResult.Success<*>)
+    result as ApiResult.Success
+    assertEquals(1, result.data.sentCount)
   }
 }

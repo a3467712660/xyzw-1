@@ -260,6 +260,13 @@ data class LegionWarSnapshot(
 )
 
 @Serializable
+data class LegionWarBroadcastResult(
+  val status: String = "",
+  val sentCount: Int = 0,
+  val messages: List<String> = emptyList(),
+)
+
+@Serializable
 data class GameLineupSlot(
   val position: Int,
   val heroId: String = "",

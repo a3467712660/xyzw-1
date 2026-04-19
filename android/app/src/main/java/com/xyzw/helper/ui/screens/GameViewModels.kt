@@ -7,6 +7,7 @@ import com.xyzw.helper.data.model.BattleReportItem
 import com.xyzw.helper.data.model.GameFeatureCatalog
 import com.xyzw.helper.data.model.GameFeatureSummary
 import com.xyzw.helper.data.model.GameLineup
+import com.xyzw.helper.data.model.GameLineupApplyResult
 import com.xyzw.helper.data.model.GameWorkbenchBootstrap
 import com.xyzw.helper.data.model.GameWorkbenchCatalog
 import com.xyzw.helper.data.model.GameWorkbenchModule
@@ -56,6 +57,7 @@ data class LineupAssistantUiState(
   val selectedTokenId: String = "",
   val lineups: List<GameLineup> = emptyList(),
   val currentFormation: Int? = null,
+  val lastApplyResult: GameLineupApplyResult? = null,
   val isLoading: Boolean = false,
   val isMutating: Boolean = false,
   val errorMessage: String? = null,
@@ -395,6 +397,33 @@ class LegionWarViewModel(
     }
   }
 
+  fun broadcastReviveInfo() {
+    val state = mutableState.value
+    val tokenId = state.selectedTokenId
+    val legions = state.snapshot?.legions.orEmpty()
+    if (tokenId.isBlank()) {
+      mutableState.value = state.copy(errorMessage = "请先导入并选择令牌")
+      return
+    }
+    if (legions.isEmpty()) {
+      mutableState.value = state.copy(errorMessage = "没有可发送的战队免费复活信息")
+      return
+    }
+    viewModelScope.launch {
+      mutableState.value = mutableState.value.copy(isLoading = true, errorMessage = null)
+      when (val result = repository.broadcastLegionWarReviveInfo(tokenId, legions)) {
+        is ApiResult.Success -> mutableState.value = mutableState.value.copy(
+          isLoading = false,
+          actionMessage = result.message ?: "免费复活信息已发送到战队频道",
+        )
+        is ApiResult.Failure -> mutableState.value = mutableState.value.copy(
+          isLoading = false,
+          errorMessage = result.error.message,
+        )
+      }
+    }
+  }
+
   fun consumeMessage() {
     mutableState.value = mutableState.value.copy(actionMessage = null, errorMessage = null)
   }
@@ -473,6 +502,7 @@ class LineupAssistantViewModel(
       when (val result = repository.applyLineup(tokenId, lineupId)) {
         is ApiResult.Success -> mutableState.value = mutableState.value.copy(
           isMutating = false,
+          lastApplyResult = result.data,
           actionMessage = result.message ?: "阵容应用流程已完成",
         )
         is ApiResult.Failure -> mutableState.value = mutableState.value.copy(

@@ -47,6 +47,7 @@ import com.xyzw.helper.data.model.GameWorkbenchActionResult
 import com.xyzw.helper.data.model.GameWorkbenchBootstrap
 import com.xyzw.helper.data.model.GameWorkbenchCatalog
 import com.xyzw.helper.data.model.GameWorkbenchSectionSnapshot
+import com.xyzw.helper.data.model.LegionWarBroadcastResult
 import com.xyzw.helper.data.model.LegionWarSnapshot
 import com.xyzw.helper.data.model.RenderedReplayResult
 import com.xyzw.helper.data.model.TokenActivationStatus
@@ -384,6 +385,12 @@ interface GameFeatureApi {
     @Path("tokenId") tokenId: String,
     @Body request: EmptyRequest = EmptyRequest(),
   ): Response<ApiEnvelope<LegionWarSnapshot>>
+
+  @POST("game-features/{tokenId}/legion-war/broadcast-revive")
+  suspend fun broadcastLegionWarReviveInfo(
+    @Path("tokenId") tokenId: String,
+    @Body request: LegionWarBroadcastRequest,
+  ): Response<ApiEnvelope<LegionWarBroadcastResult>>
 
   @GET("game-features/{tokenId}/lineups")
   suspend fun getLineups(

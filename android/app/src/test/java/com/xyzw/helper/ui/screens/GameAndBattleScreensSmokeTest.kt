@@ -111,9 +111,10 @@ class GameAndBattleScreensSmokeTest {
         )
       }
     }
-    composeRule.onNodeWithText("Alice").performScrollTo().assertIsDisplayed()
+    composeRule.onNodeWithText("游戏功能工作台").performScrollTo().assertIsDisplayed()
+    composeRule.onAllNodesWithText("Alice").assertCountEquals(2)
     composeRule.onNodeWithText("模块导航").performScrollTo().assertIsDisplayed()
-    composeRule.onNodeWithText("日常任务").performScrollTo().assertIsDisplayed()
+    composeRule.onAllNodesWithText("日常任务").assertCountEquals(2)
     composeRule.onAllNodesWithText("领取奖励").assertCountEquals(2)
     composeRule.onNodeWithText("回放渲染结果").performScrollTo().assertIsDisplayed()
   }
@@ -135,7 +136,8 @@ class GameAndBattleScreensSmokeTest {
         )
       }
     }
-    composeRule.onNodeWithText("军团战").assertIsDisplayed()
+    composeRule.onNodeWithText("战场态势控制台").performScrollTo().assertIsDisplayed()
+    composeRule.onNodeWithText("地图与战况").performScrollTo().assertIsDisplayed()
     composeRule.onNodeWithText("17,20").performScrollTo().assertIsDisplayed()
   }
 
@@ -161,8 +163,9 @@ class GameAndBattleScreensSmokeTest {
         )
       }
     }
-    composeRule.onNodeWithText("阵容助手").assertIsDisplayed()
+    composeRule.onNodeWithText("阵容工作台").performScrollTo().assertIsDisplayed()
     composeRule.onNodeWithText("一队").performScrollTo().assertIsDisplayed()
+    composeRule.onNodeWithText("站位 1").performScrollTo().assertIsDisplayed()
   }
 
   @Test
@@ -192,10 +195,12 @@ class GameAndBattleScreensSmokeTest {
         )
       }
     }
-    composeRule.onNodeWithText("战报功能").assertIsDisplayed()
+    composeRule.onNodeWithText("Report Center").performScrollTo().assertIsDisplayed()
+    composeRule.onAllNodesWithText("盐场战报").assertCountEquals(4)
     composeRule.onNodeWithText("选择日期：2026/04/18").performScrollTo().assertIsDisplayed()
     composeRule.onAllNodesWithText("日期，例如 2026-04-19").assertCountEquals(0)
-    composeRule.onNodeWithText("战报").performScrollTo().assertIsDisplayed()
+    composeRule.onAllNodesWithText("战报").assertCountEquals(2)
+    composeRule.onNodeWithText("查看详情").performScrollTo().assertIsDisplayed()
   }
 
   @Test

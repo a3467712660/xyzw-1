@@ -10,6 +10,8 @@ import com.xyzw.helper.data.model.GameWorkbenchActionResult
 import com.xyzw.helper.data.model.GameWorkbenchBootstrap
 import com.xyzw.helper.data.model.GameWorkbenchCatalog
 import com.xyzw.helper.data.model.GameWorkbenchSectionSnapshot
+import com.xyzw.helper.data.model.LegionWarBroadcastResult
+import com.xyzw.helper.data.model.LegionWarLegion
 import com.xyzw.helper.data.model.LegionWarSnapshot
 import com.xyzw.helper.data.model.RenderedReplayResult
 import com.xyzw.helper.data.network.ApiResult
@@ -22,6 +24,7 @@ import com.xyzw.helper.data.network.GameWorkbenchReplayRenderRequest
 import com.xyzw.helper.data.network.GameWorkbenchSectionRequest
 import com.xyzw.helper.data.network.GameLineupApplyRequest
 import com.xyzw.helper.data.network.GameLineupsSaveRequest
+import com.xyzw.helper.data.network.LegionWarBroadcastRequest
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
@@ -106,6 +109,12 @@ class GameFeatureRepository(
 
   suspend fun getLegionWarSnapshot(tokenId: String): ApiResult<LegionWarSnapshot> =
     parser.parse(api.getLegionWarSnapshot(tokenId))
+
+  suspend fun broadcastLegionWarReviveInfo(
+    tokenId: String,
+    legions: List<LegionWarLegion>,
+  ): ApiResult<LegionWarBroadcastResult> =
+    parser.parse(api.broadcastLegionWarReviveInfo(tokenId, LegionWarBroadcastRequest(legions)))
 
   suspend fun getLineups(tokenId: String): ApiResult<GameLineupsPayload> =
     parser.parse(api.getLineups(tokenId))

@@ -159,6 +159,114 @@ class GameFeaturesViewModelTest {
     assertTrue(waitUntil { viewModel.uiState.value.renderedReplay?.renderId == "render-1" })
   }
 
+  @Test
+  fun `lineup assistant stores apply stages for debug panel`() {
+    server.dispatcher = object : Dispatcher() {
+      override fun dispatch(request: RecordedRequest): MockResponse =
+        when (request.path) {
+          "/api/v1/bin-files" -> jsonResponse(200, """{"success":true,"data":[]}""")
+          "/api/v1/game-features/token-1/lineups" -> jsonResponse(
+            200,
+            """{"success":true,"data":{"currentFormation":1,"saved":[{"id":"lineup-1","name":"一队","teamId":1,"slots":[{"position":1,"heroName":"主将"}]}]}}""",
+          )
+          "/api/v1/game-features/token-1/lineups/apply" -> jsonResponse(
+            200,
+            """{"success":true,"message":"阵容应用流程已完成","data":{"lineupId":"lineup-1","stages":[{"id":"inspect-current","status":"success","message":"已查看当前阵容"},{"id":"arrange-slots","status":"success","message":"已整理站位"}]}}""",
+          )
+          else -> MockResponse().setResponseCode(404)
+        }
+    }
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val preferences = context.getSharedPreferences("lineup_assistant_vm_apply", Context.MODE_PRIVATE).apply {
+      edit().clear().commit()
+    }
+    val harness = createRepositoryHarness(server.url("/api/v1/"))
+    val parser = ApiResultParser()
+    val tokenRepository = TokenManagementRepository(
+      api = harness.retrofit.create<TokenManagementApi>(),
+      parser = parser,
+      store = SecureTokenWorkspaceStore(context, preferences),
+      sensitiveActionSession = UserSensitiveActionSession(),
+    )
+    tokenRepository.saveImportedToken(
+      com.xyzw.helper.data.model.ImportedGameToken(
+        id = "token-1",
+        rawToken = "",
+        displayName = "Alice",
+        importedAt = "2026-04-19T00:00:00Z",
+        updatedAt = "2026-04-19T00:00:00Z",
+        binFilePresent = true,
+      ),
+    )
+    val viewModel = LineupAssistantViewModel(
+      repository = GameFeatureRepository(harness.retrofit.create<GameFeatureApi>(), parser),
+      tokenRepository = tokenRepository,
+    )
+
+    viewModel.refresh()
+    assertTrue(waitUntil { viewModel.uiState.value.lineups.isNotEmpty() })
+    viewModel.apply("lineup-1")
+
+    assertTrue(waitUntil { viewModel.uiState.value.lastApplyResult?.stages?.size == 2 })
+    assertEquals("inspect-current", viewModel.uiState.value.lastApplyResult!!.stages.first().id)
+    assertEquals("阵容应用流程已完成", viewModel.uiState.value.actionMessage)
+  }
+
+  @Test
+  fun `legion war view model broadcasts revive summary through repository`() {
+    server.dispatcher = object : Dispatcher() {
+      override fun dispatch(request: RecordedRequest): MockResponse =
+        when (request.path) {
+          "/api/v1/bin-files" -> jsonResponse(200, """{"success":true,"data":[]}""")
+          "/api/v1/game-features/token-1/legion-war/snapshot" -> jsonResponse(
+            200,
+            """{"success":true,"data":{"battlefieldId":"bf-1","nodes":[],"legions":[{"id":"l-1","name":"一队","reviveLeft":140}]}}""",
+          )
+          "/api/v1/game-features/token-1/legion-war/broadcast-revive" -> {
+            val body = request.body.readUtf8()
+            assertTrue(body.contains("\"name\":\"一队\""))
+            jsonResponse(
+              200,
+              """{"success":true,"message":"免费复活信息已发送到战队频道","data":{"status":"success","sentCount":1,"messages":["一队:剩140"]}}""",
+            )
+          }
+          else -> MockResponse().setResponseCode(404)
+        }
+    }
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val preferences = context.getSharedPreferences("legion_war_vm_broadcast", Context.MODE_PRIVATE).apply {
+      edit().clear().commit()
+    }
+    val harness = createRepositoryHarness(server.url("/api/v1/"))
+    val parser = ApiResultParser()
+    val tokenRepository = TokenManagementRepository(
+      api = harness.retrofit.create<TokenManagementApi>(),
+      parser = parser,
+      store = SecureTokenWorkspaceStore(context, preferences),
+      sensitiveActionSession = UserSensitiveActionSession(),
+    )
+    tokenRepository.saveImportedToken(
+      com.xyzw.helper.data.model.ImportedGameToken(
+        id = "token-1",
+        rawToken = "",
+        displayName = "Alice",
+        importedAt = "2026-04-19T00:00:00Z",
+        updatedAt = "2026-04-19T00:00:00Z",
+        binFilePresent = true,
+      ),
+    )
+    val viewModel = LegionWarViewModel(
+      repository = GameFeatureRepository(harness.retrofit.create<GameFeatureApi>(), parser),
+      tokenRepository = tokenRepository,
+    )
+
+    viewModel.refresh()
+    assertTrue(waitUntil { viewModel.uiState.value.snapshot?.legions?.isNotEmpty() == true })
+    viewModel.broadcastReviveInfo()
+
+    assertTrue(waitUntil { viewModel.uiState.value.actionMessage == "免费复活信息已发送到战队频道" })
+  }
+
   private fun waitUntil(condition: () -> Boolean): Boolean {
     val deadline = System.currentTimeMillis() + 2_000L
     while (System.currentTimeMillis() < deadline) {

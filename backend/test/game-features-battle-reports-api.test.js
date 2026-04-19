@@ -88,6 +88,12 @@ test("game feature routes require auth, validate action allowlist, and do not ex
         nodes: [{ id: "17,20", typeName: "据点", hp: 10, maxHp: 20 }],
         legions: [{ id: "l-1", name: "A", reviveLeft: 140 }],
       }),
+      broadcastLegionWarReviveInfo: async ({ legions }) => ({
+        status: "success",
+        sentCount: 1,
+        messages: legions.map((item) => `${item.name}:剩${item.reviveLeft}`),
+        token: "should-not-leak",
+      }),
       getLineups: async () => ({
         currentFormation: 1,
         saved: [{ id: "lineup-1", name: "一队", teamId: 1, slots: [] }],
@@ -131,6 +137,16 @@ test("game feature routes require auth, validate action allowlist, and do not ex
   const actionText = JSON.stringify(await action.json());
   assert.equal(actionText.includes("should-not-leak"), false);
   assert.deepEqual(calls, [{ tokenId: "token-1", actionId: "daily-tasks" }]);
+
+  const broadcast = await fetch(`${baseUrl}/api/v1/game-features/token-1/legion-war/broadcast-revive`, {
+    method: "POST",
+    headers: authHeaders({ userId, username }),
+    body: JSON.stringify({ legions: [{ id: "l-1", name: "A", reviveLeft: 140 }] }),
+  });
+  assert.equal(broadcast.status, 200);
+  const broadcastText = JSON.stringify(await broadcast.json());
+  assert.match(broadcastText, /A:剩140/);
+  assert.equal(broadcastText.includes("should-not-leak"), false);
 });
 
 test("battle report routes support query and reject invalid parse payloads", async (t) => {
@@ -148,6 +164,7 @@ test("battle report routes support query and reject invalid parse payloads", asy
       getSummary: async () => ({}),
       runAction: async () => ({}),
       getLegionWarSnapshot: async () => ({}),
+      broadcastLegionWarReviveInfo: async () => ({}),
       getLineups: async () => ({}),
       saveLineups: async () => ({}),
       applyLineup: async () => ({}),
@@ -212,6 +229,7 @@ test("game workbench routes expose native modules, cards, allowlisted actions, a
       getSummary: async () => ({}),
       runAction: async () => ({}),
       getLegionWarSnapshot: async () => ({}),
+      broadcastLegionWarReviveInfo: async () => ({}),
       getLineups: async () => ({}),
       saveLineups: async () => ({}),
       applyLineup: async () => ({}),

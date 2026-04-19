@@ -61,6 +61,14 @@ const applyLineupBodySchema = z.object({
   lineupId: z.string().trim().min(1).max(80),
 });
 
+const legionWarBroadcastBodySchema = z.object({
+  legions: z.array(z.object({
+    id: z.string().trim().max(80).optional().default(""),
+    name: z.string().trim().min(1).max(80),
+    reviveLeft: z.coerce.number().int().min(0).max(999),
+  })).min(1).max(20),
+});
+
 const sendSuccess = (res, data, message = undefined) =>
   res.json({
     success: true,
@@ -220,6 +228,23 @@ export const createGameFeatureRoutes = ({ gameService = gameCommandService } = {
         return sendSuccess(res, data);
       } catch (error) {
         return handleRouteError(res, error, "军团战数据获取失败");
+      }
+    },
+  );
+
+  router.post(
+    "/game-features/:tokenId/legion-war/broadcast-revive",
+    validateRequest({ params: tokenIdParamSchema, body: legionWarBroadcastBodySchema }),
+    async (req, res) => {
+      try {
+        const data = await gameService.broadcastLegionWarReviveInfo({
+          user: req.auth.user,
+          tokenId: req.params.tokenId,
+          legions: req.body.legions,
+        });
+        return sendSuccess(res, data, "免费复活信息已发送到战队频道");
+      } catch (error) {
+        return handleRouteError(res, error, "免费复活信息发送失败");
       }
     },
   );

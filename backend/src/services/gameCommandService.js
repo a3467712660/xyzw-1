@@ -915,6 +915,59 @@ export const createGameCommandService = ({
       };
     },
 
+    async broadcastLegionWarReviveInfo({ user, tokenId, legions = [] }) {
+      const normalizedLegions = Array.isArray(legions)
+        ? legions
+          .map((item) => ({
+            name: String(item?.name || item?.id || "").trim().slice(0, 60),
+            reviveLeft: Number(item?.reviveLeft ?? item?.revive ?? 0),
+          }))
+          .filter((item) => item.name)
+          .slice(0, 20)
+        : [];
+      if (!normalizedLegions.length) {
+        throw new GameCommandError("没有可发送的战队免费复活信息", {
+          status: 400,
+          code: "LEGION_WAR_BROADCAST_EMPTY",
+        });
+      }
+      const messages = [];
+      for (let i = 0; i < normalizedLegions.length; i += 10) {
+        const content = normalizedLegions
+          .slice(i, i + 10)
+          .map((item) => `${item.name}:剩${Number.isFinite(item.reviveLeft) ? item.reviveLeft : 0}`)
+          .join("\n");
+        if (content) messages.push(content);
+      }
+      await withGameConnection({
+        user,
+        tokenId,
+        fetchImpl,
+        WebSocketImpl,
+        fn: async (state) => {
+          for (const message of messages) {
+            await sendCommand(
+              state,
+              "system_sendchatmessage",
+              {
+                channel: 2,
+                emojiId: 0,
+                extra: null,
+                msg: message,
+                msgType: 1,
+              },
+              8_000,
+            );
+          }
+        },
+      });
+      return {
+        status: "success",
+        sentCount: messages.length,
+        messages,
+      };
+    },
+
     async getLineups({ user, tokenId }) {
       const row = userPreferenceRepository.findByUserAndKey({
         userId: user.id,

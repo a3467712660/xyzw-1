@@ -4,6 +4,7 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 import com.xyzw.helper.data.model.GameLineup
+import com.xyzw.helper.data.model.LegionWarLegion
 
 @Serializable
 data class ApiEnvelope<T>(
@@ -178,6 +179,11 @@ data class GameLineupsSaveRequest(
 @Serializable
 data class GameLineupApplyRequest(
   val lineupId: String,
+)
+
+@Serializable
+data class LegionWarBroadcastRequest(
+  val legions: List<LegionWarLegion>,
 )
 
 @Serializable
