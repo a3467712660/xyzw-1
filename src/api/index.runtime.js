@@ -496,6 +496,17 @@ const api = {
     clearLogs: () => request.delete("/task-control/logs"),
   },
 
+  gameFeatures: {
+    exportClubMembersImage: (tokenId, payload) =>
+      request.post(
+        `/game-features/${encodeURIComponent(tokenId)}/club-members/export-image`,
+        payload,
+        {
+          responseType: "arraybuffer",
+        },
+      ),
+  },
+
   feedback: {
     list: (status) =>
       request.get(

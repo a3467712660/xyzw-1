@@ -15,37 +15,7 @@ export const downloadCanvasAsImage = (canvas, filename) => {
           return;
         }
 
-        // 仅在移动端尝试分享，桌面端强制下载，避免弹出分享面板
-        const isMobileDevice
-          = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-            navigator.userAgent || "",
-          )
-          || (typeof navigator.maxTouchPoints === "number"
-            && navigator.maxTouchPoints > 1
-            && window.innerWidth <= 1024);
-
-        if (
-          isMobileDevice
-          && navigator.share
-          && navigator.canShare
-          && navigator.canShare({
-            files: [new File([blob], filename, { type: blob.type })],
-          })
-        ) {
-          const file = new File([blob], filename, { type: blob.type });
-          navigator
-            .share({
-              files: [file],
-              title: "分享图片",
-              text: filename,
-            })
-            .catch((err) => {
-              console.log("分享失败，尝试下载:", err);
-              downloadBlob(blob, filename);
-            });
-        } else {
-          downloadBlob(blob, filename);
-        }
+        downloadBlobAsImage(blob, filename);
       }, "image/png");
     } else {
       fallbackToDataURL(canvas, filename);
@@ -53,6 +23,51 @@ export const downloadCanvasAsImage = (canvas, filename) => {
   } catch (e) {
     console.error("导出图片出错:", e);
     fallbackToDataURL(canvas, filename);
+  }
+};
+
+export const downloadBlobAsImage = (blob, filename) => {
+  try {
+    const safeBlob = blob instanceof Blob
+      ? blob
+      : new Blob([blob], { type: "image/png" });
+    const type = safeBlob.type || "image/png";
+
+    // 仅在移动端尝试分享，桌面端强制下载，避免弹出分享面板
+    const isMobileDevice
+      = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+        navigator.userAgent || "",
+      )
+      || (typeof navigator.maxTouchPoints === "number"
+        && navigator.maxTouchPoints > 1
+        && window.innerWidth <= 1024);
+
+    if (
+      isMobileDevice
+      && navigator.share
+      && navigator.canShare
+      && typeof File === "function"
+      && navigator.canShare({
+        files: [new File([safeBlob], filename, { type })],
+      })
+    ) {
+      const file = new File([safeBlob], filename, { type });
+      navigator
+        .share({
+          files: [file],
+          title: "分享图片",
+          text: filename,
+        })
+        .catch((err) => {
+          console.log("分享失败，尝试下载:", err);
+          downloadBlob(safeBlob, filename);
+        });
+    } else {
+      downloadBlob(safeBlob, filename);
+    }
+  } catch (e) {
+    console.error("导出图片Blob失败:", e);
+    alert("导出图片失败，请重试");
   }
 };
 

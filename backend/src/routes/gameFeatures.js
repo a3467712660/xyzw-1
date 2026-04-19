@@ -9,6 +9,7 @@ import {
   normalizeGameCommandError,
   stripSensitiveGamePayload,
 } from "../services/gameCommandService.js";
+import { clubMemberExportImageService } from "../services/clubMemberExportImageService.js";
 
 const tokenIdParamSchema = z.object({
   tokenId: z.string().trim().min(1).max(128).regex(/^[a-zA-Z0-9_-]+$/),
@@ -32,6 +33,24 @@ const workbenchActionBodySchema = z.object({
 const replayRenderBodySchema = z.object({
   payload: z.any().optional().default({}),
 });
+
+const clubMemberExportItemSchema = z.object({
+  index: z.coerce.number().int().min(1).max(999),
+  name: z.string().trim().min(1).max(80),
+  roleId: z.string().trim().min(1).max(64),
+  powerText: z.string().trim().min(1).max(32),
+  redQuenchText: z.string().trim().min(1).max(32),
+  lineupType: z.string().trim().max(32).optional().default("-"),
+  jobLabel: z.string().trim().min(1).max(32),
+  avatarText: z.string().trim().max(8).optional().default("?"),
+}).strict();
+
+const clubMemberExportBodySchema = z.object({
+  clubName: z.string().trim().min(1).max(80),
+  exportedAt: z.string().trim().min(1).max(64),
+  memberCount: z.coerce.number().int().min(0).max(220),
+  members: z.array(clubMemberExportItemSchema).max(220),
+}).strict();
 
 const renderImageParamSchema = z.object({
   renderId: z.string().trim().min(1).max(128).regex(/^[a-zA-Z0-9_-]+$/),
@@ -81,7 +100,10 @@ const handleRouteError = (res, error, fallbackMessage) => {
   return errorResponse(res, normalized.status, normalized.code, normalized.message);
 };
 
-export const createGameFeatureRoutes = ({ gameService = gameCommandService } = {}) => {
+export const createGameFeatureRoutes = ({
+  gameService = gameCommandService,
+  clubMemberImageService = clubMemberExportImageService,
+} = {}) => {
   const router = Router();
 
   router.use(authRequired);
@@ -109,6 +131,22 @@ export const createGameFeatureRoutes = ({ gameService = gameCommandService } = {
         return res.send(image.body);
       } catch (error) {
         return handleRouteError(res, error, "回放渲染图读取失败");
+      }
+    },
+  );
+
+  router.post(
+    "/game-features/:tokenId/club-members/export-image",
+    validateRequest({ params: tokenIdParamSchema, body: clubMemberExportBodySchema }),
+    async (req, res) => {
+      try {
+        const body = clubMemberImageService.renderClubMembersImage(req.body);
+        res.setHeader("Content-Type", "image/png");
+        res.setHeader("Cache-Control", "no-store");
+        res.setHeader("X-Content-Type-Options", "nosniff");
+        return res.status(200).send(body);
+      } catch (error) {
+        return handleRouteError(res, error, "俱乐部成员图片生成失败");
       }
     },
   );

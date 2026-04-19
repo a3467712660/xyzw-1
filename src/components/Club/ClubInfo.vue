@@ -63,7 +63,6 @@ size="small"
 
           <n-tab-pane display-directive="show:lazy" name="members" tab="成员">
             <div
-              ref="exportDom"
               class="members club-info__members"
               :class="{ 'is-exporting-image': isExporting }"
             >
@@ -142,7 +141,7 @@ size="small"
 </template>
 
 <script setup>
-import { computed, h, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, h, onMounted, onUnmounted, ref, watch } from "vue";
 import {
   NButton,
   NSpace,
@@ -150,6 +149,7 @@ import {
   useDialog,
   useMessage,
 } from "naive-ui/es";
+import api from "@/api";
 import { useTokenStore } from "@/stores/tokenStore";
 import ClubHistoryRecords from "./ClubHistoryRecords.vue";
 import ClubWeirdTowerInfo from "./ClubWeirdTowerInfo.vue";
@@ -187,8 +187,7 @@ import {
   buildClubMemberExportBannerModel,
 } from "./info/clubInfoDisplayHelpers.js";
 import { useClubAdminActions } from "@/composables/useClubAdminActions";
-import { captureWithHtml2canvas } from "@/utils/html2canvasLoader";
-import { downloadCanvasAsImage } from "@/utils/imageExport";
+import { downloadBlobAsImage } from "@/utils/imageExport";
 
 const tokenStore = useTokenStore();
 const message = useMessage();
@@ -216,7 +215,6 @@ const showHeroModal = ref(false);
 const heroModealTemp = ref(null);
 const batchLoading = ref(false);
 const isExporting = ref(false);
-const exportDom = ref(null);
 const isMobileView = ref(false);
 const memberExportTimeText = computed(() => {
   const now = new Date();
@@ -385,167 +383,74 @@ const selectHeroInfo = (heroInfo) => {
   heroModealTemp.value = heroInfo;
 };
 
+const formatExportDateTime = (date = new Date()) => {
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
+
+const toExportText = (value, maxLength, fallback = "-") => {
+  const text = String(value ?? "").trim() || fallback;
+  const chars = Array.from(text);
+  return chars.length > maxLength ? chars.slice(0, maxLength).join("") : text;
+};
+
+const buildClubMemberExportPayload = (exportedAt) => {
+  const exportMembers = topMembers.value.slice(0, 220);
+  return {
+    clubName: toExportText(club.value?.name || "俱乐部成员信息", 80, "俱乐部成员信息"),
+    exportedAt,
+    memberCount: exportMembers.length,
+    members: exportMembers.map((member, index) => ({
+      index: index + 1,
+      name: toExportText(member.name, 80, "未知成员"),
+      roleId: toExportText(member.roleId, 64, "unknown"),
+      powerText: toExportText(
+        formatNumber(getClubMemberPowerValue(member)),
+        32,
+      ),
+      redQuenchText: toExportText(
+        redQuenchlabel(getClubMemberRedQuenchValue(member)),
+        32,
+      ),
+      lineupType: toExportText(member.lineupType || "-", 32),
+      jobLabel: toExportText(jobLabel(member.job), 32, "成员"),
+      avatarText: toExportText(getClubMemberAvatarFallback(member.name), 8, "?"),
+    })),
+  };
+};
+
 const handleExportImage = async () => {
-  // 校验：确保DOM已正确绑定
-  if (!exportDom.value) {
+  const tokenId = tokenStore.selectedToken?.id;
+  if (!tokenId) {
+    message.warning("请先选择游戏角色");
+    return;
+  }
+  if (!topMembers.value.length) {
     message.error("未找到要导出的内容");
     return;
   }
-
   try {
     isExporting.value = true;
     message.loading("正在生成图片，请稍候...");
-
-    // 等待Vue更新DOM（移除操作列等）
-    await nextTick();
-
-    const isMobileExport =
-      isMobileView.value ||
-      /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-        navigator.userAgent || "",
-      );
-
-    // 桌面端临时放大导出区域，避免成员列（尤其阵容）被压缩
-    exportDom.value.dataset.originalWidth = exportDom.value.style.width;
-    exportDom.value.dataset.originalMinWidth = exportDom.value.style.minWidth;
-    exportDom.value.dataset.originalMaxWidth = exportDom.value.style.maxWidth;
-    exportDom.value.dataset.originalOverflow = exportDom.value.style.overflow;
-    if (!isMobileExport) {
-      exportDom.value.style.width = "1200px";
-      exportDom.value.style.minWidth = "1200px";
-      exportDom.value.style.maxWidth = "none";
-      exportDom.value.style.overflow = "visible";
-    } else {
-      exportDom.value.style.width = "100%";
-      exportDom.value.style.minWidth = "0";
-      exportDom.value.style.maxWidth = "100%";
-      exportDom.value.style.overflow = "visible";
+    const now = new Date();
+    const exportedAt = formatExportDateTime(now);
+    const result = await api.gameFeatures.exportClubMembersImage(
+      tokenId,
+      buildClubMemberExportPayload(exportedAt),
+    );
+    if (!result?.success || !result.data) {
+      throw new Error(result?.message || "后端图片生成失败");
     }
-
-    // 获取 table-container
-    const tableContainer = exportDom.value.querySelector(".n-data-table");
-
-    // 临时调整表格容器高度，确保所有内容可见
-    if (tableContainer) {
-      // 尝试找到 n-data-table 的滚动容器
-      const scrollContainer = tableContainer.querySelector(
-        ".n-data-table-base-table-body",
-      );
-      if (scrollContainer) {
-        // 保存原始样式
-        scrollContainer.dataset.originalHeight = scrollContainer.style.height;
-        scrollContainer.dataset.originalOverflow =
-          scrollContainer.style.overflow;
-
-        // 强制展开
-        scrollContainer.style.height = "auto";
-        scrollContainer.style.overflow = "visible";
-      }
-
-      // 保存外层table容器的样式
-      tableContainer.dataset.originalHeight = tableContainer.style.height;
-      tableContainer.dataset.originalWidth = tableContainer.style.width;
-      tableContainer.dataset.originalMinWidth = tableContainer.style.minWidth;
-      tableContainer.style.height = "auto";
-      tableContainer.style.width = "100%";
-      tableContainer.style.minWidth = isMobileExport ? "0" : "1180px";
-    }
-
-    // 5. 用html2canvas渲染DOM为Canvas
-    const canvas = await captureWithHtml2canvas(exportDom.value, {
-      scale: isMobileExport ? 3 : 2, // 手机端提高导出清晰度
-      useCORS: true, // 允许跨域图片
-      backgroundColor: "#ffffff", // 避免透明背景
-      logging: false, // 关闭控制台日志
-      allowTaint: true, // 允许跨域图片污染画布
-    });
-
-    // 6. Canvas转图片链接并下载
-    const dateStr = new Date().toLocaleDateString().replace(/\//g, "-");
+    const blob = new Blob([result.data], { type: "image/png" });
+    const dateStr = exportedAt.slice(0, 10);
     const filename = `俱乐部成员信息_${dateStr}.png`;
-    downloadCanvasAsImage(canvas, filename);
+    downloadBlobAsImage(blob, filename);
 
     message.success("图片导出成功");
   } catch (err) {
-    console.error("DOM转图片失败：", err);
+    console.error("导出俱乐部成员图片失败：", err);
     message.error("导出图片失败，请重试");
   } finally {
-    // 恢复原始样式
-    const tableContainer = exportDom.value?.querySelector(".n-data-table");
-    if (tableContainer) {
-      const scrollContainer = tableContainer.querySelector(
-        ".n-data-table-base-table-body",
-      );
-      if (scrollContainer) {
-        if (scrollContainer.dataset.originalHeight) {
-          scrollContainer.style.height = scrollContainer.dataset.originalHeight;
-        } else {
-          scrollContainer.style.removeProperty("height");
-        }
-
-        if (scrollContainer.dataset.originalOverflow) {
-          scrollContainer.style.overflow =
-            scrollContainer.dataset.originalOverflow;
-        } else {
-          scrollContainer.style.removeProperty("overflow");
-        }
-
-        delete scrollContainer.dataset.originalHeight;
-        delete scrollContainer.dataset.originalOverflow;
-      }
-
-      // 恢复外层table容器样式
-      if (tableContainer.dataset.originalHeight) {
-        tableContainer.style.height = tableContainer.dataset.originalHeight;
-      } else {
-        tableContainer.style.removeProperty("height");
-      }
-      if (tableContainer.dataset.originalWidth) {
-        tableContainer.style.width = tableContainer.dataset.originalWidth;
-      } else {
-        tableContainer.style.removeProperty("width");
-      }
-      if (tableContainer.dataset.originalMinWidth) {
-        tableContainer.style.minWidth = tableContainer.dataset.originalMinWidth;
-      } else {
-        tableContainer.style.removeProperty("min-width");
-      }
-      delete tableContainer.dataset.originalHeight;
-      delete tableContainer.dataset.originalWidth;
-      delete tableContainer.dataset.originalMinWidth;
-    }
-
-    // 恢复导出容器样式
-    if (exportDom.value) {
-      if (exportDom.value.dataset.originalWidth) {
-        exportDom.value.style.width = exportDom.value.dataset.originalWidth;
-      } else {
-        exportDom.value.style.removeProperty("width");
-      }
-      if (exportDom.value.dataset.originalMinWidth) {
-        exportDom.value.style.minWidth =
-          exportDom.value.dataset.originalMinWidth;
-      } else {
-        exportDom.value.style.removeProperty("min-width");
-      }
-      if (exportDom.value.dataset.originalMaxWidth) {
-        exportDom.value.style.maxWidth =
-          exportDom.value.dataset.originalMaxWidth;
-      } else {
-        exportDom.value.style.removeProperty("max-width");
-      }
-      if (exportDom.value.dataset.originalOverflow) {
-        exportDom.value.style.overflow =
-          exportDom.value.dataset.originalOverflow;
-      } else {
-        exportDom.value.style.removeProperty("overflow");
-      }
-      delete exportDom.value.dataset.originalWidth;
-      delete exportDom.value.dataset.originalMinWidth;
-      delete exportDom.value.dataset.originalMaxWidth;
-      delete exportDom.value.dataset.originalOverflow;
-    }
-
     isExporting.value = false;
   }
 };

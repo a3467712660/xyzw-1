@@ -53,6 +53,130 @@ const createServer = async ({ gameService, battleService }) => {
   return server;
 };
 
+const createClubMemberExportPayload = (overrides = {}) => ({
+  clubName: "测试俱乐部",
+  exportedAt: "2026-04-19 12:00",
+  memberCount: 2,
+  members: [
+    {
+      index: 1,
+      name: "成员甲",
+      roleId: "100001",
+      powerText: "123.45亿",
+      redQuenchText: "10红",
+      lineupType: "控制",
+      jobLabel: "会长",
+      avatarText: "甲",
+    },
+    {
+      index: 2,
+      name: "成员乙",
+      roleId: "100002",
+      powerText: "88.00亿",
+      redQuenchText: "5红",
+      lineupType: "-",
+      jobLabel: "成员",
+      avatarText: "乙",
+    },
+  ],
+  ...overrides,
+});
+
+test("club member export image route renders fixed-width PNG and rejects unsafe payloads", async (t) => {
+  await initDatabase();
+
+  const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const userId = `club_export_user_${suffix}`;
+  const username = `club_export_user_${suffix}`;
+  createUser({ id: userId, username, password: "GameTest123!Aa" });
+  t.after(() => run(`DELETE FROM users WHERE id = $userId`, { $userId: userId }));
+
+  const server = await createServer({
+    gameService: {
+      getCatalog: () => ({ features: [] }),
+      getWorkbenchCatalog: () => ({ modules: [] }),
+      getRenderedReplayImage: async () => null,
+    },
+    battleService: {
+      getCatalog: () => ({ types: [] }),
+      queryReports: async () => ({ reports: [] }),
+      parseReport: async () => ({ report: null }),
+    },
+  });
+  t.after(async () => {
+    await new Promise((resolve) => server.close(resolve));
+  });
+
+  const baseUrl = makeBaseUrl(server);
+  const exportUrl = `${baseUrl}/api/v1/game-features/token-1/club-members/export-image`;
+  const denied = await fetch(exportUrl, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(createClubMemberExportPayload()),
+  });
+  assert.equal(denied.status, 401);
+
+  const headers = authHeaders({ userId, username });
+  const image = await fetch(exportUrl, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(createClubMemberExportPayload({
+      clubName: "测试俱乐部 should-not-leak",
+    })),
+  });
+  assert.equal(image.status, 200);
+  assert.equal(image.headers.get("content-type"), "image/png");
+  assert.equal(image.headers.get("cache-control"), "no-store");
+  const imageBody = Buffer.from(await image.arrayBuffer());
+  assert.equal(imageBody.subarray(0, 8).toString("hex"), "89504e470d0a1a0a");
+  assert.equal(imageBody.readUInt32BE(16), 1200);
+  assert.equal(imageBody.includes(Buffer.from("token")), false);
+  assert.equal(imageBody.includes(Buffer.from("cookie")), false);
+  assert.equal(imageBody.includes(Buffer.from("password")), false);
+
+  const tooManyMembers = Array.from({ length: 221 }, (_, index) => ({
+    index: index + 1,
+    name: `成员${index + 1}`,
+    roleId: `${100000 + index}`,
+    powerText: "1亿",
+    redQuenchText: "0红",
+    lineupType: "-",
+    jobLabel: "成员",
+    avatarText: "员",
+  }));
+  const tooMany = await fetch(exportUrl, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(createClubMemberExportPayload({
+      memberCount: tooManyMembers.length,
+      members: tooManyMembers,
+    })),
+  });
+  assert.equal(tooMany.status, 400);
+
+  const extraSensitiveField = await fetch(exportUrl, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(createClubMemberExportPayload({
+      members: [
+        {
+          ...createClubMemberExportPayload().members[0],
+          token: "should-not-be-accepted",
+        },
+      ],
+      cookie: "should-not-be-accepted",
+    })),
+  });
+  assert.equal(extraSensitiveField.status, 400);
+
+  const badTokenId = await fetch(`${baseUrl}/api/v1/game-features/bad!/club-members/export-image`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(createClubMemberExportPayload()),
+  });
+  assert.equal(badTokenId.status, 400);
+});
+
 test("game feature routes require auth, validate action allowlist, and do not expose secrets", async (t) => {
   await initDatabase();
 
