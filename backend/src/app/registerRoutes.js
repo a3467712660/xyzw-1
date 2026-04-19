@@ -11,6 +11,8 @@ import notificationRoutes from "../routes/notifications.js";
 import wechatProxyRoutes from "../routes/wechatProxy.js";
 import tokenImportProxyRoutes from "../routes/tokenImportProxy.js";
 import tokenActivationRoutes from "../routes/tokenActivations.js";
+import gameFeatureRoutes from "../routes/gameFeatures.js";
+import battleReportRoutes from "../routes/battleReports.js";
 import publicWechatContactsRoutes from "../routes/publicWechatContacts.js";
 import adminWechatContactsRoutes from "../routes/adminWechatContacts.js";
 import publicReferralsRoutes from "../routes/publicReferrals.js";
@@ -72,5 +74,7 @@ export function registerRoutes(app, { metrics } = {}) {
   app.use("/api/v1", feedbackRoutes);
   app.use("/api/v1", notificationRoutes);
   app.use("/api/v1", tokenActivationRoutes);
+  app.use("/api/v1", gameFeatureRoutes);
+  app.use("/api/v1", battleReportRoutes);
   app.use("/api/v1/user", createUserRoutes());
 }

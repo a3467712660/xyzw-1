@@ -1821,11 +1821,9 @@ private fun writePendingDownload(
   viewModel: TokenManagementViewModel,
   snackbarHostState: SnackbarHostState,
 ) {
-  runCatching {
-    context.contentResolver.openOutputStream(uri)?.use(viewModel::completePendingDownload)
+  viewModel.downloadPendingBin {
+    context.contentResolver.openOutputStream(uri)
       ?: throw IOException("无法打开输出流")
-  }.onFailure {
-    viewModel.cancelPendingDownload()
   }
 }
 

@@ -76,6 +76,7 @@ class MainShellSmokeTest {
           onRefresh = {},
           onOpenTokens = {},
           onOpenRoles = {},
+          onOpenGameHub = {},
           onOpenDailyTasks = {},
           onOpenFeedback = {},
           onOpenReferral = {},

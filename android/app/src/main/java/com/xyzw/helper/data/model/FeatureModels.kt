@@ -88,6 +88,141 @@ data class BinDownloadTicket(
 )
 
 @Serializable
+data class GameFeatureCatalogItem(
+  val id: String,
+  val title: String,
+  val description: String = "",
+  val enabled: Boolean = true,
+)
+
+@Serializable
+data class GameFeatureArea(
+  val enabled: Boolean = true,
+  val title: String = "",
+)
+
+@Serializable
+data class GameFeatureCatalog(
+  val features: List<GameFeatureCatalogItem> = emptyList(),
+  val legionWar: GameFeatureArea = GameFeatureArea(title = "军团战"),
+  val lineupAssistant: GameFeatureArea = GameFeatureArea(title = "阵容助手"),
+)
+
+@Serializable
+data class GameFeatureSummary(
+  val tokenId: String,
+  val roleName: String = "",
+  val serverName: String = "",
+  val binAvailable: Boolean = false,
+  val connectionStatus: String = "",
+  val recommendedAction: String = "",
+)
+
+@Serializable
+data class GameFeatureActionResult(
+  val actionId: String,
+  val status: String = "",
+  val message: String = "",
+  val detail: JsonElement? = null,
+)
+
+@Serializable
+data class LegionWarNode(
+  val id: String,
+  val typeName: String = "",
+  val hp: Long = 0,
+  val maxHp: Long = 0,
+  val belongsLegionId: String = "",
+  val belongsLegionName: String = "",
+  val point: Long = 0,
+)
+
+@Serializable
+data class LegionWarLegion(
+  val id: String,
+  val name: String = "",
+  val reviveLeft: Int = 0,
+  val color: String = "",
+)
+
+@Serializable
+data class LegionWarSnapshot(
+  val battlefieldId: String = "",
+  val nodes: List<LegionWarNode> = emptyList(),
+  val legions: List<LegionWarLegion> = emptyList(),
+  val rawSummary: JsonElement? = null,
+)
+
+@Serializable
+data class GameLineupSlot(
+  val position: Int,
+  val heroId: String = "",
+  val heroName: String = "",
+  val artifactId: String = "",
+  val pearlId: String = "",
+)
+
+@Serializable
+data class GameLineup(
+  val id: String,
+  val name: String,
+  val teamId: Int? = null,
+  val slots: List<GameLineupSlot> = emptyList(),
+  val updatedAt: String? = null,
+)
+
+@Serializable
+data class GameLineupsPayload(
+  val currentFormation: Int? = null,
+  val saved: List<GameLineup> = emptyList(),
+)
+
+@Serializable
+data class GameLineupApplyStage(
+  val id: String,
+  val status: String = "",
+  val message: String = "",
+)
+
+@Serializable
+data class GameLineupApplyResult(
+  val lineupId: String,
+  val stages: List<GameLineupApplyStage> = emptyList(),
+)
+
+@Serializable
+data class BattleReportType(
+  val id: String,
+  val title: String,
+  val description: String = "",
+)
+
+@Serializable
+data class BattleReportCatalog(
+  val types: List<BattleReportType> = emptyList(),
+)
+
+@Serializable
+data class BattleReportItem(
+  val id: String,
+  val reportType: String,
+  val title: String,
+  val summary: String = "",
+  val createdAt: String? = null,
+  val detail: JsonElement? = null,
+)
+
+@Serializable
+data class BattleReportListPayload(
+  val reports: List<BattleReportItem> = emptyList(),
+)
+
+@Serializable
+data class BattleReportParsePayload(
+  val report: BattleReportItem? = null,
+)
+
+@Serializable
 data class DailyTaskProgress(
   val current: Int = 0,
   val total: Int = 0,

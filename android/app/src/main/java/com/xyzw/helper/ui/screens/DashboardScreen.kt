@@ -10,6 +10,7 @@ import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.People
 import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.SportsEsports
 import androidx.compose.material.icons.outlined.TaskAlt
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Button
@@ -32,6 +33,7 @@ fun DashboardScreen(
   onRefresh: () -> Unit,
   onOpenTokens: () -> Unit,
   onOpenRoles: () -> Unit,
+  onOpenGameHub: () -> Unit,
   onOpenDailyTasks: () -> Unit,
   onOpenFeedback: () -> Unit,
   onOpenReferral: () -> Unit,
@@ -97,6 +99,12 @@ fun DashboardScreen(
         subtitle = "按角色查看任务状态、配置自动执行和查看历史。",
         badge = uiState.taskCompletionPercent?.let { "$it%" },
         onClick = onOpenDailyTasks,
+      )
+      XyzwActionCard(
+        icon = Icons.Outlined.SportsEsports,
+        title = "游戏功能",
+        subtitle = "进入原生游戏功能、军团战、阵容助手和战报。",
+        onClick = onOpenGameHub,
       )
       XyzwActionCard(
         icon = Icons.Outlined.Notifications,

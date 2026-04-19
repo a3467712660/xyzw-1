@@ -34,6 +34,16 @@ import com.xyzw.helper.data.model.WechatContactAdminItem
 import com.xyzw.helper.data.model.BinDownloadTicket
 import com.xyzw.helper.data.model.BinFileItem
 import com.xyzw.helper.data.model.BinFileUploadResult
+import com.xyzw.helper.data.model.BattleReportCatalog
+import com.xyzw.helper.data.model.BattleReportListPayload
+import com.xyzw.helper.data.model.BattleReportParsePayload
+import com.xyzw.helper.data.model.GameFeatureActionResult
+import com.xyzw.helper.data.model.GameFeatureCatalog
+import com.xyzw.helper.data.model.GameFeatureSummary
+import com.xyzw.helper.data.model.GameLineup
+import com.xyzw.helper.data.model.GameLineupApplyResult
+import com.xyzw.helper.data.model.GameLineupsPayload
+import com.xyzw.helper.data.model.LegionWarSnapshot
 import com.xyzw.helper.data.model.TokenActivationStatus
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -311,6 +321,62 @@ interface TokenManagementApi {
 
   @GET("token-activations/my")
   suspend fun listActivationBindings(): Response<ApiEnvelope<List<UserTokenActivationBinding>>>
+}
+
+interface GameFeatureApi {
+  @GET("game-features/catalog")
+  suspend fun getCatalog(): Response<ApiEnvelope<GameFeatureCatalog>>
+
+  @POST("game-features/{tokenId}/summary")
+  suspend fun getSummary(
+    @Path("tokenId") tokenId: String,
+    @Body request: EmptyRequest = EmptyRequest(),
+  ): Response<ApiEnvelope<GameFeatureSummary>>
+
+  @POST("game-features/{tokenId}/action")
+  suspend fun runAction(
+    @Path("tokenId") tokenId: String,
+    @Body request: GameFeatureActionRequest,
+  ): Response<ApiEnvelope<GameFeatureActionResult>>
+
+  @POST("game-features/{tokenId}/legion-war/snapshot")
+  suspend fun getLegionWarSnapshot(
+    @Path("tokenId") tokenId: String,
+    @Body request: EmptyRequest = EmptyRequest(),
+  ): Response<ApiEnvelope<LegionWarSnapshot>>
+
+  @GET("game-features/{tokenId}/lineups")
+  suspend fun getLineups(
+    @Path("tokenId") tokenId: String,
+  ): Response<ApiEnvelope<GameLineupsPayload>>
+
+  @PUT("game-features/{tokenId}/lineups")
+  suspend fun saveLineups(
+    @Path("tokenId") tokenId: String,
+    @Body request: GameLineupsSaveRequest,
+  ): Response<ApiEnvelope<GameLineupsPayload>>
+
+  @POST("game-features/{tokenId}/lineups/apply")
+  suspend fun applyLineup(
+    @Path("tokenId") tokenId: String,
+    @Body request: GameLineupApplyRequest,
+  ): Response<ApiEnvelope<GameLineupApplyResult>>
+}
+
+interface BattleReportApi {
+  @GET("battle-reports/catalog")
+  suspend fun getCatalog(): Response<ApiEnvelope<BattleReportCatalog>>
+
+  @POST("battle-reports/{tokenId}/query")
+  suspend fun queryReports(
+    @Path("tokenId") tokenId: String,
+    @Body request: BattleReportQueryRequest,
+  ): Response<ApiEnvelope<BattleReportListPayload>>
+
+  @POST("battle-reports/parse")
+  suspend fun parseReport(
+    @Body request: BattleReportParseRequest,
+  ): Response<ApiEnvelope<BattleReportParsePayload>>
 }
 
 interface AdminApi {

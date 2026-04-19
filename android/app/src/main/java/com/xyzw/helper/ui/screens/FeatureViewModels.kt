@@ -61,7 +61,6 @@ data class TokenManagementUiState(
 
 data class PendingTokenBinDownload(
   val tokenId: String,
-  val bytes: ByteArray,
 )
 
 class TokenManagementViewModel(
@@ -204,14 +203,6 @@ class TokenManagementViewModel(
     }
   }
 
-  fun uploadBinFile(tokenId: String, bytes: ByteArray) {
-    uploadBinFile(
-      tokenId = tokenId,
-      contentLength = bytes.size.toLong(),
-      inputStreamProvider = { bytes.inputStream() },
-    )
-  }
-
   fun uploadBinFile(
     tokenId: String,
     contentLength: Long?,
@@ -245,38 +236,51 @@ class TokenManagementViewModel(
     profileRepository.confirmSensitiveAction(password, totpCode, recoveryCode)
 
   fun requestBinDownload(tokenId: String) {
+    mutableState.value = mutableState.value.copy(
+      pendingDownload = PendingTokenBinDownload(tokenId = tokenId),
+      errorMessage = null,
+    )
+  }
+
+  fun downloadPendingBin(outputStreamProvider: () -> OutputStream) {
+    val pending = mutableState.value.pendingDownload ?: return
     viewModelScope.launch {
+      mutableState.value = mutableState.value.copy(isMutating = true, errorMessage = null)
+      val tokenId = pending.tokenId
       when (val ticketResult = repository.createDownloadTicket(tokenId)) {
         is ApiResult.Success -> {
-          when (val downloadResult = repository.downloadBinFile(tokenId, ticketResult.data.ticket)) {
+          when (
+            val downloadResult = repository.downloadBinFile(
+              tokenId = tokenId,
+              ticket = ticketResult.data.ticket,
+              outputStreamProvider = outputStreamProvider,
+            )
+          ) {
             is ApiResult.Success -> {
               mutableState.value = mutableState.value.copy(
-                pendingDownload = PendingTokenBinDownload(
-                  tokenId = tokenId,
-                  bytes = downloadResult.data,
-                ),
-                errorMessage = null,
+                isMutating = false,
+                pendingDownload = null,
+                actionMessage = "BIN 文件已导出",
               )
             }
             is ApiResult.Failure -> {
-              mutableState.value = mutableState.value.copy(errorMessage = downloadResult.error.message)
+              mutableState.value = mutableState.value.copy(
+                isMutating = false,
+                pendingDownload = null,
+                errorMessage = downloadResult.error.message,
+              )
             }
           }
         }
         is ApiResult.Failure -> {
-          mutableState.value = mutableState.value.copy(errorMessage = ticketResult.error.message)
+          mutableState.value = mutableState.value.copy(
+            isMutating = false,
+            pendingDownload = null,
+            errorMessage = ticketResult.error.message,
+          )
         }
       }
     }
-  }
-
-  fun completePendingDownload(outputStream: OutputStream) {
-    val pending = mutableState.value.pendingDownload ?: return
-    outputStream.use { stream -> stream.write(pending.bytes) }
-    mutableState.value = mutableState.value.copy(
-      pendingDownload = null,
-      actionMessage = "BIN 文件已导出",
-    )
   }
 
   fun cancelPendingDownload() {

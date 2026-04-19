@@ -18,7 +18,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -29,6 +32,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.navigation
 import androidx.navigation.compose.rememberNavController
 import com.xyzw.helper.app.AppContainer
+import com.xyzw.helper.data.model.BattleReportItem
 import com.xyzw.helper.ui.screens.AuthEvent
 import com.xyzw.helper.ui.screens.AuthViewModel
 import com.xyzw.helper.ui.screens.AdminActivationCodesScreen
@@ -48,12 +52,22 @@ import com.xyzw.helper.ui.screens.AdminUsersScreen
 import com.xyzw.helper.ui.screens.AdminUsersViewModel
 import com.xyzw.helper.ui.screens.AdminWechatContactsScreen
 import com.xyzw.helper.ui.screens.AdminWechatContactsViewModel
+import com.xyzw.helper.ui.screens.BattleReportDetailScreen
+import com.xyzw.helper.ui.screens.BattleReportsScreen
+import com.xyzw.helper.ui.screens.BattleReportsViewModel
 import com.xyzw.helper.ui.screens.DashboardScreen
 import com.xyzw.helper.ui.screens.DashboardViewModel
 import com.xyzw.helper.ui.screens.DailyTasksScreen
 import com.xyzw.helper.ui.screens.DailyTasksViewModel
 import com.xyzw.helper.ui.screens.FeedbackScreen
 import com.xyzw.helper.ui.screens.FeedbackViewModel
+import com.xyzw.helper.ui.screens.GameFeaturesScreen
+import com.xyzw.helper.ui.screens.GameFeaturesViewModel
+import com.xyzw.helper.ui.screens.GameHubScreen
+import com.xyzw.helper.ui.screens.LegionWarScreen
+import com.xyzw.helper.ui.screens.LegionWarViewModel
+import com.xyzw.helper.ui.screens.LineupAssistantScreen
+import com.xyzw.helper.ui.screens.LineupAssistantViewModel
 import com.xyzw.helper.ui.screens.OpsHubScreen
 import com.xyzw.helper.ui.screens.ForgotPasswordScreen
 import com.xyzw.helper.ui.screens.LoginScreen
@@ -199,6 +213,7 @@ fun MainShell(
   val preferences by container.preferencesStore.preferences.collectAsStateWithLifecycle(
     initialValue = container.initialPreferences,
   )
+  var selectedBattleReport by remember { mutableStateOf<BattleReportItem?>(null) }
 
   val items = defaultShellDestinations()
 
@@ -234,6 +249,7 @@ fun MainShell(
           onRefresh = dashboardViewModel::refresh,
           onOpenTokens = { shellNavController.navigate(AppRoute.TokenManagement.route) },
           onOpenRoles = { shellNavController.navigate(AppRoute.RoleManagement.route) },
+          onOpenGameHub = { shellNavController.navigate(AppRoute.GameHub.route) },
           onOpenDailyTasks = { shellNavController.navigate(AppRoute.DailyTasks.route) },
           onOpenFeedback = { shellNavController.navigate(AppRoute.Feedback.route) },
           onOpenReferral = { shellNavController.navigate(AppRoute.Referral.route) },
@@ -362,6 +378,56 @@ fun MainShell(
         val taskControlViewModel: TaskControlViewModel = viewModel(factory = container.viewModelFactory)
         TaskControlScreen(
           viewModel = taskControlViewModel,
+          onBack = { shellNavController.popBackStack() },
+        )
+      }
+      composable(AppRoute.GameHub.route) {
+        val tokenManagementViewModel: TokenManagementViewModel = viewModel(factory = container.viewModelFactory)
+        val tokenState by tokenManagementViewModel.uiState.collectAsStateWithLifecycle()
+        GameHubScreen(
+          tokenCount = tokenState.tokens.size,
+          onBack = { shellNavController.popBackStack() },
+          onOpenGameFeatures = { shellNavController.navigate(AppRoute.GameFeatures.route) },
+          onOpenLegionWar = { shellNavController.navigate(AppRoute.LegionWar.route) },
+          onOpenLineupAssistant = { shellNavController.navigate(AppRoute.LineupAssistant.route) },
+          onOpenBattleReports = { shellNavController.navigate(AppRoute.BattleReports.route) },
+        )
+      }
+      composable(AppRoute.GameFeatures.route) {
+        val gameFeaturesViewModel: GameFeaturesViewModel = viewModel(factory = container.viewModelFactory)
+        GameFeaturesScreen(
+          viewModel = gameFeaturesViewModel,
+          onBack = { shellNavController.popBackStack() },
+        )
+      }
+      composable(AppRoute.LegionWar.route) {
+        val legionWarViewModel: LegionWarViewModel = viewModel(factory = container.viewModelFactory)
+        LegionWarScreen(
+          viewModel = legionWarViewModel,
+          onBack = { shellNavController.popBackStack() },
+        )
+      }
+      composable(AppRoute.LineupAssistant.route) {
+        val lineupAssistantViewModel: LineupAssistantViewModel = viewModel(factory = container.viewModelFactory)
+        LineupAssistantScreen(
+          viewModel = lineupAssistantViewModel,
+          onBack = { shellNavController.popBackStack() },
+        )
+      }
+      composable(AppRoute.BattleReports.route) {
+        val battleReportsViewModel: BattleReportsViewModel = viewModel(factory = container.viewModelFactory)
+        BattleReportsScreen(
+          viewModel = battleReportsViewModel,
+          onBack = { shellNavController.popBackStack() },
+          onOpenDetail = { report ->
+            selectedBattleReport = report
+            shellNavController.navigate(AppRoute.BattleReportDetail.route)
+          },
+        )
+      }
+      composable(AppRoute.BattleReportDetail.route) {
+        BattleReportDetailScreen(
+          report = selectedBattleReport,
           onBack = { shellNavController.popBackStack() },
         )
       }

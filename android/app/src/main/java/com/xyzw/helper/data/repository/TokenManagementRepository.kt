@@ -12,14 +12,16 @@ import com.xyzw.helper.data.network.TokenImportProxyRequest
 import com.xyzw.helper.data.network.TokenManagementApi
 import com.xyzw.helper.data.session.UserSensitiveActionSession
 import com.xyzw.helper.data.storage.SecureTokenWorkspaceStore
+import com.xyzw.helper.data.token.MAX_BIN_UPLOAD_BYTES
 import com.xyzw.helper.data.token.TokenImportParser
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
 import okio.BufferedSink
-import okio.source
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody
-import java.io.ByteArrayInputStream
+import java.io.IOException
 import java.io.InputStream
+import java.io.OutputStream
 
 class TokenManagementRepository(
   private val api: TokenManagementApi,
@@ -73,20 +75,13 @@ class TokenManagementRepository(
 
   suspend fun uploadBinFile(
     tokenId: String,
-    bytes: ByteArray,
-  ): ApiResult<BinFileUploadResult> =
-    uploadBinFile(
-      tokenId = tokenId,
-      contentLength = bytes.size.toLong(),
-      inputStreamProvider = { ByteArrayInputStream(bytes) },
-    )
-
-  suspend fun uploadBinFile(
-    tokenId: String,
     contentLength: Long?,
     inputStreamProvider: () -> InputStream,
-  ): ApiResult<BinFileUploadResult> =
-    runCatching {
+  ): ApiResult<BinFileUploadResult> {
+    if (contentLength != null && contentLength >= 0 && contentLength > MAX_BIN_UPLOAD_BYTES) {
+      return ApiResult.Failure(ApiError.local("BIN 文件超过 32MB 上限，请选择更小的文件"))
+    }
+    return runCatching {
       parser.parse(
         api.uploadBinFile(
           tokenId = tokenId,
@@ -100,6 +95,7 @@ class TokenManagementRepository(
         ),
       )
     }
+  }
 
   private fun streamingBinRequestBody(
     contentLength: Long?,
@@ -111,8 +107,18 @@ class TokenManagementRepository(
       override fun contentLength(): Long = contentLength ?: -1L
 
       override fun writeTo(sink: BufferedSink) {
+        val buffer = ByteArray(DEFAULT_STREAM_BUFFER_SIZE)
+        var total = 0L
         inputStreamProvider().use { input ->
-          sink.writeAll(input.source())
+          while (true) {
+            val read = input.read(buffer)
+            if (read == -1) break
+            total += read.toLong()
+            if (total > MAX_BIN_UPLOAD_BYTES) {
+              throw IOException("BIN 文件超过 32MB 上限，请选择更小的文件")
+            }
+            sink.write(buffer, 0, read)
+          }
         }
       }
     }
@@ -131,18 +137,30 @@ class TokenManagementRepository(
   suspend fun downloadBinFile(
     tokenId: String,
     ticket: String,
-  ): ApiResult<ByteArray> {
+    outputStreamProvider: () -> OutputStream,
+  ): ApiResult<Unit> {
     val response = api.downloadBinFile(tokenId, mapOf("ticket" to ticket))
     if (!response.isSuccessful) {
       return ApiResult.Failure(
         ApiError(
           httpStatus = response.code(),
-          message = response.errorBody()?.string().orEmpty().ifBlank { "BIN 下载失败" },
+          message = errorMessageFromBody(response.errorBody()?.string()).ifBlank { "BIN 下载失败" },
         ),
       )
     }
     val body = response.body() ?: return ApiResult.Failure(ApiError.local("BIN 下载响应为空"))
-    return ApiResult.Success(body.bytes())
+    return runCatching {
+      body.use { responseBody ->
+        responseBody.byteStream().use { input ->
+          outputStreamProvider().use { output ->
+            input.copyTo(output, DEFAULT_STREAM_BUFFER_SIZE)
+          }
+        }
+      }
+      ApiResult.Success(Unit)
+    }.getOrElse { error ->
+      ApiResult.Failure(ApiError.local(error.message?.let { "BIN 文件写入失败：$it" } ?: "BIN 文件写入失败"))
+    }
   }
 
   suspend fun deleteBinFile(tokenId: String): ApiResult<Unit> =
@@ -168,4 +186,18 @@ class TokenManagementRepository(
 
   suspend fun listActivationBindings(): ApiResult<List<UserTokenActivationBinding>> =
     parser.parse(api.listActivationBindings())
+
+  private fun errorMessageFromBody(rawBody: String?): String {
+    val raw = rawBody.orEmpty()
+    if (raw.isBlank()) return ""
+    return runCatching {
+      val json = com.xyzw.helper.data.network.NetworkFactory.json.parseToJsonElement(raw)
+      val obj = json as? JsonObject
+      obj?.get("message")?.toString()?.trim('"').orEmpty()
+    }.getOrDefault(raw)
+  }
+
+  private companion object {
+    const val DEFAULT_STREAM_BUFFER_SIZE = 8 * 1024
+  }
 }

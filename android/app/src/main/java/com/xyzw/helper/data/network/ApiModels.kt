@@ -3,6 +3,7 @@ package com.xyzw.helper.data.network
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
+import com.xyzw.helper.data.model.GameLineup
 
 @Serializable
 data class ApiEnvelope<T>(
@@ -144,6 +145,32 @@ data class FeedbackCreateRequest(
 @Serializable
 data class TokenImportProxyRequest(
   val url: String,
+)
+
+@Serializable
+data class GameFeatureActionRequest(
+  val actionId: String,
+)
+
+@Serializable
+data class GameLineupsSaveRequest(
+  val saved: List<GameLineup>,
+)
+
+@Serializable
+data class GameLineupApplyRequest(
+  val lineupId: String,
+)
+
+@Serializable
+data class BattleReportQueryRequest(
+  val reportType: String,
+  val date: String = "",
+)
+
+@Serializable
+data class BattleReportParseRequest(
+  val rawText: String,
 )
 
 @Serializable

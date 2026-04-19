@@ -23,6 +23,9 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import retrofit2.create
 import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+import java.io.IOException
+import java.io.OutputStream
 
 @RunWith(RobolectricTestRunner::class)
 class TokenManagementRepositoryTest {
@@ -76,7 +79,7 @@ class TokenManagementRepositoryTest {
   }
 
   @Test
-  fun `download ticket uses in memory confirm token and returns bytes`() = runBlocking {
+  fun `download ticket uses in memory confirm token and streams bytes to output`() = runBlocking {
     server.dispatcher = object : Dispatcher() {
       override fun dispatch(request: RecordedRequest): MockResponse =
         when (request.path) {
@@ -114,10 +117,78 @@ class TokenManagementRepositoryTest {
     val ticketResult = repository.createDownloadTicket("token-1")
     assertTrue(ticketResult is ApiResult.Success<*>)
 
-    val downloadResult = repository.downloadBinFile("token-1", "ticket-1")
+    val output = ByteArrayOutputStream()
+    val downloadResult = repository.downloadBinFile("token-1", "ticket-1") { output }
     assertTrue(downloadResult is ApiResult.Success<*>)
-    downloadResult as ApiResult.Success
-    assertEquals(4, downloadResult.data.size)
+    assertEquals(listOf(1, 2, 3, 4), output.toByteArray().map { it.toInt() })
+  }
+
+  @Test
+  fun `download ticket forbidden when remote bin download is disabled`() = runBlocking {
+    server.dispatcher = object : Dispatcher() {
+      override fun dispatch(request: RecordedRequest): MockResponse =
+        when (request.path) {
+          "/api/v1/bin-files/token-1/download-ticket" -> jsonResponse(
+            403,
+            """{"success":false,"message":"未开启远程 BIN 下载，请先前往个人设置开启","error":{"code":"REMOTE_BIN_DISABLED","message":"未开启远程 BIN 下载"}}""",
+          )
+          else -> MockResponse().setResponseCode(404)
+        }
+    }
+
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val preferences = context.getSharedPreferences("tm_repo_test_forbidden", Context.MODE_PRIVATE).apply {
+      edit().clear().commit()
+    }
+    val sensitiveActionSession = UserSensitiveActionSession().apply {
+      store("user-confirm-1", "2099-01-01T00:00:00Z")
+    }
+    val harness = createRepositoryHarness(server.url("/api/v1/"))
+    val repository = TokenManagementRepository(
+      api = harness.retrofit.create(),
+      parser = ApiResultParser(),
+      store = SecureTokenWorkspaceStore(context, preferences),
+      sensitiveActionSession = sensitiveActionSession,
+    )
+
+    val ticketResult = repository.createDownloadTicket("token-1")
+
+    assertTrue(ticketResult is ApiResult.Failure)
+    ticketResult as ApiResult.Failure
+    assertEquals(403, ticketResult.error.httpStatus)
+    assertTrue(ticketResult.error.message.contains("未开启远程 BIN 下载"))
+  }
+
+  @Test
+  fun `expired download ticket returns failure without writing output`() = runBlocking {
+    server.dispatcher = object : Dispatcher() {
+      override fun dispatch(request: RecordedRequest): MockResponse =
+        when (request.path) {
+          "/api/v1/bin-files/token-1/download" -> jsonResponse(
+            403,
+            """{"success":false,"message":"下载票据无效、过期或已使用，请重新申请"}""",
+          )
+          else -> MockResponse().setResponseCode(404)
+        }
+    }
+
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val preferences = context.getSharedPreferences("tm_repo_test_expired", Context.MODE_PRIVATE).apply {
+      edit().clear().commit()
+    }
+    val harness = createRepositoryHarness(server.url("/api/v1/"))
+    val repository = TokenManagementRepository(
+      api = harness.retrofit.create(),
+      parser = ApiResultParser(),
+      store = SecureTokenWorkspaceStore(context, preferences),
+      sensitiveActionSession = UserSensitiveActionSession(),
+    )
+    val output = ByteArrayOutputStream()
+
+    val result = repository.downloadBinFile("token-1", "expired-ticket") { output }
+
+    assertTrue(result is ApiResult.Failure)
+    assertEquals(0, output.size())
   }
 
   @Test
@@ -128,6 +199,7 @@ class TokenManagementRepositoryTest {
           "/api/v1/bin-files/token-1" -> {
             assertEquals("PUT", request.method)
             assertEquals("4", request.getHeader("Content-Length"))
+            assertEquals("application/octet-stream", request.getHeader("Content-Type"))
             assertEquals("bin!", request.body.readUtf8())
             jsonResponse(
               200,
@@ -157,6 +229,41 @@ class TokenManagementRepositoryTest {
     )
 
     assertTrue(result is ApiResult.Success<*>)
+  }
+
+  @Test
+  fun `download write failure returns failure without crashing`() = runBlocking {
+    server.dispatcher = object : Dispatcher() {
+      override fun dispatch(request: RecordedRequest): MockResponse =
+        when (request.path) {
+          "/api/v1/bin-files/token-1/download" -> binaryResponse(byteArrayOf(1, 2, 3, 4))
+          else -> MockResponse().setResponseCode(404)
+        }
+    }
+
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val preferences = context.getSharedPreferences("tm_repo_test_write_failure", Context.MODE_PRIVATE).apply {
+      edit().clear().commit()
+    }
+    val harness = createRepositoryHarness(server.url("/api/v1/"))
+    val repository = TokenManagementRepository(
+      api = harness.retrofit.create(),
+      parser = ApiResultParser(),
+      store = SecureTokenWorkspaceStore(context, preferences),
+      sensitiveActionSession = UserSensitiveActionSession(),
+    )
+
+    val result = repository.downloadBinFile("token-1", "ticket-1") {
+      object : OutputStream() {
+        override fun write(b: Int) {
+          throw IOException("disk full")
+        }
+      }
+    }
+
+    assertTrue(result is ApiResult.Failure)
+    result as ApiResult.Failure
+    assertTrue(result.error.message.contains("BIN 文件写入失败"))
   }
 
   @Test

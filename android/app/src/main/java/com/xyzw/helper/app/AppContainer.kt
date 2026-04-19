@@ -8,8 +8,10 @@ import com.xyzw.helper.data.network.ApiResultParser
 import com.xyzw.helper.data.network.AdminApi
 import com.xyzw.helper.data.network.AuthApi
 import com.xyzw.helper.data.network.AuthBootstrapHelper
+import com.xyzw.helper.data.network.BattleReportApi
 import com.xyzw.helper.data.network.DailyTaskApi
 import com.xyzw.helper.data.network.FeedbackApi
+import com.xyzw.helper.data.network.GameFeatureApi
 import com.xyzw.helper.data.network.GameRoleApi
 import com.xyzw.helper.data.network.NetworkFactory
 import com.xyzw.helper.data.network.NotificationApi
@@ -20,8 +22,10 @@ import com.xyzw.helper.data.network.UserApi
 import com.xyzw.helper.data.repository.AdminRepository
 import com.xyzw.helper.data.repository.AdminFeedbackRepository
 import com.xyzw.helper.data.repository.AuthRepository
+import com.xyzw.helper.data.repository.BattleReportRepository
 import com.xyzw.helper.data.repository.DailyTaskRepository
 import com.xyzw.helper.data.repository.FeedbackUserRepository
+import com.xyzw.helper.data.repository.GameFeatureRepository
 import com.xyzw.helper.data.repository.GameRoleRepository
 import com.xyzw.helper.data.repository.NotificationRepository
 import com.xyzw.helper.data.repository.ProfileRepository
@@ -46,9 +50,13 @@ import com.xyzw.helper.ui.screens.AdminTaskControlLogsViewModel
 import com.xyzw.helper.ui.screens.AdminUsersViewModel
 import com.xyzw.helper.ui.screens.AdminWechatContactsViewModel
 import com.xyzw.helper.ui.screens.AuthViewModel
+import com.xyzw.helper.ui.screens.BattleReportsViewModel
 import com.xyzw.helper.ui.screens.DashboardViewModel
 import com.xyzw.helper.ui.screens.DailyTasksViewModel
 import com.xyzw.helper.ui.screens.FeedbackViewModel
+import com.xyzw.helper.ui.screens.GameFeaturesViewModel
+import com.xyzw.helper.ui.screens.LegionWarViewModel
+import com.xyzw.helper.ui.screens.LineupAssistantViewModel
 import com.xyzw.helper.ui.screens.NotificationsViewModel
 import com.xyzw.helper.ui.screens.ProfileSettingsViewModel
 import com.xyzw.helper.ui.screens.ReferralViewModel
@@ -96,6 +104,8 @@ class AppContainer(
   private val feedbackApi = retrofit.create<FeedbackApi>()
   private val adminApi = retrofit.create<AdminApi>()
   private val tokenManagementApi = retrofit.create<TokenManagementApi>()
+  private val gameFeatureApi = retrofit.create<GameFeatureApi>()
+  private val battleReportApi = retrofit.create<BattleReportApi>()
   val wsSessionManager = WsSessionManager(
     client = mainClient,
     serverBaseUrl = serverBaseUrl,
@@ -138,6 +148,8 @@ class AppContainer(
     store = tokenWorkspaceStore,
     sensitiveActionSession = sensitiveActionSession,
   )
+  val gameFeatureRepository = GameFeatureRepository(gameFeatureApi, parser)
+  val battleReportRepository = BattleReportRepository(battleReportApi, parser)
   val adminRepository = AdminRepository(adminApi, parser)
 
   val viewModelFactory: ViewModelProvider.Factory = AppViewModelFactory(this)
@@ -194,6 +206,26 @@ class AppViewModelFactory(
       modelClass.isAssignableFrom(TokenManagementViewModel::class.java) -> TokenManagementViewModel(
         repository = container.tokenManagementRepository,
         profileRepository = container.profileRepository,
+      ) as T
+
+      modelClass.isAssignableFrom(GameFeaturesViewModel::class.java) -> GameFeaturesViewModel(
+        repository = container.gameFeatureRepository,
+        tokenRepository = container.tokenManagementRepository,
+      ) as T
+
+      modelClass.isAssignableFrom(LegionWarViewModel::class.java) -> LegionWarViewModel(
+        repository = container.gameFeatureRepository,
+        tokenRepository = container.tokenManagementRepository,
+      ) as T
+
+      modelClass.isAssignableFrom(LineupAssistantViewModel::class.java) -> LineupAssistantViewModel(
+        repository = container.gameFeatureRepository,
+        tokenRepository = container.tokenManagementRepository,
+      ) as T
+
+      modelClass.isAssignableFrom(BattleReportsViewModel::class.java) -> BattleReportsViewModel(
+        repository = container.battleReportRepository,
+        tokenRepository = container.tokenManagementRepository,
       ) as T
 
       modelClass.isAssignableFrom(DailyTasksViewModel::class.java) -> DailyTasksViewModel(
