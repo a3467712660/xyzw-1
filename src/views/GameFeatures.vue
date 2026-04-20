@@ -525,4 +525,1069 @@ watch(
 
 <style lang="scss">
 @use "@/assets/styles/game-workbench-v2.scss";
+
+.game-features-page {
+  --gwb2-panel: rgba(10, 18, 31, 0.9);
+  --gwb2-panel-strong: rgba(12, 22, 38, 0.94);
+  --gwb2-border: rgba(85, 136, 218, 0.3);
+  --gwb2-glow: rgba(37, 99, 235, 0.22);
+  --gwb2-accent: #75a7ff;
+  --gwb2-accent-soft: rgba(37, 99, 235, 0.16);
+  --gwb2-console-panel: rgba(13, 23, 39, 0.92);
+  --gwb2-console-panel-strong: rgba(9, 18, 32, 0.96);
+  --gwb2-console-panel-muted: rgba(17, 31, 52, 0.84);
+  --gwb2-console-panel-hover: rgba(20, 36, 60, 0.96);
+  --gwb2-console-border: rgba(83, 125, 196, 0.26);
+  --gwb2-console-divider: rgba(96, 132, 184, 0.2);
+  --gwb2-console-highlight: rgba(157, 190, 240, 0.12);
+  --gwb2-console-shadow: 0 16px 34px rgba(0, 0, 0, 0.34);
+  --gwb2-console-shadow-strong: 0 22px 48px rgba(0, 0, 0, 0.42);
+  --gwb2-console-strip: linear-gradient(180deg, rgba(96, 165, 250, 0.08), rgba(9, 18, 32, 0.02));
+  padding: clamp(14px, 2vw, 24px);
+}
+
+.game-features-page::before {
+  background:
+    radial-gradient(circle at 16% 5%, rgba(37, 99, 235, 0.18), transparent 30%),
+    radial-gradient(circle at 86% 12%, rgba(34, 197, 94, 0.12), transparent 28%),
+    linear-gradient(180deg, #050b15 0%, #081323 54%, #07101c 100%);
+}
+
+.game-features-page .game-command-bar,
+.game-features-page .game-stage,
+.game-features-page .game-module-dock__panel,
+.game-features-page .game-module-dock__bar {
+  border-color: var(--gwb2-border);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 22%),
+    linear-gradient(135deg, rgba(37, 99, 235, 0.12), transparent 62%),
+    var(--gwb2-panel);
+  box-shadow:
+    0 0 0 1px rgba(148, 180, 232, 0.04),
+    var(--gwb2-console-shadow);
+}
+
+.game-features-page .game-command-bar {
+  border-radius: 22px;
+  padding: clamp(18px, 2vw, 24px);
+}
+
+.game-features-page .game-command-bar::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
+  background: linear-gradient(90deg, #22c55e, #2563eb 54%, rgba(249, 115, 22, 0.72));
+}
+
+.game-features-page .game-command-bar__title {
+  font-size: clamp(26px, 3vw, 36px);
+  letter-spacing: 0;
+}
+
+.game-features-page .game-command-bar__description {
+  margin-top: 8px;
+  color: rgba(203, 213, 225, 0.86);
+}
+
+.game-features-page .game-command-bar__signal {
+  border-color: rgba(96, 165, 250, 0.2);
+  background:
+    linear-gradient(135deg, rgba(37, 99, 235, 0.14), transparent 70%),
+    rgba(11, 21, 36, 0.8);
+}
+
+.game-features-page .game-command-bar__signal::before {
+  background: linear-gradient(180deg, #60a5fa, #22c55e);
+}
+
+.game-features-page .game-command-bar__signal-label,
+.game-features-page .game-stage-overview__label,
+.game-features-page .game-stage__eyebrow {
+  color: rgba(148, 163, 184, 0.88);
+  letter-spacing: 0.1em;
+}
+
+.game-features-page .game-command-bar__signal-value,
+.game-features-page .game-stage-overview__value {
+  color: #f8fafc;
+}
+
+.game-features-page .game-command-bar__signal-meta,
+.game-features-page .game-stage-overview__meta {
+  color: rgba(203, 213, 225, 0.78);
+}
+
+.game-features-page .game-signal-pill {
+  min-height: 38px;
+  background: rgba(15, 23, 42, 0.72);
+}
+
+.game-features-page .game-signal-pill--success {
+  color: #63e68b;
+  border-color: rgba(34, 197, 94, 0.34);
+  background: rgba(22, 101, 52, 0.26);
+}
+
+.game-features-page .game-command-bar__action-stack > .n-button {
+  min-height: 42px;
+}
+
+.game-features-page .n-button {
+  border-color: rgba(96, 165, 250, 0.22);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(96, 165, 250, 0.04)),
+    rgba(15, 23, 42, 0.72);
+  color: rgba(241, 245, 249, 0.92);
+}
+
+.game-features-page .n-button:hover {
+  border-color: rgba(96, 165, 250, 0.38);
+  background:
+    linear-gradient(180deg, rgba(96, 165, 250, 0.16), rgba(15, 23, 42, 0.06)),
+    rgba(20, 36, 60, 0.92);
+}
+
+.game-features-page .n-button.n-button--primary-type {
+  background: linear-gradient(180deg, #4f83ff, #2557d6);
+  color: #ffffff;
+  box-shadow: 0 10px 24px rgba(37, 99, 235, 0.22);
+}
+
+.game-features-page .game-stage {
+  border-radius: 22px;
+}
+
+.game-features-page .game-stage__header {
+  border-bottom-color: var(--gwb2-console-divider);
+}
+
+.game-features-page .game-stage__description {
+  color: rgba(203, 213, 225, 0.78);
+}
+
+.game-features-page .game-stage__telemetry,
+.game-features-page .game-stage-overview__item {
+  border-color: rgba(96, 165, 250, 0.2);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045), transparent 34%),
+    rgba(10, 20, 36, 0.82);
+}
+
+.game-features-page .game-stage__telemetry-value.status-connected {
+  color: #63e68b;
+}
+
+.game-features-page .game-stage__canvas :is(.gwb2-mini-card, .status-card) {
+  border-color: rgba(96, 165, 250, 0.22);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 24%),
+    rgba(10, 20, 36, 0.9);
+}
+
+.game-features-page .game-stage__canvas :is(.gwb2-mini-card, .status-card)::before {
+  opacity: 0.26;
+}
+
+.game-features-page .game-stage__canvas :is(.gwb2-mini-card, .status-card):hover {
+  border-color: rgba(96, 165, 250, 0.34);
+  background:
+    linear-gradient(180deg, rgba(96, 165, 250, 0.08), transparent 28%),
+    rgba(13, 26, 45, 0.94);
+}
+
+.game-features-page .game-stage__canvas :is(.gwb2-mini-card__toolbar, .status-card .card-header) {
+  border-bottom-color: rgba(96, 165, 250, 0.18);
+}
+
+.game-features-page .game-stage__canvas :is(.gwb2-mini-card__icon, .status-icon, .icon) {
+  border-color: rgba(96, 165, 250, 0.22);
+  background:
+    linear-gradient(180deg, rgba(96, 165, 250, 0.16), rgba(34, 197, 94, 0.06)),
+    rgba(15, 23, 42, 0.72);
+}
+
+.game-features-page .game-stage__canvas :is(.gwb2-mini-card__chip, .status-badge) {
+  border-color: rgba(96, 165, 250, 0.2);
+  background: rgba(15, 23, 42, 0.72);
+  color: rgba(226, 232, 240, 0.88);
+}
+
+.game-features-page .game-stage__canvas :is(.team-formation-card__status-chip--connected, .daily-task__status-chip--connected, .daily-task__status-chip--completed, .status-badge.active) {
+  border-color: rgba(34, 197, 94, 0.34);
+  background: rgba(22, 101, 52, 0.28);
+  color: #63e68b;
+}
+
+.game-features-page .game-stage__canvas .team-selector,
+.game-features-page .game-stage__canvas .gwb2-mini-card__segmented {
+  border-color: rgba(96, 165, 250, 0.18);
+  background: rgba(8, 16, 29, 0.62);
+}
+
+.game-features-page .game-stage__canvas .team-selector > button,
+.game-features-page .game-stage__canvas .gwb2-mini-card__segmented > button {
+  min-height: 38px;
+  color: rgba(203, 213, 225, 0.82);
+}
+
+.game-features-page .game-stage__canvas .team-selector > button.active,
+.game-features-page .game-stage__canvas .gwb2-mini-card__segmented > button.active,
+.game-features-page .game-stage__canvas .gwb2-mini-card__segmented > button[aria-pressed="true"] {
+  background: linear-gradient(180deg, #dce8ff, #9fbdfd);
+  color: #10233f;
+  box-shadow: 0 8px 18px rgba(96, 165, 250, 0.22);
+}
+
+.game-features-page .game-stage__canvas :is(.current-team-info, .progress-container, .info-container, .gwb2-mini-card__metric, .gwb2-mini-card__list) {
+  border-color: rgba(96, 165, 250, 0.18);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 38%),
+    rgba(15, 23, 42, 0.74);
+  color: rgba(226, 232, 240, 0.9);
+}
+
+.game-features-page .game-stage__canvas .current-team-info .label,
+.game-features-page .game-stage__canvas .progress-label,
+.game-features-page .game-stage__canvas .gwb2-mini-card__section-title {
+  color: rgba(148, 163, 184, 0.9);
+}
+
+.game-features-page .game-stage__canvas .current-team-info .team-number,
+.game-features-page .game-stage__canvas .progress-value {
+  color: #f8fafc;
+}
+
+.game-features-page .game-stage__canvas .heroes-container {
+  min-height: 96px;
+  border-color: rgba(96, 165, 250, 0.2);
+  background:
+    radial-gradient(circle at 50% 0%, rgba(96, 165, 250, 0.14), transparent 48%),
+    rgba(8, 16, 29, 0.72);
+}
+
+.game-features-page .game-stage__canvas .hero-circle {
+  width: 44px;
+  height: 44px;
+  border: 1px solid rgba(148, 180, 232, 0.3);
+  border-radius: 13px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(96, 165, 250, 0.08)),
+    rgba(15, 23, 42, 0.84);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22);
+}
+
+.game-features-page .game-stage__canvas .hero-name {
+  color: rgba(226, 232, 240, 0.86);
+}
+
+.game-features-page .game-stage__canvas .daily-task__run-button {
+  min-height: 44px;
+  border: 0;
+  background: linear-gradient(180deg, #4f83ff, #2557d6);
+  color: #ffffff;
+  box-shadow: 0 12px 24px rgba(37, 99, 235, 0.24);
+}
+
+.game-features-page .game-stage__canvas .daily-task__run-button:disabled {
+  background: rgba(71, 85, 105, 0.58);
+  color: rgba(226, 232, 240, 0.62);
+  box-shadow: none;
+}
+
+.game-features-page .game-stage__canvas .settings-gear {
+  border-color: rgba(96, 165, 250, 0.2);
+  background: rgba(15, 23, 42, 0.7);
+  color: rgba(226, 232, 240, 0.9);
+}
+
+.game-features-page .game-status-container.activity-mode {
+  gap: 12px;
+}
+
+.game-features-page .game-status-container.activity-mode :is(.monthly-tasks, .study-challenge-card, .skin-challenge, .consumption-progress-card) {
+  border-color: rgba(251, 191, 36, 0.26);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(251, 191, 36, 0.12), transparent 34%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 26%),
+    rgba(10, 20, 36, 0.92);
+}
+
+.game-features-page .game-status-container.activity-mode :is(.monthly-tasks, .study-challenge-card, .skin-challenge, .consumption-progress-card)::after {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
+  background: linear-gradient(90deg, rgba(251, 191, 36, 0.92), rgba(96, 165, 250, 0.8), transparent);
+  pointer-events: none;
+}
+
+.game-features-page .game-status-container.activity-mode .gwb2-mini-card__title h3 {
+  color: #fff7ed;
+  font-size: 16px;
+}
+
+.game-features-page .game-status-container.activity-mode .gwb2-mini-card__title p,
+.game-features-page .game-status-container.activity-mode .description,
+.game-features-page .game-status-container.activity-mode .description.muted {
+  color: rgba(226, 232, 240, 0.78);
+}
+
+.game-features-page .game-status-container.activity-mode .gwb2-mini-card__icon {
+  border-color: rgba(251, 191, 36, 0.28);
+  background:
+    linear-gradient(180deg, rgba(251, 191, 36, 0.2), rgba(96, 165, 250, 0.08)),
+    rgba(15, 23, 42, 0.76);
+  color: #fbbf24;
+}
+
+.game-features-page .game-status-container.activity-mode .gwb2-mini-card__chip {
+  border-color: rgba(251, 191, 36, 0.26);
+  background: rgba(120, 53, 15, 0.28);
+  color: #fcd34d;
+}
+
+.game-features-page .game-status-container.activity-mode :is(.monthly-row, .study-metric, .header-info, .summary-cell, .progress-item, .combo-item, .boss-card) {
+  border-color: rgba(251, 191, 36, 0.16);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045), transparent 38%),
+    rgba(15, 23, 42, 0.76);
+}
+
+.game-features-page .game-status-container.activity-mode :is(.row-title, .study-metric__value, .challenge-count, .item-name, .combo-title strong, .summary-value, .boss-title) {
+  color: #f8fafc;
+}
+
+.game-features-page .game-status-container.activity-mode :is(.row-subtitle, .row-ratio, .study-metric__state, .daily-target, .summary-label, .summary-meta, .item-footer, .combo-summary) {
+  color: rgba(203, 213, 225, 0.72);
+}
+
+.game-features-page .game-status-container.activity-mode .row-value strong,
+.game-features-page .game-status-container.activity-mode .summary-value,
+.game-features-page .game-status-container.activity-mode .item-values {
+  color: #fcd34d;
+  font-family: var(--font-family-mono);
+}
+
+.game-features-page .game-status-container.activity-mode .boss-grid {
+  gap: 10px;
+}
+
+.game-features-page .game-status-container.activity-mode .boss-card {
+  min-height: 132px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.game-features-page .game-status-container.activity-mode .boss-card.active {
+  border-color: rgba(96, 165, 250, 0.34);
+  background:
+    linear-gradient(180deg, rgba(96, 165, 250, 0.14), transparent 42%),
+    rgba(15, 23, 42, 0.8);
+}
+
+.game-features-page .game-status-container.activity-mode .boss-card.cleared {
+  border-color: rgba(34, 197, 94, 0.36);
+  background:
+    linear-gradient(180deg, rgba(34, 197, 94, 0.16), transparent 44%),
+    rgba(15, 23, 42, 0.82);
+}
+
+.game-features-page .game-status-container.activity-mode .boss-card.locked {
+  opacity: 0.68;
+  background: rgba(15, 23, 42, 0.58);
+}
+
+.game-features-page .game-status-container.activity-mode .boss-level {
+  color: rgba(226, 232, 240, 0.72);
+}
+
+.game-features-page .game-status-container.activity-mode :is(.status-text.active, .completed-text) {
+  color: #63e68b;
+}
+
+.game-features-page .game-status-container.activity-mode :is(.status-text.locked, .status-indicator.closed) {
+  color: #fca5a5;
+}
+
+.game-features-page .game-status-container.activity-mode .progress-list {
+  border-color: rgba(96, 165, 250, 0.16);
+  background: rgba(8, 16, 29, 0.62);
+}
+
+.game-features-page .game-status-container.activity-mode .progress-item {
+  padding: 12px;
+  border: 1px solid rgba(96, 165, 250, 0.14);
+  border-radius: 14px;
+}
+
+.game-features-page .game-status-container.activity-mode .consumption-controls {
+  grid-template-columns: minmax(0, 1fr) minmax(112px, 132px);
+}
+
+.game-features-page .game-status-container.activity-mode .consumption-progress-card__icon svg {
+  width: 24px;
+  height: 24px;
+}
+
+.game-features-page .game-status-container.activity-mode .consumption-actions {
+  gap: 8px;
+}
+
+.route-game-workbench-v2-active :is(.consumption-progress__modal, .n-drawer-content) :is(.combo-toolbar, .combo-item, .combo-empty) {
+  border-color: rgba(96, 165, 250, 0.18);
+  background: rgba(10, 20, 36, 0.86);
+  color: rgba(241, 245, 249, 0.9);
+}
+
+.route-game-workbench-v2-active :is(.consumption-progress__modal, .n-drawer-content) .combo-steps {
+  color: rgba(203, 213, 225, 0.78);
+}
+
+.route-game-workbench-v2-active :is(.n-drawer-content, .n-card) {
+  background: rgba(9, 18, 32, 0.96);
+  color: rgba(241, 245, 249, 0.94);
+}
+
+.route-game-workbench-v2-active :is(.n-drawer-content, .n-card) :is(.n-drawer-header, .n-card-header) {
+  border-bottom-color: rgba(96, 165, 250, 0.2);
+}
+
+.route-game-workbench-v2-active :is(.task-item, .switch-row) {
+  border-bottom-color: rgba(96, 165, 250, 0.14);
+}
+
+.route-game-workbench-v2-active .log-container {
+  border: 1px solid rgba(96, 165, 250, 0.2);
+  background: rgba(5, 12, 24, 0.86);
+}
+
+:root:not([data-theme="dark"]) .game-features-page {
+  --gwb2-panel: rgba(255, 255, 255, 0.88);
+  --gwb2-panel-strong: rgba(248, 251, 255, 0.96);
+  --gwb2-border: rgba(37, 99, 235, 0.14);
+  --gwb2-glow: rgba(37, 99, 235, 0.12);
+  --gwb2-accent: #2563eb;
+  --gwb2-accent-soft: rgba(37, 99, 235, 0.1);
+  --gwb2-console-panel: rgba(247, 250, 255, 0.9);
+  --gwb2-console-panel-strong: rgba(255, 255, 255, 0.96);
+  --gwb2-console-panel-muted: rgba(235, 242, 252, 0.88);
+  --gwb2-console-panel-hover: rgba(255, 255, 255, 0.98);
+  --gwb2-console-border: rgba(37, 99, 235, 0.13);
+  --gwb2-console-divider: rgba(79, 114, 164, 0.16);
+  --gwb2-console-highlight: rgba(255, 255, 255, 0.72);
+  --gwb2-console-shadow: 0 14px 30px rgba(15, 23, 42, 0.08);
+  --gwb2-console-shadow-strong: 0 18px 40px rgba(15, 23, 42, 0.12);
+  --gwb2-console-strip: linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(224, 236, 252, 0.18));
+}
+
+:root:not([data-theme="dark"]) .game-features-page::before {
+  background:
+    radial-gradient(circle at 16% 5%, rgba(37, 99, 235, 0.12), transparent 30%),
+    radial-gradient(circle at 86% 12%, rgba(34, 197, 94, 0.08), transparent 28%),
+    linear-gradient(180deg, #f7fbff 0%, #edf4ff 56%, #f8fafc 100%);
+}
+
+:root:not([data-theme="dark"]) .game-features-page .game-command-bar,
+:root:not([data-theme="dark"]) .game-features-page .game-stage,
+:root:not([data-theme="dark"]) .game-features-page .game-module-dock__panel,
+:root:not([data-theme="dark"]) .game-features-page .game-module-dock__bar {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.72), transparent 24%),
+    linear-gradient(135deg, rgba(37, 99, 235, 0.06), transparent 62%),
+    var(--gwb2-panel);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.72),
+    var(--gwb2-console-shadow);
+}
+
+:root:not([data-theme="dark"]) .game-features-page .game-command-bar__description,
+:root:not([data-theme="dark"]) .game-features-page .game-stage__description,
+:root:not([data-theme="dark"]) .game-features-page .game-command-bar__signal-meta,
+:root:not([data-theme="dark"]) .game-features-page .game-stage-overview__meta,
+:root:not([data-theme="dark"]) .game-features-page .game-stage__canvas .hero-name {
+  color: var(--text-secondary);
+}
+
+:root:not([data-theme="dark"]) .game-features-page .game-command-bar__signal-label,
+:root:not([data-theme="dark"]) .game-features-page .game-stage-overview__label,
+:root:not([data-theme="dark"]) .game-features-page .game-stage__eyebrow,
+:root:not([data-theme="dark"]) .game-features-page .game-stage__canvas .current-team-info .label,
+:root:not([data-theme="dark"]) .game-features-page .game-stage__canvas .progress-label,
+:root:not([data-theme="dark"]) .game-features-page .game-stage__canvas .gwb2-mini-card__section-title {
+  color: var(--text-tertiary);
+}
+
+:root:not([data-theme="dark"]) .game-features-page .game-command-bar__signal-value,
+:root:not([data-theme="dark"]) .game-features-page .game-stage-overview__value,
+:root:not([data-theme="dark"]) .game-features-page .game-stage__canvas .current-team-info .team-number,
+:root:not([data-theme="dark"]) .game-features-page .game-stage__canvas .progress-value {
+  color: var(--text-primary);
+}
+
+:root:not([data-theme="dark"]) .game-features-page .game-command-bar__signal,
+:root:not([data-theme="dark"]) .game-features-page .game-stage__telemetry,
+:root:not([data-theme="dark"]) .game-features-page .game-stage-overview__item,
+:root:not([data-theme="dark"]) .game-features-page .game-stage__canvas :is(.gwb2-mini-card, .status-card),
+:root:not([data-theme="dark"]) .game-features-page .game-stage__canvas :is(.current-team-info, .progress-container, .info-container, .gwb2-mini-card__metric, .gwb2-mini-card__list) {
+  border-color: rgba(37, 99, 235, 0.14);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.64), transparent 36%),
+    rgba(255, 255, 255, 0.78);
+}
+
+:root:not([data-theme="dark"]) .game-features-page .game-stage__canvas :is(.gwb2-mini-card, .status-card):hover {
+  border-color: rgba(37, 99, 235, 0.22);
+  background:
+    linear-gradient(180deg, rgba(37, 99, 235, 0.08), transparent 30%),
+    rgba(255, 255, 255, 0.94);
+}
+
+:root:not([data-theme="dark"]) .game-features-page .game-stage__canvas :is(.gwb2-mini-card__chip, .status-badge),
+:root:not([data-theme="dark"]) .game-features-page .game-signal-pill,
+:root:not([data-theme="dark"]) .game-features-page .game-stage__canvas .settings-gear {
+  border-color: rgba(37, 99, 235, 0.14);
+  background: rgba(239, 246, 255, 0.86);
+  color: var(--text-secondary);
+}
+
+:root:not([data-theme="dark"]) .game-features-page .game-stage__canvas :is(.team-formation-card__status-chip--connected, .daily-task__status-chip--connected, .daily-task__status-chip--completed, .status-badge.active),
+:root:not([data-theme="dark"]) .game-features-page .game-signal-pill--success {
+  border-color: rgba(22, 163, 74, 0.24);
+  background: rgba(220, 252, 231, 0.82);
+  color: #15803d;
+}
+
+:root:not([data-theme="dark"]) .game-features-page .n-button {
+  border-color: rgba(37, 99, 235, 0.14);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.76), rgba(226, 238, 255, 0.5)),
+    rgba(248, 251, 255, 0.9);
+  color: var(--text-primary);
+}
+
+:root:not([data-theme="dark"]) .game-features-page .n-button:hover {
+  border-color: rgba(37, 99, 235, 0.24);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(219, 234, 254, 0.62)),
+    #ffffff;
+}
+
+:root:not([data-theme="dark"]) .game-features-page .game-stage__canvas .team-selector,
+:root:not([data-theme="dark"]) .game-features-page .game-stage__canvas .gwb2-mini-card__segmented {
+  border-color: rgba(37, 99, 235, 0.14);
+  background: rgba(230, 240, 255, 0.78);
+}
+
+:root:not([data-theme="dark"]) .game-features-page .game-stage__canvas .team-selector > button,
+:root:not([data-theme="dark"]) .game-features-page .game-stage__canvas .gwb2-mini-card__segmented > button {
+  color: var(--text-secondary);
+}
+
+:root:not([data-theme="dark"]) .game-features-page .game-stage__canvas .heroes-container {
+  border-color: rgba(37, 99, 235, 0.14);
+  background:
+    radial-gradient(circle at 50% 0%, rgba(37, 99, 235, 0.08), transparent 48%),
+    rgba(247, 250, 255, 0.86);
+}
+
+:root:not([data-theme="dark"]) .game-features-page .game-stage__canvas .hero-circle {
+  border-color: rgba(37, 99, 235, 0.16);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.84), rgba(219, 234, 254, 0.42)),
+    #ffffff;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.1);
+}
+
+:root:not([data-theme="dark"]) .game-features-page .game-status-container.activity-mode :is(.monthly-tasks, .study-challenge-card, .skin-challenge, .consumption-progress-card) {
+  border-color: rgba(245, 158, 11, 0.22);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(245, 158, 11, 0.12), transparent 34%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.72), transparent 26%),
+    rgba(255, 251, 235, 0.82);
+}
+
+:root:not([data-theme="dark"]) .game-features-page .game-status-container.activity-mode .gwb2-mini-card__title h3,
+:root:not([data-theme="dark"]) .game-features-page .game-status-container.activity-mode :is(.row-title, .study-metric__value, .challenge-count, .item-name, .combo-title strong, .summary-value, .boss-title) {
+  color: var(--text-primary);
+}
+
+:root:not([data-theme="dark"]) .game-features-page .game-status-container.activity-mode .gwb2-mini-card__title p,
+:root:not([data-theme="dark"]) .game-features-page .game-status-container.activity-mode .description,
+:root:not([data-theme="dark"]) .game-features-page .game-status-container.activity-mode .description.muted,
+:root:not([data-theme="dark"]) .game-features-page .game-status-container.activity-mode :is(.row-subtitle, .row-ratio, .study-metric__state, .daily-target, .summary-label, .summary-meta, .item-footer, .combo-summary) {
+  color: var(--text-secondary);
+}
+
+:root:not([data-theme="dark"]) .game-features-page .game-status-container.activity-mode .gwb2-mini-card__icon {
+  border-color: rgba(245, 158, 11, 0.2);
+  background:
+    linear-gradient(180deg, rgba(254, 243, 199, 0.9), rgba(219, 234, 254, 0.4)),
+    #ffffff;
+  color: #b45309;
+}
+
+:root:not([data-theme="dark"]) .game-features-page .game-status-container.activity-mode .gwb2-mini-card__chip {
+  border-color: rgba(245, 158, 11, 0.22);
+  background: rgba(254, 243, 199, 0.82);
+  color: #92400e;
+}
+
+:root:not([data-theme="dark"]) .game-features-page .game-status-container.activity-mode :is(.monthly-row, .study-metric, .header-info, .summary-cell, .progress-item, .combo-item, .boss-card) {
+  border-color: rgba(245, 158, 11, 0.16);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.72), transparent 38%),
+    rgba(255, 255, 255, 0.72);
+}
+
+:root:not([data-theme="dark"]) .game-features-page .game-status-container.activity-mode .row-value strong,
+:root:not([data-theme="dark"]) .game-features-page .game-status-container.activity-mode .summary-value,
+:root:not([data-theme="dark"]) .game-features-page .game-status-container.activity-mode .item-values {
+  color: #b45309;
+}
+
+:root:not([data-theme="dark"]) .game-features-page .game-status-container.activity-mode .boss-card.active {
+  border-color: rgba(37, 99, 235, 0.22);
+  background:
+    linear-gradient(180deg, rgba(219, 234, 254, 0.7), transparent 42%),
+    rgba(255, 255, 255, 0.8);
+}
+
+:root:not([data-theme="dark"]) .game-features-page .game-status-container.activity-mode .boss-card.cleared {
+  border-color: rgba(34, 197, 94, 0.28);
+  background:
+    linear-gradient(180deg, rgba(220, 252, 231, 0.72), transparent 44%),
+    rgba(255, 255, 255, 0.82);
+}
+
+:root:not([data-theme="dark"]) .game-features-page .game-status-container.activity-mode .boss-card.locked {
+  background: rgba(226, 232, 240, 0.54);
+}
+
+:root:not([data-theme="dark"]) .game-features-page .game-status-container.activity-mode .boss-level {
+  color: var(--text-secondary);
+}
+
+:root:not([data-theme="dark"]) .game-features-page .game-status-container.activity-mode .progress-list {
+  border-color: rgba(37, 99, 235, 0.12);
+  background: rgba(247, 250, 255, 0.74);
+}
+
+:root:not([data-theme="dark"]) .route-game-workbench-v2-active :is(.n-drawer-content, .n-card) {
+  background: rgba(255, 255, 255, 0.98);
+  color: var(--text-primary);
+}
+
+:root:not([data-theme="dark"]) .route-game-workbench-v2-active :is(.consumption-progress__modal, .n-drawer-content) :is(.combo-toolbar, .combo-item, .combo-empty) {
+  border-color: rgba(37, 99, 235, 0.14);
+  background: rgba(248, 251, 255, 0.94);
+  color: var(--text-primary);
+}
+
+:root:not([data-theme="dark"]) .route-game-workbench-v2-active :is(.consumption-progress__modal, .n-drawer-content) .combo-steps {
+  color: var(--text-secondary);
+}
+
+.game-features-page .game-module-dock__bar {
+  border-radius: 18px;
+  padding: 8px;
+}
+
+.game-features-page .game-module-dock__group {
+  min-height: 58px;
+  border-color: rgba(96, 165, 250, 0.12);
+  background: rgba(15, 23, 42, 0.62);
+  color: rgba(203, 213, 225, 0.82);
+}
+
+.game-features-page .game-module-dock__group--active,
+.game-features-page .game-module-dock__group--expanded {
+  border-color: rgba(96, 165, 250, 0.34);
+  background:
+    linear-gradient(180deg, rgba(96, 165, 250, 0.18), rgba(37, 99, 235, 0.06)),
+    rgba(20, 36, 60, 0.92);
+  color: #75a7ff;
+}
+
+:root:not([data-theme="dark"]) .game-features-page {
+  --gwb2-panel: rgba(255, 255, 255, 0.82);
+  --gwb2-panel-strong: rgba(255, 255, 255, 0.94);
+  --gwb2-border: rgba(30, 64, 175, 0.14);
+  --gwb2-glow: rgba(37, 99, 235, 0.13);
+  --gwb2-accent: #2563eb;
+  --gwb2-accent-soft: rgba(37, 99, 235, 0.1);
+  --gwb2-console-panel: rgba(249, 252, 255, 0.86);
+  --gwb2-console-panel-strong: rgba(255, 255, 255, 0.96);
+  --gwb2-console-panel-muted: rgba(236, 244, 255, 0.84);
+  --gwb2-console-panel-hover: rgba(255, 255, 255, 0.98);
+  --gwb2-console-border: rgba(37, 99, 235, 0.14);
+  --gwb2-console-divider: rgba(71, 85, 105, 0.14);
+  --gwb2-console-highlight: rgba(255, 255, 255, 0.78);
+  --gwb2-console-shadow: 0 18px 46px rgba(30, 64, 175, 0.1);
+  --gwb2-console-shadow-strong: 0 24px 58px rgba(30, 64, 175, 0.14);
+  --gwb2-console-strip: linear-gradient(180deg, rgba(255, 255, 255, 0.62), rgba(219, 234, 254, 0.22));
+  --gwb2-light-ink: #172033;
+  --gwb2-light-muted: #52647c;
+  --gwb2-light-subtle: #708097;
+  --gwb2-light-blue: #2563eb;
+  --gwb2-light-blue-soft: rgba(219, 234, 254, 0.78);
+  --gwb2-light-amber: #b45309;
+  --gwb2-light-amber-soft: rgba(255, 247, 237, 0.88);
+  --gwb2-light-green: #15803d;
+  color: var(--gwb2-light-ink);
+}
+
+:root:not([data-theme="dark"]) .game-features-page::before {
+  background:
+    linear-gradient(135deg, rgba(37, 99, 235, 0.11) 0%, transparent 38%),
+    linear-gradient(225deg, rgba(20, 184, 166, 0.08) 0%, transparent 44%),
+    linear-gradient(180deg, #f8fbff 0%, #eef5ff 46%, #f8fbff 100%);
+}
+
+:root:not([data-theme="dark"]) .game-features-page::after {
+  opacity: 0.28;
+  background-size: 32px 32px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.44), transparent 88%);
+}
+
+:root:not([data-theme="dark"]) .game-features-page :is(.game-command-bar, .game-stage, .game-module-rail, .game-inspector, .game-module-dock__panel, .game-module-dock__bar) {
+  border-color: rgba(30, 64, 175, 0.14);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.84), rgba(255, 255, 255, 0.54) 42%, rgba(239, 246, 255, 0.62)),
+    rgba(255, 255, 255, 0.82);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.78) inset,
+    0 18px 46px rgba(30, 64, 175, 0.1);
+}
+
+:root:not([data-theme="dark"]) .game-features-page .game-command-bar::before {
+  background: linear-gradient(90deg, #14b8a6, #2563eb 52%, #f59e0b);
+  opacity: 0.9;
+}
+
+:root:not([data-theme="dark"]) .game-features-page :is(.game-command-bar__title, .game-stage__title, .game-inspector__title) {
+  color: var(--gwb2-light-ink);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.58);
+}
+
+:root:not([data-theme="dark"]) .game-features-page :is(.game-command-bar__description, .game-stage__description, .game-inspector__subtitle, .game-module-rail__group-copy span, .game-module-dock__module-note) {
+  color: var(--gwb2-light-muted);
+}
+
+:root:not([data-theme="dark"]) .game-features-page :is(.game-command-bar__eyebrow, .game-command-bar__signal-label, .game-stage-overview__label, .game-stage__eyebrow, .game-stage__telemetry-label, .game-module-dock__panel-label) {
+  color: var(--gwb2-light-subtle);
+}
+
+:root:not([data-theme="dark"]) .game-features-page :is(.game-command-bar__signal, .game-stage__telemetry, .game-stage-overview__item, .game-module-rail__group--active, .game-module-rail__module, .game-module-dock__module) {
+  border-color: rgba(37, 99, 235, 0.13);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(239, 246, 255, 0.46)),
+    rgba(255, 255, 255, 0.74);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.78) inset,
+    0 10px 24px rgba(30, 64, 175, 0.07);
+}
+
+:root:not([data-theme="dark"]) .game-features-page :is(.game-command-bar__signal-value, .game-stage-overview__value, .game-stage__telemetry-value, .game-module-rail__module-name, .game-module-dock__module-name) {
+  color: var(--gwb2-light-ink);
+}
+
+:root:not([data-theme="dark"]) .game-features-page :is(.game-command-bar__signal-meta, .game-stage-overview__meta) {
+  color: var(--gwb2-light-muted);
+}
+
+:root:not([data-theme="dark"]) .game-features-page .game-stage__canvas :is(.gwb2-mini-card, .status-card) {
+  border-color: rgba(37, 99, 235, 0.13);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(247, 250, 255, 0.72)),
+    rgba(255, 255, 255, 0.84);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.78) inset,
+    0 14px 32px rgba(30, 64, 175, 0.08);
+}
+
+:root:not([data-theme="dark"]) .game-features-page .game-stage__canvas :is(.gwb2-mini-card, .status-card):hover {
+  border-color: rgba(37, 99, 235, 0.24);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(239, 246, 255, 0.82)),
+    #ffffff;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.86) inset,
+    0 18px 40px rgba(30, 64, 175, 0.12);
+}
+
+:root:not([data-theme="dark"]) .game-features-page .game-stage__canvas :is(.gwb2-mini-card__icon, .status-icon, .icon, .settings-gear) {
+  border-color: rgba(37, 99, 235, 0.14);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(219, 234, 254, 0.66)),
+    #ffffff;
+  color: var(--gwb2-light-blue);
+  box-shadow: 0 8px 18px rgba(30, 64, 175, 0.09);
+}
+
+:root:not([data-theme="dark"]) .game-features-page .game-stage__canvas :is(.gwb2-mini-card__chip, .status-badge),
+:root:not([data-theme="dark"]) .game-features-page .game-signal-pill {
+  border-color: rgba(37, 99, 235, 0.15);
+  background: rgba(239, 246, 255, 0.9);
+  color: var(--gwb2-light-muted);
+}
+
+:root:not([data-theme="dark"]) .game-features-page :is(.game-signal-pill--success, .team-formation-card__status-chip--connected, .daily-task__status-chip--connected, .daily-task__status-chip--completed, .status-badge.active) {
+  border-color: rgba(22, 163, 74, 0.26);
+  background: rgba(220, 252, 231, 0.86);
+  color: var(--gwb2-light-green);
+}
+
+:root:not([data-theme="dark"]) .game-features-page .n-button {
+  border-color: rgba(37, 99, 235, 0.15);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(226, 238, 255, 0.68)),
+    #f8fbff;
+  color: var(--gwb2-light-ink);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.78) inset,
+    0 8px 18px rgba(30, 64, 175, 0.08);
+}
+
+:root:not([data-theme="dark"]) .game-features-page .n-button:hover {
+  border-color: rgba(37, 99, 235, 0.28);
+  background:
+    linear-gradient(180deg, #ffffff, rgba(219, 234, 254, 0.74)),
+    #ffffff;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.86) inset,
+    0 12px 24px rgba(30, 64, 175, 0.12);
+}
+
+:root:not([data-theme="dark"]) .game-features-page .n-button.n-button--primary-type,
+:root:not([data-theme="dark"]) .game-features-page .game-stage__canvas .daily-task__run-button {
+  border-color: rgba(29, 78, 216, 0.28);
+  background: linear-gradient(180deg, #3b82f6, #1d4ed8);
+  color: #ffffff;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.22) inset,
+    0 12px 26px rgba(37, 99, 235, 0.24);
+}
+
+:root:not([data-theme="dark"]) .game-features-page .game-stage__canvas :is(.team-selector, .gwb2-mini-card__segmented) {
+  border-color: rgba(37, 99, 235, 0.13);
+  background: rgba(226, 238, 255, 0.82);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.74);
+}
+
+:root:not([data-theme="dark"]) .game-features-page .game-stage__canvas :is(.team-selector > button.active, .gwb2-mini-card__segmented > button.active, .gwb2-mini-card__segmented > button[aria-pressed="true"]) {
+  background: linear-gradient(180deg, #ffffff, #dbeafe);
+  color: #1d4ed8;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.86) inset,
+    0 8px 18px rgba(30, 64, 175, 0.12);
+}
+
+:root:not([data-theme="dark"]) .game-features-page .game-stage__canvas :is(.current-team-info, .progress-container, .info-container, .gwb2-mini-card__metric, .gwb2-mini-card__list, .heroes-container) {
+  border-color: rgba(37, 99, 235, 0.12);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.7), rgba(239, 246, 255, 0.54)),
+    rgba(255, 255, 255, 0.68);
+  color: var(--gwb2-light-ink);
+}
+
+:root:not([data-theme="dark"]) .game-features-page .game-stage__canvas .hero-circle {
+  border-color: rgba(37, 99, 235, 0.16);
+  background:
+    linear-gradient(180deg, #ffffff, #dbeafe),
+    #ffffff;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.86) inset,
+    0 8px 18px rgba(30, 64, 175, 0.1);
+}
+
+:root:not([data-theme="dark"]) .game-features-page .game-status-container.activity-mode :is(.monthly-tasks, .study-challenge-card, .skin-challenge, .consumption-progress-card) {
+  border-color: rgba(245, 158, 11, 0.22);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(255, 247, 237, 0.74)),
+    rgba(255, 255, 255, 0.82);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.86) inset,
+    0 14px 32px rgba(146, 64, 14, 0.08);
+}
+
+:root:not([data-theme="dark"]) .game-features-page .game-status-container.activity-mode :is(.monthly-tasks, .study-challenge-card, .skin-challenge, .consumption-progress-card)::after {
+  background: linear-gradient(90deg, #f59e0b, #2563eb 58%, rgba(20, 184, 166, 0.72));
+  opacity: 0.9;
+}
+
+:root:not([data-theme="dark"]) .game-features-page .game-status-container.activity-mode :is(.monthly-row, .study-metric, .header-info, .summary-cell, .progress-item, .combo-item, .boss-card) {
+  border-color: rgba(245, 158, 11, 0.16);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.84), rgba(255, 251, 235, 0.52)),
+    rgba(255, 255, 255, 0.72);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.78) inset;
+}
+
+:root:not([data-theme="dark"]) .game-features-page .game-status-container.activity-mode .gwb2-mini-card__icon {
+  border-color: rgba(245, 158, 11, 0.22);
+  background:
+    linear-gradient(180deg, #fff7ed, #dbeafe),
+    #ffffff;
+  color: var(--gwb2-light-amber);
+}
+
+:root:not([data-theme="dark"]) .game-features-page .game-status-container.activity-mode .gwb2-mini-card__chip {
+  border-color: rgba(245, 158, 11, 0.24);
+  background: rgba(255, 247, 237, 0.9);
+  color: var(--gwb2-light-amber);
+}
+
+:root:not([data-theme="dark"]) .game-features-page .game-status-container.activity-mode :is(.row-title, .study-metric__value, .challenge-count, .item-name, .combo-title strong, .summary-value, .boss-title) {
+  color: var(--gwb2-light-ink);
+}
+
+:root:not([data-theme="dark"]) .game-features-page .game-status-container.activity-mode :is(.row-subtitle, .row-ratio, .study-metric__state, .daily-target, .summary-label, .summary-meta, .item-footer, .combo-summary, .description, .description.muted) {
+  color: var(--gwb2-light-muted);
+}
+
+:root:not([data-theme="dark"]) .game-features-page .game-status-container.activity-mode :is(.row-value strong, .summary-value, .item-values) {
+  color: var(--gwb2-light-amber);
+}
+
+:root:not([data-theme="dark"]) .game-features-page .game-status-container.activity-mode .boss-card.active {
+  border-color: rgba(37, 99, 235, 0.24);
+  background:
+    linear-gradient(180deg, rgba(219, 234, 254, 0.86), rgba(255, 255, 255, 0.72)),
+    #ffffff;
+}
+
+:root:not([data-theme="dark"]) .game-features-page .game-status-container.activity-mode .boss-card.cleared {
+  border-color: rgba(34, 197, 94, 0.28);
+  background:
+    linear-gradient(180deg, rgba(220, 252, 231, 0.86), rgba(255, 255, 255, 0.72)),
+    #ffffff;
+}
+
+:root:not([data-theme="dark"]) .game-features-page .game-status-container.activity-mode .boss-card.locked {
+  border-color: rgba(148, 163, 184, 0.18);
+  background: rgba(241, 245, 249, 0.76);
+  opacity: 0.78;
+}
+
+:root:not([data-theme="dark"]) .game-features-page .game-status-container.activity-mode .progress-list {
+  border-color: rgba(37, 99, 235, 0.12);
+  background: rgba(248, 251, 255, 0.78);
+}
+
+:root:not([data-theme="dark"]) .game-features-page .game-module-dock__bar {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(239, 246, 255, 0.82)),
+    rgba(255, 255, 255, 0.9);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    0 18px 36px rgba(30, 64, 175, 0.14);
+}
+
+:root:not([data-theme="dark"]) .game-features-page .game-module-dock__group {
+  border-color: rgba(37, 99, 235, 0.12);
+  background: rgba(255, 255, 255, 0.74);
+  color: var(--gwb2-light-muted);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.78) inset;
+}
+
+:root:not([data-theme="dark"]) .game-features-page .game-module-dock__group--active,
+:root:not([data-theme="dark"]) .game-features-page .game-module-dock__group--expanded {
+  border-color: rgba(37, 99, 235, 0.24);
+  background:
+    linear-gradient(180deg, rgba(219, 234, 254, 0.92), rgba(255, 255, 255, 0.78)),
+    #ffffff;
+  color: #1d4ed8;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.86) inset,
+    0 10px 22px rgba(30, 64, 175, 0.14);
+}
+
+:root:not([data-theme="dark"]) .route-game-workbench-v2-active :is(.n-drawer-content, .n-card) {
+  border-color: rgba(37, 99, 235, 0.12);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 251, 255, 0.94)),
+    #ffffff;
+  color: var(--text-primary);
+  box-shadow: 0 24px 56px rgba(30, 64, 175, 0.14);
+}
+
+:root:not([data-theme="dark"]) .route-game-workbench-v2-active :is(.consumption-progress__modal, .n-drawer-content) :is(.combo-toolbar, .combo-item, .combo-empty) {
+  border-color: rgba(37, 99, 235, 0.13);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.84), rgba(239, 246, 255, 0.58)),
+    #ffffff;
+  color: var(--text-primary);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.78) inset;
+}
+
+@media (max-width: 768px) {
+  .game-features-page {
+    padding: 10px 8px calc(88px + env(safe-area-inset-bottom));
+  }
+
+  .game-features-page .game-command-bar {
+    padding: 16px;
+    border-radius: 18px;
+  }
+
+  .game-features-page .game-command-bar__main,
+  .game-features-page .game-stage__header {
+    gap: 12px;
+  }
+
+  .game-features-page .game-command-bar__signal-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+    margin-top: 14px;
+  }
+
+  .game-features-page .game-command-bar__signal {
+    padding: 12px 14px;
+    border-radius: 14px;
+  }
+
+  .game-features-page .game-stage {
+    padding: 12px;
+    border-radius: 18px;
+  }
+
+  .game-features-page .game-stage-overview {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .game-features-page .game-stage-overview__item {
+    padding: 12px 14px;
+    border-radius: 14px;
+  }
+
+  .game-features-page .game-stage__canvas {
+    gap: 10px;
+  }
+
+  .game-features-page .game-stage__canvas .game-status-container {
+    gap: 10px;
+  }
+
+  .game-features-page .game-stage__canvas .hero-circle {
+    width: 38px;
+    height: 38px;
+    border-radius: 11px;
+  }
+
+  .game-features-page .game-stage__canvas .heroes-container {
+    min-height: 86px;
+  }
+
+  .game-features-page .game-status-container.activity-mode .boss-grid,
+  .game-features-page .game-status-container.activity-mode .summary-grid,
+  .game-features-page .game-status-container.activity-mode .progress-list,
+  .game-features-page .game-status-container.activity-mode .consumption-actions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .game-features-page .game-status-container.activity-mode .consumption-controls {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 </style>

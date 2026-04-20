@@ -762,47 +762,6 @@ const setBatchLogContainer = (element) => {
   logContainer.value = element;
 };
 
-const batchToolbarActions = {
-  batchAddHangUpTime,
-  batchBuyDreamItems,
-  batchClaimBoxPointReward,
-  batchClaimCars,
-  batchClaimFreeEnergy,
-  batchClaimMailAttachment,
-  batchClaimPeachTasks,
-  batchClaimStarRewards,
-  batchGenieSweep,
-  batchHeroUpgrade,
-  batchLegacyClaim,
-  batchMergeItems,
-  batchStudy,
-  batchTopUpArena,
-  batchTopUpFish,
-  batchUseItems,
-  batcharenafight,
-  batchbaoku13,
-  batchbaoku45,
-  batchclubsign,
-  batchlingguanzi,
-  batchmengjing,
-  climbTower,
-  climbWeirdTower,
-  collection_claimfreereward,
-  claimHangUpRewards,
-  legionStoreBuySkinCoins,
-  legion_storebuygoods,
-  resetBottles,
-  skinChallenge,
-  store_purchase,
-};
-
-const handleBatchToolbarAction = (actionKey) => {
-  const action = batchToolbarActions[actionKey];
-  if (typeof action === "function") {
-    action();
-  }
-};
-
 const batchOverviewCards = computed(() => [
   {
     label: "已选账号",
@@ -1084,6 +1043,47 @@ const {
   tokenStore,
   tokens,
 });
+
+const batchToolbarActions = {
+  batchAddHangUpTime,
+  batchBuyDreamItems,
+  batchClaimBoxPointReward,
+  batchClaimCars,
+  batchClaimFreeEnergy,
+  batchClaimMailAttachment,
+  batchClaimPeachTasks,
+  batchClaimStarRewards,
+  batchGenieSweep,
+  batchHeroUpgrade,
+  batchLegacyClaim,
+  batchMergeItems,
+  batchStudy,
+  batchTopUpArena,
+  batchTopUpFish,
+  batchUseItems,
+  batcharenafight,
+  batchbaoku13,
+  batchbaoku45,
+  batchclubsign,
+  batchlingguanzi,
+  batchmengjing,
+  climbTower,
+  climbWeirdTower,
+  collection_claimfreereward,
+  claimHangUpRewards,
+  legionStoreBuySkinCoins,
+  legion_storebuygoods,
+  resetBottles,
+  skinChallenge,
+  store_purchase,
+};
+
+const handleBatchToolbarAction = (actionKey) => {
+  const action = batchToolbarActions[actionKey];
+  if (typeof action === "function") {
+    action();
+  }
+};
 
 const {
   currentGuessCount,

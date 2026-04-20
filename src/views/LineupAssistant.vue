@@ -300,28 +300,162 @@ watch(
 </script>
 
 <style scoped lang="scss">
+.lineup-assistant-page {
+  --lineup-surface: rgba(255, 255, 255, 0.78);
+  --lineup-surface-strong: rgba(255, 255, 255, 0.9);
+  --lineup-border: rgba(37, 99, 235, 0.13);
+  --lineup-shadow: 0 18px 42px rgba(30, 64, 175, 0.1);
+  gap: 16px;
+}
+
+.lineup-assistant-page :deep(.workbench-page-hero) {
+  align-items: start;
+  gap: 16px;
+  border-color: var(--lineup-border);
+  background:
+    radial-gradient(circle at 12% 0%, rgba(37, 99, 235, 0.13), transparent 34%),
+    linear-gradient(180deg, rgba(239, 246, 255, 0.86), rgba(226, 238, 255, 0.62)),
+    rgba(248, 251, 255, 0.74);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.82) inset,
+    var(--lineup-shadow);
+}
+
+.lineup-assistant-page :deep(.workbench-page-hero__copy) {
+  gap: 8px;
+}
+
+.lineup-assistant-page :deep(.workbench-page-hero__actions) {
+  align-self: start;
+  flex: 0 0 auto;
+  height: fit-content;
+  min-height: 0;
+  padding: 12px;
+  border-radius: 18px;
+  border: 1px solid rgba(37, 99, 235, 0.1);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.56), rgba(219, 234, 254, 0.34)),
+    rgba(239, 246, 255, 0.38);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.72) inset,
+    0 10px 22px rgba(30, 64, 175, 0.06);
+}
+
+.lineup-assistant-page :deep(.app-inline-stat) {
+  min-height: 36px;
+  padding: 8px 12px;
+  background: rgba(239, 246, 255, 0.82);
+}
+
+.lineup-assistant-page :deep(.workbench-summary-card) {
+  min-height: 118px;
+  border-color: var(--lineup-border);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.76), rgba(239, 246, 255, 0.52)),
+    var(--lineup-surface);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.78) inset,
+    0 12px 30px rgba(30, 64, 175, 0.08);
+}
+
+:global([data-theme="dark"]) .lineup-assistant-page {
+  --lineup-surface: rgba(15, 23, 42, 0.78);
+  --lineup-surface-strong: rgba(15, 23, 42, 0.9);
+  --lineup-border: rgba(96, 165, 250, 0.2);
+  --lineup-shadow: 0 18px 42px rgba(0, 0, 0, 0.28);
+}
+
+:global([data-theme="dark"]) .lineup-assistant-page :deep(.workbench-page-hero),
+:global([data-theme="dark"]) .lineup-assistant-page :deep(.workbench-page-hero__actions),
+:global([data-theme="dark"]) .lineup-assistant-page :deep(.workbench-summary-card),
+:global([data-theme="dark"]) .lineup-assistant-shell,
+:global([data-theme="dark"]) .lineup-assistant-page :deep(.lineup-saver) {
+  background:
+    linear-gradient(180deg, rgba(30, 41, 59, 0.72), rgba(15, 23, 42, 0.84)),
+    var(--lineup-surface);
+}
+
 .lineup-assistant-page__actions {
+  display: grid;
+  gap: 10px;
   align-items: flex-start;
+}
+
+.lineup-assistant-page__actions :deep(.workbench-page-toolbar__group) {
+  width: 100%;
+}
+
+.lineup-assistant-page__actions :deep(.workbench-page-toolbar__group--right) {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-left: 0;
+}
+
+.lineup-assistant-page__actions :deep(.workbench-status-pill) {
+  justify-content: center;
+  min-height: 38px;
+}
+
+.lineup-assistant-page__actions :deep(.n-button) {
+  min-height: 40px;
 }
 
 .lineup-assistant-alert {
   margin-bottom: 16px;
   padding: 14px 16px;
+  border-color: var(--lineup-border);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.74), rgba(239, 246, 255, 0.42)),
+    var(--lineup-surface);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.72) inset,
+    0 10px 24px rgba(30, 64, 175, 0.08);
 }
 
 .lineup-assistant-shell {
   display: flex;
   flex-direction: column;
   gap: 18px;
+  padding: 14px;
+  border: 1px solid var(--lineup-border);
+  border-radius: 26px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.66), rgba(248, 251, 255, 0.72)),
+    var(--lineup-surface);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.72) inset,
+    0 16px 38px rgba(30, 64, 175, 0.09);
 }
 
 .lineup-assistant-page :deep(.lineup-saver) {
   min-height: auto;
-  border-radius: 24px;
+  border: 1px solid var(--lineup-border);
+  border-radius: 22px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(239, 246, 255, 0.46)),
+    var(--lineup-surface-strong);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.78) inset,
+    0 12px 30px rgba(30, 64, 175, 0.08);
 }
 
 .lineup-assistant-page :deep(.toolbar) {
   width: 100%;
+}
+
+.lineup-assistant-page :deep(.lineup-toolbar) {
+  border-color: var(--lineup-border);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.76), rgba(226, 238, 255, 0.46)),
+    rgba(255, 255, 255, 0.68);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.72) inset;
+}
+
+.lineup-assistant-page :deep(.current-team-section) {
+  border-color: var(--lineup-border);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(239, 246, 255, 0.46)),
+    rgba(255, 255, 255, 0.68);
 }
 
 .lineup-assistant-page :deep(.hero-actions .n-button) {
@@ -329,12 +463,103 @@ watch(
 }
 
 @media (max-width: 640px) {
+  .lineup-assistant-page {
+    gap: 12px;
+  }
+
+  .lineup-assistant-page :deep(.workbench-page-hero) {
+    padding: 16px;
+    border-radius: 22px;
+    background:
+      radial-gradient(circle at 18% 0%, rgba(37, 99, 235, 0.14), transparent 38%),
+      linear-gradient(180deg, rgba(239, 246, 255, 0.94), rgba(219, 234, 254, 0.7)),
+      rgba(248, 251, 255, 0.76);
+  }
+
+  .lineup-assistant-page :deep(.workbench-page-hero__actions) {
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .lineup-assistant-page :deep(.app-page__title) {
+    font-size: 28px;
+  }
+
+  .lineup-assistant-page :deep(.app-chip-row),
+  .lineup-assistant-page :deep(.app-page__summary) {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .lineup-assistant-page :deep(.app-inline-stat) {
+    justify-content: space-between;
+    min-height: 34px;
+    padding: 7px 10px;
+    font-size: 12px;
+  }
+
+  .lineup-assistant-page :deep(.workbench-summary-card) {
+    min-height: 96px;
+    padding: 12px;
+    border-radius: 16px;
+  }
+
   .lineup-assistant-page__actions {
     width: 100%;
   }
 
+  .lineup-assistant-page__actions :deep(.workbench-page-toolbar__group) {
+    display: grid;
+    align-items: stretch;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .lineup-assistant-page__actions :deep(.workbench-page-toolbar__group--right) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .lineup-assistant-page__actions :deep(.workbench-page-toolbar__group > *) {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .lineup-assistant-page__actions :deep(.workbench-status-pill) {
+    min-height: 34px;
+    padding: 7px 10px;
+    background: rgba(255, 255, 255, 0.52);
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.68) inset;
+  }
+
+  .lineup-assistant-page__actions :deep(.n-button) {
+    min-height: 36px;
+    padding-inline: 8px;
+  }
+
   .lineup-assistant-alert {
     padding: 12px 14px;
+  }
+
+  .lineup-assistant-shell {
+    padding: 10px;
+    border-radius: 20px;
+  }
+
+  .lineup-assistant-page :deep(.lineup-saver) {
+    border-radius: 18px;
+  }
+}
+
+@media (max-width: 420px) {
+  .lineup-assistant-page :deep(.app-chip-row),
+  .lineup-assistant-page :deep(.app-page__summary),
+  .lineup-assistant-page__actions :deep(.workbench-page-toolbar__group),
+  .lineup-assistant-page__actions :deep(.workbench-page-toolbar__group--right) {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 </style>

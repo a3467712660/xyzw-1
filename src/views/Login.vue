@@ -44,6 +44,7 @@
 
         <n-form
           ref="loginFormRef"
+          class="auth-form"
           size="large"
           :aria-busy="authStore.isLoading ? 'true' : 'false'"
           :model="loginForm"
@@ -112,14 +113,13 @@
             <n-checkbox v-model:checked="loginForm.rememberMe">
               {{ t("login.rememberMe") }}
             </n-checkbox>
-            <n-button
-              text
-              class="text-action-btn"
-              type="primary"
+            <button
+              class="inline-link-button"
+              type="button"
               @click="router.push('/forgot-password')"
             >
               {{ t("login.forgotPassword") }}
-            </n-button>
+            </button>
           </div>
 
           <template v-if="isMfaPending">
@@ -269,14 +269,13 @@
 
           <div class="register-prompt">
             <span>{{ t("login.noAccount") }}</span>
-            <n-button
-              text
-              class="text-action-btn"
-              type="primary"
+            <button
+              class="inline-link-button"
+              type="button"
               @click="router.push('/register')"
             >
               {{ t("login.registerNow") }}
-            </n-button>
+            </button>
           </div>
         </template>
       </section>
@@ -1398,6 +1397,320 @@ onBeforeUnmount(() => {
   .social-button {
     min-height: 46px;
     border-radius: 14px;
+  }
+}
+
+/* Auth polish pass */
+.login-page {
+  --auth-surface: rgba(255, 255, 255, 0.88);
+  --auth-surface-strong: rgba(255, 255, 255, 0.96);
+  --auth-border: rgba(37, 99, 235, 0.14);
+  --auth-border-strong: rgba(37, 99, 235, 0.24);
+  --auth-shadow: 0 22px 58px rgba(15, 23, 42, 0.12);
+  --auth-shadow-soft: 0 12px 30px rgba(30, 64, 175, 0.08);
+  align-items: center;
+  min-height: 100dvh;
+  overflow: auto;
+  padding: 32px 18px;
+  background: linear-gradient(180deg, #eff6ff 0%, #f8fbff 48%, #eef7f4 100%);
+}
+
+.bg-orb {
+  display: none;
+}
+
+.grid-mask {
+  background:
+    linear-gradient(rgba(37, 99, 235, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(37, 99, 235, 0.055) 1px, transparent 1px);
+  background-size: 36px 36px;
+  opacity: 0.22;
+  mask-image: linear-gradient(180deg, black 0%, rgba(0, 0, 0, 0.58) 58%, transparent 100%);
+}
+
+.login-shell {
+  width: min(1080px, 100%);
+  grid-template-columns: minmax(0, 1fr) minmax(400px, 448px);
+  align-items: center;
+  gap: 16px;
+}
+
+.intro-panel,
+.login-card {
+  border: 1px solid var(--auth-border);
+  border-radius: 24px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 251, 255, 0.86)),
+    var(--auth-surface);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    var(--auth-shadow);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.intro-panel {
+  position: relative;
+  min-height: 100%;
+  padding: 28px;
+}
+
+.login-card {
+  padding: 28px;
+}
+
+.intro-brand h1 {
+  max-width: 14ch;
+  color: var(--text-primary);
+  font-size: 44px;
+  line-height: 1.02;
+  letter-spacing: 0;
+}
+
+.intro-text {
+  max-width: 58ch;
+  color: var(--text-secondary);
+  font-size: 16px;
+  line-height: 1.75;
+}
+
+.feature-item {
+  align-items: start;
+  border-color: var(--auth-border);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: var(--auth-shadow-soft);
+}
+
+.feature-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+}
+
+.card-header {
+  margin-bottom: 18px;
+}
+
+.card-header h2 {
+  color: var(--text-primary);
+  font-size: 30px;
+  line-height: 1.15;
+  letter-spacing: 0;
+}
+
+.card-header p {
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+
+.auth-form {
+  display: grid;
+  gap: 2px;
+}
+
+.auth-form :deep(.n-form-item) {
+  margin-bottom: 2px;
+}
+
+.login-card :deep(.n-input) {
+  min-height: 46px;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.login-card :deep(.n-input-wrapper) {
+  min-height: 44px;
+}
+
+.form-options {
+  line-height: 20px;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 4px 0 14px;
+}
+
+.form-options :deep(.n-checkbox) {
+  align-items: center;
+  line-height: 20px;
+}
+
+.rate-limit-hint,
+.mfa-panel {
+  border-radius: 14px;
+}
+
+.mfa-panel {
+  border-color: var(--auth-border);
+  background: rgba(219, 234, 254, 0.54);
+}
+
+.mfa-actions {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+
+.mfa-actions .text-action-btn {
+  flex: 1 1 auto;
+}
+
+.login-button,
+.social-button {
+  min-height: 44px;
+  border-radius: 14px;
+}
+
+.login-button {
+  box-shadow: 0 14px 30px rgba(37, 99, 235, 0.22);
+}
+
+.social-login {
+  gap: 8px;
+}
+
+.social-button {
+  background: rgba(255, 255, 255, 0.76);
+}
+
+.register-prompt {
+  align-items: center;
+  flex-wrap: wrap;
+  row-gap: 2px;
+  line-height: 20px;
+}
+
+.inline-link-button {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: 0;
+  height: auto;
+  padding: 0 2px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--primary-color);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  box-shadow: none;
+  line-height: 20px;
+  vertical-align: baseline;
+}
+
+.inline-link-button:hover,
+.inline-link-button:active {
+  background: transparent;
+  box-shadow: none;
+  transform: none;
+}
+
+.inline-link-button:focus-visible {
+  outline: none;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+[data-theme="dark"] .login-page {
+  --auth-surface: rgba(15, 23, 42, 0.82);
+  --auth-surface-strong: rgba(15, 23, 42, 0.92);
+  --auth-border: rgba(96, 165, 250, 0.2);
+  --auth-border-strong: rgba(96, 165, 250, 0.3);
+  --auth-shadow: 0 24px 60px rgba(0, 0, 0, 0.34);
+  --auth-shadow-soft: 0 12px 30px rgba(0, 0, 0, 0.2);
+  background: linear-gradient(180deg, #07111f 0%, #0d1728 54%, #101827 100%);
+}
+
+[data-theme="dark"] .intro-panel,
+[data-theme="dark"] .login-card,
+[data-theme="dark"] .feature-item {
+  border-color: var(--auth-border);
+  background:
+    linear-gradient(180deg, rgba(30, 41, 59, 0.72), rgba(15, 23, 42, 0.86)),
+    var(--auth-surface);
+}
+
+[data-theme="dark"] .login-card :deep(.n-input),
+[data-theme="dark"] .social-button,
+[data-theme="dark"] .mfa-panel {
+  background: rgba(15, 23, 42, 0.62);
+}
+
+@media (max-width: 980px) {
+  .login-page {
+    align-items: flex-start;
+    padding: 18px 12px;
+  }
+
+  .login-shell {
+    width: min(560px, 100%);
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .login-card {
+    order: 1;
+  }
+
+  .intro-panel {
+    order: 2;
+    min-height: auto;
+  }
+}
+
+@media (max-width: 680px) {
+  .login-page {
+    padding: 10px;
+  }
+
+  .intro-panel,
+  .login-card {
+    padding: 16px;
+    border-radius: 18px;
+  }
+
+  .intro-brand h1,
+  .card-header h2 {
+    font-size: 24px;
+    line-height: 1.16;
+  }
+
+  .intro-brand h1 {
+    max-width: none;
+    word-break: keep-all;
+    overflow-wrap: normal;
+  }
+
+  .intro-text {
+    margin: 12px 0 14px;
+    font-size: 13px;
+    line-height: 1.65;
+  }
+
+  .feature-item {
+    padding: 12px;
+  }
+
+  .social-login {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 420px) {
+  .intro-brand h1 {
+    font-size: 22px;
+  }
+
+  .features-list {
+    gap: 8px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-page--ready .reveal-up,
+  .login-page--ready .feature-item {
+    animation: none;
+    opacity: 1;
+    transform: none;
   }
 }
 </style>

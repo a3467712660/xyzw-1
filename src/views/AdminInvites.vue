@@ -7,37 +7,42 @@
           <p>{{ t("adminInvitesPage.subtitle") }}</p>
         </div>
 
-        <div class="invite-creator">
-          <div class="invite-creator__field">
-            <span class="invite-creator__label">{{ t("adminInvitesPage.creator.count") }}</span>
-            <n-input-number v-model:value="createCount" :max="20" :min="1"></n-input-number>
+        <div class="invite-creator-shell">
+          <div class="invite-creator-shell__head">
+            <span class="invite-creator-shell__eyebrow">{{ t("adminInvitesPage.title") }}</span>
+            <strong>{{ t("adminInvitesPage.actions.generate") }}</strong>
           </div>
-          <div class="invite-creator__field">
-            <span class="invite-creator__label">{{ t("adminInvitesPage.creator.type") }}</span>
-            <n-select
-              v-model:value="inviteType"
-              :consistent-menu-width="false"
-              :options="inviteTypeOptions"
-            ></n-select>
-          </div>
-          <NButton
-            class="invite-creator__button"
-            type="primary"
-            :loading="creating"
-            @click="createCodes"
-          >
-            {{ t("adminInvitesPage.actions.generate") }}
-          </NButton>
-        </div>
-        <div class="invite-creator invite-creator--second-line">
-          <div class="invite-creator__field">
-            <span class="invite-creator__label">{{ t("adminInvitesPage.creator.bindTokenLimit") }}</span>
-            <n-input-number
-              v-model:value="bindTokenLimit"
-              :max="999"
-              :min="1"
-              :precision="0"
-            ></n-input-number>
+
+          <div class="invite-creator">
+            <div class="invite-creator__field">
+              <span class="invite-creator__label">{{ t("adminInvitesPage.creator.count") }}</span>
+              <n-input-number v-model:value="createCount" :max="20" :min="1"></n-input-number>
+            </div>
+            <div class="invite-creator__field">
+              <span class="invite-creator__label">{{ t("adminInvitesPage.creator.type") }}</span>
+              <n-select
+                v-model:value="inviteType"
+                :consistent-menu-width="false"
+                :options="inviteTypeOptions"
+              ></n-select>
+            </div>
+            <div class="invite-creator__field invite-creator__field--limit">
+              <span class="invite-creator__label">{{ t("adminInvitesPage.creator.bindTokenLimit") }}</span>
+              <n-input-number
+                v-model:value="bindTokenLimit"
+                :max="999"
+                :min="1"
+                :precision="0"
+              ></n-input-number>
+            </div>
+            <NButton
+              class="invite-creator__button"
+              type="primary"
+              :loading="creating"
+              @click="createCodes"
+            >
+              {{ t("adminInvitesPage.actions.generate") }}
+            </NButton>
           </div>
         </div>
       </div>
@@ -756,6 +761,313 @@ onMounted(async () => {
   padding: 0 14px;
 }
 
+.admin-invites-page {
+  --invite-surface: rgba(255, 255, 255, 0.78);
+  --invite-surface-strong: rgba(255, 255, 255, 0.92);
+  --invite-border: rgba(37, 99, 235, 0.13);
+  --invite-border-strong: rgba(37, 99, 235, 0.22);
+  --invite-shadow: 0 18px 42px rgba(30, 64, 175, 0.1);
+  --invite-shadow-soft: 0 10px 26px rgba(30, 64, 175, 0.08);
+  --invite-blue-soft: rgba(219, 234, 254, 0.72);
+  --invite-green-soft: rgba(220, 252, 231, 0.72);
+  --invite-amber-soft: rgba(255, 247, 237, 0.78);
+}
+
+.admin-invites-page .container {
+  max-width: 1320px;
+  gap: 18px;
+}
+
+.admin-invites-page .page-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 500px);
+  align-items: stretch;
+  gap: 18px;
+  margin-bottom: 0;
+  border-color: var(--invite-border);
+  background:
+    radial-gradient(circle at 12% 0%, rgba(37, 99, 235, 0.14), transparent 34%),
+    linear-gradient(180deg, rgba(239, 246, 255, 0.9), rgba(226, 238, 255, 0.64)),
+    rgba(248, 251, 255, 0.8);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.84) inset,
+    var(--invite-shadow);
+}
+
+.admin-invites-page .page-header__main {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  min-width: 0;
+}
+
+.admin-invites-page .page-header__main h1 {
+  font-size: clamp(28px, 3vw, 38px);
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.admin-invites-page .page-header__main p {
+  max-width: 62ch;
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
+.invite-creator-shell {
+  display: grid;
+  align-self: start;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid rgba(37, 99, 235, 0.12);
+  border-radius: 22px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.74), rgba(219, 234, 254, 0.44)),
+    rgba(255, 255, 255, 0.66);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.84) inset,
+    0 14px 30px rgba(30, 64, 175, 0.08);
+}
+
+.invite-creator-shell__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.invite-creator-shell__eyebrow {
+  color: var(--primary-color);
+  font-family: var(--font-family-mono);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.invite-creator-shell__head strong {
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.admin-invites-page .invite-creator {
+  display: grid;
+  grid-template-columns: minmax(76px, 0.65fr) minmax(120px, 1fr) minmax(96px, 0.7fr) minmax(116px, auto);
+  align-items: end;
+  gap: 10px;
+}
+
+.admin-invites-page .invite-creator__field {
+  min-width: 0;
+}
+
+.admin-invites-page .invite-creator__label {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.admin-invites-page .invite-creator :deep(.n-input-number),
+.admin-invites-page .invite-creator :deep(.n-base-selection) {
+  width: 100%;
+}
+
+.admin-invites-page .invite-creator__button {
+  min-height: 42px;
+  border-radius: 14px;
+  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.24);
+}
+
+.admin-invites-page .page-overview {
+  gap: 14px;
+}
+
+.admin-invites-page .overview-card {
+  position: relative;
+  overflow: hidden;
+  min-height: 112px;
+  border-color: var(--invite-border);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(239, 246, 255, 0.54)),
+    var(--invite-surface);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.78) inset,
+    var(--invite-shadow-soft);
+}
+
+.admin-invites-page .overview-card::after {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: linear-gradient(180deg, var(--primary-color), rgba(20, 184, 166, 0.72));
+}
+
+.admin-invites-page .overview-label,
+.admin-invites-page .status-list__label,
+.admin-invites-page .desktop-table-card__header span,
+.admin-invites-page .info-label {
+  color: var(--text-secondary);
+  font-weight: 700;
+}
+
+.admin-invites-page .overview-value {
+  font-size: clamp(24px, 2.5vw, 34px);
+}
+
+.admin-invites-page .status-list {
+  gap: 12px;
+}
+
+.admin-invites-page .status-list__item {
+  min-height: 56px;
+  border-color: var(--invite-border);
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.74), rgba(239, 246, 255, 0.44)),
+    var(--invite-surface);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.76) inset,
+    0 10px 24px rgba(30, 64, 175, 0.07);
+}
+
+.admin-invites-page .status-list__dot {
+  width: 9px;
+  height: 9px;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.08);
+}
+
+.admin-invites-page .status-list__item--active {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.76), rgba(220, 252, 231, 0.56)),
+    var(--invite-green-soft);
+}
+
+.admin-invites-page .status-list__item--used {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.76), rgba(219, 234, 254, 0.56)),
+    var(--invite-blue-soft);
+}
+
+.admin-invites-page .status-list__item--disabled {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.76), rgba(255, 247, 237, 0.58)),
+    var(--invite-amber-soft);
+}
+
+.admin-invites-page .desktop-table-card {
+  overflow: hidden;
+  border-color: var(--invite-border);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(248, 251, 255, 0.74)),
+    var(--invite-surface-strong);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.78) inset,
+    var(--invite-shadow);
+}
+
+.admin-invites-page .desktop-table-card :deep(.n-card__content) {
+  padding: 18px;
+}
+
+.admin-invites-page .desktop-table-card__header h3 {
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.admin-invites-page .admin-invites-table :deep(.n-data-table-wrapper) {
+  border: 1px solid rgba(37, 99, 235, 0.1);
+  border-radius: 18px;
+  overflow: hidden;
+}
+
+.admin-invites-page .admin-invites-table :deep(.n-data-table-th) {
+  background: linear-gradient(180deg, rgba(239, 246, 255, 0.96), rgba(226, 238, 255, 0.84));
+  color: #1e293b;
+}
+
+.admin-invites-page .admin-invites-table :deep(.n-data-table-td) {
+  background: rgba(255, 255, 255, 0.68);
+}
+
+.admin-invites-page .code-cell strong,
+.admin-invites-page .name-cell {
+  color: var(--text-primary);
+}
+
+.admin-invites-page .mobile-invite-list__content {
+  gap: 12px;
+}
+
+.admin-invites-page .mobile-invite-card {
+  overflow: hidden;
+  border-color: var(--invite-border);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(239, 246, 255, 0.52)),
+    var(--invite-surface);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.78) inset,
+    0 12px 28px rgba(30, 64, 175, 0.08);
+}
+
+.admin-invites-page .mobile-invite-card__code strong {
+  font-family: var(--font-family-mono);
+  letter-spacing: 0.02em;
+}
+
+.admin-invites-page .info-block {
+  border: 1px solid rgba(37, 99, 235, 0.1);
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.admin-invites-page.admin-surface-page .page-header {
+  background:
+    radial-gradient(circle at 12% 0%, rgba(37, 99, 235, 0.14), transparent 34%),
+    linear-gradient(180deg, rgba(239, 246, 255, 0.9), rgba(226, 238, 255, 0.64)),
+    rgba(248, 251, 255, 0.8);
+}
+
+.admin-invites-page.admin-surface-page .overview-card,
+.admin-invites-page.admin-surface-page .status-list__item,
+.admin-invites-page.admin-surface-page .desktop-table-card,
+.admin-invites-page.admin-surface-page .mobile-invite-card {
+  border-color: var(--invite-border);
+}
+
+:global([data-theme="dark"]) .admin-invites-page {
+  --invite-surface: rgba(15, 23, 42, 0.78);
+  --invite-surface-strong: rgba(15, 23, 42, 0.9);
+  --invite-border: rgba(96, 165, 250, 0.2);
+  --invite-border-strong: rgba(96, 165, 250, 0.3);
+  --invite-shadow: 0 18px 42px rgba(0, 0, 0, 0.28);
+  --invite-shadow-soft: 0 10px 26px rgba(0, 0, 0, 0.2);
+}
+
+:global([data-theme="dark"]) .admin-invites-page.admin-surface-page .page-header,
+:global([data-theme="dark"]) .admin-invites-page .invite-creator-shell,
+:global([data-theme="dark"]) .admin-invites-page.admin-surface-page .overview-card,
+:global([data-theme="dark"]) .admin-invites-page.admin-surface-page .status-list__item,
+:global([data-theme="dark"]) .admin-invites-page.admin-surface-page .desktop-table-card,
+:global([data-theme="dark"]) .admin-invites-page.admin-surface-page .mobile-invite-card {
+  background:
+    linear-gradient(180deg, rgba(30, 41, 59, 0.72), rgba(15, 23, 42, 0.84)),
+    var(--invite-surface);
+}
+
+:global([data-theme="dark"]) .admin-invites-page .admin-invites-table :deep(.n-data-table-th) {
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.9));
+  color: #e2e8f0;
+}
+
+:global([data-theme="dark"]) .admin-invites-page .admin-invites-table :deep(.n-data-table-td) {
+  background: rgba(15, 23, 42, 0.58);
+}
+
+:global([data-theme="dark"]) .admin-invites-page .info-block {
+  background: rgba(15, 23, 42, 0.58);
+  border-color: rgba(96, 165, 250, 0.16);
+}
+
 .created-codes-modal {
   max-width: 640px;
 }
@@ -1196,84 +1508,118 @@ onMounted(async () => {
     padding: 10px 0 16px;
   }
 
-  .container {
+  .admin-invites-page.admin-surface-page .container,
+  .admin-invites-page .container {
     padding: 0 10px;
   }
 
-  .page-header {
-    flex-direction: column;
+  .admin-invites-page.admin-surface-page .page-header,
+  .admin-invites-page .page-header {
+    grid-template-columns: minmax(0, 1fr);
     align-items: stretch;
-    gap: 10px;
+    gap: 12px;
     margin-bottom: 10px;
+    padding: 16px;
+    border-radius: 22px;
   }
 
-  .page-header__main h1 {
-    font-size: 20px;
-    line-height: 1.2;
+  .admin-invites-page .page-header__main {
+    max-width: 100%;
   }
 
-  .page-header__main p {
+  .admin-invites-page .page-header__main h1 {
+    font-size: 22px;
+    line-height: 1.15;
+    letter-spacing: 0;
+    white-space: normal;
+    word-break: keep-all;
+    overflow-wrap: normal;
+  }
+
+  .admin-invites-page .page-header__main p {
+    max-width: 100%;
     margin-top: 2px;
     font-size: 12px;
+    line-height: 1.55;
   }
 
-  .invite-creator {
+  .admin-invites-page .invite-creator-shell {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    gap: 10px;
+    padding: 12px;
+    border-radius: 18px;
+  }
+
+  .admin-invites-page .invite-creator-shell__head {
+    align-items: flex-start;
     flex-direction: column;
+    gap: 2px;
+  }
+
+  .admin-invites-page .invite-creator {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     align-items: stretch;
     gap: 8px;
   }
 
-  .invite-creator__field {
+  .admin-invites-page .invite-creator__field {
     min-width: 0;
     gap: 4px;
   }
 
-  .invite-creator__label {
+  .admin-invites-page .invite-creator__label {
     font-size: 11px;
   }
 
-  .invite-creator__button {
+  .admin-invites-page .invite-creator__button {
+    grid-column: 1 / -1;
     width: 100%;
-    min-height: 34px;
+    min-height: 38px;
   }
 
-  .page-overview {
-    grid-template-columns: 1fr;
+  .admin-invites-page .page-overview {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 8px;
     margin-bottom: 10px;
   }
 
-  .status-list {
-    grid-template-columns: 1fr;
+  .admin-invites-page .status-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 8px;
     margin-bottom: 10px;
   }
 
-  .overview-card {
-    padding: 10px 12px;
-    border-radius: 10px;
+  .admin-invites-page .overview-card {
+    min-height: 86px;
+    padding: 12px;
+    border-radius: 16px;
   }
 
-  .status-list__item {
-    border-radius: 10px;
+  .admin-invites-page .status-list__item {
+    align-items: flex-start;
+    flex-direction: column;
+    min-height: 50px;
+    border-radius: 14px;
     padding: 8px 10px;
   }
 
-  .status-list__label {
+  .admin-invites-page .status-list__label {
     font-size: 12px;
   }
 
-  .status-list__count {
+  .admin-invites-page .status-list__count {
     font-size: 16px;
   }
 
-  .overview-label {
+  .admin-invites-page .overview-label {
     font-size: 12px;
   }
 
-  .overview-value {
+  .admin-invites-page .overview-value {
     margin-top: 4px;
-    font-size: 18px;
+    font-size: 22px;
   }
 
   .desktop-only {
@@ -1284,80 +1630,83 @@ onMounted(async () => {
     display: block;
   }
 
-  .mobile-invite-list__content {
+  .admin-invites-page .mobile-invite-list__content {
     gap: 8px;
   }
 
-  .mobile-invite-card {
+  .admin-invites-page .mobile-invite-card {
     border-radius: 12px;
   }
 
-  .mobile-invite-card :deep(.n-card__content) {
+  .admin-invites-page .mobile-invite-card :deep(.n-card__content) {
     padding: 10px;
   }
 
-  .mobile-invite-card__header {
+  .admin-invites-page .mobile-invite-card__header {
     flex-direction: column;
     gap: 6px;
   }
 
-  .mobile-invite-card__code strong {
+  .admin-invites-page .mobile-invite-card__code strong {
     margin-top: 4px;
     font-size: 15px;
   }
 
-  .mobile-invite-card__meta {
+  .admin-invites-page .mobile-invite-card__meta {
     margin-top: 10px;
     gap: 8px;
   }
 
-  .mobile-invite-card__actions {
+  .admin-invites-page .mobile-invite-card__actions {
     margin-top: 10px;
     gap: 8px;
   }
 
-  .info-block {
+  .admin-invites-page .info-block {
     padding: 8px 10px;
     border-radius: 10px;
   }
 
-  .info-label {
+  .admin-invites-page .info-label {
     font-size: 11px;
   }
 
-  .info-block strong {
+  .admin-invites-page .info-block strong {
     margin-top: 3px;
     font-size: 13px;
     line-height: 1.2;
   }
 
   @media (max-width: 420px) {
-    .mobile-invite-card__meta {
+    .admin-invites-page .invite-creator,
+    .admin-invites-page .page-overview,
+    .admin-invites-page .status-list,
+    .admin-invites-page .mobile-invite-card__meta {
       grid-template-columns: 1fr;
     }
   }
 
-  .status-chip {
+  .admin-invites-page .status-chip {
     min-height: 28px;
     min-width: 78px;
     padding: 0 12px;
     font-size: 13px;
   }
 
-  .mobile-invite-card__actions :deep(.n-button),
-  .invite-creator__button :deep(.n-button) {
+  .admin-invites-page .mobile-invite-card__actions :deep(.n-button),
+  .admin-invites-page .invite-creator__button :deep(.n-button) {
     min-height: 34px;
     font-size: 13px;
   }
 }
 
 @media (max-width: 420px) {
-  .container {
+  .admin-invites-page .container {
     padding: 0 8px;
   }
 
-  .page-header__main h1 {
-    font-size: 18px;
+  .admin-invites-page .page-header__main h1 {
+    font-size: 20px;
   }
 }
 </style>

@@ -67,6 +67,7 @@
 
         <n-form
           ref="registerFormRef"
+          class="auth-form"
           size="large"
           :aria-busy="authStore.isLoading ? 'true' : 'false'"
           :model="registerForm"
@@ -191,23 +192,25 @@
           </n-form-item>
 
           <div class="form-options">
-            <n-checkbox v-model:checked="registerForm.agreeTerms">
-              {{ t("register.agreePrefix") }}
-              <n-button
-                text
-                type="primary"
-                @click.stop="showTerms = true"
-              >
-                {{ t("register.termsTitle") }}
-              </n-button>
-              {{ t("register.and") }}
-              <n-button
-                text
-                type="primary"
-                @click.stop="showPrivacy = true"
-              >
-                {{ t("register.privacyTitle") }}
-              </n-button>
+            <n-checkbox class="terms-checkbox" v-model:checked="registerForm.agreeTerms">
+              <span class="terms-checkbox__text">
+                <span>{{ t("register.agreePrefix") }}</span>
+                <button
+                  class="inline-link-button"
+                  type="button"
+                  @click.stop="showTerms = true"
+                >
+                  {{ t("register.termsTitle") }}
+                </button>
+                <span>{{ t("register.and") }}</span>
+                <button
+                  class="inline-link-button"
+                  type="button"
+                  @click.stop="showPrivacy = true"
+                >
+                  {{ t("register.privacyTitle") }}
+                </button>
+              </span>
             </n-checkbox>
           </div>
 
@@ -227,13 +230,13 @@
 
         <div class="login-prompt">
           <span>{{ t("register.hasAccount") }}</span>
-          <n-button
-            text
-            type="primary"
+          <button
+            class="inline-link-button"
+            type="button"
             @click="router.push('/login')"
           >
             {{ t("register.loginNow") }}
-          </n-button>
+          </button>
         </div>
       </section>
     </div>
@@ -1232,6 +1235,337 @@ onMounted(() => {
     min-height: 50px;
     border-radius: 14px;
     box-shadow: 0 16px 32px rgba(37, 99, 235, 0.22);
+  }
+}
+
+/* Auth polish pass */
+.register-page {
+  --auth-surface: rgba(255, 255, 255, 0.88);
+  --auth-surface-strong: rgba(255, 255, 255, 0.96);
+  --auth-border: rgba(37, 99, 235, 0.14);
+  --auth-border-strong: rgba(37, 99, 235, 0.24);
+  --auth-shadow: 0 22px 58px rgba(15, 23, 42, 0.12);
+  --auth-shadow-soft: 0 12px 30px rgba(30, 64, 175, 0.08);
+  align-items: center;
+  min-height: 100dvh;
+  overflow: auto;
+  padding: 32px 18px;
+  background: linear-gradient(180deg, #eff6ff 0%, #f8fbff 48%, #eef7f4 100%);
+}
+
+.bg-orb {
+  display: none;
+}
+
+.grid-mask {
+  background:
+    linear-gradient(rgba(37, 99, 235, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(37, 99, 235, 0.055) 1px, transparent 1px);
+  background-size: 36px 36px;
+  opacity: 0.22;
+  mask-image: linear-gradient(180deg, black 0%, rgba(0, 0, 0, 0.58) 58%, transparent 100%);
+}
+
+.register-shell {
+  width: min(1080px, 100%);
+  grid-template-columns: minmax(0, 0.88fr) minmax(470px, 1fr);
+  align-items: center;
+  gap: 16px;
+}
+
+.register-intro,
+.register-card {
+  border: 1px solid var(--auth-border);
+  border-radius: 24px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 251, 255, 0.86)),
+    var(--auth-surface);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    var(--auth-shadow);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.register-intro {
+  position: relative;
+  min-height: 100%;
+  padding: 28px;
+}
+
+.register-card {
+  padding: 28px;
+}
+
+.register-intro h1 {
+  max-width: 14ch;
+  color: var(--text-primary);
+  font-size: 42px;
+  line-height: 1.02;
+  letter-spacing: 0;
+}
+
+.register-intro > p {
+  max-width: 58ch;
+  color: var(--text-secondary);
+  font-size: 16px;
+  line-height: 1.75;
+}
+
+.point-item {
+  align-items: start;
+  border-color: var(--auth-border);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: var(--auth-shadow-soft);
+}
+
+.card-header {
+  margin-bottom: 16px;
+}
+
+.card-header h2 {
+  color: var(--text-primary);
+  font-size: 30px;
+  line-height: 1.15;
+  letter-spacing: 0;
+}
+
+.card-header p {
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+
+.auth-form {
+  display: grid;
+  gap: 2px;
+}
+
+.auth-form :deep(.n-form-item) {
+  margin-bottom: 2px;
+}
+
+.register-card :deep(.n-input) {
+  min-height: 46px;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.register-card :deep(.n-input-wrapper) {
+  min-height: 44px;
+}
+
+.referral-banner,
+.password-strength {
+  border-radius: 14px;
+  border-color: var(--auth-border);
+  background:
+    linear-gradient(180deg, rgba(239, 246, 255, 0.76), rgba(255, 255, 255, 0.82)),
+    rgba(255, 255, 255, 0.72);
+}
+
+.password-strength {
+  margin: -2px 0 12px;
+}
+
+.password-strength__fill {
+  transition:
+    width 0.2s ease,
+    background-color 0.2s ease;
+}
+
+.form-options {
+  margin: 4px 0 12px;
+}
+
+.terms-checkbox {
+  width: 100%;
+  align-items: flex-start;
+  line-height: 20px;
+}
+
+.terms-checkbox :deep(.n-checkbox-box-wrapper) {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
+.terms-checkbox :deep(.n-checkbox__label) {
+  min-width: 0;
+  padding-left: 8px;
+}
+
+.terms-checkbox__text {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0 2px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.inline-link-button {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: 0;
+  height: auto;
+  padding: 0 2px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--primary-color);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  box-shadow: none;
+  line-height: 20px;
+  vertical-align: baseline;
+}
+
+.inline-link-button:hover,
+.inline-link-button:active {
+  background: transparent;
+  box-shadow: none;
+  transform: none;
+}
+
+.inline-link-button:focus-visible {
+  outline: none;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.register-button {
+  min-height: 44px;
+  border-radius: 14px;
+  box-shadow: 0 14px 30px rgba(37, 99, 235, 0.22);
+}
+
+.login-prompt {
+  align-items: center;
+  flex-wrap: wrap;
+  row-gap: 2px;
+  line-height: 20px;
+}
+
+.login-prompt .inline-link-button {
+  align-self: center;
+}
+
+.policy-content {
+  line-height: 1.7;
+}
+
+[data-theme="dark"] .register-page {
+  --auth-surface: rgba(15, 23, 42, 0.82);
+  --auth-surface-strong: rgba(15, 23, 42, 0.92);
+  --auth-border: rgba(96, 165, 250, 0.2);
+  --auth-border-strong: rgba(96, 165, 250, 0.3);
+  --auth-shadow: 0 24px 60px rgba(0, 0, 0, 0.34);
+  --auth-shadow-soft: 0 12px 30px rgba(0, 0, 0, 0.2);
+  background: linear-gradient(180deg, #07111f 0%, #0d1728 54%, #101827 100%);
+}
+
+[data-theme="dark"] .register-intro,
+[data-theme="dark"] .register-card,
+[data-theme="dark"] .point-item {
+  border-color: var(--auth-border);
+  background:
+    linear-gradient(180deg, rgba(30, 41, 59, 0.72), rgba(15, 23, 42, 0.86)),
+    var(--auth-surface);
+}
+
+[data-theme="dark"] .register-card :deep(.n-input),
+[data-theme="dark"] .referral-banner,
+[data-theme="dark"] .password-strength {
+  background: rgba(15, 23, 42, 0.62);
+}
+
+@media (max-width: 980px) {
+  .register-page {
+    align-items: flex-start;
+    padding: 18px 12px;
+  }
+
+  .register-shell {
+    width: min(580px, 100%);
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .register-card {
+    order: 1;
+  }
+
+  .register-intro {
+    order: 2;
+    min-height: auto;
+  }
+}
+
+@media (max-width: 680px) {
+  .register-page {
+    padding: 10px;
+  }
+
+  .register-intro,
+  .register-card {
+    padding: 16px;
+    border-radius: 18px;
+  }
+
+  .register-intro h1,
+  .card-header h2 {
+    font-size: 24px;
+    line-height: 1.16;
+  }
+
+  .register-intro h1 {
+    max-width: none;
+    word-break: keep-all;
+    overflow-wrap: normal;
+  }
+
+  .register-intro > p {
+    margin-bottom: 12px;
+    font-size: 13px;
+    line-height: 1.65;
+  }
+
+  .point-item {
+    padding: 12px;
+  }
+
+  .point-item p {
+    line-height: 1.5;
+  }
+
+  .brand {
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 420px) {
+  .register-intro h1 {
+    font-size: 22px;
+  }
+
+  .intro-brand {
+    margin-bottom: 10px;
+  }
+
+  .intro-points {
+    gap: 8px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .register-page--ready .reveal-up,
+  .register-page--ready .point-item {
+    animation: none;
+    opacity: 1;
+    transform: none;
   }
 }
 </style>

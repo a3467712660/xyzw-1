@@ -7,68 +7,82 @@
           <p>为 token 生成一次性激活码，管理绑定账号与有效期。</p>
         </div>
 
-        <div class="activation-creator">
-          <div class="activation-creator__field">
-            <span class="activation-creator__label">生成数量</span>
-            <n-input-number
-              v-model:value="createCount"
-              :max="100"
-              :min="1"
-            ></n-input-number>
+        <div class="activation-creator-shell">
+          <div class="activation-creator-shell__head">
+            <span class="activation-creator-shell__eyebrow">激活码控制台</span>
+            <strong>生成激活码</strong>
           </div>
-          <div class="activation-creator__field">
-            <span class="activation-creator__label">有效时长</span>
-            <n-select
-              v-model:value="durationMonths"
-              :options="durationOptions"
-            ></n-select>
+
+          <div class="activation-creator">
+            <div class="activation-creator__field">
+              <span class="activation-creator__label">生成数量</span>
+              <n-input-number
+                v-model:value="createCount"
+                :max="100"
+                :min="1"
+              ></n-input-number>
+            </div>
+            <div class="activation-creator__field">
+              <span class="activation-creator__label">有效时长</span>
+              <n-select
+                v-model:value="durationMonths"
+                :options="durationOptions"
+              ></n-select>
+            </div>
+            <div class="activation-creator__field">
+              <span class="activation-creator__label">版本类型</span>
+              <n-select
+                v-model:value="featureScope"
+                :options="featureScopeOptions"
+              ></n-select>
+            </div>
+            <div class="activation-creator__field activation-creator__field--price">
+              <span class="activation-creator__label">售价（元）</span>
+              <n-input-number
+                v-model:value="saleAmountYuan"
+                :disabled="isOneDayDuration"
+                :min="0"
+                :precision="2"
+                :step="1"
+              ></n-input-number>
+              <span class="activation-creator__hint">{{ saleAmountHint }}</span>
+            </div>
+            <div class="activation-creator__actions">
+              <NButton
+                class="activation-creator__button activation-creator__button--primary"
+                type="primary"
+                :loading="creating"
+                @click="createCodes"
+              >
+                生成激活码
+              </NButton>
+              <NButton
+                class="activation-creator__button activation-creator__button--warning"
+                type="warning"
+                :loading="loading"
+                @click="unbindAllCodes"
+              >
+                清空全部绑定
+              </NButton>
+            </div>
           </div>
-          <div class="activation-creator__field">
-            <span class="activation-creator__label">版本类型</span>
-            <n-select
-              v-model:value="featureScope"
-              :options="featureScopeOptions"
-            ></n-select>
-          </div>
-          <div class="activation-creator__field">
-            <span class="activation-creator__label">售价（元）</span>
-            <n-input-number
-              v-model:value="saleAmountYuan"
-              :disabled="isOneDayDuration"
-              :min="0"
-              :precision="2"
-              :step="1"
-            ></n-input-number>
-            <span class="activation-creator__hint">{{ saleAmountHint }}</span>
-          </div>
-          <NButton class="activation-creator__button" type="primary" :loading="creating" @click="createCodes">
-            生成激活码
-          </NButton>
-          <NButton
-            class="activation-creator__button"
-            type="warning"
-            :loading="loading"
-            @click="unbindAllCodes"
-          >
-            清空全部绑定
-          </NButton>
         </div>
       </div>
 
       <div class="page-overview">
-        <div class="overview-card">
+        <div class="overview-card overview-card--total">
           <span class="overview-label">激活码总数</span>
           <strong class="overview-value">{{ codes.length }}</strong>
         </div>
-        <div class="overview-card">
+        <div class="overview-card overview-card--available">
           <span class="overview-label">当前可用</span>
           <strong class="overview-value">{{ availableCount }}</strong>
         </div>
-        <div class="overview-card">
+        <div class="overview-card overview-card--used">
           <span class="overview-label">已使用</span>
           <strong class="overview-value">{{ usedCount }}</strong>
         </div>
-        <div class="overview-card">
+        <div class="overview-card overview-card--bound">
           <span class="overview-label">存在绑定</span>
           <strong class="overview-value">{{ boundCount }}</strong>
         </div>
@@ -85,6 +99,7 @@
           :data="codes"
           :loading="loading"
           :pagination="{ pageSize: 12 }"
+          :scroll-x="1120"
         ></n-data-table>
       </n-card>
 
@@ -98,7 +113,9 @@
         >
           <div class="mobile-code-top">
             <div class="mobile-code-value">{{ row.code }}</div>
-            <NTag size="small" :type="statusTag(row).type">{{ statusTag(row).text }}</NTag>
+            <NTag class="mobile-code-status" size="small" :type="statusTag(row).type">
+              {{ statusTag(row).text }}
+            </NTag>
           </div>
           <div class="mobile-meta-grid">
             <div class="meta-row">
@@ -113,11 +130,11 @@
               <span class="meta-label">售价</span>
               <span>{{ formatSale(row.saleAmountCents, row.saleCurrency) }}</span>
             </div>
-            <div class="meta-row">
+            <div class="meta-row meta-row--wide">
               <span class="meta-label">绑定信息</span>
               <span>{{ row.bindingRoleName || "-" }}</span>
             </div>
-            <div class="meta-row">
+            <div class="meta-row meta-row--wide">
               <span class="meta-label">到期时间</span>
               <span>{{ formatTime(row.bindingExpiresAt) }}</span>
             </div>
@@ -736,66 +753,412 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.admin-activation-codes-page.admin-surface-page .container {
-  max-width: 1260px;
-  gap: 16px;
+.admin-activation-codes-page {
+  --activation-surface: rgba(255, 255, 255, 0.78);
+  --activation-surface-strong: rgba(255, 255, 255, 0.92);
+  --activation-border: rgba(37, 99, 235, 0.13);
+  --activation-border-strong: rgba(37, 99, 235, 0.22);
+  --activation-shadow: 0 18px 42px rgba(30, 64, 175, 0.1);
+  --activation-shadow-soft: 0 10px 26px rgba(30, 64, 175, 0.08);
+  --activation-blue-soft: rgba(219, 234, 254, 0.72);
+  --activation-green-soft: rgba(220, 252, 231, 0.72);
+  --activation-amber-soft: rgba(255, 247, 237, 0.82);
+  --activation-rose-soft: rgba(255, 228, 230, 0.72);
+  min-height: 100dvh;
+  padding: 16px 0;
+  animation: activation-page-fade-in 0.36s ease;
+}
+
+.admin-activation-codes-page.admin-surface-page .container,
+.admin-activation-codes-page .container {
+  display: grid;
+  gap: 18px;
+  max-width: 1320px;
+  margin: 0 auto;
   padding: 0 16px;
 }
 
-.admin-activation-codes-page.admin-surface-page .page-header {
+.admin-activation-codes-page.admin-surface-page .page-header,
+.admin-activation-codes-page .page-header {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(340px, auto);
+  grid-template-columns: minmax(0, 1fr) minmax(380px, 560px);
+  align-items: stretch;
   gap: 18px;
   padding: clamp(20px, 2vw, 28px);
+  border: 1px solid var(--activation-border);
   border-radius: 28px;
-  border: 1px solid var(--surface-glass-border);
   background:
-    linear-gradient(135deg, rgba(15, 107, 255, 0.1), transparent 74%),
-    var(--surface-glass-strong);
-  box-shadow: var(--shadow-light);
+    radial-gradient(circle at 12% 0%, rgba(37, 99, 235, 0.14), transparent 34%),
+    linear-gradient(180deg, rgba(239, 246, 255, 0.9), rgba(226, 238, 255, 0.64)),
+    rgba(248, 251, 255, 0.8);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.84) inset,
+    var(--activation-shadow);
   backdrop-filter: blur(14px);
 }
 
-.admin-activation-codes-page.admin-surface-page .page-overview {
+.admin-activation-codes-page .page-header__main {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  align-content: start;
+  gap: 10px;
+  min-width: 0;
+}
+
+.admin-activation-codes-page .page-header__main h1 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: clamp(28px, 3vw, 38px);
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.admin-activation-codes-page .page-header__main p {
+  max-width: 62ch;
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
+.activation-creator-shell {
+  display: grid;
+  align-self: start;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid rgba(37, 99, 235, 0.12);
+  border-radius: 22px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.76), rgba(219, 234, 254, 0.44)),
+    rgba(255, 255, 255, 0.68);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.84) inset,
+    0 14px 30px rgba(30, 64, 175, 0.08);
+}
+
+.activation-creator-shell__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.activation-creator-shell__eyebrow {
+  color: var(--primary-color);
+  font-family: var(--font-family-mono);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.activation-creator-shell__head strong {
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.activation-creator {
+  display: grid;
+  grid-template-columns: minmax(84px, 0.75fr) repeat(2, minmax(120px, 1fr));
+  align-items: end;
+  gap: 10px;
+}
+
+.activation-creator__field {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.activation-creator__field--price,
+.activation-creator__actions {
+  grid-column: 1 / -1;
+}
+
+.activation-creator__label {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.activation-creator__hint {
+  display: block;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.activation-creator :deep(.n-input-number),
+.activation-creator :deep(.n-base-selection) {
+  width: 100%;
+}
+
+.activation-creator__actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.activation-creator__button {
+  min-height: 42px;
+  border-radius: 14px;
+}
+
+.activation-creator__button--primary {
+  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.24);
+}
+
+.activation-creator__button--warning {
+  box-shadow: 0 10px 22px rgba(249, 115, 22, 0.16);
+}
+
+.admin-activation-codes-page.admin-surface-page .page-overview,
+.admin-activation-codes-page .page-overview {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.overview-card {
+  position: relative;
+  min-height: 112px;
+  overflow: hidden;
+  padding: 16px 18px;
+  border: 1px solid var(--activation-border);
+  border-radius: 20px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(239, 246, 255, 0.54)),
+    var(--activation-surface);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.78) inset,
+    var(--activation-shadow-soft);
+}
+
+.overview-card::after {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: linear-gradient(180deg, var(--primary-color), rgba(20, 184, 166, 0.72));
+}
+
+.overview-card--available {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.76), rgba(220, 252, 231, 0.56)),
+    var(--activation-green-soft);
+}
+
+.overview-card--used {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.76), rgba(219, 234, 254, 0.56)),
+    var(--activation-blue-soft);
+}
+
+.overview-card--bound {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.76), rgba(255, 247, 237, 0.58)),
+    var(--activation-amber-soft);
+}
+
+.overview-label,
+.desktop-table-card__header span,
+.meta-label,
+.table-subtext-cell {
+  color: var(--text-secondary);
+  font-weight: 700;
+}
+
+.overview-value {
+  display: block;
+  margin-top: 8px;
+  color: var(--text-primary);
+  font-family: var(--font-family-mono);
+  font-size: clamp(24px, 2.5vw, 34px);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.admin-activation-codes-page.admin-surface-page .desktop-table-card,
+.desktop-table-card {
+  overflow: hidden;
+  border: 1px solid var(--activation-border);
+  border-radius: 24px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(248, 251, 255, 0.74)),
+    var(--activation-surface-strong);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.78) inset,
+    var(--activation-shadow);
+}
+
+.desktop-table-card :deep(.n-card__content) {
+  padding: 18px;
+}
+
+.admin-activation-codes-page.admin-surface-page .desktop-table-card__header,
+.desktop-table-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 14px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid rgba(37, 99, 235, 0.12);
+}
+
+.desktop-table-card__header h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.activation-codes-table :deep(.n-data-table-wrapper) {
+  border: 1px solid rgba(37, 99, 235, 0.1);
+  border-radius: 18px;
+  overflow: hidden;
+}
+
+.activation-codes-table :deep(.n-data-table-th) {
+  background: linear-gradient(180deg, rgba(239, 246, 255, 0.96), rgba(226, 238, 255, 0.84));
+  color: #1e293b;
+  font-weight: 800;
+  white-space: normal;
+}
+
+.activation-codes-table :deep(.n-data-table-td) {
+  background: rgba(255, 255, 255, 0.68);
+  vertical-align: middle;
+  white-space: normal;
+}
+
+.activation-codes-table :deep(.n-data-table-tr:hover .n-data-table-td) {
+  background: rgba(226, 232, 240, 0.28);
+}
+
+.table-stack-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.table-code-cell,
+.table-text-cell {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--text-primary);
+  text-overflow: ellipsis;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.table-code-cell {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.table-subtext-cell {
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.table-actions-cell {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.table-actions-cell :deep(.n-button) {
+  min-height: 32px;
+  border-radius: 10px;
+}
+
+.mobile-list {
+  display: grid;
   gap: 12px;
 }
 
-.admin-activation-codes-page.admin-surface-page .overview-card {
-  padding: 16px 18px;
-  border-radius: 20px;
-  border: 1px solid var(--surface-glass-border);
-  background:
-    linear-gradient(135deg, rgba(15, 107, 255, 0.08), transparent 76%),
-    var(--surface-glass-strong);
-  box-shadow: var(--shadow-light);
-}
-
-.admin-activation-codes-page.admin-surface-page .desktop-table-card {
-  border-radius: 24px;
-}
-
-.admin-activation-codes-page.admin-surface-page .desktop-table-card__header {
-  padding-bottom: 14px;
-  margin-bottom: 14px;
-  border-bottom: 1px solid var(--console-divider);
-}
-
-.admin-activation-codes-page.admin-surface-page .mobile-code-card {
+.admin-activation-codes-page.admin-surface-page .mobile-code-card,
+.mobile-code-card {
+  overflow: hidden;
+  border: 1px solid var(--activation-border);
   border-radius: 22px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(239, 246, 255, 0.52)),
+    var(--activation-surface);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.78) inset,
+    0 12px 28px rgba(30, 64, 175, 0.08);
 }
 
-.admin-activation-codes-page {
-  padding: 20px;
+.mobile-code-card :deep(.n-card__content) {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
 }
 
-.container {
-  max-width: 1200px;
-  margin: 0 auto;
+.mobile-code-top {
   display: flex;
-  flex-direction: column;
-  gap: 16px;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.mobile-code-value {
+  min-width: 0;
+  color: var(--text-primary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  overflow-wrap: anywhere;
+}
+
+.mobile-code-status {
+  flex: 0 0 auto;
+}
+
+.mobile-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.meta-row {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  min-height: 58px;
+  padding: 10px;
+  border: 1px solid rgba(37, 99, 235, 0.1);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.62);
+  color: var(--text-primary);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.meta-row--wide {
+  grid-column: 1 / -1;
+}
+
+.meta-label {
+  font-size: 11px;
+}
+
+.mobile-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.mobile-actions :deep(.n-button) {
+  min-height: 36px;
+  border-radius: 10px;
 }
 
 .created-codes-modal {
@@ -820,7 +1183,7 @@ onBeforeUnmount(() => {
   max-height: 360px;
   overflow: auto;
   padding: 14px;
-  border: 1px solid var(--surface-glass-border);
+  border: 1px solid var(--activation-border);
   border-radius: var(--border-radius-lg);
   background: rgba(15, 23, 42, 0.04);
 }
@@ -840,164 +1203,184 @@ onBeforeUnmount(() => {
   gap: 10px;
 }
 
-.page-header__main h1 {
-  margin: 0;
+:global([data-theme="dark"]) .admin-activation-codes-page {
+  --activation-surface: rgba(15, 23, 42, 0.78);
+  --activation-surface-strong: rgba(15, 23, 42, 0.9);
+  --activation-border: rgba(96, 165, 250, 0.2);
+  --activation-border-strong: rgba(96, 165, 250, 0.3);
+  --activation-shadow: 0 18px 42px rgba(0, 0, 0, 0.28);
+  --activation-shadow-soft: 0 10px 26px rgba(0, 0, 0, 0.2);
 }
 
-.page-header__main p {
-  margin: 4px 0 0;
-  color: var(--text-secondary);
+:global([data-theme="dark"]) .admin-activation-codes-page.admin-surface-page .page-header,
+:global([data-theme="dark"]) .admin-activation-codes-page .activation-creator-shell,
+:global([data-theme="dark"]) .admin-activation-codes-page .overview-card,
+:global([data-theme="dark"]) .admin-activation-codes-page .desktop-table-card,
+:global([data-theme="dark"]) .admin-activation-codes-page .mobile-code-card {
+  background:
+    linear-gradient(180deg, rgba(30, 41, 59, 0.72), rgba(15, 23, 42, 0.84)),
+    var(--activation-surface);
 }
 
-.activation-creator {
-  display: flex;
-  align-items: flex-end;
-  gap: 8px;
-  flex-wrap: wrap;
+:global([data-theme="dark"]) .admin-activation-codes-page .activation-codes-table :deep(.n-data-table-th) {
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.9));
+  color: #e2e8f0;
 }
 
-.activation-creator__field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 140px;
+:global([data-theme="dark"]) .admin-activation-codes-page .activation-codes-table :deep(.n-data-table-td) {
+  background: rgba(15, 23, 42, 0.58);
 }
 
-.activation-creator__label {
-  font-size: 12px;
-  color: var(--text-tertiary);
+:global([data-theme="dark"]) .admin-activation-codes-page .meta-row {
+  background: rgba(15, 23, 42, 0.58);
+  border-color: rgba(96, 165, 250, 0.16);
 }
 
-.activation-creator__hint {
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--text-secondary);
+:global([data-theme="dark"]) .admin-activation-codes-page .created-codes-modal__list {
+  background: rgba(15, 23, 42, 0.58);
 }
 
-.activation-creator__button {
-  flex-shrink: 0;
+@keyframes activation-page-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-.activation-codes-table :deep(.n-data-table-th),
-.activation-codes-table :deep(.n-data-table-td) {
-  white-space: normal;
+@media (prefers-reduced-motion: reduce) {
+  .admin-activation-codes-page {
+    animation: none;
+  }
 }
 
-.activation-codes-table :deep(.n-data-table-td) {
-  vertical-align: middle;
-}
-
-.table-stack-cell {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}
-
-.table-code-cell,
-.table-text-cell {
-  display: inline-block;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  vertical-align: middle;
-}
-
-.table-code-cell {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  font-weight: 600;
-}
-
-.table-subtext-cell {
-  font-size: 12px;
-  color: var(--text-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.table-actions-cell {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.mobile-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.mobile-code-card {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.mobile-code-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.mobile-code-value {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  font-size: 14px;
-  font-weight: 600;
-  overflow-wrap: anywhere;
-}
-
-.mobile-meta-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px 12px;
-}
-
-.meta-row {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-  font-size: 12px;
-  overflow-wrap: anywhere;
-}
-
-.meta-label {
-  color: var(--text-secondary);
-}
-
-.mobile-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+@media (max-width: 900px) {
+  .admin-activation-codes-page.admin-surface-page .page-overview,
+  .admin-activation-codes-page .page-overview {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 768px) {
   .admin-activation-codes-page {
-    padding: 12px;
+    padding: 10px 0 16px;
   }
 
-  .page-header,
-  .admin-activation-codes-page.admin-surface-page .page-header {
+  .admin-activation-codes-page.admin-surface-page .container,
+  .admin-activation-codes-page .container {
+    padding: 0 10px;
+  }
+
+  .admin-activation-codes-page.admin-surface-page .page-header,
+  .admin-activation-codes-page .page-header {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+    padding: 16px;
+    border-radius: 22px;
+  }
+
+  .admin-activation-codes-page .page-header__main h1 {
+    font-size: 22px;
+    line-height: 1.15;
+  }
+
+  .admin-activation-codes-page .page-header__main p {
+    max-width: 100%;
+    font-size: 12px;
+    line-height: 1.55;
+  }
+
+  .activation-creator-shell {
+    width: 100%;
+    max-width: none;
+    padding: 12px;
+    border-radius: 18px;
+  }
+
+  .activation-creator-shell__head {
+    align-items: flex-start;
     flex-direction: column;
-    grid-template-columns: 1fr;
-    align-items: stretch;
+    gap: 2px;
   }
 
   .activation-creator {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .activation-creator__field--price {
+    grid-column: 1 / -1;
+  }
+
+  .activation-creator__actions {
+    grid-column: 1 / -1;
+    gap: 8px;
+  }
+
+  .activation-creator__button {
+    min-height: 38px;
+  }
+
+  .overview-card {
+    min-height: 90px;
+    padding: 12px;
+    border-radius: 16px;
+  }
+
+  .overview-value {
+    margin-top: 6px;
+    font-size: 22px;
+  }
+
+  .mobile-list {
+    gap: 10px;
+  }
+
+  .mobile-code-card {
+    border-radius: 14px;
+  }
+
+  .mobile-code-card :deep(.n-card__content) {
+    padding: 10px;
+  }
+
+  .mobile-code-top {
     flex-direction: column;
     gap: 8px;
   }
 
-  .activation-creator__field,
-  .activation-creator__button {
-    width: 100%;
+  .mobile-meta-grid {
+    gap: 8px;
   }
 
-  .mobile-meta-grid {
+  .meta-row {
+    min-height: 54px;
+    padding: 8px 10px;
+    border-radius: 10px;
+  }
+}
+
+@media (max-width: 420px) {
+  .admin-activation-codes-page.admin-surface-page .container,
+  .admin-activation-codes-page .container {
+    padding: 0 8px;
+  }
+
+  .activation-creator,
+  .activation-creator__actions,
+  .admin-activation-codes-page.admin-surface-page .page-overview,
+  .admin-activation-codes-page .page-overview,
+  .mobile-meta-grid,
+  .mobile-actions {
     grid-template-columns: 1fr;
+  }
+
+  .admin-activation-codes-page .page-header__main h1 {
+    font-size: 20px;
   }
 }
 </style>

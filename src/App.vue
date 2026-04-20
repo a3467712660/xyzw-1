@@ -43,6 +43,10 @@ import { computed, onMounted, onUnmounted } from "vue";
 import { darkTheme } from "naive-ui/es";
 import { useTheme } from "@/composables/useTheme";
 import { APP_BREAKPOINTS } from "@/constants/ui";
+import {
+  captureScrollPositions,
+  restoreScrollPositionsSoon,
+} from "@/utils/scrollPositionKeeper";
 
 const naiveBreakpoints = APP_BREAKPOINTS;
 
@@ -227,9 +231,111 @@ const getShellRouteKey = (route) => route?.matched?.[0]?.path || route?.path || 
 const getShellTransitionName = (route) =>
   route?.name === "Home" ? "page-none" : "page-shell";
 
+const interactionLayerSelectors = [
+  ".n-modal-mask",
+  ".n-drawer-mask",
+  ".n-modal",
+  ".n-drawer",
+  ".arco-modal-mask",
+  ".arco-drawer-mask",
+  ".arco-modal",
+  ".arco-drawer",
+];
+
+let interactionLayerObserver = null;
+let lastInteractionLayerCount = 0;
+let lastPageScrollSnapshot = [];
+
+const isVisibleInteractionLayer = (element) => {
+  const style = window.getComputedStyle(element);
+  if (
+    style.display === "none"
+    || style.visibility === "hidden"
+    || Number.parseFloat(style.opacity || "1") < 0.02
+  ) {
+    return false;
+  }
+  return element.getClientRects().length > 0;
+};
+
+const getVisibleInteractionLayerCount = () => {
+  if (typeof window === "undefined" || typeof document === "undefined") {
+    return 0;
+  }
+
+  return [...document.querySelectorAll(interactionLayerSelectors.join(","))]
+    .filter(isVisibleInteractionLayer)
+    .length;
+};
+
+const capturePageScrollSnapshot = () => {
+  if (typeof window === "undefined" || typeof document === "undefined") {
+    return;
+  }
+
+  lastPageScrollSnapshot = captureScrollPositions();
+};
+
+const captureBeforeInteractionLayerOpen = () => {
+  if (getVisibleInteractionLayerCount() === 0) {
+    capturePageScrollSnapshot();
+  }
+};
+
+const handlePotentialKeyboardLayerOpen = (event) => {
+  if (event.key === "Enter" || event.key === " ") {
+    captureBeforeInteractionLayerOpen();
+  }
+};
+
+const reconcileInteractionLayerScroll = () => {
+  if (typeof window === "undefined" || typeof document === "undefined") {
+    return;
+  }
+
+  const nextLayerCount = getVisibleInteractionLayerCount();
+  if (lastInteractionLayerCount === 0 && nextLayerCount > 0 && lastPageScrollSnapshot.length === 0) {
+    capturePageScrollSnapshot();
+  }
+
+  if (lastInteractionLayerCount > 0 && nextLayerCount === 0 && lastPageScrollSnapshot.length > 0) {
+    const snapshot = lastPageScrollSnapshot;
+    restoreScrollPositionsSoon(snapshot);
+    lastPageScrollSnapshot = [];
+  }
+
+  lastInteractionLayerCount = nextLayerCount;
+};
+
+const setupInteractionLayerScrollKeeper = () => {
+  if (typeof window === "undefined" || typeof document === "undefined") {
+    return;
+  }
+
+  lastInteractionLayerCount = getVisibleInteractionLayerCount();
+  interactionLayerObserver = new MutationObserver(reconcileInteractionLayerScroll);
+  interactionLayerObserver.observe(document.body, {
+    attributeFilter: ["aria-hidden", "class", "style"],
+    attributes: true,
+    childList: true,
+    subtree: true,
+  });
+
+  document.addEventListener("pointerdown", captureBeforeInteractionLayerOpen, true);
+  document.addEventListener("keydown", handlePotentialKeyboardLayerOpen, true);
+};
+
+const cleanupInteractionLayerScrollKeeper = () => {
+  interactionLayerObserver?.disconnect();
+  interactionLayerObserver = null;
+  document.removeEventListener("pointerdown", captureBeforeInteractionLayerOpen, true);
+  document.removeEventListener("keydown", handlePotentialKeyboardLayerOpen, true);
+};
+
 onMounted(() => {
   initTheme();
   setupSystemThemeListener();
+  setupInteractionLayerScrollKeeper();
   window.addEventListener("theme-change", handleThemeChange);
   window.addEventListener("focus", recoverInteractionLayers);
   window.addEventListener("pageshow", recoverInteractionLayers);
@@ -240,6 +346,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   cleanupSystemThemeListener();
+  cleanupInteractionLayerScrollKeeper();
   window.removeEventListener("theme-change", handleThemeChange);
   window.removeEventListener("focus", recoverInteractionLayers);
   window.removeEventListener("pageshow", recoverInteractionLayers);

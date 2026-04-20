@@ -1007,16 +1007,93 @@ onBeforeUnmount(() => {
 
 <style scoped lang="scss">
 .task-control-panel {
+  --task-control-surface: rgba(255, 255, 255, 0.78);
+  --task-control-surface-strong: rgba(255, 255, 255, 0.9);
+  --task-control-border: rgba(37, 99, 235, 0.13);
+  --task-control-shadow: 0 18px 42px rgba(30, 64, 175, 0.1);
   display: grid;
-  gap: var(--spacing-lg);
+  gap: 16px;
   animation: task-list-fade-in 0.38s ease;
+}
+
+.task-control-panel :deep(.workbench-page-hero) {
+  align-items: start;
+  gap: 16px;
+  border-color: var(--task-control-border);
+  background:
+    radial-gradient(circle at 12% 0%, rgba(37, 99, 235, 0.13), transparent 34%),
+    linear-gradient(180deg, rgba(239, 246, 255, 0.86), rgba(226, 238, 255, 0.62)),
+    rgba(248, 251, 255, 0.74);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.82) inset,
+    var(--task-control-shadow);
+}
+
+.task-control-panel :deep(.workbench-page-hero__copy) {
+  gap: 8px;
+}
+
+.task-control-panel :deep(.workbench-page-hero__meta) {
+  margin-top: 2px;
+}
+
+.task-control-panel :deep(.workbench-page-hero__actions) {
+  align-self: start;
+  flex: 0 0 auto;
+  height: fit-content;
+  min-height: 0;
+  padding: 12px;
+  border-radius: 18px;
+  border: 1px solid rgba(37, 99, 235, 0.1);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.56), rgba(219, 234, 254, 0.34)),
+    rgba(239, 246, 255, 0.38);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.72) inset,
+    0 10px 22px rgba(30, 64, 175, 0.06);
+}
+
+.task-control-panel :deep(.app-inline-stat) {
+  min-height: 36px;
+  padding: 8px 12px;
+  background: rgba(239, 246, 255, 0.82);
+}
+
+.task-control-panel :deep(.workbench-summary-card) {
+  min-height: 118px;
+  border-color: var(--task-control-border);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.76), rgba(239, 246, 255, 0.52)),
+    var(--task-control-surface);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.78) inset,
+    0 12px 30px rgba(30, 64, 175, 0.08);
+}
+
+:global([data-theme="dark"]) .task-control-panel {
+  --task-control-surface: rgba(15, 23, 42, 0.78);
+  --task-control-surface-strong: rgba(15, 23, 42, 0.9);
+  --task-control-border: rgba(96, 165, 250, 0.2);
+  --task-control-shadow: 0 18px 42px rgba(0, 0, 0, 0.28);
+}
+
+:global([data-theme="dark"]) .task-control-panel :deep(.workbench-page-hero),
+:global([data-theme="dark"]) .task-control-panel :deep(.workbench-page-hero__actions),
+:global([data-theme="dark"]) .task-control-panel :deep(.workbench-summary-card) {
+  background:
+    linear-gradient(180deg, rgba(30, 41, 59, 0.72), rgba(15, 23, 42, 0.84)),
+    var(--task-control-surface);
 }
 
 .task-control-alert {
   border-radius: 18px;
   border: 1px solid var(--surface-glass-border);
-  background: var(--surface-glass-strong);
-  box-shadow: var(--shadow-light);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.74), rgba(239, 246, 255, 0.42)),
+    var(--task-control-surface);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.72) inset,
+    0 10px 24px rgba(30, 64, 175, 0.08);
 }
 
 .task-control-grid {
@@ -1025,6 +1102,13 @@ onBeforeUnmount(() => {
 
 .task-control-section {
   min-height: 100%;
+  border-color: var(--task-control-border);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(248, 251, 255, 0.72)),
+    var(--task-control-surface);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.74) inset,
+    0 14px 34px rgba(30, 64, 175, 0.08);
 }
 
 .task-control-section--log {
@@ -1036,6 +1120,30 @@ onBeforeUnmount(() => {
 .task-panel-toolbar,
 .task-log-toolbar {
   width: 100%;
+}
+
+.task-control-hero-toolbar {
+  display: grid;
+  gap: 10px;
+}
+
+.task-control-hero-toolbar :deep(.workbench-page-toolbar__group) {
+  width: 100%;
+}
+
+.task-control-hero-toolbar :deep(.workbench-page-toolbar__group--right) {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-left: 0;
+}
+
+.task-control-hero-toolbar :deep(.workbench-status-pill) {
+  justify-content: center;
+  min-height: 38px;
+}
+
+.task-control-hero-toolbar :deep(.n-button) {
+  min-height: 40px;
 }
 
 .task-panel-toolbar {
@@ -1076,11 +1184,13 @@ onBeforeUnmount(() => {
   gap: 14px;
   padding: 18px;
   border-radius: 22px;
-  border: 1px solid var(--surface-glass-border);
+  border: 1px solid var(--task-control-border);
   background:
-    linear-gradient(135deg, rgba(63, 119, 173, 0.08), transparent 70%),
-    var(--surface-glass);
-  box-shadow: var(--shadow-light);
+    linear-gradient(135deg, rgba(37, 99, 235, 0.08), transparent 70%),
+    rgba(255, 255, 255, 0.74);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.7) inset,
+    0 10px 24px rgba(30, 64, 175, 0.08);
 }
 
 .task-card__header {
@@ -1342,11 +1452,80 @@ onBeforeUnmount(() => {
 
 @media (max-width: 768px) {
   .task-control-panel {
-    gap: var(--spacing-md);
+    gap: 12px;
+  }
+
+  .task-control-panel :deep(.workbench-page-hero) {
+    padding: 16px;
+    border-radius: 22px;
+    background:
+      radial-gradient(circle at 18% 0%, rgba(37, 99, 235, 0.14), transparent 38%),
+      linear-gradient(180deg, rgba(239, 246, 255, 0.94), rgba(219, 234, 254, 0.7)),
+      rgba(248, 251, 255, 0.76);
+  }
+
+  .task-control-panel :deep(.workbench-page-hero__actions) {
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .task-control-panel :deep(.app-page__title) {
+    font-size: 28px;
+  }
+
+  .task-control-panel :deep(.app-chip-row) {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .task-control-panel :deep(.app-inline-stat) {
+    justify-content: space-between;
+    min-height: 34px;
+    padding: 7px 10px;
+    font-size: 12px;
+  }
+
+  .task-control-panel :deep(.app-page__summary) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .task-control-panel :deep(.workbench-summary-card) {
+    min-height: 96px;
+    padding: 12px;
+    border-radius: 16px;
   }
 
   .task-control-hero-toolbar :deep(.workbench-page-toolbar__group) {
+    display: grid;
     align-items: stretch;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .task-control-hero-toolbar :deep(.workbench-page-toolbar__group--right) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .task-control-hero-toolbar :deep(.workbench-page-toolbar__group > *) {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .task-control-hero-toolbar :deep(.workbench-status-pill) {
+    min-height: 34px;
+    padding: 7px 10px;
+    background: rgba(255, 255, 255, 0.52);
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.68) inset;
+  }
+
+  .task-control-hero-toolbar :deep(.n-button) {
+    min-height: 36px;
+    padding-inline: 8px;
   }
 
   .task-panel-toolbar__switch {
@@ -1366,6 +1545,15 @@ onBeforeUnmount(() => {
 
   .task-settings-group {
     padding: 14px;
+  }
+}
+
+@media (max-width: 420px) {
+  .task-control-panel :deep(.app-chip-row),
+  .task-control-panel :deep(.app-page__summary),
+  .task-control-hero-toolbar :deep(.workbench-page-toolbar__group),
+  .task-control-hero-toolbar :deep(.workbench-page-toolbar__group--right) {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 

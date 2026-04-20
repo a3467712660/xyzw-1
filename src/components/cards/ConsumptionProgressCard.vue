@@ -6,7 +6,23 @@
       :status-class="statusClass"
     >
       <template #icon>
-        <span class="consumption-progress-card__icon">📊</span>
+        <span aria-hidden="true" class="consumption-progress-card__icon">
+          <svg
+            fill="none"
+            stroke="currentColor"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="1.8"
+            viewBox="0 0 24 24"
+          >
+            <path d="M4 19V5" />
+            <path d="M4 19h16" />
+            <path d="M8 16v-5" />
+            <path d="M12 16V8" />
+            <path d="M16 16v-9" />
+            <path d="M20 16v-3" />
+          </svg>
+        </span>
       </template>
       <template #title>
         <h3>消耗活动进度</h3>

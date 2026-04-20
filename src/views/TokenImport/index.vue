@@ -213,6 +213,7 @@
               </n-tag>
             </div>
             <NButton
+              class="bin-files-refresh-button"
               size="small"
               :loading="binFilesLoading"
               @click="loadBinFiles"
@@ -288,7 +289,7 @@
       <!-- Token列表 -->
       <div v-if="tokenStore.hasTokens" class="tokens-section">
         <div class="section-header">
-          <n-space align="center">
+          <n-space align="center" class="section-header__primary">
             <h2>
               {{
                 t("tokenImport.tokenList.title", {
@@ -305,7 +306,7 @@
               }}</n-radio-button>
             </n-radio-group>
             <n-divider vertical class="divider-h-24"></n-divider>
-            <n-button-group size="small">
+            <n-button-group class="token-sort-controls" size="small">
               <NButton
                 :type="sortConfig.field === 'name' ? 'primary' : 'default'"
                 @click="toggleSort('name')"
@@ -398,16 +399,11 @@
                     size="small"
                     :src="token.avatar"
                   ></n-avatar>
-                  <strong class="token-card-title__name">{{ token.name }}</strong>
+                  <div class="token-card-title__identity">
+                    <strong class="token-card-title__name">{{ token.name }}</strong>
+                  </div>
                 </div>
                 <div class="token-card-title__meta">
-                  <a-tag v-if="token.server" :color="getServerTagColor(token.id)">
-                    {{ token.server }}
-                  </a-tag>
-                  <a-badge
-                    :status="getTokenStyle(token.id)"
-                    :text="getConnectionStatusText(token.id)"
-                  ></a-badge>
                   <n-tag
                     v-if="hasMissingBinSource(token)"
                     size="small"
@@ -434,65 +430,23 @@
             </template>
 
             <template #default>
+              <div class="token-card-overview">
+                <div class="token-card-overview__item token-card-overview__item--server">
+                  <span>区号</span>
+                  <strong>{{ resolveTokenServerLabel(token) || "未识别" }}</strong>
+                </div>
+                <div class="token-card-overview__item">
+                  <span>状态</span>
+                  <strong>{{ getConnectionStatusText(token.id) }}</strong>
+                </div>
+              </div>
+
               <div class="token-display">
                 <span class="token-label">{{
                   t("tokenImport.labels.token")
                 }}</span>
                 <code class="token-value">{{ maskToken(token.token) }}</code>
               </div>
-
-              <!-- 备注信息 -->
-              <div
-                v-if="editingRemark === token.id"
-                class="token-remark token-remark-edit"
-                @click.stop
-              >
-                <span class="remark-label">{{
-                  t("tokenImport.labels.remark")
-                }}</span>
-                <n-input
-                  autofocus
-                  type="textarea"
-                  v-model:value="tempRemarks[token.id]"
-                  :placeholder="t('tokenImport.placeholders.remarkLong')"
-                  :rows="2"
-                  @blur="saveRemark(token)"
-                  @keyup.enter="saveRemark(token)"
-                  @keyup.esc="cancelEditRemark()"
-                ></n-input>
-              </div>
-              <div
-                v-else
-                class="token-remark"
-                @click.stop="startEditRemark(token)"
-              >
-                <span class="remark-label">{{
-                  t("tokenImport.labels.remark")
-                }}</span>
-                <span class="remark-value">{{
-                  token.remark || t("tokenImport.placeholders.remarkClick")
-                }}</span>
-                <NIcon class="remark-edit-icon">
-                  <Create></Create>
-                </NIcon>
-              </div>
-
-              <a-button
-                class="token-card-refresh"
-                :loading="refreshingTokens.has(token.id)"
-                @click.stop="refreshToken(token)"
-              >
-                <template #icon>
-                  <NIcon>
-                    <Refresh></Refresh>
-                  </NIcon>
-                </template>
-                {{
-                  token.sourceUrl
-                    ? t("tokenImport.actions.refresh")
-                    : t("tokenImport.actions.reacquire")
-                }}
-              </a-button>
 
               <div class="token-timestamps">
                 <div class="timestamp-item">
@@ -1003,6 +957,87 @@ const tokenHeroDescription = computed(() => {
 
 const activeViewMode = computed(() => (isMobile.value ? "card" : viewMode.value));
 
+const normalizeTokenServerLabel = (value) => {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  return raw.replace(/^(\d+)$/, "$1");
+};
+
+const normalizeTokenServerIdLabel = (value) => {
+  let serverId = Number(value);
+  if (!Number.isFinite(serverId) || serverId <= 0) return "";
+  if (serverId >= 2000000) {
+    serverId -= 2000000;
+  } else if (serverId >= 1000000) {
+    serverId -= 1000000;
+  }
+  const serverNo = serverId > 27 ? serverId - 27 : serverId;
+  return Number.isFinite(serverNo) && serverNo > 0 ? String(serverNo) : "";
+};
+
+const getTokenPayloadObject = (token) => {
+  const raw = String(token?.token || "").trim();
+  if (!raw) return null;
+
+  const parseJson = (value) => {
+    try {
+      const parsed = JSON.parse(value);
+      return parsed && typeof parsed === "object" ? parsed : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const direct = parseJson(raw);
+  if (direct) return direct;
+  if (typeof atob !== "function") return null;
+
+  try {
+    const decoded = atob(raw.replace(/^data:.*base64,/, ""));
+    return parseJson(decoded);
+  } catch {
+    return null;
+  }
+};
+
+const collectServerCandidates = (source) => {
+  if (!source || typeof source !== "object") return [];
+  return [
+    source.server,
+    source.serverName,
+    source.region,
+    source.regionName,
+    source.area,
+    source.areaId,
+    source.activationRegion,
+    source.role?.server,
+    source.role?.serverName,
+    source.data?.server,
+    source.data?.serverName,
+    source.data?.role?.server,
+    source.data?.role?.serverName,
+    normalizeTokenServerIdLabel(source.serverId),
+    normalizeTokenServerIdLabel(source.server_id),
+    normalizeTokenServerIdLabel(source.areaId),
+    normalizeTokenServerIdLabel(source.role?.serverId),
+    normalizeTokenServerIdLabel(source.data?.serverId),
+    normalizeTokenServerIdLabel(source.data?.role?.serverId),
+  ];
+};
+
+const resolveTokenServerLabel = (token) => {
+  const directCandidates = collectServerCandidates(token);
+  const payloadCandidates = collectServerCandidates(getTokenPayloadObject(token));
+  const roleIndex = String(token?.roleIndex ?? "").trim();
+  const fallbackRoleIndex = /^\d{3,}$/.test(roleIndex) ? roleIndex : "";
+
+  return [
+    ...directCandidates,
+    ...payloadCandidates,
+    fallbackRoleIndex,
+  ].map(normalizeTokenServerLabel).find(Boolean) || "";
+};
+
 const tokenSummaryCards = computed(() => [
   {
     label: "当前角色",
@@ -1109,7 +1144,6 @@ const {
   editRules,
   editingRemark,
   getConnectionStatusText,
-  getServerTagColor,
   getServerTagType,
   getTokenActions,
   getTokenStyle,
@@ -1383,13 +1417,50 @@ onMounted(async () => {
   height: 24px;
 }
 
+.token-import-page :deep(.n-button),
+.token-import-page :deep(.arco-btn) {
+  touch-action: manipulation;
+}
+
+.token-import-page :deep(.n-button:focus-visible),
+.token-import-page :deep(.arco-btn:focus-visible) {
+  outline: 2px solid rgba(37, 99, 235, 0.72);
+  outline-offset: 2px;
+}
+
 .remark-edit-icon {
   margin-left: 4px;
   color: var(--text-tertiary);
 }
 
 .token-list-card {
-  margin-bottom: 8px;
+  margin-bottom: 10px;
+  border: 1px solid var(--surface-glass-border);
+  background:
+    linear-gradient(135deg, rgba(15, 107, 255, 0.06), transparent 68%),
+    var(--console-panel);
+  box-shadow: var(--shadow-light);
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+.token-list-card:hover {
+  border-color: rgba(37, 99, 235, 0.34);
+  box-shadow: var(--shadow-medium);
+  transform: translateY(-1px);
+}
+
+.token-list-card.active {
+  border-color: rgba(37, 99, 235, 0.72);
+  box-shadow:
+    0 0 0 1px rgba(37, 99, 235, 0.24),
+    var(--shadow-light);
+}
+
+.token-list-card :deep(.n-card__content) {
+  padding: 12px 14px;
 }
 
 .min-w-65 {
@@ -1404,19 +1475,21 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 2px;
+  gap: 8px;
+  line-height: 1.4;
 }
 
 .token-name-text {
-  font-weight: bold;
-  font-size: 0.95em;
+  color: var(--text-primary);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-bold);
 }
 
 .token-remark-inline-edit {
-  font-size: 0.75em;
   display: flex;
   align-items: center;
   gap: 4px;
+  font-size: 12px;
 }
 
 .note-icon-tight {
@@ -1428,8 +1501,14 @@ onMounted(async () => {
 }
 
 .token-remark-inline-view {
-  font-size: 0.75em;
+  max-width: min(240px, 100%);
+  min-height: 28px;
+  padding: 3px 8px;
+  border: 1px solid var(--surface-glass-border);
+  border-radius: var(--border-radius-small);
+  background: var(--surface-glass);
   color: var(--text-secondary);
+  font-size: 12px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1690,11 +1769,20 @@ onMounted(async () => {
 .bin-files-section {
   margin-bottom: var(--spacing-lg);
   border: 1px solid var(--surface-glass-border);
+  border-radius: var(--border-radius-large);
   box-shadow: var(--shadow-light);
   background:
     linear-gradient(135deg, rgba(15, 107, 255, 0.08), transparent 76%),
     var(--surface-glass-strong);
   backdrop-filter: blur(14px);
+}
+
+.bin-files-section :deep(.n-card-header) {
+  padding: 18px 20px 12px;
+}
+
+.bin-files-section :deep(.n-card__content) {
+  padding: 0 20px 20px;
 }
 
 .bin-files-header {
@@ -1716,6 +1804,11 @@ onMounted(async () => {
   }
 }
 
+.bin-files-refresh-button {
+  flex-shrink: 0;
+  min-width: 104px;
+}
+
 .bin-files-mobile-list {
   display: grid;
   gap: 12px;
@@ -1725,11 +1818,12 @@ onMounted(async () => {
   display: grid;
   gap: 12px;
   padding: 14px;
-  border-radius: 18px;
+  border-radius: var(--border-radius-medium);
   border: 1px solid var(--surface-glass-border);
   background:
-    linear-gradient(135deg, rgba(15, 107, 255, 0.06), transparent 78%),
-    var(--surface-glass-strong);
+    linear-gradient(135deg, rgba(37, 99, 235, 0.09), transparent 76%),
+    var(--console-panel);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 .bin-file-card__head {
@@ -1739,10 +1833,18 @@ onMounted(async () => {
 
 .bin-file-card__head strong {
   color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.45;
   word-break: break-word;
 }
 
 .bin-file-card__head span {
+  width: fit-content;
+  max-width: 100%;
+  padding: 3px 8px;
+  border: 1px solid var(--surface-glass-border);
+  border-radius: var(--border-radius-small);
+  background: var(--surface-glass);
   color: var(--text-secondary);
   font-size: 12px;
   font-family: var(--font-family-mono);
@@ -1755,12 +1857,18 @@ onMounted(async () => {
   gap: 10px;
 }
 
+.bin-file-card__meta > div {
+  padding: 10px;
+  border: 1px solid var(--surface-glass-border);
+  border-radius: var(--border-radius-small);
+  background: var(--surface-glass);
+}
+
 .bin-file-card__meta span {
   display: block;
   color: var(--text-tertiary);
   font-size: 11px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: 0;
 }
 
 .bin-file-card__meta strong {
@@ -1777,11 +1885,15 @@ onMounted(async () => {
   gap: 10px;
 }
 
+.bin-file-card__actions :deep(.n-button) {
+  min-height: 44px;
+}
+
 .tokens-section {
   background:
-    linear-gradient(135deg, rgba(15, 107, 255, 0.08), transparent 74%),
+    linear-gradient(135deg, rgba(37, 99, 235, 0.09), transparent 72%),
     var(--surface-glass-strong);
-  border-radius: 24px;
+  border-radius: var(--border-radius-large);
   padding: var(--spacing-xl);
   box-shadow: var(--shadow-light);
   border: 1px solid var(--surface-glass-border);
@@ -1792,14 +1904,16 @@ onMounted(async () => {
 
 /* 深色主题下的列表区域背景 */
 [data-theme="dark"] .tokens-section {
-  background: rgba(45, 55, 72, 0.9);
-  color: #ffffff;
+  background:
+    linear-gradient(135deg, rgba(37, 99, 235, 0.1), transparent 70%),
+    var(--surface-glass-strong);
+  color: var(--text-primary);
 }
 
 /* 深色主题下的固定头部 */
 [data-theme="dark"] .section-header {
-  background: rgba(45, 55, 72, 0.9);
-  border-bottom-color: rgba(255, 255, 255, 0.1);
+  background: transparent;
+  border-bottom-color: var(--console-divider);
 }
 
 .section-header {
@@ -1818,6 +1932,18 @@ onMounted(async () => {
   }
 }
 
+.section-header__primary {
+  min-width: 0;
+}
+
+.token-sort-controls {
+  flex-wrap: wrap;
+}
+
+.token-sort-controls :deep(.n-button) {
+  min-height: 36px;
+}
+
 .header-actions {
   display: flex;
   gap: var(--spacing-sm);
@@ -1825,32 +1951,87 @@ onMounted(async () => {
   flex-wrap: wrap;
 }
 
+.header-actions :deep(.n-button) {
+  min-height: 40px;
+}
+
 .tokens-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: var(--spacing-lg);
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
 }
 
 .token-card {
-  border: 2px solid var(--border-light);
+  overflow: hidden;
+  border: 1px solid var(--surface-glass-border);
   border-radius: var(--border-radius-large);
-  padding: var(--spacing-lg);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(34, 197, 94, 0.14), transparent 34%),
+    linear-gradient(135deg, rgba(37, 99, 235, 0.08), transparent 70%),
+    var(--console-panel-strong);
+  padding: 0;
   cursor: pointer;
-  transition: all var(--transition-normal);
+  box-shadow: var(--shadow-light);
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast),
+    transform var(--transition-fast);
 
   &:hover {
     box-shadow: var(--shadow-medium);
-    transform: translateY(-2px);
+    transform: translateY(-1px);
   }
 
   &.active {
-    border-color: var(--primary-color);
-    box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+    border-color: rgba(37, 99, 235, 0.78);
+    box-shadow:
+      0 0 0 1px rgba(37, 99, 235, 0.28),
+      var(--shadow-light);
   }
 
   &.connected {
     border-left: 4px solid var(--success-color);
   }
+}
+
+.token-card::before {
+  content: "";
+  display: block;
+  height: 3px;
+  background: linear-gradient(90deg, #22c55e, #2563eb 56%, transparent);
+  opacity: 0.86;
+}
+
+.token-card :deep(.arco-card-header) {
+  align-items: flex-start;
+  padding: 12px 14px 10px;
+  border-bottom: 1px solid var(--console-divider);
+}
+
+.token-card :deep(.arco-card-header-title) {
+  min-width: 0;
+  overflow: visible;
+  white-space: normal;
+}
+
+.token-card :deep(.arco-card-body) {
+  padding: 14px;
+}
+
+.token-card :deep(.arco-card-actions) {
+  padding: 0 14px 14px;
+  border-top: 0;
+}
+
+.token-card :deep(.arco-card-extra) {
+  align-self: flex-start;
+}
+
+.token-card :deep(.arco-card-extra .n-button) {
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: var(--border-radius-small);
+  background: var(--surface-glass);
 }
 
 .token-card-title {
@@ -1867,7 +2048,8 @@ onMounted(async () => {
 }
 
 .token-card-title__main {
-  gap: 8px;
+  align-items: flex-start;
+  gap: 10px;
 }
 
 .token-card-title__meta {
@@ -1875,11 +2057,17 @@ onMounted(async () => {
   gap: 6px;
 }
 
+.token-card-title__identity {
+  display: grid;
+  min-width: 0;
+}
+
 .token-card-title__name {
   min-width: 0;
   overflow: hidden;
   color: var(--text-primary);
   font-size: var(--font-size-md);
+  line-height: 1.35;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1946,27 +2134,82 @@ onMounted(async () => {
   margin-bottom: var(--spacing-md);
 }
 
-.token-display {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-sm);
-  margin-bottom: var(--spacing-md);
-  padding: var(--spacing-sm);
-  background: var(--bg-tertiary);
+.token-card-overview {
+  display: grid;
+  grid-template-columns: minmax(0, 1.18fr) minmax(0, 0.82fr);
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.token-card-overview__item {
+  display: grid;
+  gap: 5px;
+  min-height: 58px;
+  padding: 10px 12px;
+  border: 1px solid var(--surface-glass-border);
   border-radius: var(--border-radius-medium);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent),
+    var(--surface-glass);
+}
+
+.token-card-overview__item span {
+  color: var(--text-tertiary);
+  font-size: 11px;
+  line-height: 1;
+}
+
+.token-card-overview__item strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: var(--font-weight-bold);
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.token-card-overview__item--server {
+  border-color: rgba(34, 197, 94, 0.42);
+  background:
+    linear-gradient(135deg, rgba(34, 197, 94, 0.18), rgba(37, 99, 235, 0.07)),
+    var(--surface-glass);
+}
+
+.token-card-overview__item--server strong {
+  color: #63e68b;
+  font-family: var(--font-family-mono);
+  font-size: 18px;
+  letter-spacing: 0;
+}
+
+.token-display {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  margin-bottom: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--surface-glass-border);
+  border-radius: var(--border-radius-medium);
+  background: var(--surface-glass);
 }
 
 .token-label {
   color: var(--text-secondary);
-  font-size: var(--font-size-sm);
+  font-size: 12px;
   font-weight: var(--font-weight-medium);
 }
 
 .token-value {
-  font-family: monospace;
-  font-size: var(--font-size-sm);
+  font-family: var(--font-family-mono);
+  font-size: 12px;
+  line-height: 1.45;
   color: var(--text-primary);
   flex: 1;
+  overflow-wrap: anywhere;
 }
 
 .connection-status {
@@ -2007,30 +2250,35 @@ onMounted(async () => {
 }
 
 .token-remark {
-  margin: var(--spacing-sm) 0;
-  padding: var(--spacing-sm);
-  background: var(--bg-tertiary);
-  border-radius: var(--border-radius-small);
+  min-height: 44px;
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--surface-glass-border);
+  border-radius: var(--border-radius-medium);
+  background: var(--surface-glass);
   font-size: var(--font-size-sm);
   color: var(--text-secondary);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition:
+    border-color var(--transition-fast),
+    background-color var(--transition-fast);
   display: flex;
-  align-items: flex-start;
-  gap: var(--spacing-xs);
+  align-items: center;
+  gap: 8px;
 
   &:hover {
-    background: var(--bg-secondary);
+    border-color: rgba(37, 99, 235, 0.34);
+    background: var(--console-panel);
   }
 }
 
 .token-remark-edit {
   cursor: default;
-  background: var(--bg-primary);
+  background: var(--console-panel);
   border: 1px solid var(--border-medium);
 
   &:hover {
-    background: var(--bg-primary);
+    background: var(--console-panel);
   }
 }
 
@@ -2042,20 +2290,26 @@ onMounted(async () => {
 }
 
 .remark-value {
-  font-style: italic;
   flex: 1;
+  min-width: 0;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 
 .token-timestamps {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--spacing-sm);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
 }
 
 .timestamp-item {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-xs);
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid var(--surface-glass-border);
+  border-radius: var(--border-radius-small);
+  background: var(--surface-glass);
 }
 
 .timestamp-label {
@@ -2066,6 +2320,7 @@ onMounted(async () => {
 .timestamp-value {
   font-size: var(--font-size-xs);
   color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
 }
 
 .card-footer {
@@ -2265,12 +2520,17 @@ onMounted(async () => {
     gap: 10px;
   }
 
+  .bin-files-refresh-button {
+    width: 100%;
+  }
+
   .bin-files-section,
   .tokens-section {
     margin-bottom: 0;
   }
 
   .bin-files-section :deep(.n-card-header),
+  .bin-files-section :deep(.n-card__content),
   .tokens-section {
     padding: 14px;
   }
@@ -2282,7 +2542,7 @@ onMounted(async () => {
   .bin-file-card {
     gap: 10px;
     padding: 12px;
-    border-radius: 16px;
+    border-radius: var(--border-radius-medium);
   }
 
   .bin-file-card__head {
@@ -2339,22 +2599,38 @@ onMounted(async () => {
     padding-bottom: 10px;
   }
 
+  .section-header h2 {
+    font-size: 16px;
+    line-height: 1.35;
+  }
+
+  .divider-h-24 {
+    display: none;
+  }
+
+  .section-header__primary {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px !important;
+  }
+
   .section-header :deep(.n-space) {
     width: 100%;
     align-items: stretch !important;
     justify-content: flex-start;
   }
 
-  .section-header :deep(.n-button-group) {
+  .token-sort-controls {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
     width: 100%;
   }
 
-  .section-header :deep(.n-button-group .n-button) {
+  .token-sort-controls :deep(.n-button) {
     width: 100%;
     border-radius: 10px !important;
+    white-space: normal;
   }
 
   .header-actions {
@@ -2364,21 +2640,21 @@ onMounted(async () => {
   }
 
   .token-card {
-    padding: 12px;
+    padding: 0;
     border-radius: 18px;
   }
 
   .token-card :deep(.arco-card-header) {
     align-items: flex-start;
-    padding: 0 0 10px;
+    padding: 12px 12px 10px;
   }
 
   .token-card :deep(.arco-card-body) {
-    padding: 10px 0;
+    padding: 12px;
   }
 
   .token-card :deep(.arco-card-actions) {
-    padding-top: 10px;
+    padding: 0 12px 12px;
   }
 
   .token-card-title {
@@ -2389,15 +2665,14 @@ onMounted(async () => {
     gap: 5px;
   }
 
-  .token-display,
-  .token-remark {
-    margin-bottom: 8px;
-    padding: 8px;
+  .token-card-overview__item {
+    min-height: 50px;
+    padding: 9px 10px;
   }
 
-  .token-card-refresh {
-    width: 100%;
+  .token-display {
     margin-bottom: 8px;
+    padding: 10px;
   }
 
   .token-timestamps {
@@ -2424,27 +2699,39 @@ onMounted(async () => {
 
 /* 存储信息样式 */
 .storage-info {
-  margin-top: var(--spacing-md);
-  padding-top: var(--spacing-md);
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
   border-top: 1px solid var(--border-light);
 }
 
 .storage-item {
   display: flex;
   align-items: center;
-  gap: var(--spacing-sm);
-  margin-bottom: var(--spacing-sm);
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 36px;
+  margin-bottom: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--surface-glass-border);
+  border-radius: var(--border-radius-small);
+  background: var(--surface-glass);
 }
 
 .storage-label {
   font-size: var(--font-size-sm);
   color: var(--text-secondary);
   font-weight: var(--font-weight-medium);
-  min-width: 70px;
+  min-width: 0;
 }
 
 .storage-upgrade {
-  margin-top: var(--spacing-xs);
+  margin-top: 0;
+}
+
+.storage-upgrade :deep(.n-button) {
+  min-height: 36px;
 }
 
 :global([data-theme="dark"] .token-import-modal .arco-modal) {
@@ -2452,6 +2739,10 @@ onMounted(async () => {
 }
 
 [data-theme="dark"] .token-card {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background:
+    linear-gradient(135deg, rgba(37, 99, 235, 0.14), transparent 68%),
+    var(--console-panel-strong);
+  border-color: var(--surface-glass-border);
+  color: var(--text-primary);
 }
 </style>

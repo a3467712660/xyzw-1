@@ -25,8 +25,6 @@ declare module 'vue' {
     ArenaPvpResultPanel: typeof import('./src/components/cards/pvp/ArenaPvpResultPanel.vue')['default']
     ArenaPvpTargetList: typeof import('./src/components/cards/pvp/ArenaPvpTargetList.vue')['default']
     ArenaPvpToolbar: typeof import('./src/components/cards/pvp/ArenaPvpToolbar.vue')['default']
-    ASpace: typeof import('@arco-design/web-vue')['Space']
-    ATag: typeof import('@arco-design/web-vue')['Tag']
     AUpload: typeof import('@arco-design/web-vue')['Upload']
     BossTower: typeof import('./src/components/Tower/BossTower.vue')['default']
     BottleHelperCard: typeof import('./src/components/cards/BottleHelperCard.vue')['default']

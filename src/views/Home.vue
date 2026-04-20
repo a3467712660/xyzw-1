@@ -182,10 +182,21 @@
       <section class="hero-section">
         <div class="container hero-shell">
           <div class="hero-text reveal-up">
+            <p class="hero-kicker">{{ t("homePage.brandSubtitle") }}</p>
             <h1 class="hero-title">{{ t("homePage.hero.title") }}</h1>
             <p class="hero-subtitle">
               {{ t("homePage.hero.subtitle") }}
             </p>
+            <div aria-label="XYZW dashboard summary" class="hero-metrics">
+              <div
+                v-for="metric in heroStats"
+                :key="metric.id"
+                class="hero-metric"
+              >
+                <strong>{{ metric.value }}</strong>
+                <span>{{ metric.label }}</span>
+              </div>
+            </div>
             <div class="hero-actions">
               <n-button
                 class="hero-button"
@@ -553,6 +564,11 @@ const trustPoints = computed(() => [
   { id: 1, icon: markRaw(ShieldCheckmark), label: t("homePage.trust.sessionIsolation") },
   { id: 2, icon: markRaw(LockClosed), label: t("homePage.trust.mfaStepUp") },
   { id: 3, icon: markRaw(Key), label: t("homePage.trust.secretSplit") },
+]);
+const heroStats = computed(() => [
+  { id: 1, value: "3+", label: t("homePage.stats.managedRoles") },
+  { id: 2, value: "24h", label: t("homePage.stats.executedTasks") },
+  { id: 3, value: "MFA", label: t("homePage.stats.uptime") },
 ]);
 
 const securityCards = computed(() => [
@@ -2135,6 +2151,548 @@ onUnmounted(() => {
   .feature-item:hover {
     transform: translateY(-5px);
     box-shadow: 0 24px 50px rgba(37, 99, 235, 0.12);
+  }
+}
+
+/* Home display overhaul */
+.home-page {
+  background:
+    linear-gradient(180deg, #eef6ff 0%, #f8fbff 46%, #eef8f4 100%);
+}
+
+.home-bg .bg-orb {
+  display: none;
+}
+
+.home-bg .grid-mask {
+  opacity: 0.18;
+  background:
+    linear-gradient(90deg, rgba(37, 99, 235, 0.052) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(37, 99, 235, 0.052) 1px, transparent 1px);
+  background-size: 36px 36px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.74), transparent 88%);
+}
+
+.hero-section {
+  padding: clamp(22px, 3vw, 42px) 0 clamp(34px, 5vw, 70px);
+}
+
+.hero-section .hero-shell {
+  width: min(1160px, calc(100% - 32px));
+  max-width: none;
+  min-height: auto;
+  margin-inline: auto;
+  padding: clamp(24px, 4.2vw, 50px);
+  grid-template-columns: minmax(0, 0.94fr) minmax(360px, 1.06fr);
+  align-items: center;
+  gap: clamp(22px, 3.8vw, 52px);
+  border: 1px solid rgba(37, 99, 235, 0.12);
+  border-radius: 30px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(248, 251, 255, 0.82)),
+    radial-gradient(circle at 86% 16%, rgba(20, 184, 166, 0.12), transparent 30%),
+    #ffffff;
+  box-shadow:
+    0 28px 74px rgba(15, 23, 42, 0.11),
+    inset 0 1px 0 rgba(255, 255, 255, 0.86);
+}
+
+.hero-section .hero-shell::before {
+  opacity: 0.64;
+  background:
+    linear-gradient(90deg, rgba(37, 99, 235, 0.04) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(37, 99, 235, 0.04) 1px, transparent 1px);
+  background-size: 32px 32px;
+  mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent);
+}
+
+.hero-text {
+  padding: 0;
+}
+
+.hero-kicker {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  margin: 0 0 14px;
+  padding: 0 12px;
+  border: 1px solid rgba(37, 99, 235, 0.16);
+  border-radius: 999px;
+  background: rgba(219, 234, 254, 0.62);
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.hero-title {
+  max-width: 620px;
+  margin-bottom: 16px;
+  font-size: clamp(2.75rem, 5.2vw, 5rem);
+  line-height: 1.02;
+  letter-spacing: 0;
+  text-wrap: balance;
+}
+
+.hero-subtitle {
+  max-width: 610px;
+  margin-bottom: 18px;
+  font-size: 16px;
+  line-height: 1.78;
+}
+
+.hero-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  max-width: 560px;
+  margin: 0 0 20px;
+}
+
+.hero-metric {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgba(37, 99, 235, 0.12);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 10px 24px rgba(30, 64, 175, 0.07);
+}
+
+.hero-metric strong {
+  display: block;
+  color: #0f172a;
+  font-family: var(--font-family-mono);
+  font-size: 20px;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.hero-metric span {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.hero-actions {
+  margin-bottom: 14px;
+}
+
+.hero-actions :deep(.n-button) {
+  min-height: 46px;
+  border-radius: 14px;
+}
+
+.hero-trust-strip {
+  gap: 8px;
+}
+
+.trust-pill {
+  min-height: 36px;
+  padding: 8px 12px;
+  border-color: rgba(37, 99, 235, 0.12);
+  background: rgba(255, 255, 255, 0.82);
+  color: #1e293b;
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.07);
+}
+
+.trust-pill :deep(svg) {
+  color: #2563eb;
+}
+
+.hero-panel {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  filter: none;
+  transform: none;
+}
+
+.mockup-window {
+  gap: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(37, 99, 235, 0.12);
+  border-radius: 26px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(248, 250, 252, 0.9)),
+    #ffffff;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.12);
+}
+
+.mockup-body {
+  min-height: 440px;
+  grid-template-columns: minmax(150px, 0.78fr) minmax(0, 1.22fr);
+  gap: 12px;
+}
+
+.mockup-sidebar,
+.mockup-main,
+.mockup-highlight,
+.mockup-activity {
+  border-color: rgba(37, 99, 235, 0.1);
+  background: rgba(248, 250, 252, 0.84);
+}
+
+.mockup-nav__item {
+  padding: 10px;
+  border-color: rgba(37, 99, 235, 0.1);
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.mockup-summary__copy strong {
+  font-size: 22px;
+  line-height: 1.2;
+}
+
+.mockup-highlights {
+  gap: 10px;
+}
+
+.mockup-highlight,
+.mockup-activity {
+  padding: 14px;
+  border-radius: 14px;
+}
+
+.workflow-section,
+.security-section,
+.features-section {
+  padding-block: clamp(46px, 6vw, 76px);
+}
+
+.workflow-section .container,
+.security-section .container,
+.features-section .container {
+  width: min(1160px, calc(100% - 32px));
+  max-width: none;
+}
+
+.section-title {
+  letter-spacing: 0;
+}
+
+[data-theme="dark"] .home-page {
+  background:
+    linear-gradient(180deg, #07111f 0%, #0d1728 52%, #101827 100%);
+}
+
+[data-theme="dark"] .hero-section .hero-shell,
+[data-theme="dark"] .mockup-window,
+[data-theme="dark"] .hero-metric,
+[data-theme="dark"] .trust-pill {
+  border-color: rgba(96, 165, 250, 0.2);
+  background:
+    linear-gradient(180deg, rgba(30, 41, 59, 0.76), rgba(15, 23, 42, 0.88)),
+    rgba(15, 23, 42, 0.82);
+}
+
+[data-theme="dark"] .hero-metric strong,
+[data-theme="dark"] .trust-pill {
+  color: #e2e8f0;
+}
+
+[data-theme="dark"] .mockup-sidebar,
+[data-theme="dark"] .mockup-main,
+[data-theme="dark"] .mockup-highlight,
+[data-theme="dark"] .mockup-activity,
+[data-theme="dark"] .mockup-nav__item {
+  background: rgba(15, 23, 42, 0.62);
+  border-color: rgba(96, 165, 250, 0.16);
+}
+
+@media (max-width: 1100px) {
+  .hero-section .hero-shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .hero-metrics {
+    max-width: none;
+  }
+
+  .hero-panel {
+    max-width: 720px;
+  }
+}
+
+@media (max-width: 680px) {
+  .hero-section .hero-shell,
+  .workflow-section .container,
+  .security-section .container,
+  .features-section .container {
+    width: min(100% - 20px, 560px);
+  }
+
+  .hero-section .hero-shell {
+    padding: 18px;
+    border-radius: 22px;
+  }
+
+  .hero-title {
+    font-size: clamp(2rem, 12vw, 3.1rem);
+    line-height: 1.08;
+  }
+
+  .hero-subtitle {
+    font-size: 14px;
+    line-height: 1.68;
+  }
+
+  .hero-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .trust-pill {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .mockup-body {
+    grid-template-columns: minmax(0, 1fr);
+    min-height: auto;
+  }
+
+  .mockup-sidebar {
+    display: none;
+  }
+}
+
+/* Home display overhaul v2 */
+.home-page .main-content {
+  padding-top: clamp(78px, 8vw, 104px);
+}
+
+.home-page .hero-section {
+  padding: 22px 0 42px;
+}
+
+.home-page .hero-section .hero-shell {
+  width: min(1120px, calc(100% - 48px));
+  padding: clamp(26px, 3.6vw, 42px);
+  grid-template-columns: minmax(0, 0.82fr) minmax(430px, 1.18fr);
+  gap: clamp(24px, 3.4vw, 46px);
+  border-radius: 28px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(248, 251, 255, 0.88)),
+    radial-gradient(circle at 88% 14%, rgba(37, 99, 235, 0.11), transparent 30%),
+    #ffffff;
+}
+
+.home-page .hero-kicker {
+  margin-bottom: 12px;
+  min-height: 26px;
+  padding: 0 10px;
+  background: rgba(219, 234, 254, 0.76);
+}
+
+.home-page .hero-title {
+  max-width: 560px;
+  margin-bottom: 14px;
+  font-size: clamp(2.5rem, 4.15vw, 4.55rem);
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.home-page .hero-subtitle {
+  max-width: 560px;
+  margin-bottom: 16px;
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.home-page .hero-metrics {
+  max-width: 520px;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.home-page .hero-metric {
+  padding: 10px 11px;
+  border-radius: 14px;
+}
+
+.home-page .hero-metric strong {
+  font-size: 18px;
+}
+
+.home-page .hero-actions {
+  margin-bottom: 12px;
+}
+
+.home-page .hero-actions :deep(.n-button) {
+  min-height: 44px;
+  min-width: 136px;
+  border-radius: 12px;
+}
+
+.home-page .trust-pill {
+  min-height: 32px;
+  padding: 7px 11px;
+  font-size: 12px;
+}
+
+.home-page .hero-panel {
+  align-self: stretch;
+  display: grid;
+}
+
+.home-page .mockup-window {
+  min-height: 100%;
+  border-radius: 24px;
+  box-shadow: 0 22px 54px rgba(15, 23, 42, 0.13);
+}
+
+.home-page .mockup-topbar {
+  padding: 0 2px;
+}
+
+.home-page .mockup-body {
+  min-height: 400px;
+  grid-template-columns: minmax(136px, 0.68fr) minmax(0, 1.32fr);
+  gap: 10px;
+}
+
+.home-page .mockup-sidebar,
+.home-page .mockup-main {
+  border-radius: 18px;
+}
+
+.home-page .mockup-sidebar {
+  padding: 12px;
+}
+
+.home-page .mockup-main {
+  padding: 14px;
+  gap: 12px;
+}
+
+.home-page .mockup-nav {
+  gap: 8px;
+}
+
+.home-page .mockup-nav__item {
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: 8px;
+  padding: 9px;
+  border-radius: 12px;
+}
+
+.home-page .mockup-nav__icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+}
+
+.home-page .mockup-nav__item strong,
+.home-page .mockup-activity__item strong {
+  font-size: 13px;
+}
+
+.home-page .mockup-nav__item span,
+.home-page .mockup-activity__item p {
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.home-page .mockup-summary__copy strong {
+  font-size: 20px;
+}
+
+.home-page .mockup-summary__copy p,
+.home-page .mockup-highlight p {
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.home-page .mockup-highlight {
+  padding: 12px;
+}
+
+.home-page .mockup-highlight strong {
+  font-size: 15px;
+}
+
+.home-page .mockup-activity {
+  padding: 12px;
+}
+
+.home-page .workflow-section,
+.home-page .security-section,
+.home-page .features-section {
+  padding-block: clamp(38px, 5vw, 62px);
+}
+
+.home-page .section-header {
+  margin-bottom: 22px;
+}
+
+.home-page .section-title {
+  font-size: clamp(1.8rem, 2.7vw, 3.05rem);
+  line-height: 1.08;
+  letter-spacing: 0;
+}
+
+.home-page .section-subtitle {
+  max-width: 680px;
+  margin-inline: auto;
+  line-height: 1.7;
+}
+
+@media (max-width: 1180px) {
+  .home-page .hero-section .hero-shell {
+    width: min(1060px, calc(100% - 32px));
+    grid-template-columns: minmax(0, 0.86fr) minmax(390px, 1.14fr);
+  }
+
+  .home-page .hero-title {
+    font-size: clamp(2.35rem, 4vw, 4rem);
+  }
+}
+
+@media (max-width: 960px) {
+  .home-page .hero-section .hero-shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .home-page .hero-title,
+  .home-page .hero-subtitle,
+  .home-page .hero-metrics {
+    max-width: none;
+  }
+
+  .home-page .hero-panel {
+    max-width: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .home-page .main-content {
+    padding-top: 74px;
+  }
+
+  .home-page .hero-section {
+    padding-top: 14px;
+  }
+
+  .home-page .hero-section .hero-shell {
+    width: min(100% - 20px, 560px);
+    padding: 16px;
+    border-radius: 20px;
+  }
+
+  .home-page .hero-title {
+    font-size: clamp(2rem, 10vw, 2.75rem);
+    line-height: 1.08;
+  }
+
+  .home-page .hero-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .home-page .mockup-body {
+    min-height: auto;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 </style>
