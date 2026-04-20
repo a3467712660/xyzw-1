@@ -76,12 +76,53 @@
         <article
           v-for="card in tokenSummaryCards"
           :key="card.label"
-          class="app-summary-card"
+          class="app-summary-card token-import-summary__card"
         >
           <span class="app-summary-card__label">{{ card.label }}</span>
           <strong class="app-summary-card__value">{{ card.value }}</strong>
           <span class="app-summary-card__meta">{{ card.meta }}</span>
         </article>
+      </div>
+
+      <div class="token-import-mobile-actions">
+        <NButton
+          v-if="!showImportForm"
+          size="large"
+          type="primary"
+          @click="showImportForm = true"
+        >
+          <template #icon>
+            <NIcon>
+              <Add></Add>
+            </NIcon>
+          </template>
+          {{ t("tokenImport.actions.addToken") }}
+        </NButton>
+
+        <NButton
+          v-if="tokenStore.hasUsableWorkbenchToken"
+          secondary
+          size="large"
+          type="primary"
+          @click="goToDashboard"
+        >
+          <template #icon>
+            <NIcon>
+              <List></List>
+            </NIcon>
+          </template>
+          {{ t("tokenImport.actions.batchFeatures") }}
+        </NButton>
+
+        <NButton
+          v-if="authStore.user?.isAdmin && authStore.user?.mfaEnabled"
+          quaternary
+          size="large"
+          type="primary"
+          @click="goToAdminCenter"
+        >
+          管理中心
+        </NButton>
       </div>
 
       <!-- Token导入区域 -->
@@ -348,35 +389,34 @@
             @drop="handleDrop(index, $event)"
           >
             <template #title>
-              <a-space align="center" class="token-name">
-                <n-avatar
-                  v-if="token.avatar"
-                  round
-                  fallback-src="/icons/xiaoyugan.png"
-                  size="small"
-                  :src="token.avatar"
-                ></n-avatar>
-                {{ token.name }}
-                <a-tag v-if="token.server" :color="getServerTagColor(token.id)">
-                  {{ token.server }}
-                </a-tag>
-                <!-- 连接状态指示器 -->
-                <a-badge
-                  :status="getTokenStyle(token.id)"
-                  :text="getConnectionStatusText(token.id)"
-                ></a-badge>
-                <n-tag
-                  v-if="hasMissingBinSource(token)"
-                  size="small"
-                  type="error"
-                >
-                  {{ t("tokenImport.tokenCard.missingSource") }}
-                </n-tag>
-                <!-- 连接状态文字 -->
-                <!-- <a-tag color="green">
-                  {{ getConnectionStatusText(token.id) }}
-                </a-tag> -->
-              </a-space>
+              <div class="token-card-title">
+                <div class="token-card-title__main">
+                  <n-avatar
+                    v-if="token.avatar"
+                    round
+                    fallback-src="/icons/xiaoyugan.png"
+                    size="small"
+                    :src="token.avatar"
+                  ></n-avatar>
+                  <strong class="token-card-title__name">{{ token.name }}</strong>
+                </div>
+                <div class="token-card-title__meta">
+                  <a-tag v-if="token.server" :color="getServerTagColor(token.id)">
+                    {{ token.server }}
+                  </a-tag>
+                  <a-badge
+                    :status="getTokenStyle(token.id)"
+                    :text="getConnectionStatusText(token.id)"
+                  ></a-badge>
+                  <n-tag
+                    v-if="hasMissingBinSource(token)"
+                    size="small"
+                    type="error"
+                  >
+                    {{ t("tokenImport.tokenCard.missingSource") }}
+                  </n-tag>
+                </div>
+              </div>
             </template>
             <template #extra>
               <n-dropdown
@@ -438,6 +478,7 @@
               </div>
 
               <a-button
+                class="token-card-refresh"
                 :loading="refreshingTokens.has(token.id)"
                 @click.stop="refreshToken(token)"
               >
@@ -1429,6 +1470,10 @@ onMounted(async () => {
   align-items: flex-start;
 }
 
+.token-import-mobile-actions {
+  display: none;
+}
+
 .token-import-summary {
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
@@ -1808,6 +1853,37 @@ onMounted(async () => {
   }
 }
 
+.token-card-title {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.token-card-title__main,
+.token-card-title__meta {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.token-card-title__main {
+  gap: 8px;
+}
+
+.token-card-title__meta {
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.token-card-title__name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: var(--font-size-md);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .tokens-list {
   overflow-y: auto;
   padding-right: var(--spacing-sm);
@@ -2119,17 +2195,63 @@ onMounted(async () => {
 
 @media (max-width: 768px) {
   .token-import-page :deep(.n-button) {
-    min-height: 40px;
+    min-height: 44px;
   }
 
   .token-import-page :deep(.n-button.n-button--small-type) {
-    min-height: 40px;
+    min-height: 44px;
     padding-left: 12px;
     padding-right: 12px;
   }
 
   .token-import-page :deep(.n-button.n-button--medium-type) {
-    min-height: 40px;
+    min-height: 44px;
+  }
+
+  .token-import-page__container {
+    display: grid;
+    gap: 12px;
+  }
+
+  .token-import-hero {
+    margin-bottom: 0;
+  }
+
+  .token-import-hero .token-import-page__actions {
+    display: none;
+  }
+
+  .token-import-mobile-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .token-import-mobile-actions :deep(.n-button) {
+    width: 100%;
+  }
+
+  .token-import-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .token-import-summary__card {
+    min-height: 0;
+    padding: 12px;
+  }
+
+  .token-import-summary__card .app-summary-card__label {
+    font-size: 11px;
+  }
+
+  .token-import-summary__card .app-summary-card__value {
+    font-size: 18px;
+    line-height: 1.15;
+  }
+
+  .token-import-summary__card .app-summary-card__meta {
+    line-height: 1.35;
   }
 
   .header-top {
@@ -2140,6 +2262,49 @@ onMounted(async () => {
   .bin-files-header {
     flex-direction: column;
     align-items: stretch;
+    gap: 10px;
+  }
+
+  .bin-files-section,
+  .tokens-section {
+    margin-bottom: 0;
+  }
+
+  .bin-files-section :deep(.n-card-header),
+  .tokens-section {
+    padding: 14px;
+  }
+
+  .bin-files-mobile-list {
+    gap: 10px;
+  }
+
+  .bin-file-card {
+    gap: 10px;
+    padding: 12px;
+    border-radius: 16px;
+  }
+
+  .bin-file-card__head {
+    gap: 2px;
+  }
+
+  .bin-file-card__head strong {
+    font-size: 13px;
+  }
+
+  .bin-file-card__meta {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .bin-file-card__actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .bin-file-card__actions :deep(.n-button) {
+    width: 100%;
   }
 
   .token-import-page__actions,
@@ -2159,6 +2324,7 @@ onMounted(async () => {
 
   .tokens-grid {
     grid-template-columns: 1fr;
+    gap: 10px;
   }
 
   .optional-fields {
@@ -2167,26 +2333,92 @@ onMounted(async () => {
 
   .section-header {
     flex-direction: column;
-    gap: var(--spacing-md);
+    gap: 10px;
     align-items: stretch;
+    margin-bottom: 0;
+    padding-bottom: 10px;
   }
 
   .section-header :deep(.n-space) {
     width: 100%;
-    justify-content: space-between;
+    align-items: stretch !important;
+    justify-content: flex-start;
+  }
+
+  .section-header :deep(.n-button-group) {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    width: 100%;
+  }
+
+  .section-header :deep(.n-button-group .n-button) {
+    width: 100%;
+    border-radius: 10px !important;
+  }
+
+  .header-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .token-card {
+    padding: 12px;
+    border-radius: 18px;
+  }
+
+  .token-card :deep(.arco-card-header) {
+    align-items: flex-start;
+    padding: 0 0 10px;
+  }
+
+  .token-card :deep(.arco-card-body) {
+    padding: 10px 0;
+  }
+
+  .token-card :deep(.arco-card-actions) {
+    padding-top: 10px;
+  }
+
+  .token-card-title {
+    gap: 6px;
+  }
+
+  .token-card-title__meta {
+    gap: 5px;
+  }
+
+  .token-display,
+  .token-remark {
+    margin-bottom: 8px;
+    padding: 8px;
+  }
+
+  .token-card-refresh {
+    width: 100%;
+    margin-bottom: 8px;
   }
 
   .token-timestamps {
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
   }
 
   .storage-info {
-    flex-direction: column;
-    gap: var(--spacing-sm);
+    margin-top: 8px;
+    padding-top: 8px;
   }
 
-  .bin-file-card__meta {
-    grid-template-columns: minmax(0, 1fr);
+  .storage-item {
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 6px;
+  }
+
+  .storage-label {
+    min-width: 0;
   }
 }
 

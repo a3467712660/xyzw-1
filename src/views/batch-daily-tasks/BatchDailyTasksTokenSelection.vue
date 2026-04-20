@@ -5,7 +5,7 @@
         <div>
           <span class="batch-token-panel__eyebrow">执行账号</span>
           <h3>账号选择与分组</h3>
-          <p>保留现有 checkbox 选择模型，只提升筛选、排序与状态的可读性。</p>
+          <p>按分组、状态和排序条件快速选择执行账号。</p>
         </div>
         <div class="batch-token-panel__summary">
           <span>已选 {{ selectedTokensModel.length }} / {{ sortedTokens.length }}</span>

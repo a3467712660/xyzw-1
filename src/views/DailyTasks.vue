@@ -100,8 +100,8 @@
       <n-grid-item span="24 l:8">
         <SectionCard
           class="task-tip-card"
-          description="不碰任务接口和执行逻辑，只整理页面结构和移动端阅读顺序。"
-          title="本页改造重点"
+          description="按角色、筛选和执行状态查看日常任务。"
+          title="任务查看顺序"
         >
           <ol class="tips-list">
             <li>首屏固定成“角色选择 → 筛选 → 任务列表”的顺序，避免在手机上来回找入口。</li>
@@ -284,10 +284,10 @@ const autoTaskCount = computed(() => {
 
 const heroDescription = computed(() => {
   if (!selectedRole.value) {
-    return "先选择一个角色，再统一查看任务状态、批量操作和执行结果。页面已经按 PC / Mobile 重新整理为更清晰的首屏结构。";
+    return "先选择一个角色，再统一查看任务状态、批量操作和执行结果。";
   }
 
-  return `${selectedRole.value.name} · ${selectedRole.value.server || "未知服务器"}。当前页面保留原有任务逻辑，只对首屏信息层级、筛选区和任务区做响应式重排。`;
+  return `${selectedRole.value.name} · ${selectedRole.value.server || "未知服务器"}。可查看任务进度、筛选结果和批量操作。`;
 });
 
 const summaryCards = computed(() => [

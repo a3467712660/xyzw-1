@@ -66,7 +66,7 @@
       <n-grid-item span="24 l:17">
         <SectionCard
           class="legion-war-page__map-card"
-          description="保留单 canvas 渲染与点击/resize 链路，只重做状态栏和容器层级。"
+          description="查看战场地图、节点状态和刷新时间。"
           title="战场图示"
         >
           <template #header-extra>
@@ -113,7 +113,7 @@
             <div class="legion-war-page__toggle-card">
               <div class="legion-war-page__toggle-copy">
                 <strong>地图布局</strong>
-                <p>在占领布局与分布布局间切换，不改变底层地图数据。</p>
+                <p>在占领布局与分布布局间切换。</p>
               </div>
               <div class="legion-war-page__toggle-control">
                 <span>占领</span>
@@ -128,7 +128,7 @@
             <div class="legion-war-page__toggle-card">
               <div class="legion-war-page__toggle-copy">
                 <strong>战况视角</strong>
-                <p>切换战队战况和个人战况，保持现有绘图和点击查看逻辑。</p>
+                <p>切换战队战况和个人战况。</p>
               </div>
               <div class="legion-war-page__toggle-control">
                 <span>战队</span>

@@ -5,7 +5,7 @@
         <span class="batch-console-hero__eyebrow">批量执行控制台</span>
         <h1>多账号日常任务控制台</h1>
         <p>
-          面向多账号定时任务、批量执行、账号分组和执行日志的统一工作台。保留现有执行主链路，只重组信息层级和阅读顺序。
+          统一管理多账号定时任务、批量执行、账号分组和执行日志。
         </p>
       </div>
 
@@ -106,7 +106,7 @@
           <div class="batch-console-zone__head">
             <div>
               <h2>批量动作区</h2>
-              <p>保留原有动作键和 tab 分组，只强化活动开放状态与批量执行顺序的可读性。</p>
+              <p>按活动状态和任务类型集中执行批量动作。</p>
             </div>
             <span>当前已选 {{ selectedTokens.length }} 个账号</span>
           </div>

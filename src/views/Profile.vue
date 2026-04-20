@@ -30,8 +30,19 @@
       </article>
     </div>
 
+    <nav aria-label="个人设置分区" class="profile-mobile-jump">
+      <button
+        v-for="item in profileQuickSections"
+        :key="item.target"
+        type="button"
+        @click="scrollToProfileSection(item.target)"
+      >
+        {{ item.label }}
+      </button>
+    </nav>
+
     <div class="container profile-page__content">
-      <section class="profile-section-card app-section-card">
+      <section id="profile-basic" class="profile-section-card app-section-card">
         <div class="profile-section-head">
           <div class="profile-section-head__copy">
             <p class="profile-section-head__eyebrow">Account Profile</p>
@@ -81,7 +92,7 @@
         </div>
       </section>
 
-      <section class="profile-section-card app-section-card">
+      <section id="profile-security" class="profile-section-card app-section-card">
         <div class="profile-section-head">
           <div class="profile-section-head__copy">
             <p class="profile-section-head__eyebrow">Security Center</p>
@@ -139,10 +150,10 @@
           <a-card class="profile-pane-card">
             <div class="profile-pane-card__head">
               <h3>安全开关与记录</h3>
-              <p>把二次验证、高风险开关和登录记录放在统一阅读顺序里。</p>
+              <p>管理二次验证、登录记录和高风险开关。</p>
             </div>
             <div class="security-items">
-              <div class="security-item">
+              <div class="security-item security-item--priority">
                 <div class="security-info">
                   <h3>{{ t("profile.security.twoFactor.title") }}</h3>
                   <p>{{ t("profile.security.twoFactor.desc") }}</p>
@@ -158,7 +169,7 @@
                 </n-button>
               </div>
 
-              <div class="security-item">
+              <div class="security-item security-item--priority">
                 <div class="security-info">
                   <h3>{{ t("profile.security.wechat.title") }}</h3>
                   <p>
@@ -214,7 +225,7 @@
                 </n-space>
               </div>
 
-              <div class="security-item">
+              <div class="security-item security-item--secondary">
                 <div class="security-info">
                   <h3>{{ t("profile.security.loginHistory.title") }}</h3>
                   <p>{{ t("profile.security.loginHistory.desc") }}</p>
@@ -222,7 +233,7 @@
                 <n-button @click="viewLoginHistory"> {{ t("profile.actions.view") }} </n-button>
               </div>
 
-              <div class="security-item">
+              <div class="security-item security-item--secondary">
                 <div class="security-info">
                   <h3>{{ t("profile.security.exportData.title") }}</h3>
                   <p>{{ t("profile.security.exportData.desc") }}</p>
@@ -230,7 +241,7 @@
                 <n-button @click="exportData"> {{ t("profile.actions.export") }} </n-button>
               </div>
 
-              <div class="security-item">
+              <div class="security-item security-item--control">
                 <div class="security-info">
                   <h3>{{ t("profile.security.refreshSecondVerify.title") }}</h3>
                   <p>
@@ -266,7 +277,7 @@
                 </template>
               </div>
 
-              <div class="security-item">
+              <div class="security-item security-item--control">
                 <div class="security-info">
                   <h3>{{ t("profile.security.remoteBin.title") }}</h3>
                   <p>{{ t("profile.security.remoteBin.desc") }}</p>
@@ -278,7 +289,7 @@
                 ></n-switch>
               </div>
 
-              <div class="security-item">
+              <div class="security-item security-item--control">
                 <div class="security-info">
                   <h3>{{ t("profile.security.safeMode.title") }}</h3>
                   <p>{{ t("profile.security.safeMode.desc") }}</p>
@@ -293,7 +304,7 @@
         </div>
       </section>
 
-      <section class="profile-section-card app-section-card">
+      <section id="profile-preferences" class="profile-section-card app-section-card">
         <div class="profile-section-head">
           <div class="profile-section-head__copy">
             <p class="profile-section-head__eyebrow">Workspace Preferences</p>
@@ -345,7 +356,7 @@
         </div>
       </section>
 
-      <section class="profile-section-card profile-section-card--danger app-section-card">
+      <section id="profile-danger" class="profile-section-card profile-section-card--danger app-section-card">
         <div class="profile-section-head">
           <div class="profile-section-head__copy">
             <p class="profile-section-head__eyebrow">Danger Zone</p>
@@ -631,6 +642,23 @@ const profileSummaryCards = computed(() => [
       : t("profile.messages.remoteBinDisabled"),
   },
 ]);
+
+const profileQuickSections = [
+  { label: "基础资料", target: "profile-basic" },
+  { label: "安全中心", target: "profile-security" },
+  { label: "偏好设置", target: "profile-preferences" },
+  { label: "危险操作", target: "profile-danger" },
+];
+
+const scrollToProfileSection = (targetId) => {
+  if (typeof document === "undefined") {
+    return;
+  }
+  document.getElementById(targetId)?.scrollIntoView({
+    behavior: "smooth",
+    block: "start",
+  });
+};
 
 // 方法
 const syncUserInfo = (profile) => {
@@ -1506,8 +1534,13 @@ onMounted(async () => {
   gap: var(--spacing-lg);
 }
 
+.profile-mobile-jump {
+  display: none;
+}
+
 .profile-section-card {
   padding: clamp(18px, 2vw, 26px);
+  scroll-margin-top: 84px;
 }
 
 .profile-section-card--danger {
@@ -1763,18 +1796,61 @@ onMounted(async () => {
     padding-right: 12px;
   }
 
+  .profile-page {
+    padding-top: 12px;
+  }
+
   .container {
     padding: 0 var(--spacing-md);
   }
 
+  .profile-page__content {
+    gap: 12px;
+  }
+
+  .profile-mobile-jump {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+    padding: 0 var(--spacing-md);
+  }
+
+  .profile-mobile-jump button {
+    min-width: 0;
+    min-height: 44px;
+    border: 1px solid var(--surface-glass-border);
+    border-radius: 12px;
+    background:
+      linear-gradient(135deg, rgba(15, 107, 255, 0.08), transparent 76%),
+      var(--surface-glass-strong);
+    color: var(--text-primary);
+    cursor: pointer;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    touch-action: manipulation;
+  }
+
   .profile-section-card {
-    padding: 16px;
+    padding: 12px;
+    scroll-margin-top: 16px;
   }
 
   .profile-section-head {
     flex-direction: column;
     align-items: stretch;
-    gap: 12px;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .profile-section-head__eyebrow {
+    margin-bottom: 4px;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+  }
+
+  .profile-section-head h2 {
+    font-size: 20px;
   }
 
   .profile-section-head__badge {
@@ -1788,13 +1864,62 @@ onMounted(async () => {
 
   .security-items {
     grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .profile-pane-card__head {
+    gap: 4px;
+    margin-bottom: 12px;
+  }
+
+  .profile-pane-card__head h3 {
+    font-size: 16px;
+  }
+
+  .profile-pane-card__head p {
+    font-size: 13px;
+    line-height: 1.45;
+  }
+
+  :deep(.arco-card .arco-card-body) {
+    padding: 12px;
+  }
+
+  :deep(.arco-form-item) {
+    margin-bottom: 10px;
   }
 
   .security-item {
     flex-direction: column;
     align-items: flex-start;
-    gap: var(--spacing-md);
+    gap: 10px;
     min-height: 0;
+    padding: 12px;
+    border-radius: 14px;
+  }
+
+  .security-item--priority {
+    order: 1;
+  }
+
+  .security-item--control {
+    order: 2;
+  }
+
+  .security-item--secondary {
+    order: 3;
+    background:
+      linear-gradient(135deg, rgba(15, 107, 255, 0.04), transparent 76%),
+      var(--console-panel);
+  }
+
+  .security-info h3 {
+    font-size: 15px;
+  }
+
+  .security-info p {
+    font-size: 13px;
+    line-height: 1.45;
   }
 
   .security-item__actions {

@@ -37,7 +37,7 @@
           <div class="list-card__head">
             <div>
               <h2>广播内容</h2>
-              <span>保留当前发送逻辑，只统一输入区层级和说明信息。</span>
+              <span>填写版本、标题和通知内容。</span>
             </div>
           </div>
 
@@ -101,7 +101,7 @@
             <ul class="broadcast-notes">
               <li>发送后会向全部账户下发站内通知。</li>
               <li>用户点击通知后直接进入更新日志页面。</li>
-              <li>标题和内容的默认兜底逻辑保持现有实现。</li>
+              <li>未填写标题或内容时会使用默认通知文案。</li>
             </ul>
           </div>
         </n-card>

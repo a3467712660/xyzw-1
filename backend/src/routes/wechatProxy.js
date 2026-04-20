@@ -119,6 +119,7 @@ const proxyText = async ({
   headers = {},
   allowedContentTypes = [],
   maxResponseBytes = env.wechatProxyResponseMaxBytes,
+  timeoutFallback = null,
 }) => {
   try {
     const upstream = await fetchProxyResource({
@@ -135,6 +136,7 @@ const proxyText = async ({
         Number(maxResponseBytes) || env.wechatProxyResponseMaxBytes,
         env.wechatProxyResponseMaxBytes,
       ),
+      allowProxyFakeIpAddresses: true,
     });
     if (upstream.contentType) {
       res.set("content-type", upstream.contentType);
@@ -142,6 +144,17 @@ const proxyText = async ({
     res.set("content-length", String(upstream.bodyBuffer.length));
     return res.status(upstream.status).send(upstream.bodyBuffer.toString("utf8"));
   } catch (error) {
+    if (
+      timeoutFallback
+      && error instanceof ProxySafetyError
+      && error.reason === "TIMEOUT"
+    ) {
+      if (timeoutFallback.contentType) {
+        res.set("content-type", timeoutFallback.contentType);
+      }
+      return res.status(timeoutFallback.status || 200).send(timeoutFallback.body || "");
+    }
+
     const reasonToMessage = {
       HOST_NOT_ALLOWED: "上游地址不安全，已拒绝请求",
       DNS_RESOLUTION_FAILED: "上游地址解析失败",
@@ -200,8 +213,19 @@ router.post(
       res,
       route: "/api/v1/wechat-proxy/qrstatus",
       url: target.toString(),
-      allowedContentTypes: ["text/plain", "text/html"],
+      allowedContentTypes: [
+        "text/plain",
+        "text/html",
+        "text/javascript",
+        "application/javascript",
+        "application/x-javascript",
+      ],
       maxResponseBytes: QRSTATUS_RESPONSE_MAX_BYTES,
+      timeoutFallback: {
+        status: 200,
+        contentType: "application/javascript; charset=utf-8",
+        body: "window.wx_errcode=404;",
+      },
       headers: {
         "User-Agent":
           "Mozilla/5.0 (Linux; Android 7.0; Mi-4c Build/NRD90M; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/53.0.2785.49 Mobile MQQBrowser/6.2 TBS/043632 Safari/537.36 MicroMessenger/6.6.1.1220(0x26060135) NetType/WIFI Language/zh_CN",

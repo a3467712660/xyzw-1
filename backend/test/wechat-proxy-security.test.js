@@ -336,6 +336,88 @@ test("POST /wechat-proxy/qrstatus forwards body uuid to upstream", async (t) => 
   assert.equal(Boolean(target.searchParams.get("_")), true);
 });
 
+test("POST /wechat-proxy/qrstatus allows WeChat script status responses", async (t) => {
+  await initDatabase();
+  run(`DELETE FROM security_rate_limits WHERE scope_key LIKE 'wechat_proxy_%'`);
+
+  mockHttpsRequest(t, async () => ({
+    status: 200,
+    headers: {
+      "content-type": "application/javascript; charset=utf-8",
+    },
+    body: "window.wx_errcode=404;",
+    connectedAddress: "93.184.216.34",
+  }));
+
+  const lookupMock = t.mock.method(dns.promises, "lookup", async () => [
+    { address: "93.184.216.34", family: 4 },
+  ]);
+  t.after(() => lookupMock.mock.restore());
+
+  const server = await createServer();
+  t.after(async () => {
+    await new Promise((resolve) => server.close(resolve));
+    run(`DELETE FROM security_rate_limits WHERE scope_key LIKE 'wechat_proxy_%'`);
+  });
+
+  const response = await requestLocal({
+    url: `${makeBaseUrl(server)}/api/v1/wechat-proxy/qrstatus`,
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ uuid: "wx_uuid_123" }),
+  });
+
+  assert.equal(response.status, 200);
+  assert.match(response.body, /window\.wx_errcode=404/);
+});
+
+test("POST /wechat-proxy/qrstatus treats upstream long-poll timeout as pending scan", async (t) => {
+  await initDatabase();
+  run(`DELETE FROM security_rate_limits WHERE scope_key LIKE 'wechat_proxy_%'`);
+
+  const originalTimeoutMs = env.wechatProxyTimeoutMs;
+  env.wechatProxyTimeoutMs = 40;
+  t.after(() => {
+    env.wechatProxyTimeoutMs = originalTimeoutMs;
+  });
+
+  mockHttpsRequest(t, async () => ({
+    status: 200,
+    headers: {
+      "content-type": "application/javascript; charset=utf-8",
+    },
+    connectedAddress: "93.184.216.34",
+    streamBody: (response) => {
+      response.write("window.wx_errcode=");
+    },
+  }));
+
+  const lookupMock = t.mock.method(dns.promises, "lookup", async () => [
+    { address: "93.184.216.34", family: 4 },
+  ]);
+  t.after(() => lookupMock.mock.restore());
+
+  const server = await createServer();
+  t.after(async () => {
+    await new Promise((resolve) => server.close(resolve));
+    run(`DELETE FROM security_rate_limits WHERE scope_key LIKE 'wechat_proxy_%'`);
+  });
+
+  const response = await requestLocal({
+    url: `${makeBaseUrl(server)}/api/v1/wechat-proxy/qrstatus`,
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ uuid: "wx_uuid_123" }),
+  });
+
+  assert.equal(response.status, 200);
+  assert.match(response.body, /window\.wx_errcode=404/);
+});
+
 test("POST /wechat-proxy/qrstatus rejects query uuid before upstream", async (t) => {
   await initDatabase();
   run(`DELETE FROM security_rate_limits WHERE scope_key LIKE 'wechat_proxy_%'`);
@@ -407,6 +489,54 @@ test("GET /wechat-proxy/qrconnect is rate limited", async (t) => {
   }
 
   assert.equal(status, 429);
+});
+
+test("GET /wechat-proxy/qrconnect allows WeChat hosts resolved through proxy fake-ip DNS", async (t) => {
+  await initDatabase();
+  run(`DELETE FROM security_rate_limits WHERE scope_key LIKE 'wechat_proxy_%'`);
+
+  let upstreamCalls = 0;
+  mockHttpsRequest(t, async ({ options }) => {
+    upstreamCalls += 1;
+    assert.equal(options.servername, "open.weixin.qq.com");
+
+    const pinned = await callLookup(options.lookup, options.hostname, {
+      family: 4,
+    });
+    assert.deepEqual(pinned, {
+      address: "198.18.23.120",
+      family: 4,
+    });
+
+    return {
+      status: 200,
+      headers: {
+        "content-type": "text/html; charset=utf-8",
+      },
+      body: '<img class="auth_qrcode" src="https://open.weixin.qq.com/connect/qrcode/test-uuid" />',
+      connectedAddress: "198.18.23.120",
+    };
+  });
+
+  const lookupMock = t.mock.method(dns.promises, "lookup", async () => [
+    { address: "198.18.23.120", family: 4 },
+  ]);
+  t.after(() => lookupMock.mock.restore());
+
+  const server = await createServer();
+  t.after(async () => {
+    await new Promise((resolve) => server.close(resolve));
+    run(`DELETE FROM security_rate_limits WHERE scope_key LIKE 'wechat_proxy_%'`);
+  });
+
+  const response = await requestLocal({
+    url: `${makeBaseUrl(server)}/api/v1/wechat-proxy/qrconnect?appid=test&state=fake-ip`,
+    method: "GET",
+  });
+
+  assert.equal(response.status, 200);
+  assert.equal(upstreamCalls, 1);
+  assert.match(response.body, /auth_qrcode/);
 });
 
 test("wechat proxy shared limiter blocks across route families", async (t) => {

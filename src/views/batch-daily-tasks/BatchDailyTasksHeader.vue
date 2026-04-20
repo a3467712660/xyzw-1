@@ -4,7 +4,7 @@
       <div class="batch-header__copy">
         <span class="batch-header__eyebrow">批量执行控制台</span>
         <h2>批量日常任务</h2>
-        <p>统一管理定时任务、账号分组、批量执行和配置导入导出，不改现有执行主链路。</p>
+        <p>统一管理定时任务、账号分组、批量执行和配置导入导出。</p>
       </div>
 
       <div class="batch-header__stats">

@@ -5,7 +5,7 @@
         <div>
           <span class="batch-toolbar-card__eyebrow">批量功能</span>
           <h3>按任务域快速执行</h3>
-          <p>保留原有 tab 和动作键，只强化分组说明、开放状态和按钮密度。</p>
+          <p>按任务类型查看开放状态并执行批量操作。</p>
         </div>
         <div class="batch-toolbar-card__summary">
           <span>当前已选账号</span>
@@ -217,7 +217,7 @@ const taskGroups = [
   {
     name: "legacy",
     label: "功法",
-    description: "功法残卷的领取与赠送操作继续沿用原有链路。",
+    description: "集中处理功法残卷领取与赠送。",
     items: [
       { key: "batchLegacyClaim", label: "批量功法残卷领取" },
       { key: "open-legacy-gift", label: "批量功法残卷赠送" },

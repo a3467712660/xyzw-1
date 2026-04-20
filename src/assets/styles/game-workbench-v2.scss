@@ -1945,6 +1945,11 @@
     border-radius: 24px;
   }
 
+  .game-stage__canvas {
+    padding-bottom: calc(86px + env(safe-area-inset-bottom));
+    scroll-padding-bottom: calc(104px + env(safe-area-inset-bottom));
+  }
+
   .game-stage__telemetry {
     width: 100%;
     min-width: 0;
@@ -1995,14 +2000,35 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
+  .game-workbench-v2 {
+    padding-right: 10px;
+    padding-left: 10px;
+  }
+
+  .game-stage {
+    padding: 12px;
+    border-radius: 22px;
+  }
+
+  .game-stage__canvas {
+    padding-bottom: calc(96px + env(safe-area-inset-bottom));
+  }
+
   .game-module-dock__bar {
     gap: 6px;
-    padding-bottom: max(10px, env(safe-area-inset-bottom));
+    padding: 8px;
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
+    border-radius: 22px;
   }
 
   .game-module-dock__group {
-    min-height: 58px;
+    min-height: 54px;
+    padding: 7px 4px;
     border-radius: 14px;
+  }
+
+  .game-module-dock__group span {
+    font-size: 10px;
   }
 }
 

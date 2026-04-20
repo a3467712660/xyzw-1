@@ -10,7 +10,7 @@
       <div class="status-info">
         <span class="card-header__eyebrow">俱乐部赛事</span>
         <h3>俱乐部排位</h3>
-        <p>周中赛事入口，保留现有报名命令，只优化状态和说明层级。</p>
+        <p>周三至周五开放，报名后等待参战。</p>
       </div>
       <div class="status-badge" :class="{ active: legionMatch.isRegistered }">
         <span>{{ legionMatch.isRegistered ? "已报名" : "未报名" }}</span>

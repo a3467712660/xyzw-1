@@ -274,7 +274,7 @@ const heroDescription = computed(() => {
     return "还没有添加角色。先建一个角色卡，后续任务页、控制台和游戏功能页都会复用这里的基础资料。";
   }
 
-  return `当前共 ${gameRolesStore.gameRoles.length} 个角色，已按统一壳层重排为桌面端卡片矩阵和手机端单列流式布局。切换主角色、编辑和删除逻辑保持不变。`;
+  return `当前共 ${gameRolesStore.gameRoles.length} 个角色，可切换主角色、编辑资料或查看详情。`;
 });
 
 const summaryCards = computed(() => [
@@ -296,7 +296,7 @@ const summaryCards = computed(() => [
   {
     label: "角色职业数",
     value: String(new Set(gameRolesStore.gameRoles.map((role) => role.profession).filter(Boolean)).size),
-    meta: "保留原有数据结构，仅优化展示层",
+    meta: "已录入职业类型统计",
   },
 ]);
 

@@ -22,6 +22,9 @@ const IPV4_BLOCKLIST = [
   ["224.0.0.0", 4],
   ["240.0.0.0", 4],
 ];
+const PROXY_FAKE_IPV4_RANGES = [
+  ["198.18.0.0", 15],
+];
 
 const IPV6_BLOCKLIST_PREFIXES = [
   "::/128",
@@ -76,10 +79,26 @@ const matchesIpv6BlockedPrefix = (ip) => {
   return /^fe[89ab]/i.test(ip);
 };
 
-export const isBlockedIpAddress = (value) => {
+const isProxyFakeIpAddress = (value) => {
+  const normalized = toComparableIp(value);
+  if (net.isIP(normalized) !== 4) {
+    return false;
+  }
+  return PROXY_FAKE_IPV4_RANGES.some(([cidrBase, prefixLength]) =>
+    ipv4CidrContains(normalized, cidrBase, prefixLength),
+  );
+};
+
+export const isBlockedIpAddress = (
+  value,
+  { allowProxyFakeIpAddresses = false } = {},
+) => {
   const normalized = toComparableIp(value);
   const family = net.isIP(normalized);
   if (family === 4) {
+    if (allowProxyFakeIpAddresses && isProxyFakeIpAddress(normalized)) {
+      return false;
+    }
     return IPV4_BLOCKLIST.some(([cidrBase, prefixLength]) =>
       ipv4CidrContains(normalized, cidrBase, prefixLength),
     );
@@ -394,7 +413,11 @@ const sanitizeLookupResult = (result) => {
   return sanitizeLookupResult([result]);
 };
 
-const resolveAddressesForHost = async (hostname, lookup) => {
+const resolveAddressesForHost = async (
+  hostname,
+  lookup,
+  { allowProxyFakeIpAddresses = false } = {},
+) => {
   const normalizedHost = normalizeHost(hostname);
   const directIpFamily = net.isIP(normalizedHost);
   if (directIpFamily) {
@@ -421,7 +444,11 @@ const resolveAddressesForHost = async (hostname, lookup) => {
     );
   }
 
-  if (addresses.some((entry) => isBlockedIpAddress(entry.address))) {
+  if (
+    addresses.some((entry) =>
+      isBlockedIpAddress(entry.address, { allowProxyFakeIpAddresses }),
+    )
+  ) {
     throw new ProxySafetyError(
       "PRIVATE_IP_BLOCKED",
       "resolved address is private or reserved",
@@ -481,7 +508,11 @@ const createPinnedLookup = (hostname, addresses) => {
   };
 };
 
-const assertConnectedAddressAllowed = (connectedAddress, addresses) => {
+const assertConnectedAddressAllowed = (
+  connectedAddress,
+  addresses,
+  { allowProxyFakeIpAddresses = false } = {},
+) => {
   const comparableConnectedAddress = toComparableIp(connectedAddress);
   if (!comparableConnectedAddress) {
     return;
@@ -491,7 +522,9 @@ const assertConnectedAddressAllowed = (connectedAddress, addresses) => {
     addresses.map((entry) => toComparableIp(entry.address)),
   );
   if (
-    isBlockedIpAddress(comparableConnectedAddress) ||
+    isBlockedIpAddress(comparableConnectedAddress, {
+      allowProxyFakeIpAddresses,
+    }) ||
     !allowedAddresses.has(comparableConnectedAddress)
   ) {
     throw new ProxySafetyError(
@@ -608,6 +641,7 @@ export const fetchProxyResource = async ({
   lookup = defaultLookup,
   requestImpl = null,
   logEvent = defaultLogProxySafetyEvent,
+  allowProxyFakeIpAddresses = false,
 }) => {
   if (requestImpl && process.env.NODE_ENV !== "test") {
     throw new ProxySafetyError(
@@ -657,7 +691,9 @@ export const fetchProxyResource = async ({
       );
     }
 
-    const addresses = await resolveAddressesForHost(currentUrl.hostname, lookup);
+    const addresses = await resolveAddressesForHost(currentUrl.hostname, lookup, {
+      allowProxyFakeIpAddresses,
+    });
     const pinnedLookup = createPinnedLookup(currentUrl.hostname, addresses);
 
     let response;
@@ -671,7 +707,9 @@ export const fetchProxyResource = async ({
         lookup: pinnedLookup,
         resolvedAddresses: addresses,
       });
-      assertConnectedAddressAllowed(response?.connectedAddress, addresses);
+      assertConnectedAddressAllowed(response?.connectedAddress, addresses, {
+        allowProxyFakeIpAddresses,
+      });
     } catch (error) {
       const isTimeout =
         String(error?.name || "").toLowerCase() === "aborterror" ||

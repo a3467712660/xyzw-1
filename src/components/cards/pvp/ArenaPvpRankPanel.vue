@@ -41,8 +41,12 @@
             <span class="player-id">ID {{ item.roleId || "-" }}</span>
           </div>
         </div>
-        <span class="col score value-chip score-chip">{{ item.score ?? "-" }}</span>
-        <span class="col lineup lineup-col">
+        <span class="col score metric-col">
+          <span class="mobile-metric-label">{{ t("arenaPvpCard.columns.score") }}</span>
+          <span class="value-chip score-chip">{{ item.score ?? "-" }}</span>
+        </span>
+        <span class="col lineup lineup-col metric-col">
+          <span class="mobile-metric-label">{{ t("arenaPvpCard.columns.lineup") }}</span>
           <span class="lineup-pill" :class="getLineupClass(item.lineupType)">
             {{ item.lineupType || t("arenaPvpCard.common.unknown") }}
           </span>
@@ -53,7 +57,10 @@
             {{ t("arenaPvpCard.labels.manual") }}
           </span>
         </span>
-        <span class="col power value-chip power-chip">{{ item.powerText }}</span>
+        <span class="col power metric-col">
+          <span class="mobile-metric-label">{{ t("arenaPvpCard.columns.power") }}</span>
+          <span class="value-chip power-chip">{{ item.powerText }}</span>
+        </span>
       </div>
     </div>
     <n-empty v-else size="small" :description="t('arenaPvpCard.empty.rankList')"></n-empty>
@@ -215,12 +222,27 @@ const getAvatarFallbackText = getArenaAvatarFallbackText;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  min-width: 0;
+  max-width: 100%;
   border-radius: 999px;
   padding: 3px 10px;
   font-weight: 600;
   font-size: 12px;
   border: 1px solid var(--border-light);
   width: fit-content;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.metric-col {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.mobile-metric-label {
+  display: none;
 }
 
 .score-chip {
@@ -237,6 +259,8 @@ const getAvatarFallbackText = getArenaAvatarFallbackText;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  min-width: 0;
+  max-width: 100%;
   border-radius: 999px;
   padding: 3px 10px;
   font-size: 12px;
@@ -245,6 +269,8 @@ const getAvatarFallbackText = getArenaAvatarFallbackText;
   background: var(--bg-primary);
   line-height: 1;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .lineup-col {
@@ -354,34 +380,128 @@ const getAvatarFallbackText = getArenaAvatarFallbackText;
   background: linear-gradient(90deg, #fff5ef 0%, var(--bg-primary) 55%);
 }
 
-@media (max-width: 992px) {
+@media (max-width: 992px) and (min-width: 769px) {
   .rank-header,
   .rank-row {
-    grid-template-columns: 1fr;
+    grid-template-columns: 72px minmax(0, 1fr) 84px 96px 100px;
+    gap: 8px;
   }
 }
 
 @media (max-width: 768px) {
-  .rank-header,
+  .rank-section {
+    padding: 12px;
+    border-radius: 14px;
+  }
+
+  .section-title {
+    margin-bottom: 8px;
+    font-size: 14px;
+  }
+
+  .rank-list {
+    gap: 6px;
+  }
+
+  .rank-header {
+    display: none;
+  }
+
   .rank-row {
-    grid-template-columns: 58px minmax(110px, 1fr) 74px 74px 84px;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "rank name power"
+      "rank score lineup";
+    gap: 7px 8px;
+    align-items: center;
+    padding: 8px;
+    border-radius: 11px;
     font-size: 12px;
   }
 
-  .rank-badge {
-    min-width: 50px;
-    padding: 2px 6px;
-    font-size: 11px;
+  .rank-row:hover {
+    transform: none;
+  }
+
+  .col.rank {
+    grid-area: rank;
+  }
+
+  .col.name {
+    grid-area: name;
+  }
+
+  .col.score {
+    grid-area: score;
+  }
+
+  .col.lineup {
+    grid-area: lineup;
+  }
+
+  .col.power {
+    grid-area: power;
+    justify-self: end;
+  }
+
+  .player-col {
+    gap: 6px;
+  }
+
+  .player-avatar {
+    width: 26px;
+    height: 26px;
+  }
+
+  .player-name {
+    font-size: 12px;
   }
 
   .player-id {
     display: none;
   }
 
+  .metric-col {
+    gap: 4px;
+  }
+
+  .mobile-metric-label {
+    display: inline-flex;
+    flex: 0 0 auto;
+    color: var(--text-tertiary);
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .score {
+    justify-self: start;
+  }
+
+  .lineup {
+    justify-self: end;
+  }
+
+  .rank-header,
+  .rank-row {
+    font-size: 12px;
+  }
+
+  .rank-badge {
+    min-width: 42px;
+    padding: 2px 5px;
+    font-size: 11px;
+  }
+
   .value-chip,
   .lineup-pill {
-    padding: 2px 7px;
+    padding: 2px 6px;
     font-size: 11px;
+  }
+
+  .manual-lineup-badge {
+    padding: 1px 4px;
+    font-size: 9px;
   }
 }
 </style>

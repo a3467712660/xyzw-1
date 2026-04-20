@@ -79,7 +79,7 @@
       type="info"
       :show-icon="false"
     >
-      正在准备自动化执行环境。首次执行时会先加载隐藏 runner，本页结构已整理，但执行链路保持不变。
+      正在准备自动化执行环境。首次执行时会先加载运行器，请稍候。
     </n-alert>
 
     <n-grid
@@ -201,7 +201,7 @@
         <SectionCard
           compact
           class="task-control-section task-control-section--log"
-          description="沿用原有日志轮询与自动滚动逻辑，只重做信息层级与移动端收起方式。"
+          description="查看最新执行记录、错误日志和自动滚动状态。"
           :title="t('taskControl.logs.title')"
         >
           <template #header-extra>
@@ -285,7 +285,7 @@
             <span class="task-settings-summary__eyebrow">任务设置</span>
             <strong>{{ editingTask.title }}</strong>
             <p>
-              {{ editingTask.subtitle || "调整任务计划、账号绑定与高级参数，不改变当前执行链路。" }}
+              {{ editingTask.subtitle || "调整任务计划、账号绑定与高级参数。" }}
             </p>
           </div>
 
@@ -749,17 +749,17 @@ const binCoverageValue = computed(() => {
 });
 const heroDescription = computed(() => {
   if (props.preparingRunner) {
-    return "当前正在准备自动化执行环境。首次手动执行时会稍等几秒，但执行契约保持原样。";
+    return "当前正在准备自动化执行环境。首次手动执行时会稍等几秒。";
   }
   if (hasMissingBins.value) {
     return `当前有 ${configuredMissingBoundTokenIds.value.length} 个任务绑定账号缺少 BIN，建议先补齐后再执行自动化。`;
   }
-  return "统一管理任务计划、账号绑定、静默窗口和执行日志，保留现有调度与隐藏 runner 链路。";
+  return "统一管理任务计划、账号绑定、静默窗口和执行日志。";
 });
 const taskSectionDescription = computed(() =>
   isMobile.value
-    ? "移动端切换为任务卡片布局，保留单任务启停、设置和立即执行入口。"
-    : "桌面端保留表格操作模型，把状态、执行窗口和任务节奏收口到同一屏。",
+    ? "移动端以任务卡片展示启停、设置和立即执行入口。"
+    : "桌面端集中展示任务状态、执行窗口和任务节奏。",
 );
 const summaryCards = computed(() => [
   {
