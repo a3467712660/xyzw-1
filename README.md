@@ -380,6 +380,3 @@ ENABLE_LEGACY_FLASK=1 ENABLE_LEGACY_FILE_TOKEN_ROUTE=1 FLASK_RUN_HOST=127.0.0.1 
 └─ wrangler.toml           # Cloudflare Pages 构建配置（不代表启用 Worker）
 ```
 
-## 许可证
-
-本项目采用 `CC-BY-NC-SA-4.0`，详见 `LICENSE`。
