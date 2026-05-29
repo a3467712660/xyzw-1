@@ -46,6 +46,32 @@ const getTodayBossId = () => {
   return DAY_BOSS_MAP[dayOfWeek];
 };
 
+const CLAIMABLE_REWARD_STATES = new Set([1, "1", "canClaim", "CAN_CLAIM"]);
+const DEFAULT_FREE_CARD_REWARD_IDS = [1, 4003, 4004, 4005];
+
+const getDiscountList = (response) => {
+  if (Array.isArray(response?.discountList))
+    return response.discountList;
+  if (Array.isArray(response?.data?.discountList))
+    return response.data.discountList;
+  if (Array.isArray(response?.discountInfo?.discountList))
+    return response.discountInfo.discountList;
+  return [];
+};
+
+const isClaimableRewardState = (reward) => {
+  const state = reward?.discountState ?? reward?.state ?? reward?.status;
+  return CLAIMABLE_REWARD_STATES.has(state) || reward?.canClaim === true;
+};
+
+const uniquePositiveIntegers = (values) => [
+  ...new Set(
+    values
+      .map((value) => Number(value))
+      .filter((value) => Number.isInteger(value) && value > 0),
+  ),
+];
+
 export class DailyTaskRunner {
   constructor(tokenStore, delaySettings = null) {
     this.tokenStore = tokenStore;
@@ -98,6 +124,58 @@ export class DailyTaskRunner {
       }
       throw error;
     }
+  }
+
+  async claimDailySpecialRewards(tokenId) {
+    const info = await this.executeGameCommand(
+      tokenId,
+      "discount_getdiscountinfo",
+      {},
+      "获取每日特惠信息",
+    );
+    const claimableDiscountIds = uniquePositiveIntegers(
+      getDiscountList(info)
+        .filter(isClaimableRewardState)
+        .map((reward) => reward.discountId ?? reward.id),
+    );
+
+    if (!claimableDiscountIds.length) {
+      this.log("每日特惠暂无可领取免费礼包");
+      return [];
+    }
+
+    const results = [];
+    for (const discountId of claimableDiscountIds) {
+      results.push(
+        await this.executeGameCommand(
+          tokenId,
+          "discount_claimreward",
+          { discountId },
+          `领取每日特惠免费礼包 ${discountId}`,
+        ),
+      );
+    }
+    return results;
+  }
+
+  async claimCardRewards(tokenId, cardIds = DEFAULT_FREE_CARD_REWARD_IDS) {
+    const targetCardIds = uniquePositiveIntegers(cardIds);
+    const results = [];
+    for (const cardId of targetCardIds) {
+      try {
+        results.push(
+          await this.executeGameCommand(
+            tokenId,
+            "card_claimreward",
+            { cardId },
+            `领取福利卡礼包 ${cardId}`,
+          ),
+        );
+      } catch (error) {
+        this.log(`福利卡 ${cardId} 不可领取或已领取: ${error.message}`, "warning");
+      }
+    }
+    return results;
   }
 
   async switchToFormationIfNeeded(tokenId, targetFormation, formationName) {
@@ -511,13 +589,14 @@ export class DailyTaskRunner {
     const fixedRewards = [
       { name: "福利签到", cmd: "system_signinreward" },
       { name: "俱乐部", cmd: "legion_signin" },
-      { name: "领取每日礼包", cmd: "discount_claimreward" },
-      { name: "领取每日免费奖励", cmd: "collection_claimfreereward" },
-      { name: "领取免费礼包", cmd: "card_claimreward" },
       {
-        name: "领取永久卡礼包",
-        cmd: "card_claimreward",
-        params: { cardId: 4003 },
+        name: "领取每日特惠免费礼包",
+        execute: () => this.claimDailySpecialRewards(tokenId),
+      },
+      { name: "领取每日免费奖励", cmd: "collection_claimfreereward" },
+      {
+        name: "领取福利卡/尊享特权礼包",
+        execute: () => this.claimCardRewards(tokenId),
       },
     ];
 
@@ -531,13 +610,15 @@ export class DailyTaskRunner {
     fixedRewards.forEach((reward) => {
       taskList.push({
         name: reward.name,
-        execute: () =>
-          this.executeGameCommand(
-            tokenId,
-            reward.cmd,
-            reward.params || {},
-            reward.name,
-          ),
+        execute:
+          reward.execute ||
+          (() =>
+            this.executeGameCommand(
+              tokenId,
+              reward.cmd,
+              reward.params || {},
+              reward.name,
+            )),
       });
     });
 

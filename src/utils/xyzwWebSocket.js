@@ -275,6 +275,7 @@ export function registerDefaultCommands(reg) {
     .register("genie_buysweep")
 
     // 礼包相关
+    .register("discount_getdiscountinfo")
     .register("discount_claimreward", { discountId: 1 })
     .register("collection_claimfreereward")
     .register("card_claimreward", { cardId: 1 })
@@ -1049,6 +1050,9 @@ export class XyzwWebSocketClient {
       activity_getresp: "activity_get",
       collection_goodslistresp: "collection_goodslist",
       collection_claimfreerewardresp: "collection_claimfreereward",
+      discount_getdiscountinforesp: "discount_getdiscountinfo",
+      discount_claimrewardresp: "discount_claimreward",
+      card_claimrewardresp: "card_claimreward",
       legion_getarearankresp: "legion_getarearank",
       legionwar_getgoldmonthwarrankresp: "legionwar_getgoldmonthwarrank",
       nightmare_getroleinforesp: "nightmare_getroleinfo",
@@ -1109,7 +1113,6 @@ export class XyzwWebSocketClient {
       bosstower_getinforesp: "bosstower_getinfo",
       bosstower_startbossresp: "bosstower_startboss",
       bosstower_startboxresp: "bosstower_startbox",
-      discount_getdiscountinforesp: "discount_getdiscountinfo",
       // 升星相关响应映射
       hero_heroupgradestarresp: "hero_heroupgradestar",
       hero_heroupgradelevelresp: "hero_heroupgradelevel",
