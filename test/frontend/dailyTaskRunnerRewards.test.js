@@ -3,20 +3,41 @@ import assert from "node:assert/strict";
 
 import { DailyTaskRunner } from "../../src/utils/dailyTaskRunner.js";
 
-function createRunnerWithResponses(responsesByCommand = {}) {
+function createRunnerWithResponses(responsesByCommand = {}, overrides = {}) {
   const calls = [];
   const tokenStore = {
     gameTokens: [{ id: "token-1", name: "测试账号" }],
+    getWebSocketStatus: () => "connected",
+    createWebSocketConnection: async () => ({}),
+    closeWebSocketConnection: () => {},
     sendMessageWithPromise: async (tokenId, cmd, params = {}, timeout) => {
       calls.push({ tokenId, cmd, params, timeout });
       const response = responsesByCommand[cmd];
       return typeof response === "function" ? response({ tokenId, cmd, params, timeout, calls }) : response;
     },
+    ...overrides,
   };
   const runner = new DailyTaskRunner(tokenStore, { commandDelay: 0, taskDelay: 0 });
   runner.callbacks = { onLog: () => {} };
   return { runner, calls };
 }
+
+test("DailyTaskRunner reconnects before reward commands when WebSocket dropped", async () => {
+  let reconnects = 0;
+  const { runner } = createRunnerWithResponses(
+    { discount_getdiscountinfo: { discountList: [] } },
+    {
+      getWebSocketStatus: () => (reconnects > 0 ? "connected" : "disconnected"),
+      createWebSocketConnection: async () => {
+        reconnects += 1;
+      },
+    },
+  );
+
+  await runner.claimDailySpecialRewards("token-1");
+
+  assert.equal(reconnects, 1);
+});
 
 test("DailyTaskRunner dynamically claims all claimable daily special discount rewards", async () => {
   const { runner, calls } = createRunnerWithResponses({

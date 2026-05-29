@@ -91,6 +91,35 @@ export class DailyTaskRunner {
     }
   }
 
+  async ensureWebSocketConnected(tokenId) {
+    const getStatus = this.tokenStore.getWebSocketStatus;
+    const createConnection = this.tokenStore.createWebSocketConnection;
+    if (typeof getStatus !== "function" || typeof createConnection !== "function") {
+      return;
+    }
+
+    if (getStatus(tokenId) === "connected") {
+      return;
+    }
+
+    const token = this.tokenStore.gameTokens?.find((item) => item.id === tokenId);
+    if (!token) {
+      return;
+    }
+
+    this.log("WebSocket已断开，正在重连...", "warning");
+    await createConnection(tokenId, token.token, token.wsUrl);
+
+    const deadline = Date.now() + 10000;
+    while (Date.now() < deadline) {
+      if (getStatus(tokenId) === "connected") {
+        this.log("WebSocket重连成功", "success");
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    }
+  }
+
   async executeGameCommand(
     tokenId,
     cmd,
@@ -99,6 +128,7 @@ export class DailyTaskRunner {
     timeout = 8000,
   ) {
     try {
+      await this.ensureWebSocketConnected(tokenId);
       if (description)
         this.log(`执行: ${description}`);
       const result = await this.tokenStore.sendMessageWithPromise(
